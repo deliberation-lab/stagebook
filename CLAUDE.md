@@ -37,6 +37,17 @@ Never skip the red step. Tests document intent.
 - Keep code clear enough for a human to audit every line
 - Minimize complexity; refactor when new features complicate existing architecture
 
+### Component Design
+
+SCORE components are **measurement instruments**, not general-purpose UI. The goal is that the same SCORE version produces identical participant experiences across platforms and deployments.
+
+- **Reproducibility over composability.** Baked-in behavior (keystroke stats, paste detection, debounce timing, unanchored slider) is intentional — it's what makes experiments standardized. Don't separate it out.
+- **No external UI library dependencies.** Don't import Radix, shadcn, etc. Use them as references to audit our implementations for accessibility and edge cases, but keep full ownership so upstream changes can't alter experiment behavior.
+- **Slider initializes without a visible thumb** to avoid anchoring participants' responses.
+- **Two tiers of components:**
+  - **Standalone** (Markdown, Button, Separator, form components) — no ScoreProvider needed, usable anywhere
+  - **Context-dependent** (Element, Prompt, Display, conditionals) — require ScoreProvider, error clearly without one
+
 ### Testing
 
 - **Unit/integration tests:** vitest — co-located as `*.test.ts` alongside source files

@@ -1,8 +1,6 @@
 # SCORE
 
-Structured Complete Open Record of Experiment
-
-Executable Study Protocol
+**Structured Complete Open Record of Experiment**
 
 A language for describing interactive social science experiments — the schemas, validators, utilities, and rendering components that turn a study protocol into what participants actually see.
 
@@ -10,11 +8,10 @@ A language for describing interactive social science experiments — the schemas
 
 SCORE defines a declarative language for specifying interactive group experiments: stages, elements (prompts, surveys, timers, discussions), conditional logic, templates, and participant positioning. It provides:
 
-- **Zod schemas** that validate treatment files, batch configs, and prompt files
+- **Zod schemas** that validate treatment files and prompt files
 - **A template engine** for parameterized experiment designs with broadcast expansion
-- **Shared utilities** for condition evaluation, reference resolution, and prompt parsing
-- **React components** that render SCORE elements into participant-facing UI
-- **Documentation** of the language specification
+- **Shared utilities** for condition evaluation and reference resolution
+- **React components** (planned) that render SCORE elements into participant-facing UI
 
 SCORE is platform-agnostic. Define your study protocol once, then run it on any compatible platform.
 
@@ -24,11 +21,13 @@ SCORE is platform-agnostic. Define your study protocol once, then run it on any 
 npm install @deliberation-lab/score
 ```
 
+Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`
+
 ## Usage
 
 ### Validating a treatment file
 
-```js
+```typescript
 import { treatmentFileSchema } from "@deliberation-lab/score";
 import { load as loadYaml } from "js-yaml";
 
@@ -40,52 +39,110 @@ if (!result.success) {
 }
 ```
 
+### Validating a prompt file
+
+`promptFileSchema` takes raw markdown, parses it, and validates structure, metadata, response format, and slider labels in a single pass:
+
+```typescript
+import { promptFileSchema } from "@deliberation-lab/score";
+
+const result = promptFileSchema.safeParse(markdownString);
+
+if (result.success) {
+  const { metadata, body, responseItems } = result.data;
+  // metadata: parsed and validated YAML frontmatter
+  // body: the prompt text
+  // responseItems: parsed response options (prefix-stripped)
+} else {
+  console.error(result.error.issues);
+}
+```
+
 ### Evaluating conditions
 
-```js
+```typescript
 import { compare } from "@deliberation-lab/score";
 
-compare(5, "isAbove", 3); // true
+compare(5, "isAbove", 3);           // true
 compare("hello", "includes", "ell"); // true
-compare(undefined, "exists"); // false
+compare(undefined, "exists");        // false
+compare(undefined, "doesNotEqual", "x"); // true
 ```
 
-### Parsing a prompt file
+The 16 canonical comparators: `exists`, `doesNotExist`, `equals`, `doesNotEqual`, `isAbove`, `isBelow`, `isAtLeast`, `isAtMost`, `hasLengthAtLeast`, `hasLengthAtMost`, `includes`, `doesNotInclude`, `matches`, `doesNotMatch`, `isOneOf`, `isNotOneOf`.
 
-```js
-import { parsePromptFile } from "@deliberation-lab/score";
+### Parsing reference strings
 
-const { metadata, body, responseItems } = parsePromptFile(markdownString);
+```typescript
+import { getReferenceKeyAndPath } from "@deliberation-lab/score";
+
+getReferenceKeyAndPath("survey.bigFive.result.score");
+// { referenceKey: "survey_bigFive", path: ["result", "score"] }
+
+getReferenceKeyAndPath("prompt.myQuestion");
+// { referenceKey: "prompt_myQuestion", path: ["value"] }
 ```
 
-### Rendering elements (React)
+Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `urlParams`, `connectionInfo`, `browserInfo`, `participantInfo`, `discussion`.
 
-```jsx
-import { Element, ScoreProvider } from "@deliberation-lab/score/components";
+### Expanding templates
 
-<ScoreProvider value={context}>
-  <Element element={{ type: "prompt", file: "myPrompt.md" }} />
-</ScoreProvider>;
+```typescript
+import { fillTemplates } from "@deliberation-lab/score";
+
+const result = fillTemplates({
+  obj: treatmentConfig,
+  templates: treatmentConfig.templates,
+});
 ```
 
-The `ScoreProvider` accepts a context object that your platform implements:
+The template engine supports field substitution (`${fieldName}`), nested templates, and multi-dimensional broadcast expansion.
 
-```
-const context = {
-  resolve(reference, position) { /* read state */ },
-  save(key, value, scope) { /* write state */ },
-  getElapsedTime() { /* seconds since step started */ },
-  submit() { /* advance to next step */ },
-  progressLabel: "game_0_discussion",
-  playerId: "abc123",
-  position: 0,
-  playerCount: 3,
-  isSubmitted: false,
-  renderDiscussion: (config) => <YourVideoComponent {...config} />,
-};
+## API Reference
 
-## Documentation
+### Schemas
 
+| Export | Description |
+|--------|-------------|
+| `treatmentFileSchema` | Top-level schema for a treatment YAML file (templates, introSequences, treatments) |
+| `treatmentSchema` | Single treatment with playerCount, gameStages, exitSequence |
+| `stageSchema` | Game stage with name, duration, elements, discussion; validates element time bounds against duration |
+| `elementSchema` | Any DSL element (prompt, display, survey, timer, etc.) with conditional rendering support |
+| `promptSchema` | Prompt element with file reference and optional shared flag |
+| `discussionSchema` | Discussion config (chat type, layout, rooms, visibility) |
+| `conditionSchema` | Condition with reference, comparator, value, and position |
+| `referenceSchema` | DSL reference string validator |
+| `promptFileSchema` | Parses and validates a complete prompt markdown file |
+| `metadataTypeSchema` | Prompt metadata field types and constraints |
+| `metadataRefineSchema` | Cross-field metadata validation (e.g., slider requires min/max/interval) |
+| `templateContextSchema` | Template reference with fields and broadcast dimensions |
+| `templateSchema` | Named template definition with content type |
+
+All schemas export corresponding TypeScript types (e.g., `TreatmentType`, `StageType`, `ElementType`).
+
+### Utilities
+
+| Export | Description |
+|--------|-------------|
+| `compare(lhs, comparator, rhs?)` | Evaluate a condition. Returns `boolean \| undefined` |
+| `Comparator` | String literal union type of the 16 canonical comparator names |
+| `getReferenceKeyAndPath(reference)` | Parse a DSL reference string into storage key + nested path |
+| `getNestedValueByPath(obj, path?)` | Traverse a nested object by path array |
+
+### Templates
+
+| Export | Description |
+|--------|-------------|
+| `fillTemplates({ obj, templates })` | Expand all template references and validate no placeholders remain |
+| `expandTemplate({ templates, context })` | Expand a single template context with fields and broadcast |
+| `substituteFields({ templateContent, fields })` | Replace `${key}` placeholders with values |
+
+## Architecture
+
+See [docs/score-provider.md](docs/score-provider.md) for the ScoreProvider abstraction that decouples rendering components from any specific platform.
+
+See [docs/deduplication-plan.md](docs/deduplication-plan.md) for the analysis of duplicated code being unified.
 
 ## License
-```
+
+MIT
