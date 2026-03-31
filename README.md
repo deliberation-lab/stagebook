@@ -1,5 +1,8 @@
 # SCORE
+
 Structured Complete Open Record of Experiment
+
+Executable Study Protocol
 
 A language for describing interactive social science experiments — the schemas, validators, utilities, and rendering components that turn a study protocol into what participants actually see.
 
@@ -42,12 +45,13 @@ if (!result.success) {
 ```js
 import { compare } from "@deliberation-lab/score";
 
-compare(5, "isAbove", 3);        // true
+compare(5, "isAbove", 3); // true
 compare("hello", "includes", "ell"); // true
-compare(undefined, "exists");    // false
+compare(undefined, "exists"); // false
 ```
 
 ### Parsing a prompt file
+
 ```js
 import { parsePromptFile } from "@deliberation-lab/score";
 
@@ -55,12 +59,13 @@ const { metadata, body, responseItems } = parsePromptFile(markdownString);
 ```
 
 ### Rendering elements (React)
+
 ```jsx
 import { Element, ScoreProvider } from "@deliberation-lab/score/components";
 
 <ScoreProvider value={context}>
   <Element element={{ type: "prompt", file: "myPrompt.md" }} />
-</ScoreProvider>
+</ScoreProvider>;
 ```
 
 The `ScoreProvider` accepts a context object that your platform implements:
@@ -83,3 +88,4 @@ const context = {
 
 
 ## License
+```
