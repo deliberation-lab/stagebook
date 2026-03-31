@@ -1,0 +1,91 @@
+## Workflow
+
+### TDD (Red/Green/Refactor)
+
+1. **Red:** Write a failing test that expresses desired behavior
+2. **Green:** Write the minimum code to make it pass
+3. **Refactor:** Clean up while keeping tests green
+
+Never skip the red step. Tests document intent.
+
+### Git Process
+
+- **Fast-forward only** merges (no merge commits, no squash)
+- **Pre-commit hook:** lint-staged runs Prettier + ESLint on staged files
+- **Pre-push hook:** full lint + all tests
+- **CI:** format check, lint, backend tests, frontend tests, Playwright e2e
+
+### Issues and PRs
+
+- Design decisions are discussed in GitHub issues before implementation
+- Every PR references its issue
+- PRs must pass CI before merge
+- Key decisions are recorded in `docs/decisions/` as ADRs (link back to the issue for full context)
+- Check `docs/decisions/` for architectural context before proposing changes to core systems
+
+## Conventions
+
+### Code Style
+
+- Prettier: double quotes, semicolons, trailing commas, 80 char width
+- ESLint 9 flat config, zero warnings policy
+- TypeScript with type-checked ESLint rules
+- TypeScript in backend and shared; TypeScript in frontend when appropriate
+
+### Architecture Principles
+
+- Keep code clear enough for a human to audit every line
+- Minimize complexity; refactor when new features complicate existing architecture
+
+### Testing
+
+- **Unit/integration tests:** vitest — co-located as `*.test.ts` alongside source files
+- **Component tests:** Playwright component testing (`*.test.tsx`) for React components
+- **Fixtures:** in `fixtures/` directories adjacent to tests that need them
+
+### Source
+
+- Extracted from `deliberation-lab/deliberation-empirica`
+- Client versions of duplicated code are canonical (they're supersets)
+- JS files are converted to TypeScript during extraction
+
+## Project Structure
+
+```
+@deliberation-lab/score
+├── src/
+│   ├── schemas/
+│   │   ├── treatment.ts          # treatmentFileSchema, element/stage/condition/discussion/template schemas + types
+│   │   ├── promptFile.ts         # metadataTypeSchema, metadataRefineSchema, metadataLogicalSchema, validateSliderLabels
+│   │   └── index.ts              # re-exports all schemas and types
+│   ├── templates/
+│   │   └── fillTemplates.ts      # substituteFields, expandTemplate, fillTemplates, recursivelyFillTemplates
+│   ├── utils/
+│   │   ├── compare.ts            # compare() — unified from server+client, Comparator type
+│   │   ├── reference.ts          # getReferenceKeyAndPath(), getNestedValueByPath()
+│   │   └── parsePromptFile.ts    # parsePromptFile() → { metadata, body, responseItems }
+│   ├── components/
+│   │   ├── ScoreProvider.tsx      # context definition + useScoreContext, useResolve, useSave, useElapsedTime hooks
+│   │   ├── Element.tsx            # element type router
+│   │   ├── elements/              # Prompt, Display, Separator, SubmitButton, AudioElement, TrainingVideo, KitchenTimer, TrackedLink, Image
+│   │   ├── conditions/            # TimeConditionalRender, PositionConditionalRender, ConditionsConditionalRender
+│   │   └── form/                  # RadioGroup, CheckboxGroup, TextArea, Slider, ListSorter, Markdown, Button
+│   └── index.ts                   # top-level re-exports (schemas, utils, templates)
+├── docs/
+│   └── syntax-reference.md       # language spec (from deliberation-empirica docs/study-design/)
+├── package.json                   # @deliberation-lab/score, subpath exports for / and /components
+├── tsconfig.json
+├── tsup.config.ts                 # dual CJS/ESM + dts generation
+├── vitest.config.ts
+├── playwright-ct.config.ts        # Playwright component testing (Tier 2)
+├── eslint.config.js               # ESLint 9 flat config
+├── .prettierrc
+└── .gitignore
+```
+
+### Package Exports
+
+- `@deliberation-lab/score` — schemas, utils, templates (no React dependency)
+- `@deliberation-lab/score/components` — React components, ScoreProvider (peer-depends on React)
+
+Each directory has an `index.ts` barrel; `src/index.ts` re-exports the full public API for the main entrypoint.
