@@ -29,19 +29,29 @@ export function Loading({ size = "md" }: LoadingProps) {
         fill="none"
         aria-label="Loading"
         style={{
-          animation: "score-spin 1s linear infinite",
-          color: "#9ca3af",
+          animation: "score-spin 0.75s linear infinite",
         }}
       >
+        {/* Track — full circle, light gray */}
         <circle
           cx="12"
           cy="12"
           r="10"
-          stroke="#d1d5db"
-          strokeWidth="4"
+          stroke="#e5e7eb"
+          strokeWidth="3"
           fill="none"
         />
-        <path fill="#9ca3af" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        {/* Spinning arc — quarter circle on the same path */}
+        <circle
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="#9ca3af"
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray="15.7 47.1"
+        />
       </svg>
       <style>{`
         @keyframes score-spin {
