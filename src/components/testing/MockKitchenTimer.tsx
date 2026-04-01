@@ -15,7 +15,7 @@ export interface MockKitchenTimerProps {
 export function MockKitchenTimer({
   startTime,
   endTime,
-  warnTimeRemaining,
+  warnTimeRemaining = 10,
   elapsedTime,
 }: MockKitchenTimerProps) {
   return (
