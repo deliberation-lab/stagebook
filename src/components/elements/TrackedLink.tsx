@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
-function ExternalLinkIcon({ className = "h-4 w-4" }: { className?: string }) {
+function ExternalLinkIcon() {
   return (
     <svg
-      className={className}
+      width={16}
+      height={16}
       viewBox="0 0 20 20"
       fill="currentColor"
       aria-hidden="true"
+      style={{ flexShrink: 0 }}
     >
       <path d="M11.5 2a.75.75 0 0 0 0 1.5h3.19L9.97 8.22a.75.75 0 1 0 1.06 1.06l4.72-4.72v3.19a.75.75 0 0 0 1.5 0V2.75A.75.75 0 0 0 16.5 2h-5z" />
       <path d="M5.25 4A2.25 2.25 0 0 0 3 6.25v8.5A2.25 2.25 0 0 0 5.25 17h8.5A2.25 2.25 0 0 0 16 14.75V11.5a.75.75 0 0 0-1.5 0v3.25c0 .414-.336.75-.75.75h-8.5a.75.75 0 0 1-.75-.75v-8.5c0-.414.336-.75.75-.75H9.5a.75.75 0 0 0 0-1.5H5.25z" />
@@ -152,18 +154,31 @@ export function TrackedLink({
   }, [handleBlur, handleFocus]);
 
   return (
-    <div className="flex flex-col space-y-1">
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
       <a
         href={href}
         target="_blank"
         rel="noreferrer noopener"
         onClick={handleClick}
-        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          color: "var(--score-primary, #3b82f6)",
+          fontWeight: 600,
+          textDecoration: "none",
+        }}
       >
         <span>{displayText}</span>
         <ExternalLinkIcon />
       </a>
-      <p className="text-xs text-gray-500">
+      <p
+        style={{
+          fontSize: "0.75rem",
+          color: "var(--score-text-muted, #6b7280)",
+          margin: 0,
+        }}
+      >
         Link opens in a new tab. Return to this tab to complete the study.
       </p>
     </div>
