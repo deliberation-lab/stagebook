@@ -280,10 +280,32 @@ Some elements depend on external services or platform-specific libraries. SCORE 
 
 ### Survey
 
-Surveys are rendered by the platform because they depend on a survey library (e.g., `@watts-lab/surveys`). SCORE handles the storage key (`survey_${name}`) so other SCORE elements can reference the results.
+Surveys are rendered by the platform because they depend on a survey library (e.g., `@watts-lab/surveys`). SCORE validates the element config, wraps the survey in conditional rendering, and handles data storage — but the platform provides the actual survey UI.
+
+#### What the researcher writes
+
+```yaml
+elements:
+  - type: survey
+    surveyName: TIPI          # which survey to render
+    name: preTIPI             # optional — overrides the storage key
+  - type: submitButton
+```
+
+#### What SCORE does
+
+When SCORE encounters a `type: "survey"` element, it:
+
+1. Reads `surveyName` and `name` from the element config
+2. Computes the storage key: `survey_${name ?? surveyName}` (e.g., `survey_preTIPI`)
+3. Calls your `renderSurvey` function, passing `{ surveyName, onComplete }`
+4. When `onComplete(results)` is called, SCORE saves the results: `save("survey_preTIPI", results)`
+5. The results are then available to other elements and conditions via the reference `survey.preTIPI.result.<key>` or `survey.preTIPI.responses.<questionId>`
+
+#### What the platform implements
 
 ```typescript
-import { getSurvey } from "@watts-lab/surveys";
+import { getSurvey } from "@watts-lab/surveys";  // or your survey library
 
 const context: ScoreContext = {
   // ...other fields...
@@ -295,11 +317,34 @@ const context: ScoreContext = {
 };
 ```
 
-When the survey calls `onComplete(results)`, SCORE saves the results under `survey_${name}` so they're available to `display` elements and `conditions` via `survey.<name>.result.<key>`.
+Your survey component must:
+1. **Render** the survey questions and response controls
+2. **Call `onComplete(results)`** when the participant finishes, passing the results object
 
-Your survey component just needs to:
-1. Render the survey UI
-2. Call `onComplete(results)` when the participant finishes, passing the results object
+That's it. SCORE handles everything else: the storage key, making results available to `display` elements and `conditions`, and all the standard element wrapping (time gating, position visibility, conditional rendering).
+
+#### The results object
+
+The shape of `results` is determined by your survey library. SCORE stores it opaquely — it doesn't inspect the contents. However, researchers will reference specific paths in conditions:
+
+```yaml
+conditions:
+  - reference: survey.preTIPI.result.normAgreeableness
+    comparator: isAtLeast
+    value: 0.75
+```
+
+For this to work, the results object must have the structure that matches the reference path. If the reference is `survey.preTIPI.result.normAgreeableness`, then `results.result.normAgreeableness` must exist. This is a contract between the survey library and the treatment author — SCORE just traverses the path.
+
+#### Example: full data flow
+
+1. Researcher writes `surveyName: TIPI, name: preTIPI` in treatment YAML
+2. Participant completes the survey in the intro sequence
+3. Survey component calls `onComplete({ result: { normAgreeableness: 0.82, ... }, responses: { ... } })`
+4. SCORE saves under key `survey_preTIPI`
+5. Later, in a treatment's `groupComposition`, a condition references `survey.preTIPI.result.normAgreeableness`
+6. SCORE's `resolve("survey.preTIPI.result.normAgreeableness")` looks up `survey_preTIPI` in state, traverses `.result.normAgreeableness`, and returns `0.82`
+7. The condition `isAtLeast: 0.75` evaluates to `true`, and the participant is assigned to the matching position
 
 ### Discussion
 
