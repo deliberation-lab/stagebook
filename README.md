@@ -137,11 +137,23 @@ All schemas export corresponding TypeScript types (e.g., `TreatmentType`, `Stage
 | `expandTemplate({ templates, context })` | Expand a single template context with fields and broadcast |
 | `substituteFields({ templateContent, fields })` | Replace `${key}` placeholders with values |
 
-## Architecture
+## Documentation
 
-See [docs/score-provider.md](docs/score-provider.md) for the ScoreProvider abstraction that decouples rendering components from any specific platform.
+### For Researchers (designing experiments)
 
-See [docs/deduplication-plan.md](docs/deduplication-plan.md) for the analysis of duplicated code being unified.
+- [Treatment Files](docs/researcher/treatment-files.md) — how to structure a `.treatments.yaml` file
+- [Page Elements](docs/researcher/elements.md) — all element types and their options
+- [Prompt Files](docs/researcher/prompts.md) — markdown format for prompts, sliders, surveys
+- [Conditions & References](docs/researcher/conditions.md) — conditional display and data references
+- [Discussions](docs/researcher/discussions.md) — text chat, video calls, breakout rooms, custom layouts
+- [Templates](docs/researcher/templates.md) — reusable structures with field substitution and broadcast
+- [Syntax Reference](docs/researcher/syntax-reference.md) — compact cheat sheet for the full language
+
+### For Engineers (integrating SCORE)
+
+- [Integration Guide](docs/engineer/integration-guide.md) — implementing a ScoreProvider backend
+- [API Reference](docs/engineer/api-reference.md) — all exports, types, and component props
+- [ScoreProvider Design](docs/score-provider.md) — architecture and design rationale
 
 ## License
 
