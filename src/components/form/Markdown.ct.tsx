@@ -16,8 +16,11 @@ test("renders links", async ({ mount }) => {
   );
 });
 
-test("renders images without resolveURL", async ({ mount }) => {
+test("passes through relative image paths without resolveURL", async ({
+  mount,
+}) => {
   const component = await mount(<Markdown text="![photo](images/test.png)" />);
+  // Verify the src attribute is set correctly (image won't load — that's expected)
   await expect(component.locator("img")).toHaveAttribute(
     "src",
     "images/test.png",
