@@ -3,45 +3,54 @@ import { ThemedButton } from "../testing/ThemedButton";
 import { ThemedKitchenTimer } from "../testing/ThemedKitchenTimer";
 import { ThemedTextArea } from "../testing/ThemedTextArea";
 
-const purpleTheme = {
-  "--score-primary": "#7c3aed",
-  "--score-timer-fill": "#a855f7",
-  "--score-danger": "#b91c1c",
-  "--score-border": "#818cf8",
-  "--score-success": "#065f46",
-  "--score-warning": "#92400e",
+// Orange theme — deliberately very different from the default blue
+// to make visual differences obvious in the Playwright UI
+const orangeTheme = {
+  "--score-primary": "#ea580c", // orange-600
+  "--score-timer-fill": "#f97316", // orange-500
+  "--score-danger": "#dc2626", // red-600
+  "--score-border": "#fb923c", // orange-400
+  "--score-success": "#ea580c", // orange-600 (green → orange)
+  "--score-warning": "#f97316", // orange-500 (red → orange)
 };
 
 test.describe("CSS Variable Theme Override", () => {
-  test("Button uses overridden primary color", async ({ mount }) => {
+  test("Button uses overridden primary color (blue → orange)", async ({
+    mount,
+  }) => {
     const component = await mount(
-      <ThemedButton themeOverrides={purpleTheme}>Themed Button</ThemedButton>,
+      <ThemedButton themeOverrides={orangeTheme}>Themed Button</ThemedButton>,
     );
     const button = component.locator("button");
-    await expect(button).toHaveCSS("background-color", "rgb(124, 58, 237)");
+    // #ea580c = rgb(234, 88, 12)
+    await expect(button).toHaveCSS("background-color", "rgb(234, 88, 12)");
   });
 
   test("Button secondary uses overridden border color", async ({ mount }) => {
     const component = await mount(
-      <ThemedButton themeOverrides={purpleTheme} primary={false}>
+      <ThemedButton themeOverrides={orangeTheme} primary={false}>
         Secondary
       </ThemedButton>,
     );
     const button = component.locator("button");
-    await expect(button).toHaveCSS("border-color", "rgb(129, 140, 248)");
+    // #fb923c = rgb(251, 146, 60)
+    await expect(button).toHaveCSS("border-color", "rgb(251, 146, 60)");
   });
 
-  test("KitchenTimer uses overridden fill color", async ({ mount }) => {
+  test("KitchenTimer uses overridden fill color (blue → orange)", async ({
+    mount,
+  }) => {
     const component = await mount(
       <ThemedKitchenTimer
         startTime={0}
         endTime={60}
         elapsedTime={30}
-        themeOverrides={purpleTheme}
+        themeOverrides={orangeTheme}
       />,
     );
     const fill = component.locator('[data-testid="timer-fill"]');
-    await expect(fill).toHaveCSS("background-color", "rgb(168, 85, 247)");
+    // #f97316 = rgb(249, 115, 22)
+    await expect(fill).toHaveCSS("background-color", "rgb(249, 115, 22)");
   });
 
   test("KitchenTimer warning uses overridden danger color", async ({
@@ -53,28 +62,32 @@ test.describe("CSS Variable Theme Override", () => {
         endTime={60}
         warnTimeRemaining={15}
         elapsedTime={50}
-        themeOverrides={purpleTheme}
+        themeOverrides={orangeTheme}
       />,
     );
     const fill = component.locator('[data-testid="timer-fill"]');
-    await expect(fill).toHaveCSS("background-color", "rgb(185, 28, 28)");
+    // #dc2626 = rgb(220, 38, 38)
+    await expect(fill).toHaveCSS("background-color", "rgb(220, 38, 38)");
   });
 
-  test("TextArea counter uses overridden success color", async ({ mount }) => {
+  test("TextArea counter uses overridden success color (green → orange)", async ({
+    mount,
+  }) => {
     const component = await mount(
       <ThemedTextArea
         value={"A".repeat(75)}
         showCharacterCount
         minLength={50}
         maxLength={200}
-        themeOverrides={purpleTheme}
+        themeOverrides={orangeTheme}
       />,
     );
     const counter = component.locator('[data-testid="char-counter"]');
-    await expect(counter).toHaveCSS("color", "rgb(6, 95, 70)");
+    // #ea580c = rgb(234, 88, 12)
+    await expect(counter).toHaveCSS("color", "rgb(234, 88, 12)");
   });
 
-  test("TextArea counter uses overridden warning color at max", async ({
+  test("TextArea counter uses overridden warning color (red → orange)", async ({
     mount,
   }) => {
     const component = await mount(
@@ -82,10 +95,11 @@ test.describe("CSS Variable Theme Override", () => {
         value="12345"
         showCharacterCount
         maxLength={5}
-        themeOverrides={purpleTheme}
+        themeOverrides={orangeTheme}
       />,
     );
     const counter = component.locator('[data-testid="char-counter"]');
-    await expect(counter).toHaveCSS("color", "rgb(146, 64, 14)");
+    // #f97316 = rgb(249, 115, 22)
+    await expect(counter).toHaveCSS("color", "rgb(249, 115, 22)");
   });
 });
