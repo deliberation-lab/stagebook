@@ -28,5 +28,15 @@ test("renders as disabled", async ({ mount }) => {
 
 test("applies secondary style when primary is false", async ({ mount }) => {
   const component = await mount(<Button primary={false}>Secondary</Button>);
-  await expect(component).toHaveClass(/bg-white/);
+  // Secondary button has white-ish background, not the primary blue
+  await expect(component).toHaveCSS("background-color", "rgb(255, 255, 255)");
+});
+
+test("applies primary style by default", async ({ mount }) => {
+  const component = await mount(<Button>Primary</Button>);
+  // Primary button should not have white background
+  const bg = await component.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  expect(bg).not.toBe("rgb(255, 255, 255)");
 });

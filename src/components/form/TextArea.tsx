@@ -129,25 +129,25 @@ export function TextArea({
     if (!showCharacterCount) return null;
 
     let countText = "";
-    let countColor = "#6b7280"; // gray-500
+    let countColor = "var(--score-text-muted, #6b7280)"; // gray-500
     const currentLength = localValue.length;
 
     if (minLength && maxLength) {
       countText = `(${currentLength} / ${minLength}-${maxLength} chars)`;
       if (currentLength >= minLength && currentLength < maxLength) {
-        countColor = "#16a34a"; // green-600
+        countColor = "var(--score-success, #16a34a)"; // green-600
       } else if (currentLength === maxLength) {
-        countColor = "#dc2626"; // red-600
+        countColor = "var(--score-warning, #dc2626)"; // red-600
       }
     } else if (minLength) {
       countText = `(${currentLength} / ${minLength}+ characters required)`;
       if (currentLength >= minLength) {
-        countColor = "#16a34a";
+        countColor = "var(--score-success, #16a34a)";
       }
     } else if (maxLength) {
       countText = `(${currentLength} / ${maxLength} chars max)`;
       if (currentLength === maxLength) {
-        countColor = "#dc2626";
+        countColor = "var(--score-warning, #dc2626)";
       }
     } else {
       countText = `(${currentLength} characters)`;
@@ -190,12 +190,12 @@ export function TextArea({
           width: "100%",
           boxSizing: "border-box",
           padding: "0.5rem 0.75rem",
-          border: "1px solid #d1d5db",
+          border: "1px solid var(--score-border, #d1d5db)",
           borderRadius: "0.375rem",
           boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
           fontSize: "0.875rem",
           lineHeight: "1.25rem",
-          color: "#1f2937",
+          color: "var(--score-text, #1f2937)",
           resize: "vertical",
         }}
       />

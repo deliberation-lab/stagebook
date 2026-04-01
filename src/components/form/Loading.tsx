@@ -37,7 +37,7 @@ export function Loading({ size = "md" }: LoadingProps) {
           cx="12"
           cy="12"
           r="10"
-          stroke="#e5e7eb"
+          style={{ stroke: "var(--score-spinner-track, #e5e7eb)" }}
           strokeWidth="3"
           fill="none"
         />
@@ -46,7 +46,7 @@ export function Loading({ size = "md" }: LoadingProps) {
           cx="12"
           cy="12"
           r="10"
-          stroke="#9ca3af"
+          style={{ stroke: "var(--score-spinner-arc, #9ca3af)" }}
           strokeWidth="3"
           fill="none"
           strokeLinecap="round"

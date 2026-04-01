@@ -69,7 +69,7 @@ export function Slider({
             position: "relative",
             width: "100%",
             height: "8px",
-            backgroundColor: "#e5e7eb",
+            backgroundColor: "var(--score-bg-track, #e5e7eb)",
             borderRadius: "4px",
             cursor: "pointer",
           }}
@@ -84,7 +84,7 @@ export function Slider({
                 top: 0,
                 width: "2px",
                 height: "12px",
-                backgroundColor: "#9ca3af",
+                backgroundColor: "var(--score-text-faint, #9ca3af)",
               }}
             />
           ))}
@@ -99,7 +99,7 @@ export function Slider({
               transform: "translateX(-50%)",
               top: "-0.75rem",
               fontSize: "0.75rem",
-              color: "#6b7280",
+              color: "var(--score-text-muted, #6b7280)",
               textAlign: "center",
               whiteSpace: "nowrap",
             }}
@@ -159,7 +159,7 @@ export function Slider({
                   textAlign,
                   maxWidth: "80px",
                   fontSize: "0.75rem",
-                  color: "#4b5563",
+                  color: "var(--score-text-muted, #6b7280)",
                 }}
               >
                 {labels[idx]}

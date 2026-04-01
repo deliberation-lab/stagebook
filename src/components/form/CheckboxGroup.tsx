@@ -43,7 +43,7 @@ export function CheckboxGroup({
             display: "block",
             fontSize: "1rem",
             fontWeight: 500,
-            color: "#1f2937",
+            color: "var(--score-text, #1f2937)",
             marginBottom: "0.5rem",
           }}
         >
@@ -64,7 +64,7 @@ export function CheckboxGroup({
             style={{
               fontWeight: 400,
               fontSize: "0.875rem",
-              color: "#6b7280",
+              color: "var(--score-text-muted, #6b7280)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",

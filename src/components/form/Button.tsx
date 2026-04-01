@@ -1,10 +1,9 @@
 import React, { useId } from "react";
 
 const base =
-  "inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
-const prim =
-  "border-transparent shadow-sm text-white bg-blue-600 hover:bg-blue-700";
-const sec = "border-gray-300 shadow-sm text-gray-700 bg-white hover:bg-gray-50";
+  "inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2";
+const prim = "border-transparent shadow-sm";
+const sec = "shadow-sm";
 const dsbl = "opacity-50 cursor-not-allowed";
 
 export interface ButtonProps {
@@ -33,6 +32,18 @@ export function Button({
   const generatedId = useId();
   const buttonId = id || `button${generatedId}`;
 
+  const colorStyle: React.CSSProperties = primary
+    ? {
+        color: "#fff",
+        backgroundColor: "var(--score-primary, #3b82f6)",
+        borderColor: "transparent",
+      }
+    : {
+        color: "var(--score-text-secondary, #374151)",
+        backgroundColor: "#fff",
+        borderColor: "var(--score-border, #d1d5db)",
+      };
+
   return (
     <button
       type={type}
@@ -41,7 +52,7 @@ export function Button({
         disabled ? dsbl : ""
       } ${className}`}
       autoFocus={autoFocus}
-      style={style}
+      style={{ ...colorStyle, ...style }}
       id={buttonId}
       disabled={disabled}
     >

@@ -33,9 +33,17 @@ function ListItem({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`px-3 py-2 border bg-gray-100 rounded-md shadow-sm ${
-            snapshot.isDragging ? "border-gray-600" : "border-gray-300"
-          }`}
+          style={{
+            ...provided.draggableProps.style,
+            padding: "0.5rem 0.75rem",
+            border: `1px solid ${snapshot.isDragging ? "var(--score-text-secondary, #374151)" : "var(--score-border, #d1d5db)"}`,
+            backgroundColor: "var(--score-bg-muted, #f9fafb)",
+            borderRadius: "0.375rem",
+            boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+            fontSize: "0.875rem",
+            color: "var(--score-text, #1f2937)",
+            cursor: "grab",
+          }}
         >
           ⇅ {text}
         </div>
@@ -47,10 +55,35 @@ function ListItem({
 function List({ items }: { items: string[] }) {
   const displayIndex = [...Array(items.length + 1).keys()].slice(1);
   return (
-    <div className="flex border border-gray-300 rounded-md shadow-sm">
-      <div className="grid p-2">
+    <div
+      style={{
+        display: "flex",
+        border: "1px solid var(--score-border, #d1d5db)",
+        borderRadius: "0.375rem",
+        boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          padding: "0.5rem",
+          alignContent: "start",
+          gap: "0.5rem",
+          color: "var(--score-text-muted, #6b7280)",
+          fontSize: "0.875rem",
+        }}
+      >
         {displayIndex.map((i) => (
-          <p key={i}>{i}. </p>
+          <p
+            key={i}
+            style={{
+              margin: 0,
+              padding: "0.5rem 0",
+              lineHeight: "1.25rem",
+            }}
+          >
+            {i}.{" "}
+          </p>
         ))}
       </div>
       <Droppable droppableId="droppable">
@@ -58,7 +91,12 @@ function List({ items }: { items: string[] }) {
           <div
             {...provided.droppableProps}
             ref={provided.innerRef}
-            className="grid gap-2 p-2"
+            style={{
+              display: "grid",
+              gap: "0.5rem",
+              padding: "0.5rem",
+              flex: 1,
+            }}
           >
             {items.map((item, index) => (
               <ListItem key={item} id={item} index={index} text={item} />

@@ -43,7 +43,9 @@ export function KitchenTimer({
     .slice(timerRemaining < 3600 ? 14 : 11, 19);
 
   const isWarning = timerRemaining <= warnTimeRemaining;
-  const barColor = isWarning ? "#ef4444" : "#60a5fa"; // red-500 / blue-400
+  const barColor = isWarning
+    ? "var(--score-danger, #ef4444)"
+    : "var(--score-timer-fill, #60a5fa)"; // red-500 / blue-400
 
   return (
     <div
@@ -63,7 +65,7 @@ export function KitchenTimer({
           position: "relative",
           flex: 1,
           height: "1.5rem",
-          backgroundColor: "#e5e7eb",
+          backgroundColor: "var(--score-bg-track, #e5e7eb)",
           borderRadius: "9999px",
           overflow: "hidden",
         }}
@@ -84,7 +86,7 @@ export function KitchenTimer({
         style={{
           fontSize: "0.875rem",
           fontWeight: 500,
-          color: "#374151",
+          color: "var(--score-text-secondary, #374151)",
           fontVariantNumeric: "tabular-nums",
           whiteSpace: "nowrap",
           minWidth: "3rem",
