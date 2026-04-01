@@ -29,6 +29,7 @@ export interface TrackedLinkProps {
   save: (key: string, value: unknown) => void;
   getElapsedTime: () => number;
   progressLabel: string;
+  setAllowIdle?: (allow: boolean) => void;
 }
 
 interface LinkEvent {
@@ -58,6 +59,7 @@ export function TrackedLink({
   save,
   getElapsedTime,
   progressLabel,
+  setAllowIdle,
 }: TrackedLinkProps) {
   const awayTrackerRef = useRef<{ startedAt: number; clickAt: number } | null>(
     null,
@@ -130,8 +132,9 @@ export function TrackedLink({
       clickAt: lastClickRef.current,
     };
     lastClickRef.current = null;
+    setAllowIdle?.(true);
     logEvent("blur");
-  }, [logEvent]);
+  }, [logEvent, setAllowIdle]);
 
   const handleFocus = useCallback(() => {
     const awayContext = awayTrackerRef.current;
@@ -142,7 +145,8 @@ export function TrackedLink({
     } else {
       logEvent("focus");
     }
-  }, [logEvent]);
+    setAllowIdle?.(false);
+  }, [logEvent, setAllowIdle]);
 
   useEffect(() => {
     window.addEventListener("blur", handleBlur);

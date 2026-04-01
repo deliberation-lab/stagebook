@@ -28,6 +28,11 @@ export interface ScoreContext {
   playerCount: number | undefined;
   isSubmitted: boolean;
 
+  // Idle state — components call this to signal when the participant
+  // should be allowed to appear idle (e.g., watching a video, on an
+  // external link). Platform handles detection and UI.
+  setAllowIdle?: (allow: boolean) => void;
+
   // Platform-provided renderers for service-coupled elements
   renderDiscussion?: (config: DiscussionType) => React.ReactNode;
   renderSharedNotepad?: (config: { padName: string }) => React.ReactNode;

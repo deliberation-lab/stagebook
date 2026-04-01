@@ -6,15 +6,23 @@ export interface TrainingVideoProps {
   url: string;
   getElapsedTime: () => number;
   onComplete: () => void;
+  setAllowIdle?: (allow: boolean) => void;
 }
 
 export function TrainingVideo({
   url,
   getElapsedTime,
   onComplete,
+  setAllowIdle,
 }: TrainingVideoProps) {
   const [elapsedOnLoad, setElapsedOnLoad] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+
+  // Allow idle while video is playing (participant is watching, not interacting)
+  useEffect(() => {
+    setAllowIdle?.(true);
+    return () => setAllowIdle?.(false);
+  }, [setAllowIdle]);
 
   useEffect(() => {
     // Test if autoplay will work

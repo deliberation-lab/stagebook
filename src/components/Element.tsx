@@ -93,6 +93,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     renderTalkMeter,
     renderSurvey,
     playerId,
+    setAllowIdle,
   } = ctx;
 
   // For prompt elements, load the file content
@@ -196,6 +197,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           url={element.url ?? ""}
           getElapsedTime={getElapsedTime}
           onComplete={onSubmit}
+          setAllowIdle={setAllowIdle}
         />
       );
 
@@ -209,6 +211,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           save={save}
           getElapsedTime={getElapsedTime}
           progressLabel={progressLabel}
+          setAllowIdle={setAllowIdle}
         />
       );
 
