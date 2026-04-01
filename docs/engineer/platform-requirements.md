@@ -1,0 +1,350 @@
+# Platform Requirements
+
+This document describes everything a platform must provide to run SCORE experiments. SCORE handles the experiment description language and participant-facing rendering. The platform handles everything else: state management, orchestration, group formation, content delivery, and service integrations.
+
+Not every platform needs every capability. A VS Code preview tool only needs content delivery and mock state. A solo survey tool doesn't need group formation or video calls. The sections below are marked as **required**, **required for multiplayer**, or **optional** accordingly.
+
+---
+
+## 1. State Management (required)
+
+SCORE components read and write experiment state through the `resolve()` and `save()` methods on the ScoreProvider. The platform must implement a state store that supports these operations.
+
+### State Scopes
+
+The platform needs two scopes of state:
+
+**Player state** — key-value pairs private to each participant. Used for individual prompt responses, survey results, submit button timing, tracked link events, and any other per-participant data.
+
+**Shared state** — key-value pairs visible to all participants in the group. Used for shared prompts (where one participant's edits are visible to all) and discussion metrics.
+
+### Key Patterns
+
+SCORE components write state under predictable keys:
+
+| Key pattern | Written by | Value shape |
+|-------------|-----------|-------------|
+| `prompt_<name>` | Prompt element | `{ value, stageTimeElapsed, ...metadata }` |
+| `submitButton_<name>` | Submit button | `{ time: elapsedSeconds }` |
+| `survey_<name>` | Survey element | Survey-specific response object |
+| `trackedLink_<name>` | Tracked link | `{ events: [...], totalTimeAwaySeconds, ... }` |
+
+### Read Patterns
+
+`resolve(reference, position)` must:
+
+1. Parse the reference string (use `getReferenceKeyAndPath()` from SCORE)
+2. Look up the key in the appropriate state scope
+3. Navigate the nested path to the requested value
+4. Return an **array** of values, because some positions (`"all"`, `"any"`) return one value per participant
+
+The `position` parameter determines whose state to read:
+
+| Position | Behavior |
+|----------|----------|
+| `"player"` or omitted | Current participant's player state |
+| `"shared"` | Shared/game state |
+| `0`, `1`, `2`, ... | Specific participant by position index |
+| `"all"` | Array with one value per participant |
+| `"any"` | Array with one value per participant (conditions check if any satisfy) |
+| `"percentAgreement"` | Array with one value per participant (conditions compute consensus %) |
+
+### Reactivity
+
+State changes must trigger React re-renders. When participant A writes a value, participant B's components that read that value should update. The mechanism varies by platform:
+
+- **WebSocket-based**: Server broadcasts mutations to all connected clients (Empirica model)
+- **Polling**: Client periodically fetches latest state
+- **Firebase/Supabase**: Real-time database subscriptions
+- **Local-only**: React state (for preview/testing tools)
+
+### Persistence
+
+State must survive page refreshes. If a participant disconnects and reconnects, their previous responses should still be present. For multiplayer experiments, other participants' state must also be available after reconnection.
+
+---
+
+## 2. Stage Orchestration (required)
+
+The platform manages the progression through intro steps, game stages, and exit steps.
+
+### Intro Steps (asynchronous, solo)
+
+Each intro step displays its elements and waits for the participant to click a submit button (or complete a Qualtrics survey, or finish a video). There is no timer — participants proceed at their own pace.
+
+The platform must:
+- Track which intro step the participant is currently on
+- Provide a `submit()` function that advances to the next step
+- Track the start time of each step (for `getElapsedTime()` — use `Date.now()`)
+- Set `progressLabel` to a unique identifier (e.g., `"intro_0_consent"`)
+
+### Game Stages (synchronous, group)
+
+All participants in a group move through game stages together. Each stage has a `duration` in seconds.
+
+The platform must:
+- **Start a server-authoritative timer** when the stage begins
+- **Auto-advance** when the timer expires, regardless of submission status
+- **Track submissions**: when a participant calls `submit()`, record their readiness
+- **Advance early** if all participants have submitted before the timer expires
+- **Provide synchronized elapsed time** via `getElapsedTime()` — all participants should see approximately the same elapsed time (within ~1 second)
+- After a participant submits, set `isSubmitted = true` so SCORE shows a waiting message
+
+**Timer synchronization** is critical for multiplayer. The server must be the authority on when stages start and end. Client-side display of elapsed time can use a local clock corrected for server offset:
+
+```
+serverOffset = serverTime - clientTime  (computed once at connection)
+correctedElapsed = (Date.now() + serverOffset) - stageStartTime
+```
+
+### Exit Steps (asynchronous, solo)
+
+Same as intro steps, but occur after the game. Participants proceed at their own pace. The platform may have access to multiplayer state (for showing what other participants wrote).
+
+### Phase Transitions
+
+The platform controls the transition between phases:
+1. Participant completes all intro steps → enters lobby/waiting room
+2. Group is formed → game begins (stage 0)
+3. Game completes all stages → exit sequence begins
+4. Participant completes exit steps → study complete
+
+### Handling Disconnection
+
+When a participant disconnects during a game stage:
+- The timer continues (stages don't pause)
+- On reconnection, the participant resumes at the current stage with the correct elapsed time
+- If a video element was playing, it should resume at the correct position
+
+---
+
+## 3. Group Formation (required for multiplayer)
+
+The platform must assign participants to groups (treatments) and positions within those groups.
+
+### Inputs
+
+From the treatment file:
+- `treatments[].playerCount` — how many participants per group
+- `treatments[].groupComposition[].conditions` — eligibility criteria for each position (optional)
+
+From the batch configuration (platform-specific):
+- Which treatments to run
+- Payoff weights (for optimizing assignment across treatments)
+
+### The Assignment Problem
+
+Given a pool of waiting participants who have completed intro steps, the platform must:
+
+1. **Check eligibility**: For each treatment and position, determine which participants satisfy the conditions. Conditions reference data collected during intro (survey results, URL parameters, etc.).
+
+2. **Form valid groups**: A valid group has exactly `playerCount` participants, one per position, each satisfying that position's conditions.
+
+3. **Optimize**: If there are multiple valid assignments, prefer the one that maximizes some objective (e.g., balanced treatment assignment, payoff optimization).
+
+4. **Handle failures**: If no valid group can be formed (insufficient eligible participants), participants wait. If a timeout is reached, they exit with an appropriate code.
+
+### Lobby/Waiting
+
+Between intro completion and game start, participants wait in a lobby. The platform should:
+- Show a waiting indicator
+- Periodically run the assignment algorithm as new participants complete intro
+- Debounce the algorithm (don't run on every arrival — wait a few seconds for the cohort to stabilize)
+
+### Position Assignment
+
+Once a group is formed, each participant is assigned a position (0, 1, 2, ...). This position is:
+- Stored in player state (`position`)
+- Available via `ScoreContext.position`
+- Used by `showToPositions`, `hideFromPositions`, and `groupComposition` throughout the game
+- Immutable for the duration of the treatment
+
+---
+
+## 4. Content Delivery (required)
+
+SCORE components load prompt markdown files, images, and audio from project-relative paths. The platform must implement `getAssetURL(path)` and `getTextContent(path)` on the ScoreProvider.
+
+### `getAssetURL(path: string): string`
+
+Returns a URL that the browser can use to display an image, play audio, or embed a video. The implementation depends on where assets are stored:
+
+- **CDN**: Prepend the CDN base URL (e.g., `https://cdn.example.com/${path}`)
+- **Local development**: Return a local server URL (e.g., `http://localhost:3000/assets/${path}`)
+- **VS Code extension**: Return a webview URI
+- **Bundled**: Return an import path or data URI
+
+### `getTextContent(path: string): Promise<string>`
+
+Returns the text content of a file (typically prompt markdown). The platform handles:
+- **Fetching**: HTTP request, filesystem read, or bundled import
+- **Caching**: Prompt files don't change during a study — cache aggressively
+- **Retries**: Network requests may fail transiently
+- **Error handling**: Return a rejected promise with a descriptive error
+
+### Content Organization
+
+SCORE doesn't prescribe how content is organized on disk, but treatment files reference paths like `projects/study1/prompts/question.md`. The platform must resolve these paths to actual content.
+
+---
+
+## 5. Pre-Game Infrastructure (recommended)
+
+These features are not required by SCORE's rendering layer but are necessary for running real experiments.
+
+### Platform Consent
+
+Before any experiment interaction, participants must provide informed consent. The platform should:
+- Display an IRB-approved consent form appropriate to the participant's jurisdiction
+- Record consent with a timestamp
+- Allow the researcher to specify custom consent addenda
+- Exit participants who decline
+
+### Equipment Checks
+
+For studies involving video or audio:
+- Request camera/microphone permissions
+- Verify video quality (sufficient resolution, frame rate)
+- Verify audio input (microphone produces signal) and output (speakers/headphones work)
+- Optionally detect headphone use
+- Exit participants who fail required checks with an appropriate message
+
+### Browser Compatibility
+
+Check that the participant's browser meets minimum requirements. SCORE's `BrowserConditionalRender` component can block unsupported browsers, but the platform may want to check earlier (before loading the full experiment).
+
+### Participant Identity
+
+Collect or verify a participant identifier:
+- Self-reported nickname (for display during discussions)
+- Platform-assigned ID (from URL parameters, e.g., `PROLIFIC_PID`)
+- Custom ID instructions (platform-specific onboarding)
+
+---
+
+## 6. Service Integrations (optional)
+
+SCORE uses render slots for elements tightly coupled to external services. The platform provides the actual implementation via the ScoreProvider.
+
+### Video Calls
+
+Required for `discussion` elements with `chatType: "video"` or `"audio"`.
+
+The platform must:
+- Create a call room when a discussion stage starts
+- Connect all participants in the group (or subsets, for breakout rooms)
+- Handle custom layouts (grid-based feed placement per position)
+- Support muting controls (audio/video toggles)
+- Track speaking time (for talk meter)
+- Handle disconnection/reconnection (participant rejoins the same room)
+- Optionally record the call
+
+**Services used in deliberation-empirica**: Daily.co
+
+Provide via: `renderDiscussion(config)` on ScoreProvider.
+
+### Text Chat
+
+Required for `discussion` elements with `chatType: "text"`.
+
+The platform must:
+- Provide a real-time message feed visible to all group participants
+- Support emoji reactions (configurable set)
+- Display sender nicknames or positions
+- Persist messages for the stage duration
+
+Provide via: `renderDiscussion(config)` on ScoreProvider (same slot as video — dispatch on `config.chatType`).
+
+### Shared Notepad
+
+Required for `sharedNotepad` elements and `shared: true` open response prompts.
+
+The platform must:
+- Provide a collaborative text editor
+- Sync edits in real-time across all participants
+- Support default text initialization
+- Persist content for the stage duration
+
+**Services used in deliberation-empirica**: Etherpad
+
+Provide via: `renderSharedNotepad(config)` on ScoreProvider.
+
+### Talk Meter
+
+Required for `talkMeter` elements.
+
+The platform must:
+- Detect which participant is speaking (requires audio analysis)
+- Track cumulative speaking time per participant
+- Display the results
+
+Provide via: `renderTalkMeter()` on ScoreProvider.
+
+---
+
+## 7. Data Export (recommended)
+
+SCORE does not define a data export format, but experiments need to produce analyzable data. The platform should export:
+
+### Per-Participant Science Data
+
+All state written by SCORE components during the experiment:
+- Prompt responses (with timestamps and metadata)
+- Survey results
+- Submit button timing
+- Tracked link events
+- Discussion metrics
+
+Plus platform-collected data:
+- Consent records
+- Equipment check results
+- Connection history (online/offline events)
+- Browser and network metadata
+
+### Per-Group Data
+
+- Treatment assigned (the full object, for reproducibility)
+- Position assignments
+- Stage timing (actual start/end times)
+- Chat transcripts
+- Video recordings (if applicable)
+
+### Per-Batch Rollup
+
+- Total participants at each stage (arrived, completed intro, entered game, completed)
+- Treatment assignment distribution
+- Timing statistics (median intro duration, game duration, etc.)
+- Demographic breakdown (country, language, browser)
+
+### Export Format
+
+JSONL (newline-delimited JSON) is recommended for streaming compatibility. Each participant produces one JSON object containing all their data. Include timestamps as ISO 8601 strings.
+
+---
+
+## 8. Pre-Registration (optional)
+
+For pre-registered studies, the platform should:
+- Snapshot the treatment configuration at game start (before any participant interaction)
+- Include a hash of the treatment for integrity verification
+- Push to a pre-registration repository before the experiment begins
+- Separate pre-registration data from science data (different repos or directories)
+
+---
+
+## Platform Complexity by Use Case
+
+| Feature | Solo survey tool | VS Code preview | Full multiplayer platform |
+|---------|-----------------|-----------------|--------------------------|
+| State management | React state | Mock state | Distributed reactive store |
+| Stage orchestration | Step sequencing | Step sequencing | Timer + sync + submission |
+| Group formation | N/A | N/A | Constraint satisfaction |
+| Content delivery | Local files | Workspace files | CDN |
+| Consent | Optional | N/A | Required |
+| Equipment checks | N/A | N/A | Required for video |
+| Video calls | N/A | N/A | Required |
+| Text chat | N/A | N/A | Required |
+| Data export | Simple JSON | N/A | JSONL + GitHub push |
+| Pre-registration | N/A | N/A | Recommended |
+
+A minimal SCORE integration (solo, no video, local content) requires only: React state for `resolve`/`save`, step sequencing for `submit`, `Date.now()` for `getElapsedTime`, and local file reading for `getTextContent`. Everything else is additive.
