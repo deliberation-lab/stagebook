@@ -45,13 +45,66 @@ export function MockSurveyStage() {
       <div
         data-testid="mock-survey"
         style={{
-          padding: "1rem",
+          padding: "1.5rem",
           border: "2px dashed var(--score-border, #d1d5db)",
           borderRadius: "0.5rem",
+          maxWidth: "32rem",
         }}
       >
-        <p style={{ marginBottom: "0.5rem" }}>
+        <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
           Mock Survey: <strong>{surveyName}</strong>
+        </h3>
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            fontSize: "0.875rem",
+            color: "#4b5563",
+          }}
+        >
+          <p style={{ margin: "0 0 0.5rem 0" }}>
+            Q1: I see myself as extraverted, enthusiastic
+          </p>
+          <div style={{ display: "flex", gap: "0.75rem", marginLeft: "1rem" }}>
+            {["Disagree", "Neutral", "Agree"].map((label) => (
+              <label
+                key={label}
+                style={{ fontSize: "0.8rem", color: "#6b7280" }}
+              >
+                <input type="radio" name="q1" disabled /> {label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div
+          style={{
+            marginBottom: "1rem",
+            fontSize: "0.875rem",
+            color: "#4b5563",
+          }}
+        >
+          <p style={{ margin: "0 0 0.5rem 0" }}>
+            Q2: I see myself as sympathetic, warm
+          </p>
+          <div style={{ display: "flex", gap: "0.75rem", marginLeft: "1rem" }}>
+            {["Disagree", "Neutral", "Agree"].map((label) => (
+              <label
+                key={label}
+                style={{ fontSize: "0.8rem", color: "#6b7280" }}
+              >
+                <input type="radio" name="q2" disabled /> {label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "#9ca3af",
+            marginBottom: "0.75rem",
+          }}
+        >
+          (Mock survey — click below to simulate completion with pre-set
+          results)
         </p>
         <button
           data-testid="complete-survey-btn"
@@ -63,6 +116,7 @@ export function MockSurveyStage() {
             border: "none",
             borderRadius: "0.375rem",
             cursor: "pointer",
+            fontSize: "0.875rem",
           }}
         >
           Complete Survey

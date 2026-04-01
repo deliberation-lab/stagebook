@@ -1,5 +1,6 @@
 /**
  * Test wrapper for Qualtrics that tracks save calls and completion.
+ * Shows visible status indicators for the Playwright UI preview.
  */
 import React, { useState } from "react";
 import { Qualtrics } from "../elements/Qualtrics.js";
@@ -24,7 +25,34 @@ export function MockQualtrics({
   const [completed, setCompleted] = useState(false);
 
   return (
-    <div>
+    <div style={{ padding: "1rem" }}>
+      {/* Visible status panel */}
+      <div
+        style={{
+          padding: "0.75rem 1rem",
+          marginBottom: "1rem",
+          borderRadius: "0.375rem",
+          backgroundColor: completed ? "#dcfce7" : "#fef3c7",
+          border: `1px solid ${completed ? "#16a34a" : "#d97706"}`,
+          fontSize: "0.875rem",
+        }}
+      >
+        <strong>Qualtrics Test Status</strong>
+        <div style={{ marginTop: "0.25rem" }}>
+          Completion:{" "}
+          <span style={{ fontWeight: 600 }}>
+            {completed ? "✓ Complete" : "⏳ Waiting for QualtricsEOS message"}
+          </span>
+        </div>
+        {savedData && (
+          <div style={{ marginTop: "0.25rem" }}>
+            Saved: <code>{savedData.key}</code> →{" "}
+            <code>{JSON.stringify(savedData.value)}</code>
+          </div>
+        )}
+      </div>
+
+      {/* The actual Qualtrics component (iframe will try to load the URL) */}
       <Qualtrics
         url={url}
         resolvedParams={resolvedParams}
@@ -34,7 +62,8 @@ export function MockQualtrics({
         save={(key, value) => setSavedData({ key, value })}
         onComplete={() => setCompleted(true)}
       />
-      {/* Hidden elements for test assertions */}
+
+      {/* Hidden elements for programmatic test assertions */}
       <div data-testid="qualtrics-completed" style={{ display: "none" }}>
         {completed ? "true" : "false"}
       </div>
