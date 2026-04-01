@@ -4,11 +4,13 @@ export {
   RadioGroup,
   type RadioGroupProps,
   type RadioOption,
+  type RadioLayout,
 } from "./RadioGroup.js";
 export {
   CheckboxGroup,
   type CheckboxGroupProps,
   type CheckboxOption,
+  type CheckboxLayout,
 } from "./CheckboxGroup.js";
 export {
   TextArea,

@@ -5,11 +5,14 @@ export interface RadioOption {
   value: string;
 }
 
+export type RadioLayout = "vertical" | "horizontal";
+
 export interface RadioGroupProps {
   options: RadioOption[];
   value?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   label?: string;
+  layout?: RadioLayout;
   id?: string;
 }
 
@@ -18,26 +21,47 @@ export function RadioGroup({
   value,
   onChange,
   label = "",
+  layout = "vertical",
   id = "radioGroup",
 }: RadioGroupProps) {
   return (
-    <div className="mt-4">
+    <div style={{ marginTop: "1rem" }}>
       {label && (
         <label
           htmlFor={id}
-          className="block text-md font-medium text-gray-800 my-2"
+          style={{
+            display: "block",
+            fontSize: "1rem",
+            fontWeight: 500,
+            color: "#1f2937",
+            marginBottom: "0.5rem",
+          }}
         >
           {label}
         </label>
       )}
-      <div className="ml-5 grid gap-1.5">
+      <div
+        style={{
+          marginLeft: "1.25rem",
+          display: layout === "horizontal" ? "flex" : "grid",
+          gap: layout === "horizontal" ? "1rem" : "0.375rem",
+          flexWrap: layout === "horizontal" ? "wrap" : undefined,
+        }}
+      >
         {options.map(({ key, value: optionValue }) => (
           <label
-            className="font-normal text-sm text-gray-500 max-w-xl"
             key={`${id}_${key}`}
+            style={{
+              fontWeight: 400,
+              fontSize: "0.875rem",
+              color: "#6b7280",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
           >
             <input
-              className="mr-2 shadow-sm"
               type="radio"
               value={key}
               checked={value === key}
