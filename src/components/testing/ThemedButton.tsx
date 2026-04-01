@@ -13,7 +13,7 @@ export function ThemedButton({
   ...buttonProps
 }: ThemedButtonProps) {
   const cssText = Object.entries(themeOverrides)
-    .map(([key, value]) => `${key}: ${value};`)
+    .map(([key, value]) => `${key}: ${value} !important;`)
     .join(" ");
 
   return (

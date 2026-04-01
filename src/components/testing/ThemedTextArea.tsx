@@ -21,7 +21,7 @@ export function ThemedTextArea({
 }: ThemedTextAreaProps) {
   const [value, setValue] = useState(initialValue);
   const cssText = Object.entries(themeOverrides)
-    .map(([key, value]) => `${key}: ${value};`)
+    .map(([key, value]) => `${key}: ${value} !important;`)
     .join(" ");
 
   return (
