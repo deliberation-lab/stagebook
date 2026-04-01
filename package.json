@@ -17,6 +17,7 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./styles": "./src/styles.css",
     "./components": {
       "import": {
         "types": "./dist/components/index.d.ts",
@@ -29,7 +30,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src/styles.css"
   ],
   "scripts": {
     "build": "tsup",

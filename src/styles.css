@@ -1,1 +1,267 @@
+/*
+ * @deliberation-lab/score default styles
+ *
+ * Import this in your app entry point:
+ *   import "@deliberation-lab/score/styles";
+ *
+ * Provides:
+ * - Tailwind CSS utilities
+ * - Inter font
+ * - Base typography (headings, paragraphs, lists, links, blockquotes)
+ * - Form input resets
+ * - SCORE component-specific styles (slider, progress bar)
+ */
+
 @import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Font                                                                */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://rsms.me/inter/font-files/InterVariable.woff2")
+    format("woff2");
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* SCORE color palette — replaces Empirica's brand colors */
+  --color-score-50: #eff6ff;
+  --color-score-100: #dbeafe;
+  --color-score-200: #bfdbfe;
+  --color-score-300: #93c5fd;
+  --color-score-400: #60a5fa;
+  --color-score-500: #3b82f6;
+  --color-score-600: #2563eb;
+  --color-score-700: #1d4ed8;
+  --color-score-800: #1e40af;
+  --color-score-900: #1e3a8a;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base typography — applied to semantic HTML elements                  */
+/* These styles make Markdown-rendered content look correct.            */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    font-weight: 500;
+    color: #1a202c;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+    margin-top: 1rem;
+    font-weight: 500;
+    color: #1a202c;
+  }
+
+  h3 {
+    font-size: 1.125rem;
+    margin-top: 2rem;
+    font-weight: 500;
+    color: #1a202c;
+  }
+
+  h4 {
+    font-size: 1rem;
+    margin-top: 1rem;
+    font-weight: 500;
+    color: #2d3748;
+  }
+
+  p {
+    margin-top: 0.5rem;
+    font-weight: 400;
+    font-size: 1rem;
+    color: #4a5568;
+  }
+
+  /* Unordered lists */
+  ul {
+    list-style-type: circle;
+    list-style-position: inside;
+    padding-left: 1rem;
+  }
+
+  ul li {
+    margin-top: 0.5rem;
+    list-style-type: disc;
+    font-weight: normal;
+    font-size: 1rem;
+    color: #4a5568;
+  }
+
+  /* Ordered lists with nested numbering (1. / 1.1 / 1.1.1) */
+  ol {
+    counter-reset: item;
+    list-style-type: none;
+    list-style-position: inside;
+    padding-left: 1rem;
+  }
+
+  ol > li {
+    counter-increment: item;
+    position: relative;
+    margin-top: 0.5rem;
+    font-weight: normal;
+    font-size: 1rem;
+    color: #4a5568;
+  }
+
+  ol > li::before {
+    content: counters(item, ".") ". ";
+    position: absolute;
+    left: -1rem;
+  }
+
+  ol ol > li::before {
+    content: counters(item, ".") " ";
+  }
+
+  ol ol > li {
+    padding-left: 1rem;
+  }
+
+  ol ol ol > li {
+    padding-left: 2rem;
+  }
+
+  /* Links */
+  a {
+    color: #3b82f6;
+    text-decoration: underline;
+  }
+
+  /* Blockquotes (used by Display element and markdown) */
+  blockquote {
+    max-width: 36rem;
+    word-break: break-word;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-left-width: 0.25rem;
+    border-left-style: solid;
+    border-color: #d1d5db;
+    background-color: #f9fafb;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Form resets                                                        */
+  /* ---------------------------------------------------------------- */
+
+  input[type="text"],
+  input[type="email"],
+  input[type="url"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  input[type="tel"],
+  textarea,
+  select {
+    appearance: none;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: #1f2937;
+    background-color: #fff;
+  }
+
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="url"]:focus,
+  input[type="password"]:focus,
+  input[type="number"]:focus,
+  input[type="search"]:focus,
+  input[type="tel"]:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.125rem;
+    background-color: #fff;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+
+  input[type="radio"] {
+    border-radius: 9999px;
+  }
+
+  input[type="checkbox"]:checked,
+  input[type="radio"]:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+    background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  input[type="radio"]:checked {
+    background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e");
+  }
+
+  input[type="checkbox"]:focus,
+  input[type="radio"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+
+  /* Remove number input spinners */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* GFM tables (rendered by react-markdown) */
+  table {
+    border-collapse: collapse;
+    margin: 1rem 0;
+    width: 100%;
+    max-width: 36rem;
+  }
+
+  th,
+  td {
+    border: 1px solid #d1d5db;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: 0.875rem;
+    color: #4a5568;
+  }
+
+  th {
+    background-color: #f9fafb;
+    font-weight: 500;
+    color: #1a202c;
+  }
+}
