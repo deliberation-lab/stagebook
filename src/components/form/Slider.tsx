@@ -50,19 +50,42 @@ export function Slider({
   const hasValue = localValue !== undefined && localValue !== null;
 
   return (
-    <div className="mt-4 w-full">
-      <div className="relative w-full pt-2 pb-8">
+    <div style={{ marginTop: "1rem", width: "100%" }}>
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          paddingTop: "0.5rem",
+          paddingBottom: "2.5rem",
+          paddingLeft: "0.5rem",
+          paddingRight: "0.5rem",
+        }}
+      >
         {/* Clickable track — no thumb until first interaction */}
         <div
-          className="relative w-full h-2 bg-gray-200 rounded cursor-pointer hover:bg-gray-300"
           onClick={handleClick}
           role="presentation"
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "8px",
+            backgroundColor: "#e5e7eb",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
         >
+          {/* Ticks */}
           {labelPts.map((pt) => (
             <div
               key={`tick-${pt}`}
-              className="absolute top-0 w-0.5 bg-gray-400"
-              style={{ left: `${getPosition(pt)}%`, height: "12px" }}
+              style={{
+                position: "absolute",
+                left: `${getPosition(pt)}%`,
+                top: 0,
+                width: "2px",
+                height: "12px",
+                backgroundColor: "#9ca3af",
+              }}
             />
           ))}
         </div>
@@ -70,10 +93,15 @@ export function Slider({
         {/* Instruction when no value set — avoids anchoring */}
         {!hasValue && (
           <div
-            className="absolute text-xs text-gray-500 text-center whitespace-nowrap"
             style={{
+              position: "absolute",
               left: "50%",
-              transform: "translateX(-50%) translateY(-150%)",
+              transform: "translateX(-50%)",
+              top: "-0.75rem",
+              fontSize: "0.75rem",
+              color: "#6b7280",
+              textAlign: "center",
+              whiteSpace: "nowrap",
             }}
           >
             Click the bar to select a value, then drag to adjust.
@@ -89,8 +117,14 @@ export function Slider({
             step={interval}
             value={localValue}
             onChange={handleChange}
-            className="absolute top-2 left-0 w-full h-2 appearance-none bg-transparent cursor-pointer"
             style={{
+              position: "absolute",
+              top: "8px",
+              left: "0.5rem",
+              width: "calc(100% - 1rem)",
+              height: "8px",
+              background: "transparent",
+              cursor: "pointer",
               WebkitAppearance: "none",
               MozAppearance: "none",
             }}
@@ -101,21 +135,37 @@ export function Slider({
           />
         )}
 
-        {/* Labels */}
-        <div className="relative w-full mt-2">
-          {labelPts.map((pt, idx) => (
-            <div
-              key={`label-${pt}`}
-              className="absolute text-xs text-gray-600 text-center"
-              style={{
-                left: `${getPosition(pt)}%`,
-                transform: "translateX(-50%)",
-                maxWidth: "80px",
-              }}
-            >
-              {labels[idx]}
-            </div>
-          ))}
+        {/* Labels — positioned below ticks */}
+        <div style={{ position: "relative", width: "100%", marginTop: "6px" }}>
+          {labelPts.map((pt, idx) => {
+            const pos = getPosition(pt);
+            // Prevent edge labels from clipping off-screen
+            let transform = "translateX(-50%)";
+            let textAlign: React.CSSProperties["textAlign"] = "center";
+            if (pos <= 5) {
+              transform = "translateX(0)";
+              textAlign = "left";
+            } else if (pos >= 95) {
+              transform = "translateX(-100%)";
+              textAlign = "right";
+            }
+            return (
+              <div
+                key={`label-${pt}`}
+                style={{
+                  position: "absolute",
+                  left: `${pos}%`,
+                  transform,
+                  textAlign,
+                  maxWidth: "80px",
+                  fontSize: "0.75rem",
+                  color: "#4b5563",
+                }}
+              >
+                {labels[idx]}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -130,7 +180,7 @@ export function Slider({
           cursor: pointer;
           border: 2px solid white;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-          margin-top: -11px;
+          margin-top: -8px;
         }
         input[type="range"]::-moz-range-thumb {
           width: 20px;

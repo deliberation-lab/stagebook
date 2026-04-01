@@ -57,6 +57,7 @@ test("renders tick marks at label points", async ({ mount }) => {
       labels={["Low", "Mid", "High"]}
     />,
   );
-  // 3 tick marks with bg-gray-400 class
-  await expect(component.locator(".bg-gray-400")).toHaveCount(3);
+  // 3 tick marks inside the track (role="presentation" container)
+  const track = component.locator('[role="presentation"]');
+  await expect(track.locator("div")).toHaveCount(3);
 });

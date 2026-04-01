@@ -13,7 +13,8 @@ export {
   type TextContentResult,
 } from "./ScoreProvider.js";
 
-// Element router (requires ScoreProvider)
+// Stage and element rendering (requires ScoreProvider)
+export { Stage, type StageConfig, type StageProps } from "./Stage.js";
 export { Element, type ElementConfig, type ElementProps } from "./Element.js";
 
 // Standalone form components — no ScoreProvider required
