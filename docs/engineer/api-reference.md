@@ -185,6 +185,16 @@ Requires ScoreProvider. Dispatches to the appropriate element component based on
 | `KitchenTimer` | `startTime`, `endTime`, `getElapsedTime`, `warnTimeRemaining?` |
 | `TrackedLink` | `name`, `url`, `displayText`, `save`, `getElapsedTime`, `progressLabel`, `resolvedParams?` |
 | `TrainingVideo` | `url`, `getElapsedTime`, `onComplete` |
+| `Qualtrics` | `url`, `resolvedParams?`, `participantId?`, `groupId?`, `progressLabel`, `save`, `onComplete` |
+
+### Render Slots (platform-provided)
+
+| Slot | Config | When Used |
+|------|--------|-----------|
+| `renderSurvey` | `{ surveyName, onComplete }` | `type: "survey"` element |
+| `renderDiscussion` | Full `DiscussionType` config | Stage with `discussion` block |
+| `renderSharedNotepad` | `{ padName }` | `type: "sharedNotepad"` or `shared: true` prompt |
+| `renderTalkMeter` | _(none)_ | `type: "talkMeter"` element |
 
 ### Conditional Components
 

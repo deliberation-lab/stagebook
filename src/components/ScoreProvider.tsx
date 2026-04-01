@@ -32,6 +32,10 @@ export interface ScoreContext {
   renderDiscussion?: (config: DiscussionType) => React.ReactNode;
   renderSharedNotepad?: (config: { padName: string }) => React.ReactNode;
   renderTalkMeter?: () => React.ReactNode;
+  renderSurvey?: (config: {
+    surveyName: string;
+    onComplete: (results: unknown) => void;
+  }) => React.ReactNode;
 }
 
 // --------------- Context ---------------

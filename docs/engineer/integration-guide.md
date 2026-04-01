@@ -276,25 +276,70 @@ const expanded = fillTemplates({ obj: treatments, templates });
 
 ## Render Slots for Service-Coupled Elements
 
-Some elements depend on external services (video calls, shared notepads, speaking time tracking). SCORE validates the config and manages layout, but your platform supplies the actual component via render props on the provider:
+Some elements depend on external services or platform-specific libraries. SCORE validates the config, manages layout and conditional rendering, and handles data storage — but your platform supplies the actual component via render props on the provider.
+
+### Survey
+
+Surveys are rendered by the platform because they depend on a survey library (e.g., `@watts-lab/surveys`). SCORE handles the storage key (`survey_${name}`) so other SCORE elements can reference the results.
 
 ```typescript
+import { getSurvey } from "@watts-lab/surveys";
+
 const context: ScoreContext = {
   // ...other fields...
 
+  renderSurvey: ({ surveyName, onComplete }) => {
+    const SurveyComponent = getSurvey(surveyName);
+    return <SurveyComponent onComplete={onComplete} />;
+  },
+};
+```
+
+When the survey calls `onComplete(results)`, SCORE saves the results under `survey_${name}` so they're available to `display` elements and `conditions` via `survey.<name>.result.<key>`.
+
+Your survey component just needs to:
+1. Render the survey UI
+2. Call `onComplete(results)` when the participant finishes, passing the results object
+
+### Discussion
+
+Video calls and text chat are tightly coupled to external services (Daily.co, Twilio, etc.). SCORE handles the two-column layout, position-based visibility, and breakout room config, but the platform provides the actual communication component.
+
+```typescript
+const context: ScoreContext = {
   renderDiscussion: (config) => {
     if (config.chatType === "video") {
       return <DailyVideoCall {...config} />;
     }
     return <TextChat {...config} />;
   },
+};
+```
 
+The `config` parameter is the full `discussion` object from the treatment YAML, including `chatType`, `showNickname`, `showTitle`, `rooms`, `layout`, etc. Your component receives all the configuration and implements the service integration.
+
+### Shared Notepad
+
+Collaborative text editors (e.g., Etherpad) are used for `sharedNotepad` elements and `shared: true` open response prompts.
+
+```typescript
+const context: ScoreContext = {
   renderSharedNotepad: ({ padName }) => (
     <EtherpadEmbed padName={padName} />
   ),
+};
+```
 
+### Talk Meter
+
+Speaking time tracking requires audio analysis, which is platform-specific.
+
+```typescript
+const context: ScoreContext = {
   renderTalkMeter: () => <TalkTimeDisplay />,
 };
 ```
 
-If a render slot is not provided, the element renders nothing (no error). This lets you progressively add service integrations.
+### Progressive adoption
+
+All render slots are optional. If a slot is not provided, the element renders nothing (no error). This lets you progressively add service integrations — start with prompts and submit buttons, add video calls later.

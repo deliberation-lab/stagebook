@@ -10,3 +10,4 @@ export {
 } from "./TrackedLink.js";
 export { TrainingVideo, type TrainingVideoProps } from "./TrainingVideo.js";
 export { Prompt, type PromptProps } from "./Prompt.js";
+export { Qualtrics, type QualtricsProps } from "./Qualtrics.js";

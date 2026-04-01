@@ -11,6 +11,7 @@ import { KitchenTimer } from "./elements/KitchenTimer.js";
 import { TrackedLink, type ResolvedParam } from "./elements/TrackedLink.js";
 import { TrainingVideo } from "./elements/TrainingVideo.js";
 import { Prompt } from "./elements/Prompt.js";
+import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
 
 // Resolve URL params for TrackedLink using the ScoreProvider's resolve
@@ -90,6 +91,8 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     renderSharedNotepad,
     renderDiscussion,
     renderTalkMeter,
+    renderSurvey,
+    playerId,
   } = ctx;
 
   // For prompt elements, load the file content
@@ -218,6 +221,33 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           padName: element.name ?? "",
         }) ?? null
       );
+
+    case "qualtrics": {
+      const qualtricsParams = useResolvedParams(element.urlParams, resolve);
+      return (
+        <Qualtrics
+          url={element.url ?? ""}
+          resolvedParams={qualtricsParams}
+          participantId={playerId}
+          progressLabel={progressLabel}
+          save={save}
+          onComplete={onSubmit}
+        />
+      );
+    }
+
+    case "survey": {
+      const surveyName = element.surveyName ?? "";
+      const surveyKey = element.name ?? surveyName;
+      return (
+        renderSurvey?.({
+          surveyName,
+          onComplete: (results: unknown) => {
+            save(`survey_${surveyKey}`, results);
+          },
+        }) ?? null
+      );
+    }
 
     case "discussion":
       return renderDiscussion?.(element as never) ?? null;

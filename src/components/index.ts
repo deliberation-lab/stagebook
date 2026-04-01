@@ -63,6 +63,8 @@ export {
   type TrainingVideoProps,
   Prompt,
   type PromptProps,
+  Qualtrics,
+  type QualtricsProps,
 } from "./elements/index.js";
 
 // Conditional rendering components
