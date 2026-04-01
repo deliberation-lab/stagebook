@@ -157,8 +157,9 @@ export function TextArea({
       <div
         style={{
           textAlign: "right",
-          fontSize: "0.875rem",
+          fontSize: "0.75rem",
           marginTop: "0.25rem",
+          paddingRight: "0.25rem",
           color: countColor,
         }}
       >
