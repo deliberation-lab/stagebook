@@ -279,5 +279,5 @@ test("shows loading when submitted in single player", async ({ mount }) => {
       playerCount={1}
     />,
   );
-  await expect(component).toContainText("Loading");
+  await expect(component.locator('[aria-label="Loading"]')).toBeVisible();
 });

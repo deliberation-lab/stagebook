@@ -40,6 +40,8 @@ export {
   type ListSorterProps,
   Markdown,
   type MarkdownProps,
+  Loading,
+  type LoadingProps,
 } from "./form/index.js";
 
 // Pure element components — usable with manual prop wiring

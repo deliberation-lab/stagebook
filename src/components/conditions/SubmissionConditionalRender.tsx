@@ -1,4 +1,5 @@
 import React from "react";
+import { Loading } from "../form/Loading.js";
 
 export interface SubmissionConditionalRenderProps {
   isSubmitted: boolean;
@@ -13,7 +14,11 @@ export function SubmissionConditionalRender({
 }: SubmissionConditionalRenderProps) {
   if (isSubmitted) {
     if (!playerCount || playerCount <= 1) {
-      return <div className="text-center text-gray-400">Loading...</div>;
+      return (
+        <div className="text-center">
+          <Loading />
+        </div>
+      );
     }
     return (
       <div className="text-center text-gray-400 pointer-events-none">

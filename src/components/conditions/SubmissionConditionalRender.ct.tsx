@@ -29,5 +29,5 @@ test("shows loading when submitted in single player", async ({ mount }) => {
     </SubmissionConditionalRender>,
   );
   await expect(component).not.toContainText("Form content");
-  await expect(component).toContainText("Loading");
+  await expect(component.locator('[aria-label="Loading"]')).toBeVisible();
 });

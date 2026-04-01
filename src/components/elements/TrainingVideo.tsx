@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "../form/Button.js";
+import { Loading } from "../form/Loading.js";
 
 export interface TrainingVideoProps {
   url: string;
@@ -70,7 +71,7 @@ export function TrainingVideo({
               <track kind="captions" />
             </video>
           ) : (
-            <h4>Loading video player</h4>
+            <Loading />
           )}
         </div>
       )}

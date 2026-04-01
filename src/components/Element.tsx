@@ -11,6 +11,7 @@ import { KitchenTimer } from "./elements/KitchenTimer.js";
 import { TrackedLink, type ResolvedParam } from "./elements/TrackedLink.js";
 import { TrainingVideo } from "./elements/TrainingVideo.js";
 import { Prompt } from "./elements/Prompt.js";
+import { Loading } from "./form/Loading.js";
 
 // Resolve URL params for TrackedLink using the ScoreProvider's resolve
 function useResolvedParams(
@@ -124,7 +125,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
 
     case "prompt": {
       if (promptLoading || !promptMarkdown) {
-        return <p>Loading prompt...</p>;
+        return <Loading />;
       }
       const parsed = promptFileSchema.safeParse(promptMarkdown);
       if (!parsed.success) {
