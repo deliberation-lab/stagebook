@@ -155,12 +155,15 @@ export function TextArea({
 
     return (
       <div
+        data-testid="char-counter"
         style={{
           textAlign: "right",
           fontSize: "0.75rem",
           marginTop: "0.25rem",
-          paddingRight: "0.25rem",
+          paddingRight: "0.75rem",
           color: countColor,
+          boxSizing: "border-box",
+          width: "100%",
         }}
       >
         {countText}
@@ -169,7 +172,9 @@ export function TextArea({
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", overflow: "hidden" }}>
+    <div
+      style={{ position: "relative", width: "100%", boxSizing: "border-box" }}
+    >
       <textarea
         id={textAreaId}
         autoComplete="off"

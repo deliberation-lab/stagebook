@@ -99,7 +99,54 @@ test.describe("Open Response", () => {
       />,
     );
     await expect(component.locator("textarea")).toBeVisible();
-    await expect(component).toContainText("chars");
+    await expect(component).toContainText("(5 / 50-200 chars)");
+  });
+
+  test("counter is gray when under minimum", async ({ mount }) => {
+    const component = await mount(
+      <Prompt
+        {...openResponseWithLimits}
+        name="testGray"
+        value="Hi"
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const counter = component.locator('[data-testid="char-counter"]');
+    await expect(counter).toHaveCSS("color", "rgb(107, 114, 128)");
+  });
+
+  test("counter is green when in valid range", async ({ mount }) => {
+    const longValue = "A".repeat(75);
+    const component = await mount(
+      <Prompt
+        {...openResponseWithLimits}
+        name="testGreen"
+        value={longValue}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const counter = component.locator('[data-testid="char-counter"]');
+    await expect(counter).toHaveCSS("color", "rgb(22, 163, 74)");
+  });
+
+  test("counter is red at maximum", async ({ mount }) => {
+    const maxValue = "A".repeat(200);
+    const component = await mount(
+      <Prompt
+        {...openResponseWithLimits}
+        name="testRed"
+        value={maxValue}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const counter = component.locator('[data-testid="char-counter"]');
+    await expect(counter).toHaveCSS("color", "rgb(220, 38, 38)");
   });
 
   test("shared mode hides textarea (notepad slot)", async ({ mount }) => {

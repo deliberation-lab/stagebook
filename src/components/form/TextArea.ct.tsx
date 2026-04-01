@@ -32,7 +32,7 @@ test("min only: shows required count in gray when under", async ({ mount }) => {
   );
   await expect(component).toContainText("(2 / 50+ characters required)");
   // Gray color when under minimum
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(107, 114, 128)");
 });
 
@@ -45,7 +45,7 @@ test("min only: shows green when at minimum", async ({ mount }) => {
     />,
   );
   await expect(component).toContainText("50+ characters required");
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(22, 163, 74)");
 });
 
@@ -56,7 +56,7 @@ test("max only: shows count in gray when under", async ({ mount }) => {
     <MockTextArea value="Hello" showCharacterCount maxLength={200} />,
   );
   await expect(component).toContainText("(5 / 200 chars max)");
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(107, 114, 128)");
 });
 
@@ -65,7 +65,7 @@ test("max only: shows red at max", async ({ mount }) => {
     <MockTextArea value="12345" showCharacterCount maxLength={5} />,
   );
   await expect(component).toContainText("(5 / 5 chars max)");
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(220, 38, 38)");
 });
 
@@ -81,7 +81,7 @@ test("min+max: gray when under minimum", async ({ mount }) => {
     />,
   );
   await expect(component).toContainText("(2 / 10-50 chars)");
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(107, 114, 128)");
 });
 
@@ -95,7 +95,7 @@ test("min+max: green when in range", async ({ mount }) => {
     />,
   );
   await expect(component).toContainText("(13 / 10-50 chars)");
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(22, 163, 74)");
 });
 
@@ -109,7 +109,7 @@ test("min+max: red at maximum", async ({ mount }) => {
     />,
   );
   await expect(component).toContainText("(10 / 5-10 chars)");
-  const counter = component.locator("div").last();
+  const counter = component.locator('[data-testid="char-counter"]');
   await expect(counter).toHaveCSS("color", "rgb(220, 38, 38)");
 });
 
