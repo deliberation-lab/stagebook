@@ -138,6 +138,18 @@ import { ScoreProvider, type ScoreContext } from "@deliberation-lab/score/compon
 | `useElapsedTime()` | `number` (seconds) | yes |
 | `useTextContent(path)` | `{ data, isLoading, error }` | yes |
 
+### Stage
+
+```tsx
+import { Stage, type StageConfig } from "@deliberation-lab/score/components";
+
+<Stage stage={stageConfig} onSubmit={handleSubmit} />
+```
+
+Requires ScoreProvider. Renders a complete stage: lays out elements with conditional rendering (time, position, conditions), handles two-column layout when a discussion is present, and shows a waiting message after submission. **This is the primary rendering API** — prefer `Stage` over manually rendering `Element` components.
+
+`StageConfig` has: `name` (string), `duration?` (number), `elements` (ElementConfig[]), `discussion?` (DiscussionType).
+
 ### Element Router
 
 ```tsx
@@ -146,7 +158,7 @@ import { Element, type ElementConfig } from "@deliberation-lab/score/components"
 <Element element={elementConfig} onSubmit={handleSubmit} stageDuration={300} />
 ```
 
-Requires ScoreProvider. Dispatches to the appropriate element component based on `element.type`.
+Requires ScoreProvider. Dispatches to the appropriate element component based on `element.type`. Use this for lower-level control when `Stage` doesn't fit your needs.
 
 ### Form Components (standalone)
 

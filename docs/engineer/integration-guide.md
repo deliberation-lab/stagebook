@@ -76,6 +76,38 @@ if (result.success) {
 }
 ```
 
+## Treatment Hydration Pipeline
+
+Before passing treatment data to SCORE's rendering components, the platform must **hydrate** it — expand templates, validate, and resolve all placeholders. SCORE components expect fully resolved data with no template contexts or `${field}` placeholders remaining.
+
+```typescript
+import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/score";
+import { load as loadYaml } from "js-yaml";
+
+// 1. Load and parse YAML
+const raw = loadYaml(yamlString);
+
+// 2. Expand templates (replaces template contexts with resolved values)
+const templates = raw.templates ?? [];
+const hydrated = {
+  ...raw,
+  introSequences: fillTemplates({ obj: raw.introSequences, templates }),
+  treatments: fillTemplates({ obj: raw.treatments, templates }),
+};
+
+// 3. Validate the expanded result
+const result = treatmentFileSchema.safeParse(hydrated);
+if (!result.success) throw new Error(result.error.message);
+
+// 4. Pass resolved stages to SCORE components
+// Each treatment.gameStages[i] is now a concrete stage object
+// that can be passed directly to <Stage stage={...} />
+```
+
+**Important:** The `<Stage>` component and `<Element>` component expect **hydrated** data. If you pass a stage that still contains `{ template: "..." }` objects or `${field}` placeholders, rendering will fail. Always run `fillTemplates()` before passing data to components.
+
+The hydration step also resolves broadcast expansion — a single template with `broadcast: { d0: [...], d1: [...] }` may produce multiple stages or elements via cartesian product. This happens during `fillTemplates()`, not during rendering.
+
 ## Implementing a ScoreProvider
 
 To render SCORE elements, your platform must implement the `ScoreContext` interface and wrap your component tree with `<ScoreProvider>`.
@@ -141,10 +173,13 @@ const context: ScoreContext = {
 
 ### Wiring It Up
 
-```tsx
-import { ScoreProvider, Element } from "@deliberation-lab/score/components";
+SCORE provides a `Stage` component that handles all element layout, conditional rendering, and discussion placement. The platform just provides the context and the hydrated stage config:
 
-function Stage({ elements, onSubmit, duration }) {
+```tsx
+import { ScoreProvider, Stage } from "@deliberation-lab/score/components";
+import type { ScoreContext } from "@deliberation-lab/score/components";
+
+function GameStage({ stageConfig, onSubmit }) {
   const context = useYourPlatformContext(); // your platform's hooks
 
   const scoreContext: ScoreContext = {
@@ -159,17 +194,24 @@ function Stage({ elements, onSubmit, duration }) {
     position: context.player.position,
     playerCount: context.playerCount,
     isSubmitted: context.player.isSubmitted,
+    renderDiscussion: (config) => <YourVideoComponent {...config} />,
   };
 
   return (
     <ScoreProvider value={scoreContext}>
-      {elements.map((element, i) => (
-        <Element key={i} element={element} onSubmit={onSubmit} stageDuration={duration} />
-      ))}
+      <Stage stage={stageConfig} onSubmit={onSubmit} />
     </ScoreProvider>
   );
 }
 ```
+
+The `Stage` component handles:
+- Laying out elements top-to-bottom with appropriate spacing and max-widths
+- Two-column layout when a discussion is present (discussion left, elements right)
+- Wrapping each element in time, position, and condition-based conditional rendering
+- Showing a "waiting for others" message after submission
+
+If you need lower-level control, you can use the `Element` component directly to render individual elements, or the pure element components (e.g., `Prompt`, `Display`) with manual prop wiring.
 
 ### The Three Phases
 
