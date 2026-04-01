@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/experimental-ct-react";
 import { Slider } from "./Slider";
+import { MockSlider } from "../testing/MockSlider";
 
 test("renders without thumb initially (no anchoring)", async ({ mount }) => {
   const component = await mount(<Slider min={0} max={100} interval={1} />);
@@ -60,4 +61,43 @@ test("renders tick marks at label points", async ({ mount }) => {
   // 3 tick marks inside the track (role="presentation" container)
   const track = component.locator('[role="presentation"]');
   await expect(track.locator("div")).toHaveCount(3);
+});
+
+test("clicking track sets value via onChange", async ({ mount }) => {
+  const component = await mount(<MockSlider min={0} max={100} interval={1} />);
+  // Initially no value
+  await expect(component.locator('[data-testid="slider-value"]')).toHaveText(
+    "undefined",
+  );
+
+  // Click the track
+  await component
+    .locator('[role="presentation"]')
+    .dispatchEvent("click", { clientX: 150, clientY: 5 });
+
+  // Value should now be set (some number between 0 and 100)
+  const val = await component
+    .locator('[data-testid="slider-value"]')
+    .textContent();
+  expect(val).not.toBe("undefined");
+  const num = parseFloat(val!);
+  expect(num).toBeGreaterThanOrEqual(0);
+  expect(num).toBeLessThanOrEqual(100);
+});
+
+test("changing range input updates value", async ({ mount }) => {
+  const component = await mount(
+    <MockSlider min={0} max={100} interval={1} initialValue={50} />,
+  );
+
+  await expect(component.locator('[data-testid="slider-value"]')).toHaveText(
+    "50",
+  );
+
+  // Change the range input value
+  await component.locator('input[type="range"]').fill("75");
+
+  await expect(component.locator('[data-testid="slider-value"]')).toHaveText(
+    "75",
+  );
 });
