@@ -66,8 +66,8 @@ test.describe("Qualtrics", () => {
     });
   });
 
-  test.describe("Completion flow", () => {
-    test("saves data and completes on QualtricsEOS message", async ({
+  test.describe("Origin validation", () => {
+    test("rejects postMessage from non-Qualtrics origin", async ({
       mount,
       page,
     }) => {
@@ -75,34 +75,28 @@ test.describe("Qualtrics", () => {
         <MockQualtrics url="https://upenn.qualtrics.com/jfe/form/SV_test123" />,
       );
 
-      // Verify not completed yet
+      // Verify not completed
       await expect(
         component.locator('[data-testid="qualtrics-completed"]'),
       ).toHaveText("false");
 
-      // Simulate Qualtrics end-of-survey postMessage
+      // Send postMessage from localhost (not qualtrics.com) — should be rejected
       await page.evaluate(() => {
         window.postMessage("QualtricsEOS|SV_test123|sess_abc456", "*");
       });
 
-      // Wait for state update
+      // Wait a moment for any potential (incorrect) state update
+      await page.waitForTimeout(200);
+
+      // Should still NOT be completed — origin validation rejected the message
       await expect(
         component.locator('[data-testid="qualtrics-completed"]'),
-      ).toHaveText("true");
+      ).toHaveText("false");
 
-      // Verify save was called with correct key
+      // No data should have been saved
       await expect(
         component.locator('[data-testid="qualtrics-saved-key"]'),
-      ).toHaveText("qualtricsDataReady");
-
-      // Verify saved value contains survey and session IDs
-      const savedValue = await component
-        .locator('[data-testid="qualtrics-saved-value"]')
-        .textContent();
-      const parsed = JSON.parse(savedValue!);
-      expect(parsed.surveyId).toBe("SV_test123");
-      expect(parsed.sessionId).toBe("sess_abc456");
-      expect(parsed.step).toBe("game_0_qualtrics");
+      ).toHaveText("");
     });
   });
 });

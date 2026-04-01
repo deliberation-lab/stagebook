@@ -9,7 +9,7 @@ export interface TypingStats {
 
 export interface PasteAttempt {
   type: "pasteAttempt";
-  content: string;
+  length: number;
   timestamp: number;
 }
 
@@ -77,7 +77,7 @@ export function TextArea({
     if (onDebugMessage) {
       onDebugMessage({
         type: "pasteAttempt",
-        content: pastedText,
+        length: pastedText.length,
         timestamp: Date.now(),
       });
     }

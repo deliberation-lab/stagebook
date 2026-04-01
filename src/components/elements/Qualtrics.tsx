@@ -24,9 +24,19 @@ export function Qualtrics({
   save,
   onComplete,
 }: QualtricsProps) {
-  // Listen for Qualtrics end-of-survey message
+  // Listen for Qualtrics end-of-survey message.
+  // Validates origin to prevent spoofed messages from non-Qualtrics sources.
+  // Checks *.qualtrics.com to handle datacenter redirects.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      // Validate origin — only accept messages from Qualtrics domains
+      try {
+        const originHost = new URL(event.origin).hostname;
+        if (!originHost.endsWith("qualtrics.com")) return;
+      } catch {
+        return;
+      }
+
       const data: unknown = event.data;
       if (typeof data === "string" && data.startsWith("QualtricsEOS")) {
         const [, surveyId, sessionId] = data.split("|");

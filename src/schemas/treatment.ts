@@ -45,8 +45,20 @@ export const fileSchema = z.string().optional();
 
 export type FileType = z.infer<typeof fileSchema>;
 
-// TODO: check that url is a valid url
-export const urlSchema = z.string().url();
+export const urlSchema = z
+  .string()
+  .url()
+  .refine(
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        return ["http:", "https:"].includes(parsed.protocol);
+      } catch {
+        return false;
+      }
+    },
+    { message: "URL must use http or https protocol" },
+  );
 export type UrlType = z.infer<typeof urlSchema>;
 
 // stage duration:
@@ -1178,7 +1190,7 @@ export const treatmentSchema = altTemplateContext(
           stage?.elements?.forEach(
             (element: any, elementIndex: string | number) => {
               ["showToPositions", "hideFromPositions"].forEach((key) => {
-                const positions = (element)[key];
+                const positions = element[key];
                 if (Array.isArray(positions)) {
                   positions?.forEach((pos, posIndex) => {
                     if (typeof pos === "number" && pos >= playerCount) {

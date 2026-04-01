@@ -2,6 +2,10 @@
 
 import { templateContextSchema } from "../schemas/treatment.js";
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function substituteFields({
   templateContent,
   fields,
@@ -17,7 +21,8 @@ export function substituteFields({
 
     // replace all instances of `"${key}"` with serialized value
     // this handles objects and arrays, etc.
-    const objectReplacementRegex = new RegExp(`"\\$\\{${key}\\}"`, "g");
+    const escapedKey = escapeRegExp(key);
+    const objectReplacementRegex = new RegExp(`"\\$\\{${escapedKey}\\}"`, "g");
     stringifiedTemplate = stringifiedTemplate.replace(
       objectReplacementRegex,
       stringifiedValue,
@@ -25,7 +30,7 @@ export function substituteFields({
 
     // if the value is just a string or number, we can also replace instances of ${key} within other strings
     if (typeof value === "string") {
-      const stringReplacementRegex = new RegExp(`\\$\\{${key}\\}`, "g");
+      const stringReplacementRegex = new RegExp(`\\$\\{${escapedKey}\\}`, "g");
       stringifiedTemplate = stringifiedTemplate.replace(
         stringReplacementRegex,
         value,
@@ -127,13 +132,28 @@ export function expandTemplate({
   return expandedTemplate;
 }
 
+const MAX_TEMPLATE_DEPTH = 100;
+
 export function recursivelyFillTemplates({
   obj,
   templates,
+  depth = 0,
+  templateChain = [],
 }: {
   obj: any;
   templates: any[];
+  depth?: number;
+  templateChain?: string[];
 }): any {
+  if (depth > MAX_TEMPLATE_DEPTH) {
+    const chain =
+      templateChain.length > 0
+        ? ` Template chain: ${templateChain.slice(-10).join(" → ")}`
+        : "";
+    throw new Error(
+      `Maximum template nesting depth (${MAX_TEMPLATE_DEPTH}) exceeded.${chain} Check for circular template references in your treatment file.`,
+    );
+  }
   let newObj: any;
   try {
     newObj = JSON.parse(JSON.stringify(obj));
@@ -144,9 +164,15 @@ export function recursivelyFillTemplates({
 
   if (!Array.isArray(newObj) && typeof newObj === "object") {
     if (newObj && newObj.template) {
+      const templateName = newObj.template as string;
       const context = templateContextSchema.parse(newObj);
       newObj = expandTemplate({ templates, context });
-      newObj = recursivelyFillTemplates({ obj: newObj, templates });
+      newObj = recursivelyFillTemplates({
+        obj: newObj,
+        templates,
+        depth: depth + 1,
+        templateChain: [...templateChain, templateName],
+      });
     } else {
       for (const key in newObj) {
         if (newObj[key] == null) {
@@ -155,6 +181,8 @@ export function recursivelyFillTemplates({
         newObj[key] = recursivelyFillTemplates({
           obj: newObj[key],
           templates,
+          depth: depth + 1,
+          templateChain,
         });
       }
     }
@@ -174,6 +202,8 @@ export function recursivelyFillTemplates({
         newObj[index] = recursivelyFillTemplates({
           obj: item,
           templates,
+          depth: depth + 1,
+          templateChain,
         });
       }
     }

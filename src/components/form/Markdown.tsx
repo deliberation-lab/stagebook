@@ -19,7 +19,16 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
         if (path.startsWith("http://") || path.startsWith("https://")) {
           return `![${alt}](${path})`;
         }
-        const url = encodeURI(resolveURL(path));
+        const resolved = resolveURL(path);
+        // Reject non-http protocols (e.g., javascript:)
+        if (
+          !resolved.startsWith("http://") &&
+          !resolved.startsWith("https://") &&
+          !resolved.startsWith("data:")
+        ) {
+          return `![${alt}](${path})`; // fall back to original path
+        }
+        const url = encodeURI(resolved);
         return `![${alt}](${url})`;
       },
     );
