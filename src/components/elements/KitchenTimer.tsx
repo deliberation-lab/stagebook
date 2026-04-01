@@ -47,21 +47,27 @@ export function KitchenTimer({
 
   return (
     <div
-      style={{ margin: "0.375rem", maxWidth: "36rem" }}
+      style={{
+        margin: "0.375rem",
+        maxWidth: "36rem",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+      }}
       data-testid="kitchen-timer"
       data-warning={isWarning ? "true" : "false"}
     >
+      {/* Progress bar */}
       <div
         style={{
           position: "relative",
-          width: "100%",
+          flex: 1,
           height: "1.5rem",
           backgroundColor: "#e5e7eb",
           borderRadius: "9999px",
           overflow: "hidden",
         }}
       >
-        {/* Progress fill */}
         <div
           data-testid="timer-fill"
           style={{
@@ -72,22 +78,21 @@ export function KitchenTimer({
             transition: "width 1s linear, background-color 0.3s ease",
           }}
         />
-        {/* Time label centered */}
-        <span
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.75rem",
-            fontWeight: 500,
-            color: "#1f2937",
-          }}
-        >
-          {displayRemaining}
-        </span>
       </div>
+      {/* Time label to the right */}
+      <span
+        style={{
+          fontSize: "0.875rem",
+          fontWeight: 500,
+          color: "#374151",
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          minWidth: "3rem",
+          textAlign: "right",
+        }}
+      >
+        {displayRemaining}
+      </span>
     </div>
   );
 }
