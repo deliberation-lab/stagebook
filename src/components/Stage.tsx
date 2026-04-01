@@ -9,15 +9,15 @@ import { SubmissionConditionalRender } from "./conditions/SubmissionConditionalR
 import type { DiscussionType } from "../schemas/treatment.js";
 
 // Max-width per element type — wider for surveys/qualtrics/video
-function layoutClassForElement(element: ElementConfig): string {
+function maxWidthForElement(element: ElementConfig): string {
   switch (element.type) {
     case "survey":
     case "qualtrics":
-      return "max-w-5xl";
+      return "64rem"; // ~1024px
     case "video":
-      return "max-w-4xl";
+      return "56rem"; // ~896px
     default:
-      return "max-w-2xl";
+      return "42rem"; // ~672px
   }
 }
 
@@ -60,7 +60,12 @@ function WrappedElement({
           resolve={resolve}
         >
           <div
-            className={`mx-auto w-full px-4 py-2 ${layoutClassForElement(element)}`}
+            style={{
+              margin: "0 auto",
+              width: "100%",
+              maxWidth: maxWidthForElement(element),
+              padding: "0.5rem 1rem",
+            }}
           >
             <Element
               element={element}
@@ -133,14 +138,43 @@ export function Stage({ stage, onSubmit }: StageProps) {
     const discussionConditions = stage.discussion.conditions;
 
     const discussionPage = (
-      <div className="flex h-full w-full flex-col gap-4 pb-4 md:flex-row md:items-stretch md:px-6 md:min-h-[calc(100vh-4rem)]">
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          width: "100%",
+          flexDirection: "row",
+          alignItems: "stretch",
+          gap: "1rem",
+          paddingBottom: "1rem",
+          paddingLeft: "1.5rem",
+          paddingRight: "1.5rem",
+          minHeight: "calc(100vh - 4rem)",
+        }}
+      >
         {/* Discussion column */}
-        <div className="relative w-full min-h-64 md:flex-1 md:min-w-96">
+        <div
+          style={{
+            position: "relative",
+            flex: 1,
+            minWidth: "24rem",
+            minHeight: "16rem",
+          }}
+        >
           {renderDiscussion(stage.discussion)}
         </div>
 
         {/* Elements column — scrollable independently */}
-        <div className="w-full px-4 md:w-[40vw] md:min-w-80 md:max-w-3xl md:px-0 md:overflow-auto md:scroll-smooth md:self-stretch">
+        <div
+          style={{
+            width: "40vw",
+            minWidth: "20rem",
+            maxWidth: "48rem",
+            overflowY: "auto",
+            scrollBehavior: "smooth",
+            alignSelf: "stretch",
+          }}
+        >
           {elementsColumn}
         </div>
       </div>
@@ -156,7 +190,16 @@ export function Stage({ stage, onSubmit }: StageProps) {
             conditions={discussionConditions as never[]}
             resolve={resolve}
             fallback={
-              <div className="flex h-full w-full flex-col pb-2 overflow-auto">
+              <div
+                style={{
+                  display: "flex",
+                  height: "100%",
+                  width: "100%",
+                  flexDirection: "column",
+                  paddingBottom: "0.5rem",
+                  overflow: "auto",
+                }}
+              >
                 {elementsColumn}
               </div>
             }
@@ -176,7 +219,16 @@ export function Stage({ stage, onSubmit }: StageProps) {
       isSubmitted={isSubmitted}
       playerCount={playerCount}
     >
-      <div className="flex h-full w-full flex-col pb-2 overflow-auto">
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          width: "100%",
+          flexDirection: "column",
+          paddingBottom: "0.5rem",
+          overflow: "auto",
+        }}
+      >
         {elementsColumn}
       </div>
     </SubmissionConditionalRender>
