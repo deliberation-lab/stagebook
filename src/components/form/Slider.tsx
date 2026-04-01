@@ -175,7 +175,7 @@ export function Slider({
           appearance: none;
           width: 20px;
           height: 24px;
-          background: #3b82f6;
+          background: var(--score-primary, #3b82f6);
           border-radius: 50%;
           cursor: pointer;
           border: 2px solid white;
@@ -185,7 +185,7 @@ export function Slider({
         input[type="range"]::-moz-range-thumb {
           width: 20px;
           height: 24px;
-          background: #3b82f6;
+          background: var(--score-primary, #3b82f6);
           border-radius: 50%;
           cursor: pointer;
           border: 2px solid white;

@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/experimental-ct-react";
 import { ThemedButton } from "../testing/ThemedButton";
 import { ThemedKitchenTimer } from "../testing/ThemedKitchenTimer";
 import { ThemedTextArea } from "../testing/ThemedTextArea";
+import { SideBySideButtons } from "../testing/SideBySideButtons";
 
 // Orange theme — deliberately very different from the default blue
 // to make visual differences obvious in the Playwright UI
@@ -101,5 +102,14 @@ test.describe("CSS Variable Theme Override", () => {
     const counter = component.locator('[data-testid="char-counter"]');
     // #f97316 = rgb(249, 115, 22)
     await expect(counter).toHaveCSS("color", "rgb(249, 115, 22)");
+  });
+
+  test("side-by-side: blue default vs orange override", async ({ mount }) => {
+    const component = await mount(<SideBySideButtons />);
+    await expect(component).toContainText("Default Blue");
+    await expect(component).toContainText("Custom Orange");
+    // Both buttons should be visible
+    const buttons = component.locator("button");
+    await expect(buttons).toHaveCount(2);
   });
 });
