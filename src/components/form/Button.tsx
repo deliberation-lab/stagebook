@@ -1,11 +1,5 @@
 import React, { useId } from "react";
 
-const base =
-  "inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2";
-const prim = "border-transparent shadow-sm";
-const sec = "shadow-sm";
-const dsbl = "opacity-50 cursor-not-allowed";
-
 export interface ButtonProps {
   children: React.ReactNode;
   onClick?: React.MouseEventHandler<HTMLButtonElement> | null;
@@ -32,27 +26,39 @@ export function Button({
   const generatedId = useId();
   const buttonId = id || `button${generatedId}`;
 
+  const baseStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0.5rem 1rem",
+    border: "1px solid",
+    fontSize: "0.875rem",
+    fontWeight: 500,
+    borderRadius: "0.375rem",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+  };
+
   const colorStyle: React.CSSProperties = primary
     ? {
         color: "#fff",
         backgroundColor: "var(--score-primary, #3b82f6)",
         borderColor: "transparent",
+        boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
       }
     : {
         color: "var(--score-text-secondary, #374151)",
         backgroundColor: "#fff",
         borderColor: "var(--score-border, #d1d5db)",
+        boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
       };
 
   return (
     <button
       type={type}
       onClick={onClick ?? undefined}
-      className={`${base} ${primary ? prim : sec} ${
-        disabled ? dsbl : ""
-      } ${className}`}
+      className={className}
       autoFocus={autoFocus}
-      style={{ ...colorStyle, ...style }}
+      style={{ ...baseStyle, ...colorStyle, ...style }}
       id={buttonId}
       disabled={disabled}
     >
