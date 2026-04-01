@@ -60,6 +60,7 @@ function WrappedElement({
           resolve={resolve}
         >
           <div
+            data-testid={`element-${element.type}${element.name ? `-${element.name}` : ""}`}
             style={{
               margin: "0 auto",
               width: "100%",

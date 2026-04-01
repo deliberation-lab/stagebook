@@ -10,6 +10,7 @@ export interface ButtonProps {
   autoFocus?: boolean;
   disabled?: boolean;
   id?: string;
+  "data-testid"?: string;
 }
 
 export function Button({
@@ -22,6 +23,7 @@ export function Button({
   autoFocus = false,
   disabled = false,
   id = "",
+  "data-testid": dataTestId,
 }: ButtonProps) {
   const generatedId = useId();
   const buttonId = id || `button${generatedId}`;
@@ -60,6 +62,7 @@ export function Button({
       autoFocus={autoFocus}
       style={{ ...baseStyle, ...colorStyle, ...style }}
       id={buttonId}
+      data-testid={dataTestId}
       disabled={disabled}
     >
       {children}

@@ -22,8 +22,10 @@ export function SubmitButton({
   };
 
   return (
-    <div className="mt-4">
-      <Button onClick={handleClick}>{buttonText}</Button>
+    <div style={{ marginTop: "1rem" }}>
+      <Button onClick={handleClick} data-testid="submitButton">
+        {buttonText}
+      </Button>
     </div>
   );
 }
