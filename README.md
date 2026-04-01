@@ -154,7 +154,7 @@ All schemas export corresponding TypeScript types (e.g., `TreatmentType`, `Stage
 - [Integration Guide](docs/engineer/integration-guide.md) — implementing a ScoreProvider backend
 - [Platform Requirements](docs/engineer/platform-requirements.md) — what the host platform must provide (state, orchestration, group formation, services)
 - [API Reference](docs/engineer/api-reference.md) — all exports, types, and component props
-- [Architecture](docs/score-provider.md) — ScoreProvider design, three-layer component model, render slots, CSS theming
+- [Architecture](docs/engineer/architecture.md) — ScoreProvider design, three-layer component model, render slots, CSS theming
 
 ## License
 
