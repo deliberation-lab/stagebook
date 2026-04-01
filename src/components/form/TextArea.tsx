@@ -169,7 +169,7 @@ export function TextArea({
   };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", width: "100%", overflow: "hidden" }}>
       <textarea
         id={textAreaId}
         autoComplete="off"
