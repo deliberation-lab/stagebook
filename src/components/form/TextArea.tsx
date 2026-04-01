@@ -129,39 +129,47 @@ export function TextArea({
     if (!showCharacterCount) return null;
 
     let countText = "";
-    let colorClass = "text-gray-500";
+    let countColor = "#6b7280"; // gray-500
     const currentLength = localValue.length;
 
     if (minLength && maxLength) {
       countText = `(${currentLength} / ${minLength}-${maxLength} chars)`;
       if (currentLength >= minLength && currentLength < maxLength) {
-        colorClass = "text-green-600";
+        countColor = "#16a34a"; // green-600
       } else if (currentLength === maxLength) {
-        colorClass = "text-red-600";
+        countColor = "#dc2626"; // red-600
       }
     } else if (minLength) {
       countText = `(${currentLength} / ${minLength}+ characters required)`;
       if (currentLength >= minLength) {
-        colorClass = "text-green-600";
+        countColor = "#16a34a";
       }
     } else if (maxLength) {
       countText = `(${currentLength} / ${maxLength} chars max)`;
       if (currentLength === maxLength) {
-        colorClass = "text-red-600";
+        countColor = "#dc2626";
       }
     } else {
       countText = `(${currentLength} characters)`;
     }
 
     return (
-      <div className={`text-right text-sm mt-1 ${colorClass}`}>{countText}</div>
+      <div
+        style={{
+          textAlign: "right",
+          fontSize: "0.875rem",
+          marginTop: "0.25rem",
+          color: countColor,
+        }}
+      >
+        {countText}
+      </div>
     );
   };
 
   return (
-    <div className="relative">
+    <div style={{ position: "relative" }}>
       <textarea
-        className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
         id={textAreaId}
         autoComplete="off"
         rows={rows}
@@ -171,6 +179,19 @@ export function TextArea({
         onBlur={handleBlur}
         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
+        style={{
+          display: "block",
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "0.5rem 0.75rem",
+          border: "1px solid #d1d5db",
+          borderRadius: "0.375rem",
+          boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+          fontSize: "0.875rem",
+          lineHeight: "1.25rem",
+          color: "#1f2937",
+          resize: "vertical",
+        }}
       />
       {renderCharacterCount()}
     </div>
