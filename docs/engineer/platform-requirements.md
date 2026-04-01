@@ -62,6 +62,43 @@ State changes must trigger React re-renders. When participant A writes a value, 
 
 State must survive page refreshes. If a participant disconnects and reconnects, their previous responses should still be present. For multiplayer experiments, other participants' state must also be available after reconnection.
 
+### Platform-Populated State
+
+Some reference namespaces require the platform to collect and store data that SCORE components don't produce. If your treatment files use conditions or displays referencing these namespaces, the platform must populate them in player state during onboarding:
+
+**`connectionInfo.*`** — Network metadata collected during consent/onboarding:
+- `connectionInfo.country` — ISO country code (e.g., from IP geolocation)
+- `connectionInfo.timezone` — IP-based timezone
+- `connectionInfo.isKnownVpn` — whether the IP is on a known VPN list
+
+The platform stores this under the key `connectionInfo` in player state. SCORE's `resolve("connectionInfo.country")` looks up `connectionInfo` and traverses `.country`.
+
+**`browserInfo.*`** — Client-side browser information:
+- `browserInfo.screenWidth`, `browserInfo.screenHeight` — screen resolution
+- `browserInfo.language` — browser language (e.g., `en-US`)
+- `browserInfo.userAgent` — raw user-agent string
+
+The platform stores this under the key `browserInfo` in player state.
+
+**`participantInfo.*`** — Participant attributes:
+- `participantInfo.name` — nickname entered during onboarding
+- `participantInfo.sampleId` — identifier from recruiting platform
+
+The platform stores individual fields directly in player state (e.g., key `name` with the nickname value).
+
+If these namespaces are not populated, conditions referencing them will evaluate to `undefined`, which causes the condition to return "can't determine yet" (not a hard failure).
+
+### Browser Compatibility
+
+SCORE components are tested against modern browsers. The platform should verify browser compatibility during onboarding, before loading the experiment. Minimum supported versions:
+- Chrome >= 89
+- Edge >= 89
+- Firefox >= 89
+- Safari >= 15
+- Opera >= 75
+
+Mobile devices are not supported for interactive experiments with video/audio. The platform should detect and block mobile browsers during onboarding.
+
 ---
 
 ## 2. Stage Orchestration (required)

@@ -20,7 +20,6 @@ export interface PromptProps {
   shared?: boolean;
   value: unknown;
   progressLabel: string;
-  permalink?: string;
   save: (key: string, value: unknown, scope?: "player" | "shared") => void;
   getElapsedTime: () => number;
   resolveURL?: (path: string) => string;
@@ -39,7 +38,6 @@ export function Prompt({
   shared = false,
   value,
   progressLabel,
-  permalink,
   save,
   getElapsedTime,
   resolveURL,
@@ -73,7 +71,6 @@ export function Prompt({
 
   const record = {
     ...metadata,
-    permalink,
     name,
     shared,
     step: progressLabel,

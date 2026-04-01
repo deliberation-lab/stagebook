@@ -32,17 +32,16 @@ function useResolvedParams(
       return {
         key: param.key,
         value:
-          param.value === undefined
+          param.value == null
             ? ""
-            : `${param.value as string | number | boolean}`,
+            : String(param.value as string | number | boolean),
       };
     }
     const values = resolve(param.reference, param.position);
     const picked = values.find((v) => v !== undefined);
     return {
       key: param.key,
-      value:
-        picked === undefined ? "" : `${picked as string | number | boolean}`,
+      value: picked == null ? "" : String(picked as string | number | boolean),
     };
   });
 }
@@ -98,9 +97,11 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
 
   // For prompt elements, load the file content
   const promptFile = element.type === "prompt" ? element.file : undefined;
-  const { data: promptMarkdown, isLoading: promptLoading } = useTextContent(
-    promptFile ?? "",
-  );
+  const {
+    data: promptMarkdown,
+    isLoading: promptLoading,
+    error: promptError,
+  } = useTextContent(promptFile ?? "");
 
   const resolvedParams = useResolvedParams(
     element.type === "trackedLink" ? element.urlParams : undefined,
@@ -128,13 +129,25 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       );
 
     case "prompt": {
+      if (promptError) {
+        return (
+          <p style={{ color: "#dc2626", fontSize: "0.875rem" }}>
+            Error loading prompt: {promptError.message}
+          </p>
+        );
+      }
       if (promptLoading || !promptMarkdown) {
         return <Loading />;
       }
       const parsed = promptFileSchema.safeParse(promptMarkdown);
       if (!parsed.success) {
         return (
-          <p className="text-red-600">
+          <p
+            style={{
+              color: "var(--score-danger, #dc2626)",
+              fontSize: "0.875rem",
+            }}
+          >
             Error parsing prompt: {parsed.error.issues[0]?.message}
           </p>
         );
