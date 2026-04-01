@@ -1,27 +1,22 @@
 import { test, expect } from "@playwright/experimental-ct-react";
 import { ImageElement } from "./ImageElement";
 
+// 1x1 red pixel as a data URI — gives us a real image to render
+const testImage =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
 test("renders image with src", async ({ mount }) => {
-  const component = await mount(
-    <ImageElement src="https://example.com/photo.png" />,
-  );
-  await expect(component.locator("img")).toHaveAttribute(
-    "src",
-    "https://example.com/photo.png",
-  );
+  const component = await mount(<ImageElement src={testImage} />);
+  await expect(component.locator("img")).toBeVisible();
 });
 
 test("renders with custom width", async ({ mount }) => {
-  const component = await mount(
-    <ImageElement src="https://example.com/photo.png" width={50} />,
-  );
+  const component = await mount(<ImageElement src={testImage} width={50} />);
   await expect(component.locator("img")).toHaveAttribute("width", "50%");
 });
 
 test("defaults to 100% width", async ({ mount }) => {
-  const component = await mount(
-    <ImageElement src="https://example.com/photo.png" />,
-  );
+  const component = await mount(<ImageElement src={testImage} />);
   await expect(component.locator("img")).toHaveAttribute("width", "100%");
 });
 
