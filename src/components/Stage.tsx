@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-import React from "react";
+import React, { useRef } from "react";
 import { useScoreContext } from "./ScoreProvider.js";
 import { Element, type ElementConfig } from "./Element.js";
 import { TimeConditionalRender } from "./conditions/TimeConditionalRender.js";
 import { PositionConditionalRender } from "./conditions/PositionConditionalRender.js";
 import { ConditionsConditionalRender } from "./conditions/ConditionsConditionalRender.js";
 import { SubmissionConditionalRender } from "./conditions/SubmissionConditionalRender.js";
+import { ScrollIndicator } from "./scroll/ScrollIndicator.js";
+import { useScrollAwareness } from "./scroll/useScrollAwareness.js";
 import type { DiscussionType } from "../schemas/treatment.js";
 
 // Max-width per element type — wider for surveys/qualtrics/video
@@ -126,6 +128,14 @@ export function Stage({ stage, onSubmit }: StageProps) {
 
   const showDiscussion = positionAllowsDiscussion(stage.discussion, position);
 
+  // Scroll awareness — shows indicator when content overflows
+  const discussionContentRef = useRef<HTMLDivElement>(null);
+  const singleColumnRef = useRef<HTMLDivElement>(null);
+  const { showIndicator: showDiscussionScrollIndicator } =
+    useScrollAwareness(discussionContentRef);
+  const { showIndicator: showSingleColumnScrollIndicator } =
+    useScrollAwareness(singleColumnRef);
+
   const elementsColumn = (
     <ElementsColumn
       elements={stage.elements}
@@ -167,6 +177,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
 
         {/* Elements column — scrollable independently */}
         <div
+          ref={discussionContentRef}
           style={{
             width: "40vw",
             minWidth: "20rem",
@@ -177,6 +188,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
           }}
         >
           {elementsColumn}
+          <ScrollIndicator visible={showDiscussionScrollIndicator} />
         </div>
       </div>
     );
@@ -221,6 +233,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
       playerCount={playerCount}
     >
       <div
+        ref={singleColumnRef}
         style={{
           display: "flex",
           height: "100%",
@@ -231,6 +244,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
         }}
       >
         {elementsColumn}
+        <ScrollIndicator visible={showSingleColumnScrollIndicator} />
       </div>
     </SubmissionConditionalRender>
   );

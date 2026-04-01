@@ -79,3 +79,10 @@ export {
   SubmissionConditionalRender,
   type SubmissionConditionalRenderProps,
 } from "./conditions/index.js";
+
+// Scroll awareness (used internally by Stage, also available standalone)
+export {
+  ScrollIndicator,
+  type ScrollIndicatorProps,
+} from "./scroll/ScrollIndicator.js";
+export { useScrollAwareness } from "./scroll/useScrollAwareness.js";
