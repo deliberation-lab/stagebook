@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/experimental-ct-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   testDir: "./src",
@@ -12,6 +13,9 @@ export default defineConfig({
   use: {
     trace: "on-first-retry",
     ctPort: 3100,
+    ctViteConfig: {
+      plugins: [tailwindcss()],
+    },
   },
   projects: [
     {

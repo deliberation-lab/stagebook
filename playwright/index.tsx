@@ -1,2 +1,3 @@
-// This file is the entry point for Playwright component testing.
-// Import global styles or providers here if needed.
+// Entry point for Playwright component testing.
+// Import global styles so components render with Tailwind.
+import "../src/styles.css";
