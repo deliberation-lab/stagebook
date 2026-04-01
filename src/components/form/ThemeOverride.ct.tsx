@@ -108,8 +108,23 @@ test.describe("CSS Variable Theme Override", () => {
     const component = await mount(<SideBySideButtons />);
     await expect(component).toContainText("Default Blue");
     await expect(component).toContainText("Custom Orange");
-    // Both buttons should be visible
+
     const buttons = component.locator("button");
     await expect(buttons).toHaveCount(2);
+
+    // Check actual computed colors
+    const defaultBg = await buttons
+      .nth(0)
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const themedBg = await buttons
+      .nth(1)
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    // Log for debugging
+    console.log("Default button bg:", defaultBg);
+    console.log("Themed button bg:", themedBg);
+
+    // They should be different colors
+    expect(defaultBg).not.toBe(themedBg);
   });
 });
