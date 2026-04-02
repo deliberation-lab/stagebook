@@ -211,6 +211,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
             resolve={resolve}
             fallback={
               <div
+                data-testid="stageContent"
                 style={{
                   display: "flex",
                   height: "100%",
