@@ -57,7 +57,7 @@ export function KitchenTimer({
         gap: "0.75rem",
       }}
       data-testid="kitchen-timer"
-      data-warning={isWarning ? "true" : "false"}
+      data-state={isWarning ? "warning" : "normal"}
     >
       {/* Progress bar */}
       <div

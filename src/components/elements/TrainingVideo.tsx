@@ -68,7 +68,11 @@ export function TrainingVideo({
   };
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div
+      data-testid="trainingVideo-wrapper"
+      data-state={playing ? "playing" : "blocked"}
+      style={{ textAlign: "center" }}
+    >
       <h4>Please take a moment to watch the following video</h4>
 
       {!playing && (

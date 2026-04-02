@@ -81,7 +81,7 @@ test("blue fill when not in warning zone", async ({ mount }) => {
       elapsedTime={30}
     />,
   );
-  await expect(component).toHaveAttribute("data-warning", "false");
+  await expect(component).toHaveAttribute("data-state", "normal");
   const fill = component.locator('[data-testid="timer-fill"]');
   await expect(fill).toHaveCSS("background-color", "rgb(96, 165, 250)");
 });
@@ -96,7 +96,7 @@ test("red fill when in warning zone", async ({ mount }) => {
     />,
   );
   // remaining = 10, which is <= 15
-  await expect(component).toHaveAttribute("data-warning", "true");
+  await expect(component).toHaveAttribute("data-state", "warning");
   const fill = component.locator('[data-testid="timer-fill"]');
   await expect(fill).toHaveCSS("background-color", "rgb(239, 68, 68)");
 });
@@ -111,7 +111,7 @@ test("transition from blue to red at warning boundary", async ({ mount }) => {
       elapsedTime={50}
     />,
   );
-  await expect(component).toHaveAttribute("data-warning", "true");
+  await expect(component).toHaveAttribute("data-state", "warning");
 });
 
 // -- Delayed start --

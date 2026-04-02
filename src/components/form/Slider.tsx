@@ -50,7 +50,11 @@ export function Slider({
   const hasValue = localValue !== undefined && localValue !== null;
 
   return (
-    <div style={{ marginTop: "1rem", width: "100%" }}>
+    <div
+      data-testid="slider"
+      data-state={hasValue ? "anchored" : "unanchored"}
+      style={{ marginTop: "1rem", width: "100%" }}
+    >
       <div
         style={{
           position: "relative",
