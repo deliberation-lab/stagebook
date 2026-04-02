@@ -111,13 +111,18 @@ function positionAllowsDiscussion(
   position: number | undefined,
 ): boolean {
   if (!discussion) return false;
-  if (position === undefined) return false;
+  if (position === undefined || position === null) return false;
+
+  // Defensive coercion — host platforms may pass position as a string
+  const numPosition =
+    typeof position === "number" ? position : Number(position);
+  if (Number.isNaN(numPosition)) return false;
 
   const show = discussion.showToPositions;
   const hide = discussion.hideFromPositions;
 
-  if (show && !show.includes(position)) return false;
-  if (hide && hide.includes(position)) return false;
+  if (show && !show.includes(numPosition)) return false;
+  if (hide && hide.includes(numPosition)) return false;
 
   return true;
 }

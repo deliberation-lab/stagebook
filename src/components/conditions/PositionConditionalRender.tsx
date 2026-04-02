@@ -14,10 +14,15 @@ export function PositionConditionalRender({
   children,
 }: PositionConditionalRenderProps) {
   // Position is undefined in intro steps — render everything
-  if (position === undefined) return <>{children}</>;
+  if (position === undefined || position === null) return <>{children}</>;
 
-  if (showToPositions && !showToPositions.includes(position)) return null;
-  if (hideFromPositions && hideFromPositions.includes(position)) return null;
+  // Defensive coercion — host platforms may pass position as a string
+  const numPosition =
+    typeof position === "number" ? position : Number(position);
+  if (Number.isNaN(numPosition)) return <>{children}</>;
+
+  if (showToPositions && !showToPositions.includes(numPosition)) return null;
+  if (hideFromPositions && hideFromPositions.includes(numPosition)) return null;
 
   return <>{children}</>;
 }
