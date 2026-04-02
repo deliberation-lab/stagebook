@@ -65,6 +65,7 @@ export function Slider({
         <div
           onClick={handleClick}
           role="presentation"
+          data-testid="slider-track"
           style={{
             position: "relative",
             width: "100%",
