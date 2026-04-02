@@ -165,6 +165,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
       >
         {/* Discussion column */}
         <div
+          data-testid="discussion"
           style={{
             position: "relative",
             flex: 1,
@@ -178,6 +179,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
         {/* Elements column — scrollable independently */}
         <div
           ref={discussionContentRef}
+          data-testid="stageContent"
           style={{
             width: "40vw",
             minWidth: "20rem",
@@ -234,6 +236,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
     >
       <div
         ref={singleColumnRef}
+        data-testid="stageContent"
         style={{
           display: "flex",
           height: "100%",

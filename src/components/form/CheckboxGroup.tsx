@@ -61,6 +61,7 @@ export function CheckboxGroup({
         {options.map(({ key, value: optionValue }) => (
           <label
             key={`${id}_${key}`}
+            data-testid="option"
             style={{
               fontWeight: 400,
               fontSize: "0.875rem",

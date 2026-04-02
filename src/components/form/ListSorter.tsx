@@ -33,6 +33,7 @@ function ListItem({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
+          data-testid={`draggable-${index}`}
           style={{
             ...provided.draggableProps.style,
             padding: "0.5rem 0.75rem",
