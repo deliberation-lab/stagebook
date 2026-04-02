@@ -61,4 +61,21 @@ test.describe("Survey render slot", () => {
     const keys = entries.map((e: { key: string }) => e.key);
     expect(keys).toContain("survey_preTIPI");
   });
+
+  test("completing survey auto-submits the stage", async ({ mount }) => {
+    const component = await mount(<MockSurveyStage />);
+
+    // Not submitted yet
+    await expect(
+      component.locator('[data-testid="stage-submitted"]'),
+    ).toHaveText("false");
+
+    // Complete the survey
+    await component.locator('[data-testid="complete-survey-btn"]').click();
+
+    // Stage should be submitted
+    await expect(
+      component.locator('[data-testid="stage-submitted"]'),
+    ).toHaveText("true");
+  });
 });

@@ -16,6 +16,7 @@ export function MockSurveyStage() {
   const [savedEntries, setSavedEntries] = useState<
     Array<{ key: string; value: unknown }>
   >([]);
+  const [stageSubmitted, setStageSubmitted] = useState(false);
 
   const stage: StageConfig = {
     name: "SurveyStage",
@@ -128,9 +129,12 @@ export function MockSurveyStage() {
   return (
     <div>
       <ScoreProvider value={mockContext}>
-        <Stage stage={stage} onSubmit={() => {}} />
+        <Stage stage={stage} onSubmit={() => setStageSubmitted(true)} />
       </ScoreProvider>
       {/* Hidden elements for test assertions */}
+      <div data-testid="stage-submitted" style={{ display: "none" }}>
+        {stageSubmitted ? "true" : "false"}
+      </div>
       <div data-testid="saved-entries" style={{ display: "none" }}>
         {JSON.stringify(savedEntries)}
       </div>

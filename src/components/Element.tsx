@@ -260,6 +260,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           surveyName,
           onComplete: (results: unknown) => {
             save(`survey_${surveyKey}`, results);
+            onSubmit();
           },
         }) ?? null
       );
