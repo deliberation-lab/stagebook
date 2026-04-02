@@ -95,6 +95,22 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     setAllowIdle,
   } = ctx;
 
+  // Wrap save to add consistent metadata to every element's saved data
+  const wrappedSave = React.useCallback(
+    (key: string, value: unknown, scope?: "player" | "shared") => {
+      const enriched =
+        value !== null && typeof value === "object" && !Array.isArray(value)
+          ? {
+              ...value,
+              step: progressLabel,
+              stageTimeElapsed: getElapsedTime(),
+            }
+          : value;
+      save(key, enriched, scope);
+    },
+    [save, progressLabel, getElapsedTime],
+  );
+
   // For prompt elements, load the file content
   const promptFile = element.type === "prompt" ? element.file : undefined;
   const {
@@ -169,9 +185,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           name={promptName}
           shared={element.shared}
           value={currentValue}
-          progressLabel={progressLabel}
-          save={save}
-          getElapsedTime={getElapsedTime}
+          save={wrappedSave}
           resolveURL={getAssetURL}
           renderSharedNotepad={renderSharedNotepad}
         />
@@ -188,8 +202,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           onSubmit={onSubmit}
           name={buttonName}
           buttonText={element.buttonText}
-          save={save}
-          getElapsedTime={getElapsedTime}
+          save={wrappedSave}
         />
       );
     }
@@ -221,7 +234,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           url={element.url ?? ""}
           displayText={element.displayText ?? ""}
           resolvedParams={resolvedParams}
-          save={save}
+          save={wrappedSave}
           getElapsedTime={getElapsedTime}
           progressLabel={progressLabel}
           setAllowIdle={setAllowIdle}
@@ -245,8 +258,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           url={element.url ?? ""}
           resolvedParams={qualtricsParams}
           participantId={playerId}
-          progressLabel={progressLabel}
-          save={save}
+          save={wrappedSave}
           onComplete={onSubmit}
         />
       );
@@ -259,7 +271,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
         renderSurvey?.({
           surveyName,
           onComplete: (results: unknown) => {
-            save(`survey_${surveyKey}`, results);
+            wrappedSave(`survey_${surveyKey}`, results);
             onSubmit();
           },
         }) ?? null

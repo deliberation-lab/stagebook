@@ -19,9 +19,7 @@ export interface PromptProps {
   name: string;
   shared?: boolean;
   value: unknown;
-  progressLabel: string;
   save: (key: string, value: unknown, scope?: "player" | "shared") => void;
-  getElapsedTime: () => number;
   resolveURL?: (path: string) => string;
   renderSharedNotepad?: (config: {
     padName: string;
@@ -37,9 +35,7 @@ export function Prompt({
   name,
   shared = false,
   value,
-  progressLabel,
   save,
-  getElapsedTime,
   resolveURL,
   renderSharedNotepad,
 }: PromptProps) {
@@ -73,7 +69,6 @@ export function Prompt({
     ...metadata,
     name,
     shared,
-    step: progressLabel,
     prompt: body,
     responses,
     debugMessages,
@@ -84,12 +79,11 @@ export function Prompt({
       const updatedRecord = {
         ...recordData,
         value: newValue,
-        stageTimeElapsed: getElapsedTime(),
       };
       const scope = shared ? "shared" : "player";
       save(`prompt_${recordData.name}`, updatedRecord, scope);
     },
-    [shared, save, getElapsedTime],
+    [shared, save],
   );
 
   const debouncedSaveText = useCallback(

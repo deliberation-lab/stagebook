@@ -6,7 +6,6 @@ export interface SubmitButtonProps {
   name: string;
   buttonText?: string;
   save: (key: string, value: unknown) => void;
-  getElapsedTime: () => number;
 }
 
 export function SubmitButton({
@@ -14,10 +13,9 @@ export function SubmitButton({
   name,
   buttonText = "Next",
   save,
-  getElapsedTime,
 }: SubmitButtonProps) {
   const handleClick = () => {
-    save(`submitButton_${name}`, { time: getElapsedTime() });
+    save(`submitButton_${name}`, {});
     onSubmit();
   };
 

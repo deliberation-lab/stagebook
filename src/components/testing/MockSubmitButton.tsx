@@ -4,13 +4,11 @@ import { SubmitButton } from "../elements/SubmitButton.js";
 export interface MockSubmitButtonProps {
   name?: string;
   buttonText?: string;
-  elapsedTime?: number;
 }
 
 export function MockSubmitButton({
   name = "testSubmit",
   buttonText,
-  elapsedTime = 42.5,
 }: MockSubmitButtonProps) {
   const [submitted, setSubmitted] = useState(false);
   const [savedData, setSavedData] = useState<{
@@ -25,7 +23,6 @@ export function MockSubmitButton({
         name={name}
         buttonText={buttonText}
         save={(key, value) => setSavedData({ key, value })}
-        getElapsedTime={() => elapsedTime}
       />
       <div data-testid="submit-submitted" style={{ display: "none" }}>
         {submitted ? "true" : "false"}

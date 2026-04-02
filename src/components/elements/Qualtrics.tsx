@@ -10,7 +10,6 @@ export interface QualtricsProps {
   resolvedParams?: ResolvedParam[];
   participantId?: string;
   groupId?: string;
-  progressLabel: string;
   save: (key: string, value: unknown) => void;
   onComplete: () => void;
 }
@@ -20,7 +19,6 @@ export function Qualtrics({
   resolvedParams = [],
   participantId = "",
   groupId = "",
-  progressLabel,
   save,
   onComplete,
 }: QualtricsProps) {
@@ -41,7 +39,6 @@ export function Qualtrics({
       if (typeof data === "string" && data.startsWith("QualtricsEOS")) {
         const [, surveyId, sessionId] = data.split("|");
         save("qualtricsDataReady", {
-          step: progressLabel,
           surveyURL: url,
           surveyId,
           sessionId,
@@ -52,7 +49,7 @@ export function Qualtrics({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [url, progressLabel, save, onComplete]);
+  }, [url, save, onComplete]);
 
   // Build the full URL with resolved params + standard identifiers
   const fullURL = useMemo(() => {

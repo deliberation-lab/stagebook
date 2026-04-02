@@ -28,10 +28,8 @@ test.describe("SubmitButton", () => {
     await expect(component).toContainText("Continue");
   });
 
-  test("click triggers save with correct key and time", async ({ mount }) => {
-    const component = await mount(
-      <MockSubmitButton name="readiness" elapsedTime={42.5} />,
-    );
+  test("click triggers save and onSubmit", async ({ mount }) => {
+    const component = await mount(<MockSubmitButton name="readiness" />);
 
     // Not submitted yet
     await expect(
@@ -50,12 +48,5 @@ test.describe("SubmitButton", () => {
     await expect(
       component.locator('[data-testid="submit-saved-key"]'),
     ).toHaveText("submitButton_readiness");
-
-    // save value includes elapsed time
-    const savedValue = await component
-      .locator('[data-testid="submit-saved-value"]')
-      .textContent();
-    const parsed = JSON.parse(savedValue!);
-    expect(parsed.time).toBe(42.5);
   });
 });
