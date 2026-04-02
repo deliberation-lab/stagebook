@@ -129,25 +129,30 @@ export function TextArea({
     if (!showCharacterCount) return null;
 
     let countText = "";
-    let countColor = "var(--score-text-muted, #6b7280)"; // gray-500
+    let countColor = "var(--score-text-muted, #6b7280)";
+    let countState = "default";
     const currentLength = localValue.length;
 
     if (minLength && maxLength) {
       countText = `(${currentLength} / ${minLength}-${maxLength} chars)`;
       if (currentLength >= minLength && currentLength < maxLength) {
-        countColor = "var(--score-success, #16a34a)"; // green-600
+        countColor = "var(--score-success, #16a34a)";
+        countState = "valid";
       } else if (currentLength === maxLength) {
-        countColor = "var(--score-warning, #dc2626)"; // red-600
+        countColor = "var(--score-warning, #dc2626)";
+        countState = "error";
       }
     } else if (minLength) {
       countText = `(${currentLength} / ${minLength}+ characters required)`;
       if (currentLength >= minLength) {
         countColor = "var(--score-success, #16a34a)";
+        countState = "valid";
       }
     } else if (maxLength) {
       countText = `(${currentLength} / ${maxLength} chars max)`;
       if (currentLength === maxLength) {
         countColor = "var(--score-warning, #dc2626)";
+        countState = "error";
       }
     } else {
       countText = `(${currentLength} characters)`;
@@ -156,6 +161,7 @@ export function TextArea({
     return (
       <div
         data-testid="char-counter"
+        data-state={countState}
         style={{
           textAlign: "right",
           fontSize: "0.75rem",
