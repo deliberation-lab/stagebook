@@ -126,7 +126,13 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
 
   switch (element.type) {
     case "audio":
-      return <AudioElement src={getAssetURL(element.file ?? "")} />;
+      return (
+        <AudioElement
+          src={getAssetURL(element.file ?? "")}
+          save={wrappedSave}
+          name={element.name ?? element.file}
+        />
+      );
 
     case "display": {
       const ref = element.reference ?? `prompt.${element.name}`;
@@ -224,6 +230,8 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           getElapsedTime={getElapsedTime}
           onComplete={onSubmit}
           setAllowIdle={setAllowIdle}
+          save={wrappedSave}
+          name={element.name}
         />
       );
 

@@ -7,6 +7,8 @@ export interface TrainingVideoProps {
   getElapsedTime: () => number;
   onComplete: () => void;
   setAllowIdle?: (allow: boolean) => void;
+  save?: (key: string, value: unknown) => void;
+  name?: string;
 }
 
 export function TrainingVideo({
@@ -14,27 +16,33 @@ export function TrainingVideo({
   getElapsedTime,
   onComplete,
   setAllowIdle,
+  save,
+  name,
 }: TrainingVideoProps) {
   const [elapsedOnLoad, setElapsedOnLoad] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+  const key = `video_${name ?? url}`;
 
-  // Allow idle while video is playing (participant is watching, not interacting)
+  // Allow idle while video is playing
   useEffect(() => {
     setAllowIdle?.(true);
     return () => setAllowIdle?.(false);
   }, [setAllowIdle]);
 
   useEffect(() => {
-    // Test if autoplay will work
     const testAudio = new Audio("1sec_silence.mp3");
     const promise = testAudio.play();
     if (promise !== undefined) {
       promise
         .then(() => {
           setPlaying(true);
+          console.log(`[TrainingVideo] Autoplay succeeded: ${url}`);
+          save?.(key, { event: "autoplaySucceeded", url });
         })
         .catch(() => {
           setPlaying(false);
+          console.warn(`[TrainingVideo] Autoplay blocked: ${url}`);
+          save?.(key, { event: "autoplayBlocked", url });
         });
     }
 
@@ -46,19 +54,27 @@ export function TrainingVideo({
     setElapsedOnLoad(timeElapsed);
   }, []);
 
+  const handleManualPlay = () => {
+    setPlaying(true);
+    console.log(`[TrainingVideo] Manual play: ${url}`);
+    save?.(key, { event: "manualPlay", url });
+  };
+
   const handleEnded = () => {
+    console.log(`[TrainingVideo] Video ended: ${url}`);
+    save?.(key, { event: "ended", url });
     const delay = setTimeout(() => onComplete(), 1000);
     return () => clearTimeout(delay);
   };
 
   return (
-    <div className="text-center">
+    <div style={{ textAlign: "center" }}>
       <h4>Please take a moment to watch the following video</h4>
 
       {!playing && (
-        <div className="text-center">
+        <div style={{ textAlign: "center" }}>
           <h4>Video is hidden on page refresh.</h4>
-          <Button onClick={() => setPlaying(true)}>
+          <Button onClick={handleManualPlay}>
             Click to continue the video
           </Button>
         </div>
@@ -66,8 +82,14 @@ export function TrainingVideo({
 
       {playing && (
         <div
-          className="min-w-sm max-h-[85vh] aspect-video relative mx-auto"
-          data-element="trainingVideo"
+          data-testid="trainingVideo"
+          style={{
+            minWidth: "24rem",
+            maxHeight: "85vh",
+            aspectRatio: "16/9",
+            position: "relative",
+            margin: "0 auto",
+          }}
         >
           {elapsedOnLoad !== null ? (
             <video
