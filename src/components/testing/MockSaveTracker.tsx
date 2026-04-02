@@ -1,0 +1,55 @@
+/**
+ * Stage renderer that tracks all save calls, including metadata
+ * added by Element.tsx's wrappedSave.
+ */
+import React, { useState } from "react";
+import { ScoreProvider, type ScoreContext } from "../ScoreProvider.js";
+import { Stage, type StageConfig } from "../Stage.js";
+
+export interface SaveEntry {
+  key: string;
+  value: unknown;
+  scope?: string;
+}
+
+export interface MockSaveTrackerProps {
+  stage: StageConfig;
+  elapsedTime?: number;
+}
+
+export function MockSaveTracker({
+  stage,
+  elapsedTime = 25.5,
+}: MockSaveTrackerProps) {
+  const [saves, setSaves] = useState<SaveEntry[]>([]);
+
+  const mockContext: ScoreContext = {
+    resolve: () => [],
+    save: (key: string, value: unknown, scope?: "player" | "shared") => {
+      setSaves((prev) => [...prev, { key, value, scope }]);
+    },
+    getElapsedTime: () => elapsedTime,
+    submit: () => {},
+    getAssetURL: (path: string) => `https://cdn.test/${path}`,
+    getTextContent: () =>
+      Promise.resolve(
+        "---\nname: mock\ntype: noResponse\n---\nMock content\n---\n",
+      ),
+    progressLabel: `game_0_${stage.name}`,
+    playerId: "player-1",
+    position: 0,
+    playerCount: 1,
+    isSubmitted: false,
+  };
+
+  return (
+    <div>
+      <ScoreProvider value={mockContext}>
+        <Stage stage={stage} onSubmit={() => {}} />
+      </ScoreProvider>
+      <div data-testid="save-log" style={{ display: "none" }}>
+        {JSON.stringify(saves)}
+      </div>
+    </div>
+  );
+}
