@@ -14,6 +14,7 @@ export interface RadioGroupProps {
   label?: string;
   layout?: RadioLayout;
   id?: string;
+  "data-testid"?: string;
 }
 
 export function RadioGroup({
@@ -23,9 +24,10 @@ export function RadioGroup({
   label = "",
   layout = "vertical",
   id = "radioGroup",
+  "data-testid": dataTestId,
 }: RadioGroupProps) {
   return (
-    <div style={{ marginTop: "1rem" }}>
+    <div data-testid={dataTestId ?? id} style={{ marginTop: "1rem" }}>
       {label && (
         <label
           htmlFor={id}

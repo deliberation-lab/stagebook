@@ -14,6 +14,7 @@ export interface CheckboxGroupProps {
   label?: string;
   layout?: CheckboxLayout;
   id?: string;
+  "data-testid"?: string;
 }
 
 export function CheckboxGroup({
@@ -23,6 +24,7 @@ export function CheckboxGroup({
   label = "",
   layout = "vertical",
   id = "checkboxGroup",
+  "data-testid": dataTestId,
 }: CheckboxGroupProps) {
   const handleToggle = (key: string) => {
     const selectedSet = new Set(value);
@@ -35,7 +37,7 @@ export function CheckboxGroup({
   };
 
   return (
-    <div style={{ marginTop: "1rem" }}>
+    <div data-testid={dataTestId ?? id} style={{ marginTop: "1rem" }}>
       {label && (
         <label
           htmlFor={id}
