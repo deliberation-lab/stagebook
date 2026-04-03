@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { isYouTubeURL } from "./mediaPlayer/isYouTubeURL.js";
 import { parseVTT, type CaptionCue } from "./mediaPlayer/parseVTT.js";
+import { YouTubePlayer } from "./mediaPlayer/YouTubePlayer.js";
 import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
 import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 import { formatTime } from "../../utils/formatTime.js";
@@ -119,7 +120,23 @@ export function MediaPlayer({
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [captionText, setCaptionText] = useState<string | null>(null);
 
-  // PlaybackHandle — exposes this player to sibling components via PlaybackProvider
+  // YouTube-only: handle registered by YouTubePlayer once the IFrame API is ready
+  const [ytHandle, setYtHandle] = useState<PlaybackHandle | null>(null);
+
+  // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
+  useEffect(() => {
+    if (!ytHandle || isPaused) return;
+    const id = setInterval(() => {
+      const t = ytHandle.getCurrentTime();
+      setCurrentTime(t);
+      if (stopAt !== undefined && t >= stopAt) {
+        ytHandle.pause();
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [ytHandle, isPaused, stopAt]);
+
+  // HTML5 PlaybackHandle — exposes this player to sibling components via PlaybackProvider
   const handle = useMemo<PlaybackHandle>(
     () => ({
       play: () => {
@@ -136,7 +153,8 @@ export function MediaPlayer({
     }),
     [], // stable: all methods close over videoRef which is a stable ref
   );
-  useRegisterPlayback(name, handle);
+  // Use the YouTube handle when available, fall back to the HTML5 handle
+  useRegisterPlayback(name, ytHandle ?? handle);
 
   // Hold-to-scrub state
   const arrowRepeatCountRef = useRef(0);
@@ -261,9 +279,21 @@ export function MediaPlayer({
     [stopAt, cues, recordEvent],
   );
 
-  // Clamp seek target to allowed range
+  // Clamp seek target to allowed range — works for both HTML5 and YouTube
   const seek = useCallback(
     (delta: number) => {
+      if (ytHandle) {
+        const cur = ytHandle.getCurrentTime();
+        const dur = ytHandle.getDuration();
+        const min = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
+        const max = allowScrubOutsideBounds
+          ? Number.isFinite(dur)
+            ? dur
+            : Infinity
+          : (stopAt ?? (Number.isFinite(dur) ? dur : Infinity));
+        ytHandle.seekTo(Math.min(Math.max(cur + delta, min), max));
+        return;
+      }
       const v = videoRef.current;
       if (!v) return;
       const min = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
@@ -274,7 +304,7 @@ export function MediaPlayer({
         : (stopAt ?? (Number.isFinite(v.duration) ? v.duration : Infinity));
       v.currentTime = Math.min(Math.max(v.currentTime + delta, min), max);
     },
-    [allowScrubOutsideBounds, startAt, stopAt],
+    [allowScrubOutsideBounds, startAt, stopAt, ytHandle],
   );
 
   const exitFastScrub = useCallback(() => {
@@ -305,6 +335,39 @@ export function MediaPlayer({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // YouTube: only Space/K play-pause and J/L/Arrow seek work
+      if (ytHandle) {
+        switch (e.key) {
+          case " ":
+          case "k":
+          case "K":
+            e.preventDefault();
+            if (ytHandle.isPaused()) ytHandle.play();
+            else ytHandle.pause();
+            break;
+          case "j":
+          case "J":
+            e.preventDefault();
+            seek(-10);
+            break;
+          case "l":
+          case "L":
+            e.preventDefault();
+            seek(10);
+            break;
+          case "ArrowRight":
+            e.preventDefault();
+            seek(1);
+            break;
+          case "ArrowLeft":
+            e.preventDefault();
+            seek(-1);
+            break;
+          default:
+            break;
+        }
+        return;
+      }
       const v = videoRef.current;
       if (!v) return;
       switch (e.key) {
@@ -680,7 +743,168 @@ export function MediaPlayer({
   );
 
   if (youtubeVideoId) {
-    const embedUrl = `https://www.youtube.com/embed/${youtubeVideoId}?enablejsapi=1`;
+    // YouTube: IFrame API drives playback; controls overlay on top of the iframe.
+    // Frame-step controls are hidden (YouTube doesn't expose frame-level access).
+    // Speed control is also hidden (YouTube IFrame API doesn't expose setPlaybackRate
+    // in a way that integrates cleanly with our controls).
+    const ytHasControls =
+      !syncToStageTime &&
+      controls !== undefined &&
+      (controls.playPause || controls.seek);
+    const ytControlsVisible =
+      ytHasControls && (isPaused || isHovered || !playVideo);
+
+    const ytControlsContent = ytHasControls ? (
+      <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.25rem",
+          }}
+        >
+          {controls?.seek && (
+            <button
+              data-testid="mediaPlayer-seekBack"
+              aria-label="Back 1s"
+              title="Back 1s · J for 10s"
+              style={controlBtnSmall}
+              onClick={() => {
+                ytHandle?.seekTo(Math.max(0, ytHandle.getCurrentTime() - 1));
+              }}
+            >
+              <SeekBackIcon />
+            </button>
+          )}
+          {controls?.playPause && (
+            <button
+              data-testid="mediaPlayer-playPause"
+              aria-label={isPaused ? "Play" : "Pause"}
+              title={isPaused ? "Play (Space)" : "Pause (Space)"}
+              style={controlBtnLarge}
+              onClick={() => {
+                if (isPaused) ytHandle?.play();
+                else ytHandle?.pause();
+              }}
+            >
+              {isPaused ? <PlayIcon /> : <PauseIcon />}
+            </button>
+          )}
+          {controls?.seek && (
+            <button
+              data-testid="mediaPlayer-seekForward"
+              aria-label="Forward 1s"
+              title="Forward 1s · L for 10s"
+              style={controlBtnSmall}
+              onClick={() => {
+                ytHandle?.seekTo(ytHandle.getCurrentTime() + 1);
+              }}
+            >
+              <SeekForwardIcon />
+            </button>
+          )}
+        </div>
+        {controls?.seek && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <div
+              data-testid="mediaPlayer-scrubBar"
+              role="slider"
+              aria-label="Seek"
+              aria-valuemin={scrubMin}
+              aria-valuemax={scrubMax}
+              aria-valuenow={currentTime}
+              tabIndex={0}
+              style={{
+                flex: 1,
+                position: "relative",
+                height: 20,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+              }}
+              onPointerDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = Math.max(
+                  0,
+                  Math.min(1, (e.clientX - rect.left) / rect.width),
+                );
+                const t = scrubMin + pct * (scrubMax - scrubMin);
+                e.currentTarget.setPointerCapture(e.pointerId);
+                ytHandle?.seekTo(t);
+                setCurrentTime(t);
+              }}
+              onPointerMove={(e) => {
+                if (!(e.buttons & 1)) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = Math.max(
+                  0,
+                  Math.min(1, (e.clientX - rect.left) / rect.width),
+                );
+                const t = scrubMin + pct * (scrubMax - scrubMin);
+                ytHandle?.seekTo(t);
+                setCurrentTime(t);
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  borderRadius: 2,
+                  background: "rgba(255,255,255,0.2)",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    height: "100%",
+                    width: `${String(playedPct)}%`,
+                    background: "#fff",
+                    borderRadius: 2,
+                    pointerEvents: "none",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${String(playedPct)}%`,
+                  transform: "translateX(-50%)",
+                  width: 12,
+                  height: 12,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+            <span
+              data-testid="mediaPlayer-time"
+              style={{
+                color: "#fff",
+                fontSize: "0.75rem",
+                whiteSpace: "nowrap",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+        )}
+      </>
+    ) : null;
+
     return (
       <div
         data-testid="mediaPlayer"
@@ -693,15 +917,53 @@ export function MediaPlayer({
         onMouseLeave={() => setIsHovered(false)}
         style={{ position: "relative" }}
       >
-        <div data-testid="mediaPlayer-viewport">
-          <iframe
-            data-testid="mediaPlayer-youtube"
-            src={embedUrl}
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-            style={{ width: "100%", aspectRatio: "16/9", border: "none" }}
-            title="Media player"
+        <div
+          data-testid="mediaPlayer-viewport"
+          style={{ position: "relative" }}
+        >
+          <YouTubePlayer
+            videoId={youtubeVideoId}
+            startAt={startAt}
+            onHandleReady={(h) => {
+              setYtHandle(h);
+              setDuration(h.getDuration());
+            }}
+            onPlay={(t) => {
+              setIsPaused(false);
+              setCurrentTime(t);
+              recordEvent("play", t);
+            }}
+            onPause={(t) => {
+              setIsPaused(true);
+              setCurrentTime(t);
+              recordEvent("pause", t);
+            }}
+            onEnded={(t) => {
+              setIsPaused(true);
+              setCurrentTime(t);
+              recordEvent("ended", t);
+              if (submitOnComplete) onComplete?.();
+            }}
           />
+          {ytControlsVisible && (
+            <div
+              data-testid="mediaPlayer-controls"
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background:
+                  "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)",
+                padding: "1.5rem 0.75rem 0.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              {ytControlsContent}
+            </div>
+          )}
         </div>
       </div>
     );

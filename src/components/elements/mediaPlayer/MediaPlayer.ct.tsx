@@ -35,6 +35,269 @@ test("renders an iframe for YouTube URL", async ({ mount }) => {
   ).not.toBeAttached();
 });
 
+// -- YouTube IFrame API integration --
+
+// Injects a synchronous mock window.YT into the page so YouTubePlayer's
+// createYouTubePlayer() takes the sync path. Tests then fire onReady /
+// onStateChange via page.evaluate() to simulate the real API callbacks.
+async function installYTMock(page: import("@playwright/test").Page) {
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    w.__ytOnReady = null;
+    w.__ytOnStateChange = null;
+    w.__ytCurrentTime = 0;
+    w.__ytDuration = 60;
+    w.__ytState = 2; // PAUSED
+    w.__ytPlayCalled = 0;
+    w.__ytPauseCalled = 0;
+    w.__ytLastSeek = null;
+
+    w.YT = {
+      PlayerState: {
+        UNSTARTED: -1,
+        ENDED: 0,
+        PLAYING: 1,
+        PAUSED: 2,
+        BUFFERING: 3,
+        CUED: 5,
+      },
+      Player: function (
+        _el: unknown,
+        opts: {
+          events?: {
+            onReady?: () => void;
+            onStateChange?: (e: { data: number }) => void;
+          };
+        },
+      ) {
+        w.__ytOnReady = opts.events?.onReady ?? null;
+        w.__ytOnStateChange = opts.events?.onStateChange ?? null;
+        return {
+          playVideo() {
+            w.__ytPlayCalled++;
+          },
+          pauseVideo() {
+            w.__ytPauseCalled++;
+          },
+          seekTo(t: number) {
+            w.__ytLastSeek = t;
+          },
+          getCurrentTime() {
+            return w.__ytCurrentTime;
+          },
+          getDuration() {
+            return w.__ytDuration;
+          },
+          getPlayerState() {
+            return w.__ytState;
+          },
+          destroy() {},
+        };
+      },
+    };
+  });
+}
+
+test("YouTube: play button shown after IFrame API ready", async ({
+  mount,
+  page,
+}) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://youtu.be/QC8iQqtG0hg"
+      name="test"
+      controls={{ playPause: true, seek: true }}
+    />,
+  );
+  // Fire onReady — MediaPlayer should register the handle and show controls
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__ytOnReady?.();
+  });
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-seekBack"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-seekForward"]'),
+  ).toBeVisible();
+});
+
+test("YouTube: play button aria-label becomes Pause after PLAYING state", async ({
+  mount,
+  page,
+}) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://youtu.be/QC8iQqtG0hg"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__ytOnReady?.();
+  });
+  // Hover to keep controls visible while playing
+  await component
+    .locator('[data-testid="mediaPlayer"]')
+    .dispatchEvent("mouseover", { bubbles: true });
+  // Simulate YouTube state change to PLAYING
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    w.__ytState = 1;
+    w.__ytOnStateChange?.({ data: 1 });
+  });
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Pause");
+});
+
+test("YouTube: clicking play button calls player.playVideo()", async ({
+  mount,
+  page,
+}) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://youtu.be/QC8iQqtG0hg"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__ytOnReady?.();
+  });
+  // Wait for React to re-render with ytHandle set (onReady → setYtHandle is async)
+  const btn = component.locator('[data-testid="mediaPlayer-playPause"]');
+  await btn.waitFor({ state: "visible" });
+  await btn.click();
+  // After click, ytPlayCalled should increment
+  await expect
+    .poll(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => page.evaluate(() => (window as any).__ytPlayCalled as number),
+    )
+    .toBeGreaterThan(0);
+});
+
+test("YouTube: clicking pause button calls player.pauseVideo()", async ({
+  mount,
+  page,
+}) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://youtu.be/QC8iQqtG0hg"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    w.__ytOnReady?.();
+    // Put player into playing state so button shows "Pause"
+    w.__ytState = 1;
+    w.__ytOnStateChange?.({ data: 1 });
+  });
+  // Hover to keep controls visible while playing
+  await component
+    .locator('[data-testid="mediaPlayer"]')
+    .dispatchEvent("mouseover", { bubbles: true });
+  await component.locator('[data-testid="mediaPlayer-playPause"]').click();
+  const callCount = await page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__ytPauseCalled as number,
+  );
+  expect(callCount).toBeGreaterThan(0);
+});
+
+test("YouTube: seekBack button calls player.seekTo(currentTime - 1)", async ({
+  mount,
+  page,
+}) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://youtu.be/QC8iQqtG0hg"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    w.__ytCurrentTime = 30;
+    w.__ytOnReady?.();
+  });
+  // Wait for ytHandle to be set in React state
+  const btn = component.locator('[data-testid="mediaPlayer-seekBack"]');
+  await btn.waitFor({ state: "visible" });
+  await btn.click();
+  await expect
+    .poll(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => page.evaluate(() => (window as any).__ytLastSeek as number | null),
+    )
+    .toBe(29);
+});
+
+test("YouTube: save() called with play event when state changes to PLAYING", async ({
+  mount,
+  page,
+}) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://youtu.be/QC8iQqtG0hg"
+      name="coding_video"
+      controls={{ playPause: true }}
+    />,
+  );
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    w.__ytCurrentTime = 5;
+    w.__ytOnReady?.();
+    w.__ytState = 1;
+    w.__ytOnStateChange?.({ data: 1 });
+  });
+  // Wait for React to flush and MockMediaPlayer to update the save-log
+  const saveLog = component.locator('[data-testid="save-log"]');
+  await expect
+    .poll(async () => {
+      const text = await saveLog.textContent();
+      return text ?? "";
+    })
+    .toMatch(/"type":"play"/);
+  const saveText = await saveLog.textContent();
+  const saves = JSON.parse(saveText ?? "[]") as Array<{
+    key: string;
+    value: { events: Array<{ type: string; videoTime: number }> };
+  }>;
+  const lastRecord = saves[saves.length - 1].value;
+  expect(lastRecord.events.at(-1)?.type).toBe("play");
+  expect(lastRecord.events.at(-1)?.videoTime).toBe(5);
+});
+
+test("YouTube: no video element rendered", async ({ mount, page }) => {
+  await installYTMock(page);
+  const component = await mount(
+    <MockMediaPlayer url="https://youtu.be/QC8iQqtG0hg" name="test" />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-video"]'),
+  ).not.toBeAttached();
+});
+
 // -- Controls visibility --
 
 // Real fixture video — served by the Vite dev server from the project root.
