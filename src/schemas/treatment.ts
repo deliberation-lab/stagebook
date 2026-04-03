@@ -790,13 +790,34 @@ const timerSchema = elementBaseSchema
   })
   .strict();
 
-const videoSchema = elementBaseSchema
+const mediaPlayerControlsSchema = z
+  .object({
+    playPause: z.boolean().optional(),
+    seek: z.boolean().optional(),
+    frameStep: z.boolean().optional(),
+    speed: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
+export const mediaPlayerSchema = elementBaseSchema
   .extend({
-    type: z.literal("video"),
-    url: z.string().url(),
-    // Todo: check that url is a valid url
+    type: z.literal("mediaPlayer"),
+    url: z.string(),
+    playVideo: z.boolean().optional(),
+    playAudio: z.boolean().optional(),
+    captionsFile: z.string().optional(),
+    startAt: z.number().nonnegative().optional(),
+    stopAt: z.number().positive().optional(),
+    allowScrubOutsideBounds: z.boolean().optional(),
+    frameRate: z.number().positive().optional(),
+    syncToStageTime: z.boolean().optional(),
+    submitOnComplete: z.boolean().optional(),
+    controls: mediaPlayerControlsSchema,
   })
   .strict();
+
+export type MediaPlayerType = z.infer<typeof mediaPlayerSchema>;
 
 const trackedLinkParamSchema = z
   .object({
@@ -861,7 +882,7 @@ const validElementTypes = [
   "survey",
   "talkMeter",
   "timer",
-  "video",
+  "mediaPlayer",
   "trackedLink",
 ];
 
@@ -883,7 +904,7 @@ export const elementSchema = altTemplateContext(
           surveySchema,
           talkMeterSchema,
           timerSchema,
-          videoSchema,
+          mediaPlayerSchema,
           trackedLinkSchema,
         ])
       : promptShorthandSchema;

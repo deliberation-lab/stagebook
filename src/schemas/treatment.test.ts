@@ -5,6 +5,7 @@ import {
   conditionSchema,
   discussionSchema,
   elementsSchema,
+  mediaPlayerSchema,
   promptSchema,
   treatmentFileSchema,
 } from "./treatment.js";
@@ -369,4 +370,119 @@ test("discussion with invalid condition is invalid", () => {
   };
   const result = discussionSchema.safeParse(discussion);
   expect(result.success).toBe(false);
+});
+
+// ----------- mediaPlayerSchema ------------
+
+test("mediaPlayer: minimal valid config (url only)", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "https://youtu.be/QC8iQqtG0hg",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: relative path url is valid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: full config with all fields", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/interview.mp4",
+    name: "coding_video",
+    playVideo: true,
+    playAudio: true,
+    captionsFile: "shared/captions.vtt",
+    startAt: 45,
+    stopAt: 120,
+    allowScrubOutsideBounds: false,
+    frameRate: 60,
+    syncToStageTime: false,
+    submitOnComplete: true,
+    controls: {
+      playPause: true,
+      seek: true,
+      frameStep: true,
+      speed: true,
+    },
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: missing url is invalid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: negative startAt is invalid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    startAt: -5,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: stopAt of zero is invalid (must be positive)", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    stopAt: 0,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: unknown fields are rejected (strict)", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    unknownField: true,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: controls with unknown keys are rejected (strict)", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    controls: { playPause: true, unknownControl: true },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: zero startAt is valid (nonnegative)", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    startAt: 0,
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: frameRate must be positive", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    frameRate: 0,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("elementsSchema accepts type: mediaPlayer", () => {
+  const result = elementsSchema.safeParse([
+    { type: "mediaPlayer", url: "shared/footage.mp4" },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
 });
