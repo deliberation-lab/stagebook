@@ -1,134 +1,97 @@
 /**
  * Inline SVG icons for MediaPlayer controls.
  * Self-contained — no external icon library dependency.
- * All icons sized at 20×20, strokeWidth 2, rounded line caps.
+ * All icons use fill="currentColor" to inherit text color from parent.
  */
 import React from "react";
 
-const iconProps = {
-  width: 20,
-  height: 20,
-  viewBox: "0 0 20 20",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
-
 export function PlayIcon() {
   return (
-    <svg {...iconProps}>
-      {/* Filled triangle for play */}
-      <polygon points="5,3 17,10 5,17" fill="currentColor" stroke="none" />
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M6 4l14 8-14 8V4z" />
     </svg>
   );
 }
 
 export function PauseIcon() {
   return (
-    <svg {...iconProps}>
-      <rect
-        x="4"
-        y="3"
-        width="4"
-        height="14"
-        rx="1"
-        fill="currentColor"
-        stroke="none"
-      />
-      <rect
-        x="12"
-        y="3"
-        width="4"
-        height="14"
-        rx="1"
-        fill="currentColor"
-        stroke="none"
-      />
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <rect x="5" y="4" width="5" height="16" rx="1" />
+      <rect x="14" y="4" width="5" height="16" rx="1" />
     </svg>
   );
 }
 
 export function SeekBackIcon() {
   return (
-    <svg {...iconProps}>
-      {/* Left-pointing curved arrow */}
-      <path d="M4 10 A6 6 0 1 1 7.5 15.5" />
-      <polyline points="4,6 4,10 8,10" />
-      <text
-        x="10"
-        y="11"
-        fontSize="5"
-        fontWeight="bold"
-        fill="currentColor"
-        stroke="none"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontFamily="sans-serif"
-      >
-        1s
-      </text>
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      {/* Counter-clockwise arrow */}
+      <path d="M12.5 8C9.46 8 7 10.46 7 13.5S9.46 19 12.5 19c2.6 0 4.8-1.8 5.36-4.24h-1.44c-.52 1.7-2.08 2.94-3.92 2.94C10.02 17.7 8.3 15.98 8.3 13.5S10.02 9.3 12.5 9.3V12l4-3.5L12.5 5v3z" />
     </svg>
   );
 }
 
 export function SeekForwardIcon() {
   return (
-    <svg {...iconProps}>
-      {/* Right-pointing curved arrow */}
-      <path d="M16 10 A6 6 0 1 0 12.5 15.5" />
-      <polyline points="16,6 16,10 12,10" />
-      <text
-        x="10"
-        y="11"
-        fontSize="5"
-        fontWeight="bold"
-        fill="currentColor"
-        stroke="none"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontFamily="sans-serif"
-      >
-        1s
-      </text>
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      {/* Clockwise arrow */}
+      <path d="M11.5 8C14.54 8 17 10.46 17 13.5S14.54 19 11.5 19c-2.6 0-4.8-1.8-5.36-4.24h1.44c.52 1.7 2.08 2.94 3.92 2.94 2.48 0 4.2-1.72 4.2-4.2S13.98 9.3 11.5 9.3V12l-4-3.5L11.5 5v3z" />
     </svg>
   );
 }
 
 export function StepBackIcon() {
   return (
-    <svg {...iconProps}>
-      {/* Bar + left triangle */}
-      <rect
-        x="3"
-        y="3"
-        width="2.5"
-        height="14"
-        rx="0.5"
-        fill="currentColor"
-        stroke="none"
-      />
-      <polygon points="16,3 7,10 16,17" fill="currentColor" stroke="none" />
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      {/* Bar + left-pointing triangle */}
+      <rect x="5" y="5" width="3" height="14" rx="0.5" />
+      <path d="M19 5l-10 7 10 7V5z" />
     </svg>
   );
 }
 
 export function StepForwardIcon() {
   return (
-    <svg {...iconProps}>
-      {/* Right triangle + bar */}
-      <polygon points="4,3 13,10 4,17" fill="currentColor" stroke="none" />
-      <rect
-        x="14.5"
-        y="3"
-        width="2.5"
-        height="14"
-        rx="0.5"
-        fill="currentColor"
-        stroke="none"
-      />
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      {/* Right-pointing triangle + bar */}
+      <path d="M5 5l10 7-10 7V5z" />
+      <rect x="16" y="5" width="3" height="14" rx="0.5" />
     </svg>
   );
 }

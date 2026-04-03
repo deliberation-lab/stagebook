@@ -436,14 +436,44 @@ export function MediaPlayer({
   // Transport buttons + scrub bar — shared between video-overlay and audio-flat layouts
   const controlsContent = (
     <>
-      {/* Transport buttons row */}
-      <div className="flex items-center gap-1">
+      {/* Transport buttons row — centered, play in the middle */}
+      <div className="flex items-center justify-center gap-1">
+        {controls?.seek && (
+          <button
+            data-testid="mediaPlayer-seekBack"
+            aria-label="Back 1s"
+            title="Back 1s (←) · Hold to scrub · J for 10s"
+            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            onMouseDown={() => startButtonHold(-1)}
+            onMouseUp={() => {
+              const wasHeld = isFastScrubbing.current;
+              endButtonHold(false);
+              if (!wasHeld) seek(-1);
+            }}
+            onMouseLeave={() => endButtonHold(false)}
+          >
+            <SeekBackIcon />
+          </button>
+        )}
+
+        {controls?.step && (
+          <button
+            data-testid="mediaPlayer-stepBack"
+            aria-label={`Step back ${String(stepDuration)}s`}
+            title={`Step back ${String(stepDuration)}s (,)`}
+            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            onClick={() => seek(-stepDuration)}
+          >
+            <StepBackIcon />
+          </button>
+        )}
+
         {controls?.playPause && (
           <button
             data-testid="mediaPlayer-playPause"
             aria-label={isPaused ? "Play" : "Pause"}
             title={isPaused ? "Play (Space)" : "Pause (Space)"}
-            className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            className="flex items-center justify-center w-12 h-12 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
             onClick={() => {
               const v = videoRef.current;
               if (!v) return;
@@ -455,62 +485,34 @@ export function MediaPlayer({
           </button>
         )}
 
-        {controls?.seek && (
-          <>
-            <button
-              data-testid="mediaPlayer-seekBack"
-              aria-label="Back 1s"
-              title="Back 1s (←) · Hold to scrub · J for 10s"
-              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
-              onMouseDown={() => startButtonHold(-1)}
-              onMouseUp={() => {
-                const wasHeld = isFastScrubbing.current;
-                endButtonHold(false);
-                if (!wasHeld) seek(-1);
-              }}
-              onMouseLeave={() => endButtonHold(false)}
-            >
-              <SeekBackIcon />
-            </button>
-            <button
-              data-testid="mediaPlayer-seekForward"
-              aria-label="Forward 1s"
-              title="Forward 1s (→) · Hold to scrub · L for 10s"
-              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
-              onMouseDown={() => startButtonHold(1)}
-              onMouseUp={() => {
-                const wasHeld = isFastScrubbing.current;
-                endButtonHold(false);
-                if (!wasHeld) seek(1);
-              }}
-              onMouseLeave={() => endButtonHold(false)}
-            >
-              <SeekForwardIcon />
-            </button>
-          </>
+        {controls?.step && (
+          <button
+            data-testid="mediaPlayer-stepForward"
+            aria-label={`Step forward ${String(stepDuration)}s`}
+            title={`Step forward ${String(stepDuration)}s (.)`}
+            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            onClick={() => seek(stepDuration)}
+          >
+            <StepForwardIcon />
+          </button>
         )}
 
-        {controls?.step && (
-          <>
-            <button
-              data-testid="mediaPlayer-stepBack"
-              aria-label={`Step back ${String(stepDuration)}s`}
-              title={`Step back ${String(stepDuration)}s (,)`}
-              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
-              onClick={() => seek(-stepDuration)}
-            >
-              <StepBackIcon />
-            </button>
-            <button
-              data-testid="mediaPlayer-stepForward"
-              aria-label={`Step forward ${String(stepDuration)}s`}
-              title={`Step forward ${String(stepDuration)}s (.)`}
-              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
-              onClick={() => seek(stepDuration)}
-            >
-              <StepForwardIcon />
-            </button>
-          </>
+        {controls?.seek && (
+          <button
+            data-testid="mediaPlayer-seekForward"
+            aria-label="Forward 1s"
+            title="Forward 1s (→) · Hold to scrub · L for 10s"
+            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            onMouseDown={() => startButtonHold(1)}
+            onMouseUp={() => {
+              const wasHeld = isFastScrubbing.current;
+              endButtonHold(false);
+              if (!wasHeld) seek(1);
+            }}
+            onMouseLeave={() => endButtonHold(false)}
+          >
+            <SeekForwardIcon />
+          </button>
         )}
 
         {controls?.speed && (
@@ -518,7 +520,7 @@ export function MediaPlayer({
             data-testid="mediaPlayer-speed"
             aria-label="Playback speed"
             title="Playback speed (< / >)"
-            className="flex items-center justify-center w-11 h-11 rounded-full text-white text-sm font-medium tabular-nums hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            className="flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-medium tabular-nums hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
             onClick={cycleSpeed}
           >
             {playbackRate}×
