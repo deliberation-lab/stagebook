@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/unbound-method */
 import React, { useRef } from "react";
 import { useScoreContext } from "./ScoreProvider.js";
 import { Element, type ElementConfig } from "./Element.js";
@@ -9,6 +9,7 @@ import { SubmissionConditionalRender } from "./conditions/SubmissionConditionalR
 import { ScrollIndicator } from "./scroll/ScrollIndicator.js";
 import { useScrollAwareness } from "./scroll/useScrollAwareness.js";
 import type { DiscussionType } from "../schemas/treatment.js";
+import type { Condition } from "./conditions/ConditionsConditionalRender.js";
 
 // Max-width per element type — wider for surveys/qualtrics/video
 function maxWidthForElement(element: ElementConfig): string {
@@ -58,7 +59,7 @@ function WrappedElement({
         position={position}
       >
         <ConditionsConditionalRender
-          conditions={(element.conditions as never[]) ?? []}
+          conditions={(element.conditions as Condition[]) ?? []}
           resolve={resolve}
         >
           <div
@@ -151,7 +152,9 @@ export function Stage({ stage, onSubmit }: StageProps) {
 
   // Two-column layout: discussion on left, elements on right
   if (showDiscussion && renderDiscussion && stage.discussion) {
-    const discussionConditions = stage.discussion.conditions;
+    const discussionConditions = stage.discussion.conditions as
+      | Condition[]
+      | undefined;
 
     const discussionPage = (
       <div
@@ -207,7 +210,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
       >
         {discussionConditions && discussionConditions.length > 0 ? (
           <ConditionsConditionalRender
-            conditions={discussionConditions as never[]}
+            conditions={discussionConditions}
             resolve={resolve}
             fallback={
               <div

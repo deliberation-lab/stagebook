@@ -72,3 +72,17 @@ export {
   type TreatmentFileType,
   type DiscussionType,
 } from "./treatment.js";
+
+export {
+  resolvedElementSchema,
+  resolvedStageSchema,
+  resolvedIntroExitStepSchema,
+  resolvedTreatmentSchema,
+  resolvedConditionSchema,
+  resolvedConditionsSchema,
+  type ResolvedElementType,
+  type ResolvedStageType,
+  type ResolvedIntroExitStepType,
+  type ResolvedTreatmentType,
+  type ResolvedConditionType,
+} from "./resolved.js";
