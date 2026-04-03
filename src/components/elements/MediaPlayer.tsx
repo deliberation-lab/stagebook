@@ -232,17 +232,39 @@ export function MediaPlayer({
           e.preventDefault();
           seek(-stepDuration);
           break;
+        case ">": {
+          e.preventDefault();
+          const v2 = videoRef.current;
+          if (v2) {
+            const faster =
+              SPEEDS.find((s) => s > playbackRate) ?? SPEEDS[SPEEDS.length - 1];
+            v2.playbackRate = faster;
+            setPlaybackRate(faster);
+          }
+          break;
+        }
+        case "<": {
+          e.preventDefault();
+          const v3 = videoRef.current;
+          if (v3) {
+            const slower =
+              [...SPEEDS].reverse().find((s) => s < playbackRate) ?? SPEEDS[0];
+            v3.playbackRate = slower;
+            setPlaybackRate(slower);
+          }
+          break;
+        }
         default:
           break;
       }
     },
-    [seek, stepDuration],
+    [seek, stepDuration, playbackRate],
   );
 
   const showControls =
     !syncToStageTime &&
     controls !== undefined &&
-    (controls.playPause || controls.seek || controls.speed);
+    (controls.playPause || controls.seek || controls.step || controls.speed);
 
   const scrubMin = startAt ?? 0;
   const scrubMax = stopAt ?? duration;
@@ -352,6 +374,27 @@ export function MediaPlayer({
                 }}
                 style={{ flex: 1 }}
               />
+            )}
+
+            {controls?.step && (
+              <>
+                <button
+                  data-testid="mediaPlayer-stepBack"
+                  aria-label={`Step back ${String(stepDuration)}s`}
+                  style={{ minWidth: 44, minHeight: 44 }}
+                  onClick={() => seek(-stepDuration)}
+                >
+                  ⏮
+                </button>
+                <button
+                  data-testid="mediaPlayer-stepForward"
+                  aria-label={`Step forward ${String(stepDuration)}s`}
+                  style={{ minWidth: 44, minHeight: 44 }}
+                  onClick={() => seek(stepDuration)}
+                >
+                  ⏭
+                </button>
+              </>
             )}
 
             {controls?.speed && (

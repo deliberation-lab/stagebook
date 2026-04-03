@@ -797,3 +797,145 @@ test("ArrowLeft clamps to startAt boundary", async ({ mount }) => {
   const ct = await video.evaluate((el) => el.currentTime);
   expect(ct).toBe(10);
 });
+
+// -- Speed keyboard shortcuts --
+
+test("Greater-than key speeds up playback", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  // Start at 1×; > should advance to 1.25×
+  await component.locator('[data-testid="mediaPlayer"]').press("Shift+Period");
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).toContainText("1.25\u00d7");
+});
+
+test("Less-than key slows down playback", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  // Start at 1×; < should step back to 0.75×
+  await component.locator('[data-testid="mediaPlayer"]').press("Shift+Comma");
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).toContainText("0.75\u00d7");
+});
+
+test("Less-than key clamps at minimum speed", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  // Press < many times; should stay at 0.5×
+  for (let i = 0; i < 10; i++)
+    await component.locator('[data-testid="mediaPlayer"]').press("Shift+Comma");
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).toContainText("0.5\u00d7");
+});
+
+test("Greater-than key clamps at maximum speed", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  // Press > many times; should stay at 2×
+  for (let i = 0; i < 10; i++)
+    await component
+      .locator('[data-testid="mediaPlayer"]')
+      .press("Shift+Period");
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).toContainText("2\u00d7");
+});
+
+// -- controls.step buttons --
+
+test("step buttons shown when controls.step is true", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ step: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-stepBack"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-stepForward"]'),
+  ).toBeVisible();
+});
+
+test("step forward button advances by stepDuration", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stepDuration={0.5}
+      controls={{ step: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 10;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer-stepForward"]').click();
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBeCloseTo(10.5);
+});
+
+test("step back button retreats by stepDuration", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stepDuration={0.5}
+      controls={{ step: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 10;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer-stepBack"]').click();
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBeCloseTo(9.5);
+});
