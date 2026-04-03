@@ -14,7 +14,7 @@ import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 import { computeWatchedRanges } from "../../utils/watchedRanges.js";
 
 export interface VideoEvent {
-  type: "play" | "pause" | "ended" | "stopAt";
+  type: "play" | "pause" | "ended";
   videoTime: number;
   stageTimeElapsed: number;
 }
@@ -98,6 +98,10 @@ export function MediaPlayer({
   // watchedRanges without spamming the server during the drag).
   const scrubWasPlayingRef = useRef(false);
 
+  // Set to true just before programmatically pausing the video at stopAt, so
+  // handlePause can suppress the phantom "pause" event and we record "ended".
+  const stopAtReachedRef = useRef(false);
+
   // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
   useEffect(() => {
     if (!ytHandle || isPaused) return;
@@ -105,6 +109,8 @@ export function MediaPlayer({
       const t = ytHandle.getCurrentTime();
       setCurrentTime(t);
       if (stopAt !== undefined && t >= stopAt) {
+        // Signal that the upcoming onPause is from stopAt, not a user action.
+        stopAtReachedRef.current = true;
         ytHandle.pause();
       }
     }, 250);
@@ -196,6 +202,13 @@ export function MediaPlayer({
 
   const handlePause = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      // Suppress the phantom pause event triggered by our own stopAt enforcement.
+      // handleTimeUpdate records "ended" and calls onComplete in that path.
+      if (stopAtReachedRef.current) {
+        stopAtReachedRef.current = false;
+        setIsPaused(true);
+        return;
+      }
       setIsPaused(true);
       recordEvent("pause", e.currentTarget.currentTime);
     },
@@ -239,10 +252,12 @@ export function MediaPlayer({
       const { currentTime: ct } = e.currentTarget;
       setCurrentTime(ct);
 
-      // stopAt enforcement
+      // stopAt enforcement — records "ended" (spec: "ended" = natural end or stopAt)
       if (stopAt !== undefined && ct >= stopAt) {
-        e.currentTarget.pause();
-        recordEvent("stopAt", ct);
+        stopAtReachedRef.current = true;
+        e.currentTarget.pause(); // fires "pause" event; handlePause suppresses it
+        recordEvent("ended", ct);
+        if (submitOnComplete) onComplete?.();
         return;
       }
 
@@ -252,7 +267,7 @@ export function MediaPlayer({
         setCaptionText(active?.text ?? null);
       }
     },
-    [stopAt, cues, recordEvent],
+    [stopAt, cues, recordEvent, submitOnComplete, onComplete],
   );
 
   // Clamp seek target to allowed range — works for both HTML5 and YouTube
@@ -668,6 +683,13 @@ export function MediaPlayer({
             onPause={(t) => {
               setIsPaused(true);
               setCurrentTime(t);
+              // stopAt reached via the poll: record "ended" not "pause"
+              if (stopAtReachedRef.current) {
+                stopAtReachedRef.current = false;
+                recordEvent("ended", t);
+                if (submitOnComplete) onComplete?.();
+                return;
+              }
               recordEvent("pause", t);
             }}
             onEnded={(t) => {

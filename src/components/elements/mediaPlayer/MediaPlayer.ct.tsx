@@ -609,7 +609,7 @@ test("scrub bar defaults to 0/Infinity when startAt/stopAt omitted", async ({
 
 // -- stopAt enforcement --
 
-test("save records stopAt pause event when timeupdate exceeds stopAt", async ({
+test("save records ended event (not stopAt) when timeupdate exceeds stopAt", async ({
   mount,
 }) => {
   const component = await mount(
@@ -637,7 +637,37 @@ test("save records stopAt pause event when timeupdate exceeds stopAt", async ({
   }>;
   expect(saves.length).toBeGreaterThan(0);
   const lastEvents = saves[saves.length - 1].value.events;
-  expect(lastEvents.some((e) => e.type === "stopAt")).toBe(true);
+  // Should record exactly one "ended" event — not "stopAt", not a duplicate "pause"
+  expect(lastEvents).toHaveLength(1);
+  expect(lastEvents[0].type).toBe("ended");
+});
+
+test("onComplete called when submitOnComplete is true and stopAt is reached", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stopAt={5}
+      submitOnComplete={true}
+    />,
+  );
+
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      Object.defineProperty(el, "currentTime", {
+        get: () => 6,
+        configurable: true,
+      });
+      el.dispatchEvent(new Event("timeupdate"));
+    });
+
+  const completed = await component
+    .locator('[data-testid="completed"]')
+    .textContent();
+  expect(completed).toBe("true");
 });
 
 // -- captions overlay --
