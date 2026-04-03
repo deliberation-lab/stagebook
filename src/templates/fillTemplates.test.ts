@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return */
 
 import { expect, test } from "vitest";
-import { fillTemplates } from "./fillTemplates.js";
+import { fillTemplates, getUnresolvedFields } from "./fillTemplates.js";
 
 test("template with simple object field", () => {
   const templates = [
@@ -443,4 +443,245 @@ test("boolean field values substituted correctly", () => {
     obj: { template: "boolField", fields: { flag: true } },
   });
   expect(result).toEqual({ enabled: true });
+});
+
+// ----------------------------------------------------------------
+// additionalFields (#22)
+// ----------------------------------------------------------------
+
+test("additionalFields resolves platform-provided placeholders", () => {
+  const templates = [
+    {
+      templateName: "stage",
+      templateContent: {
+        name: "rate_${dimension}",
+        url: "${clipUrl}",
+        startAt: "${clipStartAt}",
+      },
+    },
+  ];
+
+  const result = fillTemplates({
+    templates,
+    obj: { template: "stage", fields: { dimension: "engagement" } },
+    additionalFields: {
+      clipUrl: "https://cdn.example.com/clip1.mp4",
+      clipStartAt: 12.5,
+    },
+  });
+  expect(result).toEqual({
+    name: "rate_engagement",
+    url: "https://cdn.example.com/clip1.mp4",
+    startAt: 12.5,
+  });
+});
+
+test("additionalFields without additionalFields behaves identically", () => {
+  const templates = [
+    {
+      templateName: "simple",
+      templateContent: { name: "${n}" },
+    },
+  ];
+
+  const result = fillTemplates({
+    templates,
+    obj: { template: "simple", fields: { n: "hello" } },
+  });
+  expect(result).toEqual({ name: "hello" });
+});
+
+test("researcher fields and additionalFields coexist", () => {
+  const templates = [
+    {
+      templateName: "mixed",
+      templateContent: {
+        researcherField: "${myField}",
+        platformField: "${platformValue}",
+      },
+    },
+  ];
+
+  const result = fillTemplates({
+    templates,
+    obj: { template: "mixed", fields: { myField: "from researcher" } },
+    additionalFields: { platformValue: "from platform" },
+  });
+  expect(result).toEqual({
+    researcherField: "from researcher",
+    platformField: "from platform",
+  });
+});
+
+test("broadcast + additionalFields work together", () => {
+  const templates = [
+    {
+      templateName: "rating",
+      templateContent: {
+        name: "rate_${dimension}",
+        clip: "${clipUrl}",
+      },
+    },
+  ];
+
+  const result = fillTemplates({
+    templates,
+    obj: {
+      template: "rating",
+      broadcast: {
+        d0: [{ dimension: "engagement" }, { dimension: "confidence" }],
+      },
+    },
+    additionalFields: { clipUrl: "https://cdn.example.com/clip1.mp4" },
+  });
+  expect(result).toEqual([
+    {
+      name: "rate_engagement",
+      clip: "https://cdn.example.com/clip1.mp4",
+    },
+    {
+      name: "rate_confidence",
+      clip: "https://cdn.example.com/clip1.mp4",
+    },
+  ]);
+});
+
+test("missing additionalFields still triggers error", () => {
+  const templates = [
+    {
+      templateName: "needsMore",
+      templateContent: {
+        a: "${provided}",
+        b: "${missing}",
+      },
+    },
+  ];
+
+  expect(() =>
+    fillTemplates({
+      templates,
+      obj: { template: "needsMore" },
+      additionalFields: { provided: "here" },
+    }),
+  ).toThrow("Missing fields");
+});
+
+test("additionalFields with object values", () => {
+  const templates = [
+    {
+      templateName: "config",
+      templateContent: { settings: "${platformConfig}" },
+    },
+  ];
+
+  const result = fillTemplates({
+    templates,
+    obj: { template: "config" },
+    additionalFields: {
+      platformConfig: { quality: "high", fps: 30 },
+    },
+  });
+  expect(result).toEqual({
+    settings: { quality: "high", fps: 30 },
+  });
+});
+
+// ----------------------------------------------------------------
+// getUnresolvedFields (#23)
+// ----------------------------------------------------------------
+
+test("getUnresolvedFields returns platform placeholders", () => {
+  const templates = [
+    {
+      templateName: "stage",
+      templateContent: {
+        name: "rate_${dimension}",
+        url: "${clipUrl}",
+        startAt: "${clipStartAt}",
+        stopAt: "${clipStopAt}",
+      },
+    },
+  ];
+
+  const fields = getUnresolvedFields({
+    templates,
+    obj: { template: "stage", fields: { dimension: "engagement" } },
+  });
+  expect(fields.sort()).toEqual(
+    ["clipUrl", "clipStartAt", "clipStopAt"].sort(),
+  );
+});
+
+test("getUnresolvedFields returns empty when all fields resolved", () => {
+  const templates = [
+    {
+      templateName: "complete",
+      templateContent: { name: "${n}" },
+    },
+  ];
+
+  const fields = getUnresolvedFields({
+    templates,
+    obj: { template: "complete", fields: { n: "done" } },
+  });
+  expect(fields).toEqual([]);
+});
+
+test("getUnresolvedFields with broadcast resolves researcher fields", () => {
+  const templates = [
+    {
+      templateName: "rating",
+      templateContent: {
+        name: "rate_${dimension}",
+        clip: "${clipUrl}",
+      },
+    },
+  ];
+
+  const fields = getUnresolvedFields({
+    templates,
+    obj: {
+      template: "rating",
+      broadcast: {
+        d0: [{ dimension: "engagement" }, { dimension: "confidence" }],
+      },
+    },
+  });
+  // dimension is resolved by broadcast, clipUrl remains
+  expect(fields).toEqual(["clipUrl"]);
+});
+
+test("getUnresolvedFields does not throw", () => {
+  const templates = [
+    {
+      templateName: "incomplete",
+      templateContent: { a: "${x}", b: "${y}", c: "${z}" },
+    },
+  ];
+
+  // Should not throw — returns the unresolved fields instead
+  const fields = getUnresolvedFields({
+    templates,
+    obj: { template: "incomplete" },
+  });
+  expect(fields.sort()).toEqual(["x", "y", "z"]);
+});
+
+test("getUnresolvedFields returns unique names", () => {
+  const templates = [
+    {
+      templateName: "repeated",
+      templateContent: {
+        a: "${same}",
+        b: "prefix_${same}_suffix",
+        c: "${same}",
+      },
+    },
+  ];
+
+  const fields = getUnresolvedFields({
+    templates,
+    obj: { template: "repeated" },
+  });
+  expect(fields).toEqual(["same"]);
 });

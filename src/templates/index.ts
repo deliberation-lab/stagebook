@@ -3,4 +3,5 @@ export {
   expandTemplate,
   recursivelyFillTemplates,
   fillTemplates,
+  getUnresolvedFields,
 } from "./fillTemplates.js";

@@ -215,9 +215,11 @@ export function recursivelyFillTemplates({
 export function fillTemplates({
   obj,
   templates,
+  additionalFields,
 }: {
   obj: any;
   templates: any[];
+  additionalFields?: Record<string, any>;
 }): any {
   let newObj = recursivelyFillTemplates({ obj, templates });
 
@@ -231,6 +233,14 @@ export function fillTemplates({
     templatesRemaining = JSON.stringify(newObj).match(templatesRemainingRegex);
   }
 
+  // Apply platform-provided fields after template expansion
+  if (additionalFields && Object.keys(additionalFields).length > 0) {
+    newObj = substituteFields({
+      templateContent: newObj,
+      fields: additionalFields,
+    });
+  }
+
   // Check that all fields are filled
   const doubleCheckRegex = /\$\{[a-zA-Z0-9_]+\}/g;
   const missingFields = JSON.stringify(newObj).match(doubleCheckRegex);
@@ -239,4 +249,40 @@ export function fillTemplates({
   }
 
   return newObj;
+}
+
+/**
+ * Expand researcher-defined templates and return the set of placeholder
+ * names that remain unresolved. Useful for platforms to discover which
+ * additionalFields a treatment file expects.
+ *
+ * Does NOT throw on unresolved fields — that's the point.
+ */
+export function getUnresolvedFields({
+  obj,
+  templates,
+}: {
+  obj: any;
+  templates: any[];
+}): string[] {
+  let newObj = recursivelyFillTemplates({ obj, templates });
+
+  // Handle remaining template references (same loop as fillTemplates)
+  const templatesRemainingRegex = /"template":/g;
+  let templatesRemaining = JSON.stringify(newObj).match(
+    templatesRemainingRegex,
+  );
+  while (templatesRemaining) {
+    newObj = recursivelyFillTemplates({ obj: newObj, templates });
+    templatesRemaining = JSON.stringify(newObj).match(templatesRemainingRegex);
+  }
+
+  // Collect unresolved field names
+  const fieldRegex = /\$\{([a-zA-Z0-9_]+)\}/g;
+  const matches = JSON.stringify(newObj).matchAll(fieldRegex);
+  const fields = new Set<string>();
+  for (const match of matches) {
+    fields.add(match[1]);
+  }
+  return [...fields];
 }
