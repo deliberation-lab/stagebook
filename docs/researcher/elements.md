@@ -96,13 +96,97 @@ Displays an image.
   width: 50                 # optional — percentage of available width
 ```
 
-## Video
+## Media Player
 
-Embeds a synchronized video. Video time is tied to stage time — reconnecting participants jump to the correct position. The stage auto-submits when the video ends.
+Embeds a video or audio file with optional researcher-controlled playback UI. All interactions — play, pause, seek, speed changes — are recorded with timestamps.
+
+Use a direct URL for any video/audio file, or a YouTube URL for embedded YouTube videos.
 
 ```yaml
-- type: video
+- type: mediaPlayer
+  name: intro_video
+  url: https://example.com/study/clip.mp4
+```
+
+### Sync mode (default)
+
+By default each participant controls their own playback independently.
+
+```yaml
+- type: mediaPlayer
+  name: coding_clip
+  url: https://example.com/clips/scene1.mp4
+  controls:
+    playPause: true
+    seek: true        # ±1s seek buttons + scrub bar
+    step: true        # step by stepDuration
+    speed: true       # 0.5×–2× speed cycling
+  stepDuration: 0.5   # seconds per step (default: 1)
+  startAt: 30         # seek to 30s on load
+  stopAt: 90          # pause and record event at 90s
+```
+
+### Synchronized mode
+
+Ties video time to stage elapsed time so all participants stay in sync. Hides all controls — only useful when you also set `submitOnComplete`.
+
+```yaml
+- type: mediaPlayer
+  name: group_video
   url: https://youtu.be/QC8iQqtG0hg
+  syncToStageTime: true
+  submitOnComplete: true   # stage advances when video ends
+```
+
+### Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | required | Direct media URL or YouTube URL |
+| `playVideo` | boolean | `true` | Show the video track (set `false` for audio-only) |
+| `playAudio` | boolean | `true` | Unmute audio |
+| `captionsURL` | string | — | URL to a `.vtt` captions file |
+| `startAt` | number | — | Jump to this timestamp (seconds) on load |
+| `stopAt` | number | — | Pause and record a `stopAt` event at this timestamp |
+| `allowScrubOutsideBounds` | boolean | `false` | Let participants scrub outside `startAt`/`stopAt` window |
+| `stepDuration` | number | `1` | Seconds per step button / `,` `.` key press |
+| `syncToStageTime` | boolean | `false` | Lock video time to stage elapsed time; hides all controls |
+| `submitOnComplete` | boolean | `false` | Auto-submit the stage when the video ends |
+| `controls.playPause` | boolean | — | Show play/pause button |
+| `controls.seek` | boolean | — | Show ±1s seek buttons and scrub bar |
+| `controls.step` | boolean | — | Show step-back / step-forward buttons |
+| `controls.speed` | boolean | — | Show speed-cycle button (0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×) |
+
+### Keyboard shortcuts
+
+When the player has focus:
+
+| Key | Action |
+|-----|--------|
+| `Space` / `K` | Play / pause |
+| `←` / `→` | Seek ±1 second |
+| `J` / `L` | Seek ±10 seconds |
+| `,` / `.` | Step ±`stepDuration` seconds |
+| `<` / `>` | Decrease / increase speed one step |
+| Hold `←` / `→` | Fast-scrub at 2× |
+
+### Saved data
+
+Each play, pause, end, and stopAt event is appended to a list under the element's name:
+
+```json
+{
+  "name": "coding_clip",
+  "url": "https://example.com/clips/scene1.mp4",
+  "startAt": 30,
+  "stopAt": 90,
+  "lastVideoTime": 87.4,
+  "events": [
+    { "type": "play",   "videoTime": 30.0, "stageTimeElapsed": 4.1 },
+    { "type": "pause",  "videoTime": 45.2, "stageTimeElapsed": 19.3 },
+    { "type": "stopAt", "videoTime": 90.0, "stageTimeElapsed": 74.8 }
+  ]
+}
 ```
 
 ## Survey

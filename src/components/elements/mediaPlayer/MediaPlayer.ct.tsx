@@ -492,9 +492,14 @@ test("play button aria-label becomes Pause after play event", async ({
       controls={{ playPause: true }}
     />,
   );
+  const player = component.locator('[data-testid="mediaPlayer"]');
   await component
     .locator('[data-testid="mediaPlayer-video"]')
     .evaluate((el) => el.dispatchEvent(new Event("play")));
+  // Hover to reveal controls (hidden while playing)
+  await player.evaluate((el) =>
+    el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
+  );
   await expect(
     component.locator('[data-testid="mediaPlayer-playPause"]'),
   ).toHaveAttribute("aria-label", "Pause");
@@ -574,6 +579,7 @@ test("Space key toggles to playing state", async ({ mount }) => {
       controls={{ playPause: true }}
     />,
   );
+  const player = component.locator('[data-testid="mediaPlayer"]');
   await component
     .locator('[data-testid="mediaPlayer-video"]')
     .evaluate((el) => {
@@ -582,7 +588,11 @@ test("Space key toggles to playing state", async ({ mount }) => {
         return Promise.resolve();
       };
     });
-  await component.locator('[data-testid="mediaPlayer"]').press("Space");
+  await player.press("Space");
+  // Hover to reveal controls (hidden while playing)
+  await player.evaluate((el) =>
+    el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
+  );
   await expect(
     component.locator('[data-testid="mediaPlayer-playPause"]'),
   ).toHaveAttribute("aria-label", "Pause");
@@ -596,6 +606,7 @@ test("K key toggles to playing state", async ({ mount }) => {
       controls={{ playPause: true }}
     />,
   );
+  const player = component.locator('[data-testid="mediaPlayer"]');
   await component
     .locator('[data-testid="mediaPlayer-video"]')
     .evaluate((el) => {
@@ -604,7 +615,11 @@ test("K key toggles to playing state", async ({ mount }) => {
         return Promise.resolve();
       };
     });
-  await component.locator('[data-testid="mediaPlayer"]').press("k");
+  await player.press("k");
+  // Hover to reveal controls (hidden while playing)
+  await player.evaluate((el) =>
+    el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
+  );
   await expect(
     component.locator('[data-testid="mediaPlayer-playPause"]'),
   ).toHaveAttribute("aria-label", "Pause");
@@ -1252,6 +1267,7 @@ test("holding seekForward button enters fast-forward after threshold", async ({
     />,
   );
 
+  const player = component.locator('[data-testid="mediaPlayer"]');
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
     el.play = () => {
@@ -1272,6 +1288,11 @@ test("holding seekForward button enters fast-forward after threshold", async ({
     });
   });
 
+  // Hover over player so controls remain visible when video starts playing
+  await player.evaluate((el) =>
+    el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
+  );
+
   // Hold mousedown without releasing
   await component
     .locator('[data-testid="mediaPlayer-seekForward"]')
@@ -1285,4 +1306,67 @@ test("holding seekForward button enters fast-forward after threshold", async ({
   await component
     .locator('[data-testid="mediaPlayer-seekForward"]')
     .dispatchEvent("mouseup");
+});
+
+// -- Hover-to-reveal controls --
+
+test("controls are visible when paused (initial state)", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true, seek: true }}
+    />,
+  );
+  const controls = component.locator('[data-testid="mediaPlayer-controls"]');
+  await expect(controls).toBeVisible();
+});
+
+test("controls become visible on hover while playing", async ({
+  mount,
+  page,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  const player = component.locator('[data-testid="mediaPlayer"]');
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  const controls = component.locator('[data-testid="mediaPlayer-controls"]');
+
+  // Simulate play while not hovered (dispatch mouseout first so isHovered = false)
+  await player.evaluate((el) => {
+    el.dispatchEvent(
+      new MouseEvent("mouseout", {
+        bubbles: true,
+        relatedTarget: document.body,
+      }),
+    );
+  });
+  await video.evaluate((el) => {
+    el.dispatchEvent(new Event("play"));
+  });
+
+  // Playing + not hovered → controls not in DOM
+  await expect(controls).not.toBeAttached();
+
+  // Dispatch mouseover → isHovered = true → controls visible
+  await player.evaluate((el) => {
+    el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+  });
+  await expect(controls).toBeVisible();
+
+  // Dispatch mouseout → isHovered = false → controls hidden again
+  await player.evaluate((el) => {
+    el.dispatchEvent(
+      new MouseEvent("mouseout", {
+        bubbles: true,
+        relatedTarget: document.body,
+      }),
+    );
+  });
+  await expect(controls).not.toBeAttached();
 });

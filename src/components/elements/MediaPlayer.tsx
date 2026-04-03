@@ -77,6 +77,7 @@ export function MediaPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [isPaused, setIsPaused] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState<number>(0);
   const [bufferedEnd, setBufferedEnd] = useState(0);
@@ -394,10 +395,12 @@ export function MediaPlayer({
     [exitFastScrub],
   );
 
-  const showControls =
+  const hasControls =
     !syncToStageTime &&
     controls !== undefined &&
     (controls.playPause || controls.seek || controls.step || controls.speed);
+  // Controls are always visible when paused; hidden while playing unless hovered
+  const controlsVisible = hasControls && (isPaused || isHovered);
 
   // Scrub bar bounds
   const scrubMin = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
@@ -423,6 +426,8 @@ export function MediaPlayer({
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{ position: "relative" }}
       >
         <div data-testid="mediaPlayer-viewport">
@@ -447,6 +452,8 @@ export function MediaPlayer({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{ position: "relative" }}
     >
       <div data-testid="mediaPlayer-viewport" style={{ position: "relative" }}>
@@ -470,7 +477,7 @@ export function MediaPlayer({
           <track kind="captions" />
         </video>
 
-        {showControls && (
+        {controlsVisible && (
           <div
             data-testid="mediaPlayer-controls"
             style={{
