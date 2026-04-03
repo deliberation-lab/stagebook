@@ -11,6 +11,7 @@ import { YouTubePlayer } from "./mediaPlayer/YouTubePlayer.js";
 import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
 import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 import { formatTime } from "../../utils/formatTime.js";
+import { computeWatchedRanges } from "../../utils/watchedRanges.js";
 import {
   PlayIcon,
   PauseIcon,
@@ -33,6 +34,8 @@ interface VideoRecord {
   stopAt?: number;
   events: VideoEvent[];
   lastVideoTime: number;
+  /** Merged closed intervals [startSeconds, endSeconds] derived from the event log. */
+  watchedRanges: [number, number][];
 }
 
 export interface MediaPlayerProps {
@@ -123,6 +126,11 @@ export function MediaPlayer({
   // YouTube-only: handle registered by YouTubePlayer once the IFrame API is ready
   const [ytHandle, setYtHandle] = useState<PlaybackHandle | null>(null);
 
+  // Track whether the video was playing when a scrub drag started, so we can
+  // pause on grab and resume on release (records proper play/pause events for
+  // watchedRanges without spamming the server during the drag).
+  const scrubWasPlayingRef = useRef(false);
+
   // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
   useEffect(() => {
     if (!ytHandle || isPaused) return;
@@ -204,6 +212,7 @@ export function MediaPlayer({
         ...(stopAt !== undefined && { stopAt }),
         events: eventsRef.current,
         lastVideoTime: videoTime,
+        watchedRanges: computeWatchedRanges(eventsRef.current),
       };
       save(saveKey, record);
     },
@@ -657,7 +666,15 @@ export function MediaPlayer({
               );
               const t = scrubMin + pct * (scrubMax - scrubMin);
               e.currentTarget.setPointerCapture(e.pointerId);
-              if (videoRef.current) videoRef.current.currentTime = t;
+              const v = videoRef.current;
+              if (!v) return;
+              // Pause if playing so the user can scrub to an exact frame.
+              // The pause event is recorded by handlePause at the pre-scrub position.
+              if (!v.paused) {
+                scrubWasPlayingRef.current = true;
+                v.pause();
+              }
+              v.currentTime = t;
               setCurrentTime(t);
             }}
             onPointerMove={(e) => {
@@ -670,6 +687,23 @@ export function MediaPlayer({
               const t = scrubMin + pct * (scrubMax - scrubMin);
               if (videoRef.current) videoRef.current.currentTime = t;
               setCurrentTime(t);
+            }}
+            onPointerUp={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(
+                0,
+                Math.min(1, (e.clientX - rect.left) / rect.width),
+              );
+              const t = scrubMin + pct * (scrubMax - scrubMin);
+              const v = videoRef.current;
+              if (!v) return;
+              v.currentTime = t;
+              setCurrentTime(t);
+              // Resume if we paused on grab; play event records the new position.
+              if (scrubWasPlayingRef.current) {
+                scrubWasPlayingRef.current = false;
+                void v.play();
+              }
             }}
           >
             {/* Track */}
@@ -837,6 +871,10 @@ export function MediaPlayer({
                 );
                 const t = scrubMin + pct * (scrubMax - scrubMin);
                 e.currentTarget.setPointerCapture(e.pointerId);
+                if (ytHandle && !ytHandle.isPaused()) {
+                  scrubWasPlayingRef.current = true;
+                  ytHandle.pause();
+                }
                 ytHandle?.seekTo(t);
                 setCurrentTime(t);
               }}
@@ -850,6 +888,20 @@ export function MediaPlayer({
                 const t = scrubMin + pct * (scrubMax - scrubMin);
                 ytHandle?.seekTo(t);
                 setCurrentTime(t);
+              }}
+              onPointerUp={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = Math.max(
+                  0,
+                  Math.min(1, (e.clientX - rect.left) / rect.width),
+                );
+                const t = scrubMin + pct * (scrubMax - scrubMin);
+                ytHandle?.seekTo(t);
+                setCurrentTime(t);
+                if (scrubWasPlayingRef.current) {
+                  scrubWasPlayingRef.current = false;
+                  ytHandle?.play();
+                }
               }}
             >
               <div

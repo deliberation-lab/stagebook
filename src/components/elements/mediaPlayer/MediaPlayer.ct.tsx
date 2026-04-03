@@ -40,7 +40,10 @@ test("renders an iframe for YouTube URL", async ({ mount }) => {
 // Injects a synchronous mock window.YT into the page so YouTubePlayer's
 // createYouTubePlayer() takes the sync path. Tests then fire onReady /
 // onStateChange via page.evaluate() to simulate the real API callbacks.
-async function installYTMock(page: import("@playwright/test").Page) {
+
+type PWT = import("@playwright/test").Page;
+
+async function installYTMock(page: PWT) {
   await page.evaluate(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -99,6 +102,18 @@ async function installYTMock(page: import("@playwright/test").Page) {
   });
 }
 
+// Fires the YT onReady callback, waiting first for the Player constructor to have
+// run (useEffect is async — it may not have run yet when mount() resolves).
+async function fireYTOnReady(page: PWT) {
+  // Poll until createYouTubePlayer's useEffect has run and registered __ytOnReady
+  await expect
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .poll(() => page.evaluate(() => (window as any).__ytOnReady !== null))
+    .toBe(true);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await page.evaluate(() => (window as any).__ytOnReady?.());
+}
+
 test("YouTube: play button shown after IFrame API ready", async ({
   mount,
   page,
@@ -111,11 +126,7 @@ test("YouTube: play button shown after IFrame API ready", async ({
       controls={{ playPause: true, seek: true }}
     />,
   );
-  // Fire onReady — MediaPlayer should register the handle and show controls
-  await page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__ytOnReady?.();
-  });
+  await fireYTOnReady(page);
   await expect(
     component.locator('[data-testid="mediaPlayer-playPause"]'),
   ).toBeVisible();
@@ -139,10 +150,7 @@ test("YouTube: play button aria-label becomes Pause after PLAYING state", async 
       controls={{ playPause: true }}
     />,
   );
-  await page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__ytOnReady?.();
-  });
+  await fireYTOnReady(page);
   // Hover to keep controls visible while playing
   await component
     .locator('[data-testid="mediaPlayer"]')
@@ -164,22 +172,21 @@ test("YouTube: clicking play button calls player.playVideo()", async ({
   page,
 }) => {
   await installYTMock(page);
+  // seek: true exposes time display as a sync point for setDuration (= setYtHandle batch)
   const component = await mount(
     <MockMediaPlayer
       url="https://youtu.be/QC8iQqtG0hg"
       name="test"
-      controls={{ playPause: true }}
+      controls={{ playPause: true, seek: true }}
     />,
   );
-  await page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__ytOnReady?.();
-  });
-  // Wait for React to re-render with ytHandle set (onReady → setYtHandle is async)
+  await fireYTOnReady(page);
+  // setDuration(60) is called in the same onHandleReady batch as setYtHandle; wait for it
+  await expect(
+    component.locator('[data-testid="mediaPlayer-time"]'),
+  ).toContainText("1:00");
   const btn = component.locator('[data-testid="mediaPlayer-playPause"]');
-  await btn.waitFor({ state: "visible" });
   await btn.click();
-  // After click, ytPlayCalled should increment
   await expect
     .poll(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,18 +207,21 @@ test("YouTube: clicking pause button calls player.pauseVideo()", async ({
       controls={{ playPause: true }}
     />,
   );
+  await fireYTOnReady(page);
+  // Put player into playing state so button shows "Pause"
   await page.evaluate(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
-    w.__ytOnReady?.();
-    // Put player into playing state so button shows "Pause"
     w.__ytState = 1;
     w.__ytOnStateChange?.({ data: 1 });
   });
-  // Hover to keep controls visible while playing
+  // Hover to keep controls visible while playing; aria-label "Pause" confirms isPaused=false
   await component
     .locator('[data-testid="mediaPlayer"]')
     .dispatchEvent("mouseover", { bubbles: true });
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Pause");
   await component.locator('[data-testid="mediaPlayer-playPause"]').click();
   const callCount = await page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -232,15 +242,15 @@ test("YouTube: seekBack button calls player.seekTo(currentTime - 1)", async ({
       controls={{ seek: true }}
     />,
   );
-  await page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    w.__ytCurrentTime = 30;
-    w.__ytOnReady?.();
-  });
-  // Wait for ytHandle to be set in React state
+  // Set currentTime before firing onReady so the handle captures it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await page.evaluate(() => ((window as any).__ytCurrentTime = 30));
+  await fireYTOnReady(page);
+  // aria-valuemax = 60 (= __ytDuration) once setDuration(60) has been committed
+  await expect(
+    component.locator('[data-testid="mediaPlayer-scrubBar"]'),
+  ).toHaveAttribute("aria-valuemax", "60");
   const btn = component.locator('[data-testid="mediaPlayer-seekBack"]');
-  await btn.waitFor({ state: "visible" });
   await btn.click();
   await expect
     .poll(
@@ -262,11 +272,12 @@ test("YouTube: save() called with play event when state changes to PLAYING", asy
       controls={{ playPause: true }}
     />,
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await page.evaluate(() => ((window as any).__ytCurrentTime = 5));
+  await fireYTOnReady(page);
   await page.evaluate(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
-    w.__ytCurrentTime = 5;
-    w.__ytOnReady?.();
     w.__ytState = 1;
     w.__ytOnStateChange?.({ data: 1 });
   });
@@ -770,7 +781,47 @@ test("scrub bar data-step defaults to 1 when stepDuration is omitted", async ({
   ).toHaveAttribute("data-step", "1");
 });
 
-test("scrub bar pointerdown seeks to clicked position", async ({ mount }) => {
+// Helper: set up a video element with a controllable currentTime / paused state
+async function setupVideoMock(
+  video: import("@playwright/test").Locator,
+  opts: { duration?: number; playing?: boolean } = {},
+) {
+  await video.evaluate((el, { duration = 100, playing = false }) => {
+    let ct = 0;
+    let paused = !playing;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const v = el as any;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (s: number) => {
+        ct = s;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => duration,
+      configurable: true,
+    });
+    Object.defineProperty(el, "paused", {
+      get: () => paused,
+      configurable: true,
+    });
+    v.pause = () => {
+      paused = true;
+      el.dispatchEvent(new Event("pause"));
+    };
+    v.play = () => {
+      paused = false;
+      el.dispatchEvent(new Event("play"));
+      return Promise.resolve();
+    };
+    el.dispatchEvent(new Event("loadedmetadata"));
+  }, opts);
+}
+
+test("scrub bar: pointerdown seeks video to clicked position", async ({
+  mount,
+}) => {
   const component = await mount(
     <MockMediaPlayer
       url="https://example.com/test.mp4"
@@ -779,33 +830,135 @@ test("scrub bar pointerdown seeks to clicked position", async ({ mount }) => {
     />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
-  await video.evaluate((el) => {
-    let ct = 0;
-    Object.defineProperty(el, "currentTime", {
-      get: () => ct,
-      set: (v: number) => {
-        ct = v;
-      },
-      configurable: true,
-    });
-    Object.defineProperty(el, "duration", {
-      get: () => 100,
-      configurable: true,
-    });
-    el.dispatchEvent(new Event("loadedmetadata"));
-  });
+  await setupVideoMock(video);
   const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
   const box = await scrub.boundingBox();
   if (!box) throw new Error("scrub bar not found");
-  // Click at 50% of the track width → should seek to ~50s
   await scrub.dispatchEvent("pointerdown", {
     clientX: box.x + box.width * 0.5,
     clientY: box.y + box.height * 0.5,
     buttons: 1,
     pointerId: 1,
   });
+  // Seek happens immediately on pointerdown
   const ct = await video.evaluate((el) => el.currentTime);
   expect(ct).toBeCloseTo(50, 0);
+});
+
+test("scrub bar: pointermove seeks video during drag", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await setupVideoMock(video);
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  const box = await scrub.boundingBox();
+  if (!box) throw new Error("scrub bar not found");
+  await scrub.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.1,
+    clientY: box.y + box.height * 0.5,
+    buttons: 1,
+    pointerId: 1,
+  });
+  await scrub.dispatchEvent("pointermove", {
+    clientX: box.x + box.width * 0.75,
+    clientY: box.y + box.height * 0.5,
+    buttons: 1,
+    pointerId: 1,
+  });
+  // seek updates in real-time during drag
+  expect(await video.evaluate((el) => el.currentTime)).toBeCloseTo(75, 0);
+});
+
+test("scrub bar: pauses video on grab while playing, resumes on release", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  // Set up as currently playing (paused=false)
+  await setupVideoMock(video, { playing: true });
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  const box = await scrub.boundingBox();
+  if (!box) throw new Error("scrub bar not found");
+
+  // Grab scrubbar while playing → should auto-pause
+  await scrub.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    buttons: 1,
+    pointerId: 1,
+  });
+  // video.paused should now be true and a "pause" event recorded
+  const pausedAfterDown = await video.evaluate((el) => el.paused);
+  expect(pausedAfterDown).toBe(true);
+  const saveLog = component.locator('[data-testid="save-log"]');
+  const rawAfterDown = await saveLog.textContent();
+  const savesAfterDown = JSON.parse(rawAfterDown ?? "[]") as Array<{
+    value: { events: Array<{ type: string }> };
+  }>;
+  expect(savesAfterDown.at(-1)?.value.events.at(-1)?.type).toBe("pause");
+
+  // Release → should resume
+  await scrub.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    pointerId: 1,
+  });
+  const pausedAfterUp = await video.evaluate((el) => el.paused);
+  expect(pausedAfterUp).toBe(false);
+  const rawAfterUp = await saveLog.textContent();
+  const savesAfterUp = JSON.parse(rawAfterUp ?? "[]") as Array<{
+    value: { events: Array<{ type: string }> };
+  }>;
+  expect(savesAfterUp.at(-1)?.value.events.at(-1)?.type).toBe("play");
+});
+
+test("scrub bar: no play/pause events when scrubbing from paused state", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await setupVideoMock(video, { playing: false });
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  const box = await scrub.boundingBox();
+  if (!box) throw new Error("scrub bar not found");
+  await scrub.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.3,
+    clientY: box.y + box.height * 0.5,
+    buttons: 1,
+    pointerId: 1,
+  });
+  await scrub.dispatchEvent("pointermove", {
+    clientX: box.x + box.width * 0.7,
+    clientY: box.y + box.height * 0.5,
+    buttons: 1,
+    pointerId: 1,
+  });
+  await scrub.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.7,
+    clientY: box.y + box.height * 0.5,
+    pointerId: 1,
+  });
+  // No save events should have been recorded (scrubbing while paused = no events)
+  const raw = await component.locator('[data-testid="save-log"]').textContent();
+  const saves = JSON.parse(raw ?? "[]") as Array<unknown>;
+  expect(saves).toHaveLength(0);
 });
 
 // -- Play/pause button state --
