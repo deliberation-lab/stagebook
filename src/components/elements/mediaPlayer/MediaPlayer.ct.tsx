@@ -37,6 +37,38 @@ test("renders an iframe for YouTube URL", async ({ mount }) => {
 
 // -- Controls visibility --
 
+test("all controls shown together", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true, seek: true, step: true, speed: true }}
+      stepDuration={5}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-seekBack"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-stepBack"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-stepForward"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-seekForward"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).toBeVisible();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-scrubBar"]'),
+  ).toBeVisible();
+});
+
 test("no controls shown when controls prop is omitted", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
