@@ -87,3 +87,11 @@ export {
   type ScrollIndicatorProps,
 } from "./scroll/ScrollIndicator.js";
 export { useScrollAwareness } from "./scroll/useScrollAwareness.js";
+
+// Playback coordination — lets sibling components control a named MediaPlayer
+export type { PlaybackHandle } from "./playback/PlaybackHandle.js";
+export {
+  PlaybackProvider,
+  useRegisterPlayback,
+  usePlayback,
+} from "./playback/PlaybackProvider.js";

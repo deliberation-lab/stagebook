@@ -1,6 +1,14 @@
-import React, { useRef, useCallback, useEffect, useState } from "react";
+import React, {
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { isYouTubeURL } from "./mediaPlayer/isYouTubeURL.js";
 import { parseVTT, type CaptionCue } from "./mediaPlayer/parseVTT.js";
+import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
+import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 
 export interface VideoEvent {
   type: "play" | "pause" | "ended" | "stopAt";
@@ -75,6 +83,25 @@ export function MediaPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [captionText, setCaptionText] = useState<string | null>(null);
+
+  // PlaybackHandle — exposes this player to sibling components via PlaybackProvider
+  const handle = useMemo<PlaybackHandle>(
+    () => ({
+      play: () => {
+        void videoRef.current?.play();
+      },
+      pause: () => videoRef.current?.pause(),
+      seekTo: (s: number) => {
+        if (videoRef.current) videoRef.current.currentTime = s;
+      },
+      getCurrentTime: () => videoRef.current?.currentTime ?? 0,
+      getDuration: () => videoRef.current?.duration ?? 0,
+      isPaused: () => videoRef.current?.paused ?? true,
+      isYouTube: false,
+    }),
+    [], // stable: all methods close over videoRef which is a stable ref
+  );
+  useRegisterPlayback(name, handle);
 
   // Hold-to-scrub state
   const arrowRepeatCountRef = useRef(0);

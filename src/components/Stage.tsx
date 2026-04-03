@@ -8,6 +8,7 @@ import { ConditionsConditionalRender } from "./conditions/ConditionsConditionalR
 import { SubmissionConditionalRender } from "./conditions/SubmissionConditionalRender.js";
 import { ScrollIndicator } from "./scroll/ScrollIndicator.js";
 import { useScrollAwareness } from "./scroll/useScrollAwareness.js";
+import { PlaybackProvider } from "./playback/PlaybackProvider.js";
 import type { DiscussionType } from "../schemas/treatment.js";
 import type { Condition } from "./conditions/ConditionsConditionalRender.js";
 
@@ -17,7 +18,7 @@ function maxWidthForElement(element: ElementConfig): string {
     case "survey":
     case "qualtrics":
       return "64rem"; // ~1024px
-    case "video":
+    case "mediaPlayer":
       return "56rem"; // ~896px
     default:
       return "42rem"; // ~672px
@@ -204,60 +205,64 @@ export function Stage({ stage, onSubmit }: StageProps) {
     );
 
     return (
-      <SubmissionConditionalRender
-        isSubmitted={isSubmitted}
-        playerCount={playerCount}
-      >
-        {discussionConditions && discussionConditions.length > 0 ? (
-          <ConditionsConditionalRender
-            conditions={discussionConditions}
-            resolve={resolve}
-            fallback={
-              <div
-                data-testid="stageContent"
-                style={{
-                  display: "flex",
-                  height: "100%",
-                  width: "100%",
-                  flexDirection: "column",
-                  paddingBottom: "0.5rem",
-                  overflow: "auto",
-                }}
-              >
-                {elementsColumn}
-              </div>
-            }
-          >
-            {discussionPage}
-          </ConditionsConditionalRender>
-        ) : (
-          discussionPage
-        )}
-      </SubmissionConditionalRender>
+      <PlaybackProvider>
+        <SubmissionConditionalRender
+          isSubmitted={isSubmitted}
+          playerCount={playerCount}
+        >
+          {discussionConditions && discussionConditions.length > 0 ? (
+            <ConditionsConditionalRender
+              conditions={discussionConditions}
+              resolve={resolve}
+              fallback={
+                <div
+                  data-testid="stageContent"
+                  style={{
+                    display: "flex",
+                    height: "100%",
+                    width: "100%",
+                    flexDirection: "column",
+                    paddingBottom: "0.5rem",
+                    overflow: "auto",
+                  }}
+                >
+                  {elementsColumn}
+                </div>
+              }
+            >
+              {discussionPage}
+            </ConditionsConditionalRender>
+          ) : (
+            discussionPage
+          )}
+        </SubmissionConditionalRender>
+      </PlaybackProvider>
     );
   }
 
   // Single-column layout: elements only
   return (
-    <SubmissionConditionalRender
-      isSubmitted={isSubmitted}
-      playerCount={playerCount}
-    >
-      <div
-        ref={singleColumnRef}
-        data-testid="stageContent"
-        style={{
-          display: "flex",
-          height: "100%",
-          width: "100%",
-          flexDirection: "column",
-          paddingBottom: "0.5rem",
-          overflow: "auto",
-        }}
+    <PlaybackProvider>
+      <SubmissionConditionalRender
+        isSubmitted={isSubmitted}
+        playerCount={playerCount}
       >
-        {elementsColumn}
-        <ScrollIndicator visible={showSingleColumnScrollIndicator} />
-      </div>
-    </SubmissionConditionalRender>
+        <div
+          ref={singleColumnRef}
+          data-testid="stageContent"
+          style={{
+            display: "flex",
+            height: "100%",
+            width: "100%",
+            flexDirection: "column",
+            paddingBottom: "0.5rem",
+            overflow: "auto",
+          }}
+        >
+          {elementsColumn}
+          <ScrollIndicator visible={showSingleColumnScrollIndicator} />
+        </div>
+      </SubmissionConditionalRender>
+    </PlaybackProvider>
   );
 }

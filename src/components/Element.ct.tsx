@@ -131,16 +131,19 @@ test.describe("Element router dispatch", () => {
     await expect(component.locator("iframe")).toBeVisible();
   });
 
-  test("type: video renders video heading", async ({ mount }) => {
+  test("type: mediaPlayer renders a video element", async ({ mount }) => {
     const component = await mount(
       <MockStageRenderer
         stage={singleElementStage({
-          type: "video",
+          type: "mediaPlayer",
+          name: "test_video",
           url: "https://example.com/video.mp4",
         })}
       />,
     );
-    await expect(component).toContainText("watch the following video");
+    await expect(
+      component.locator('[data-testid="mediaPlayer-video"]'),
+    ).toBeAttached();
   });
 
   test("unknown type renders nothing (no crash)", async ({ mount }) => {
