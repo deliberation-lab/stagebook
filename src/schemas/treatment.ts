@@ -940,6 +940,26 @@ export const elementSchema = altTemplateContext(
         );
       }
     }
+
+    // Cross-field validation for mediaPlayer
+    if (
+      isObject &&
+      (data as { type?: unknown }).type === "mediaPlayer" &&
+      result.success
+    ) {
+      const mp = data as { startAt?: number; stopAt?: number };
+      if (
+        mp.startAt !== undefined &&
+        mp.stopAt !== undefined &&
+        mp.stopAt <= mp.startAt
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "stopAt must be greater than startAt",
+          path: ["stopAt"],
+        });
+      }
+    }
   }),
 );
 

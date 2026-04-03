@@ -5,6 +5,7 @@ import {
   conditionSchema,
   discussionSchema,
   elementsSchema,
+  elementSchema,
   mediaPlayerSchema,
   promptSchema,
   treatmentFileSchema,
@@ -483,6 +484,37 @@ test("elementsSchema accepts type: mediaPlayer", () => {
   const result = elementsSchema.safeParse([
     { type: "mediaPlayer", url: "shared/footage.mp4" },
   ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: stopAt must be greater than startAt", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    startAt: 30,
+    stopAt: 10,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: startAt equal to stopAt is invalid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    startAt: 30,
+    stopAt: 30,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: startAt < stopAt is valid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    startAt: 10,
+    stopAt: 90,
+  });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
 });
