@@ -8,18 +8,10 @@ import React, {
 import { isYouTubeURL } from "./mediaPlayer/isYouTubeURL.js";
 import { parseVTT, type CaptionCue } from "./mediaPlayer/parseVTT.js";
 import { YouTubePlayer } from "./mediaPlayer/YouTubePlayer.js";
+import { HTML5Controls, YouTubeControls } from "./mediaPlayer/controls.js";
 import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
 import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
-import { formatTime } from "../../utils/formatTime.js";
 import { computeWatchedRanges } from "../../utils/watchedRanges.js";
-import {
-  PlayIcon,
-  PauseIcon,
-  SeekBackIcon,
-  SeekForwardIcon,
-  StepBackIcon,
-  StepForwardIcon,
-} from "./mediaPlayer/icons.js";
 
 export interface VideoEvent {
   type: "play" | "pause" | "ended" | "stopAt";
@@ -65,31 +57,6 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
 // Number of repeated keydown events before entering fast-scrub mode
 const HOLD_REPEAT_THRESHOLD = 10;
-
-// Shared button styles — inline to avoid Tailwind dependency in CT tests
-const controlBtnBase: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  borderRadius: "9999px",
-  color: "#fff",
-  background: "none",
-  border: "none",
-  padding: 0,
-  cursor: "pointer",
-};
-
-const controlBtnSmall: React.CSSProperties = {
-  ...controlBtnBase,
-  width: 36,
-  height: 36,
-};
-
-const controlBtnLarge: React.CSSProperties = {
-  ...controlBtnBase,
-  width: 48,
-  height: 48,
-};
 
 export function MediaPlayer({
   name,
@@ -494,12 +461,117 @@ export function MediaPlayer({
         holdTimerRef.current = null;
       }
       exitFastScrub();
-      // Reset fast-scrub flag even if not fast-scrubbing (no-op)
       isFastScrubbing.current = false;
-      void didSeekOnClick; // used by callers to decide whether to also call seek()
+      void didSeekOnClick;
     },
     [exitFastScrub],
   );
+
+  // ---------------------------------------------------------------------------
+  // Callbacks forwarded to HTML5Controls / YouTubeControls
+  // ---------------------------------------------------------------------------
+
+  // Seek button: read isFastScrubbing before endButtonHold resets it, then
+  // do a single-step seek only if the hold didn't already move the playhead.
+  const onSeekButtonRelease = useCallback(
+    (direction: 1 | -1) => {
+      const wasHeld = isFastScrubbing.current;
+      endButtonHold(false);
+      if (!wasHeld) seek(direction);
+    },
+    [endButtonHold, seek],
+  );
+
+  const onSeekButtonLeave = useCallback(
+    () => endButtonHold(false),
+    [endButtonHold],
+  );
+
+  const onPlayPause = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) void v.play();
+    else v.pause();
+  }, []);
+
+  // Scrub bar: pause on grab (records "pause" event at pre-scrub position),
+  // seek in real-time during drag, resume on release (records "play" event).
+  const onScrubStart = useCallback((t: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (!v.paused) {
+      scrubWasPlayingRef.current = true;
+      v.pause();
+    }
+    v.currentTime = t;
+    setCurrentTime(t);
+  }, []);
+
+  const onScrubMove = useCallback((t: number) => {
+    if (videoRef.current) videoRef.current.currentTime = t;
+    setCurrentTime(t);
+  }, []);
+
+  const onScrubEnd = useCallback((t: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = t;
+    setCurrentTime(t);
+    if (scrubWasPlayingRef.current) {
+      scrubWasPlayingRef.current = false;
+      void v.play();
+    }
+  }, []);
+
+  // YouTube-specific scrub callbacks
+  const ytOnPlayPause = useCallback(() => {
+    if (isPaused) ytHandle?.play();
+    else ytHandle?.pause();
+  }, [isPaused, ytHandle]);
+
+  const ytOnSeekBack = useCallback(() => {
+    ytHandle?.seekTo(Math.max(0, ytHandle.getCurrentTime() - 1));
+  }, [ytHandle]);
+
+  const ytOnSeekForward = useCallback(() => {
+    ytHandle?.seekTo(ytHandle.getCurrentTime() + 1);
+  }, [ytHandle]);
+
+  const ytOnScrubStart = useCallback(
+    (t: number) => {
+      if (ytHandle && !ytHandle.isPaused()) {
+        scrubWasPlayingRef.current = true;
+        ytHandle.pause();
+      }
+      ytHandle?.seekTo(t);
+      setCurrentTime(t);
+    },
+    [ytHandle],
+  );
+
+  const ytOnScrubMove = useCallback(
+    (t: number) => {
+      ytHandle?.seekTo(t);
+      setCurrentTime(t);
+    },
+    [ytHandle],
+  );
+
+  const ytOnScrubEnd = useCallback(
+    (t: number) => {
+      ytHandle?.seekTo(t);
+      setCurrentTime(t);
+      if (scrubWasPlayingRef.current) {
+        scrubWasPlayingRef.current = false;
+        ytHandle?.play();
+      }
+    },
+    [ytHandle],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Derived display values
+  // ---------------------------------------------------------------------------
 
   const hasControls =
     !syncToStageTime &&
@@ -517,7 +589,7 @@ export function MediaPlayer({
       : 0
     : (stopAt ?? duration);
 
-  // Scrub bar fill widths (percentage)
+  // Scrub bar fill percentages
   const playedPct =
     scrubMax > scrubMin
       ? Math.min(
@@ -530,432 +602,40 @@ export function MediaPlayer({
       ? Math.min(((bufferedEnd - scrubMin) / (scrubMax - scrubMin)) * 100, 100)
       : 0;
 
-  // Transport buttons + scrub bar — shared between video-overlay and audio-flat layouts
-  const controlsContent = (
-    <>
-      {/* Transport buttons row — centered, play in the middle */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "0.25rem",
-        }}
-      >
-        {controls?.seek && (
-          <button
-            data-testid="mediaPlayer-seekBack"
-            aria-label="Back 1s"
-            title="Back 1s (←) · Hold to scrub · J for 10s"
-            style={controlBtnSmall}
-            onMouseDown={() => startButtonHold(-1)}
-            onMouseUp={() => {
-              const wasHeld = isFastScrubbing.current;
-              endButtonHold(false);
-              if (!wasHeld) seek(-1);
-            }}
-            onMouseLeave={() => endButtonHold(false)}
-          >
-            <SeekBackIcon />
-          </button>
-        )}
+  // Shared props for HTML5Controls (used in both video-overlay and audio-flat layouts)
+  const html5ControlsProps = {
+    controls,
+    isPaused,
+    stepDuration,
+    playbackRate,
+    scrubMin,
+    scrubMax,
+    currentTime,
+    duration,
+    playedPct,
+    bufferedPct,
+    onSeek: seek,
+    onCycleSpeed: cycleSpeed,
+    onSeekButtonPress: startButtonHold,
+    onSeekButtonRelease,
+    onSeekButtonLeave,
+    onPlayPause,
+    onScrubStart,
+    onScrubMove,
+    onScrubEnd,
+  };
 
-        {controls?.step && (
-          <button
-            data-testid="mediaPlayer-stepBack"
-            aria-label={`Step back ${String(stepDuration)}s`}
-            title={`Step back ${String(stepDuration)}s (,)`}
-            style={controlBtnSmall}
-            onClick={() => seek(-stepDuration)}
-          >
-            <StepBackIcon />
-          </button>
-        )}
-
-        {controls?.playPause && (
-          <button
-            data-testid="mediaPlayer-playPause"
-            aria-label={isPaused ? "Play" : "Pause"}
-            title={isPaused ? "Play (Space)" : "Pause (Space)"}
-            style={controlBtnLarge}
-            onClick={() => {
-              const v = videoRef.current;
-              if (!v) return;
-              if (v.paused) void v.play();
-              else v.pause();
-            }}
-          >
-            {isPaused ? <PlayIcon /> : <PauseIcon />}
-          </button>
-        )}
-
-        {controls?.step && (
-          <button
-            data-testid="mediaPlayer-stepForward"
-            aria-label={`Step forward ${String(stepDuration)}s`}
-            title={`Step forward ${String(stepDuration)}s (.)`}
-            style={controlBtnSmall}
-            onClick={() => seek(stepDuration)}
-          >
-            <StepForwardIcon />
-          </button>
-        )}
-
-        {controls?.seek && (
-          <button
-            data-testid="mediaPlayer-seekForward"
-            aria-label="Forward 1s"
-            title="Forward 1s (→) · Hold to scrub · L for 10s"
-            style={controlBtnSmall}
-            onMouseDown={() => startButtonHold(1)}
-            onMouseUp={() => {
-              const wasHeld = isFastScrubbing.current;
-              endButtonHold(false);
-              if (!wasHeld) seek(1);
-            }}
-            onMouseLeave={() => endButtonHold(false)}
-          >
-            <SeekForwardIcon />
-          </button>
-        )}
-
-        {controls?.speed && (
-          <button
-            data-testid="mediaPlayer-speed"
-            aria-label="Playback speed"
-            title="Playback speed (< / >)"
-            style={{
-              ...controlBtnSmall,
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              fontVariantNumeric: "tabular-nums",
-            }}
-            onClick={cycleSpeed}
-          >
-            {playbackRate}×
-          </button>
-        )}
-      </div>
-
-      {/* Scrub bar + time display row */}
-      {controls?.seek && (
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          {/* Custom div scrub bar — consistent cross-browser appearance */}
-          <div
-            data-testid="mediaPlayer-scrubBar"
-            role="slider"
-            aria-label="Seek"
-            aria-valuemin={scrubMin}
-            aria-valuemax={scrubMax}
-            aria-valuenow={currentTime}
-            data-step={stepDuration}
-            tabIndex={0}
-            style={{
-              flex: 1,
-              position: "relative",
-              height: 20,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-            }}
-            onPointerDown={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const pct = Math.max(
-                0,
-                Math.min(1, (e.clientX - rect.left) / rect.width),
-              );
-              const t = scrubMin + pct * (scrubMax - scrubMin);
-              e.currentTarget.setPointerCapture(e.pointerId);
-              const v = videoRef.current;
-              if (!v) return;
-              // Pause if playing so the user can scrub to an exact frame.
-              // The pause event is recorded by handlePause at the pre-scrub position.
-              if (!v.paused) {
-                scrubWasPlayingRef.current = true;
-                v.pause();
-              }
-              v.currentTime = t;
-              setCurrentTime(t);
-            }}
-            onPointerMove={(e) => {
-              if (!(e.buttons & 1)) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const pct = Math.max(
-                0,
-                Math.min(1, (e.clientX - rect.left) / rect.width),
-              );
-              const t = scrubMin + pct * (scrubMax - scrubMin);
-              if (videoRef.current) videoRef.current.currentTime = t;
-              setCurrentTime(t);
-            }}
-            onPointerUp={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const pct = Math.max(
-                0,
-                Math.min(1, (e.clientX - rect.left) / rect.width),
-              );
-              const t = scrubMin + pct * (scrubMax - scrubMin);
-              const v = videoRef.current;
-              if (!v) return;
-              v.currentTime = t;
-              setCurrentTime(t);
-              // Resume if we paused on grab; play event records the new position.
-              if (scrubWasPlayingRef.current) {
-                scrubWasPlayingRef.current = false;
-                void v.play();
-              }
-            }}
-          >
-            {/* Track */}
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                height: 4,
-                borderRadius: 2,
-                background: "rgba(255,255,255,0.2)",
-              }}
-            >
-              {/* Buffered fill */}
-              <div
-                data-testid="mediaPlayer-buffered"
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  height: "100%",
-                  width: `${String(bufferedPct)}%`,
-                  background: "rgba(255,255,255,0.35)",
-                  borderRadius: 2,
-                  pointerEvents: "none",
-                }}
-              />
-              {/* Played fill */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  height: "100%",
-                  width: `${String(playedPct)}%`,
-                  background: "#fff",
-                  borderRadius: 2,
-                  pointerEvents: "none",
-                }}
-              />
-            </div>
-            {/* Thumb */}
-            <div
-              style={{
-                position: "absolute",
-                left: `${String(playedPct)}%`,
-                transform: "translateX(-50%)",
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                background: "#fff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                pointerEvents: "none",
-              }}
-            />
-          </div>
-          <span
-            data-testid="mediaPlayer-time"
-            style={{
-              color: "#fff",
-              fontSize: "0.75rem",
-              whiteSpace: "nowrap",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
-        </div>
-      )}
-    </>
-  );
+  // ---------------------------------------------------------------------------
+  // YouTube branch
+  // ---------------------------------------------------------------------------
 
   if (youtubeVideoId) {
-    // YouTube: IFrame API drives playback; controls overlay on top of the iframe.
-    // Frame-step controls are hidden (YouTube doesn't expose frame-level access).
-    // Speed control is also hidden (YouTube IFrame API doesn't expose setPlaybackRate
-    // in a way that integrates cleanly with our controls).
     const ytHasControls =
       !syncToStageTime &&
       controls !== undefined &&
       (controls.playPause || controls.seek);
     const ytControlsVisible =
       ytHasControls && (isPaused || isHovered || !playVideo);
-
-    const ytControlsContent = ytHasControls ? (
-      <>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.25rem",
-          }}
-        >
-          {controls?.seek && (
-            <button
-              data-testid="mediaPlayer-seekBack"
-              aria-label="Back 1s"
-              title="Back 1s · J for 10s"
-              style={controlBtnSmall}
-              onClick={() => {
-                ytHandle?.seekTo(Math.max(0, ytHandle.getCurrentTime() - 1));
-              }}
-            >
-              <SeekBackIcon />
-            </button>
-          )}
-          {controls?.playPause && (
-            <button
-              data-testid="mediaPlayer-playPause"
-              aria-label={isPaused ? "Play" : "Pause"}
-              title={isPaused ? "Play (Space)" : "Pause (Space)"}
-              style={controlBtnLarge}
-              onClick={() => {
-                if (isPaused) ytHandle?.play();
-                else ytHandle?.pause();
-              }}
-            >
-              {isPaused ? <PlayIcon /> : <PauseIcon />}
-            </button>
-          )}
-          {controls?.seek && (
-            <button
-              data-testid="mediaPlayer-seekForward"
-              aria-label="Forward 1s"
-              title="Forward 1s · L for 10s"
-              style={controlBtnSmall}
-              onClick={() => {
-                ytHandle?.seekTo(ytHandle.getCurrentTime() + 1);
-              }}
-            >
-              <SeekForwardIcon />
-            </button>
-          )}
-        </div>
-        {controls?.seek && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <div
-              data-testid="mediaPlayer-scrubBar"
-              role="slider"
-              aria-label="Seek"
-              aria-valuemin={scrubMin}
-              aria-valuemax={scrubMax}
-              aria-valuenow={currentTime}
-              tabIndex={0}
-              style={{
-                flex: 1,
-                position: "relative",
-                height: 20,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-              }}
-              onPointerDown={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = Math.max(
-                  0,
-                  Math.min(1, (e.clientX - rect.left) / rect.width),
-                );
-                const t = scrubMin + pct * (scrubMax - scrubMin);
-                e.currentTarget.setPointerCapture(e.pointerId);
-                if (ytHandle && !ytHandle.isPaused()) {
-                  scrubWasPlayingRef.current = true;
-                  ytHandle.pause();
-                }
-                ytHandle?.seekTo(t);
-                setCurrentTime(t);
-              }}
-              onPointerMove={(e) => {
-                if (!(e.buttons & 1)) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = Math.max(
-                  0,
-                  Math.min(1, (e.clientX - rect.left) / rect.width),
-                );
-                const t = scrubMin + pct * (scrubMax - scrubMin);
-                ytHandle?.seekTo(t);
-                setCurrentTime(t);
-              }}
-              onPointerUp={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = Math.max(
-                  0,
-                  Math.min(1, (e.clientX - rect.left) / rect.width),
-                );
-                const t = scrubMin + pct * (scrubMax - scrubMin);
-                ytHandle?.seekTo(t);
-                setCurrentTime(t);
-                if (scrubWasPlayingRef.current) {
-                  scrubWasPlayingRef.current = false;
-                  ytHandle?.play();
-                }
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  height: 4,
-                  borderRadius: 2,
-                  background: "rgba(255,255,255,0.2)",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    height: "100%",
-                    width: `${String(playedPct)}%`,
-                    background: "#fff",
-                    borderRadius: 2,
-                    pointerEvents: "none",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  position: "absolute",
-                  left: `${String(playedPct)}%`,
-                  transform: "translateX(-50%)",
-                  width: 12,
-                  height: 12,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                  pointerEvents: "none",
-                }}
-              />
-            </div>
-            <span
-              data-testid="mediaPlayer-time"
-              style={{
-                color: "#fff",
-                fontSize: "0.75rem",
-                whiteSpace: "nowrap",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-          </div>
-        )}
-      </>
-    ) : null;
 
     return (
       <div
@@ -1013,13 +693,31 @@ export function MediaPlayer({
                 gap: "0.25rem",
               }}
             >
-              {ytControlsContent}
+              <YouTubeControls
+                controls={controls}
+                isPaused={isPaused}
+                scrubMin={scrubMin}
+                scrubMax={scrubMax}
+                currentTime={currentTime}
+                duration={duration}
+                playedPct={playedPct}
+                onPlayPause={ytOnPlayPause}
+                onSeekBack={ytOnSeekBack}
+                onSeekForward={ytOnSeekForward}
+                onScrubStart={ytOnScrubStart}
+                onScrubMove={ytOnScrubMove}
+                onScrubEnd={ytOnScrubEnd}
+              />
             </div>
           )}
         </div>
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // HTML5 branch
+  // ---------------------------------------------------------------------------
 
   return (
     <div
@@ -1104,7 +802,7 @@ export function MediaPlayer({
                 gap: "0.25rem",
               }}
             >
-              {controlsContent}
+              <HTML5Controls {...html5ControlsProps} />
             </div>
           )}
         </div>
@@ -1123,7 +821,7 @@ export function MediaPlayer({
             gap: "0.25rem",
           }}
         >
-          {controlsContent}
+          <HTML5Controls {...html5ControlsProps} />
         </div>
       )}
     </div>
