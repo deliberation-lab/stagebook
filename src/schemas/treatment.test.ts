@@ -404,13 +404,13 @@ test("mediaPlayer: full config with all fields", () => {
     startAt: 45,
     stopAt: 120,
     allowScrubOutsideBounds: false,
-    frameRate: 60,
+    stepDuration: 0.033,
     syncToStageTime: false,
     submitOnComplete: true,
     controls: {
       playPause: true,
       seek: true,
-      frameStep: true,
+      step: true,
       speed: true,
     },
   });
@@ -471,11 +471,11 @@ test("mediaPlayer: zero startAt is valid (nonnegative)", () => {
   expect(result.success).toBe(true);
 });
 
-test("mediaPlayer: frameRate must be positive", () => {
+test("mediaPlayer: stepDuration must be positive", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
     url: "shared/footage.mp4",
-    frameRate: 0,
+    stepDuration: 0,
   });
   expect(result.success).toBe(false);
 });

@@ -794,7 +794,7 @@ const mediaPlayerControlsSchema = z
   .object({
     playPause: z.boolean().optional(),
     seek: z.boolean().optional(),
-    frameStep: z.boolean().optional(),
+    step: z.boolean().optional(),
     speed: z.boolean().optional(),
   })
   .strict()
@@ -810,7 +810,7 @@ export const mediaPlayerSchema = elementBaseSchema
     startAt: z.number().nonnegative().optional(),
     stopAt: z.number().positive().optional(),
     allowScrubOutsideBounds: z.boolean().optional(),
-    frameRate: z.number().positive().optional(),
+    stepDuration: z.number().positive().optional(),
     syncToStageTime: z.boolean().optional(),
     submitOnComplete: z.boolean().optional(),
     controls: mediaPlayerControlsSchema,

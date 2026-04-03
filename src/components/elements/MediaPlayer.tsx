@@ -31,11 +31,11 @@ export interface MediaPlayerProps {
   startAt?: number;
   stopAt?: number;
   allowScrubOutsideBounds?: boolean;
-  frameRate?: number;
+  stepDuration?: number;
   controls?: {
     playPause?: boolean;
     seek?: boolean;
-    frameStep?: boolean;
+    step?: boolean;
     speed?: boolean;
   };
 }

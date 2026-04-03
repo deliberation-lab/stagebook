@@ -256,13 +256,13 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           allowScrubOutsideBounds={
             element.allowScrubOutsideBounds as boolean | undefined
           }
-          frameRate={element.frameRate as number | undefined}
+          stepDuration={element.stepDuration as number | undefined}
           controls={
             element.controls as
               | {
                   playPause?: boolean;
                   seek?: boolean;
-                  frameStep?: boolean;
+                  step?: boolean;
                   speed?: boolean;
                 }
               | undefined
