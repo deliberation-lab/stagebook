@@ -40,6 +40,8 @@ export interface MediaPlayerProps {
   };
 }
 
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
 export function MediaPlayer({
   name,
   url,
@@ -53,6 +55,7 @@ export function MediaPlayer({
   captionsURL,
   startAt,
   stopAt,
+  stepDuration = 1,
   controls,
 }: MediaPlayerProps) {
   const youtubeVideoId = isYouTubeURL(url);
@@ -60,7 +63,11 @@ export function MediaPlayer({
 
   const eventsRef = useRef<VideoEvent[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [isPaused, setIsPaused] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState<number>(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [captionText, setCaptionText] = useState<string | null>(null);
 
@@ -114,6 +121,7 @@ export function MediaPlayer({
 
   const handlePlay = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      setIsPaused(false);
       recordEvent("play", e.currentTarget.currentTime);
     },
     [recordEvent],
@@ -121,6 +129,7 @@ export function MediaPlayer({
 
   const handlePause = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      setIsPaused(true);
       recordEvent("pause", e.currentTarget.currentTime);
     },
     [recordEvent],
@@ -128,6 +137,7 @@ export function MediaPlayer({
 
   const handleEnded = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      setIsPaused(true);
       recordEvent("ended", e.currentTarget.currentTime);
       if (submitOnComplete) {
         onComplete?.();
@@ -145,24 +155,88 @@ export function MediaPlayer({
 
   const handleTimeUpdate = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
-      const { currentTime } = e.currentTarget;
+      const { currentTime: ct } = e.currentTarget;
+      setCurrentTime(ct);
 
       // stopAt enforcement
-      if (stopAt !== undefined && currentTime >= stopAt) {
+      if (stopAt !== undefined && ct >= stopAt) {
         e.currentTarget.pause();
-        recordEvent("stopAt", currentTime);
+        recordEvent("stopAt", ct);
         return;
       }
 
       // Caption update
       if (cues.length > 0) {
-        const active = cues.find(
-          (c) => currentTime >= c.startTime && currentTime <= c.endTime,
-        );
+        const active = cues.find((c) => ct >= c.startTime && ct <= c.endTime);
         setCaptionText(active?.text ?? null);
       }
     },
     [stopAt, cues, recordEvent],
+  );
+
+  const seek = useCallback(
+    (delta: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      const min = startAt ?? 0;
+      const max = stopAt ?? v.duration ?? Infinity;
+      v.currentTime = Math.min(Math.max(v.currentTime + delta, min), max);
+    },
+    [startAt, stopAt],
+  );
+
+  const cycleSpeed = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const idx = SPEEDS.indexOf(playbackRate as (typeof SPEEDS)[number]);
+    const next = SPEEDS[(idx + 1) % SPEEDS.length];
+    v.playbackRate = next;
+    setPlaybackRate(next);
+  }, [playbackRate]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const v = videoRef.current;
+      if (!v) return;
+      switch (e.key) {
+        case " ":
+        case "k":
+        case "K":
+          e.preventDefault();
+          if (v.paused) void v.play();
+          else v.pause();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          seek(5);
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          seek(-5);
+          break;
+        case "l":
+        case "L":
+          e.preventDefault();
+          seek(10);
+          break;
+        case "j":
+        case "J":
+          e.preventDefault();
+          seek(-10);
+          break;
+        case ".":
+          e.preventDefault();
+          seek(stepDuration);
+          break;
+        case ",":
+          e.preventDefault();
+          seek(-stepDuration);
+          break;
+        default:
+          break;
+      }
+    },
+    [seek, stepDuration],
   );
 
   const showControls =
@@ -180,6 +254,8 @@ export function MediaPlayer({
         data-testid="mediaPlayer"
         role="region"
         aria-label="Media player"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
         style={{ position: "relative" }}
       >
         <div data-testid="mediaPlayer-viewport">
@@ -201,6 +277,8 @@ export function MediaPlayer({
       data-testid="mediaPlayer"
       role="region"
       aria-label="Media player"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
       style={{ position: "relative" }}
     >
       <div data-testid="mediaPlayer-viewport" style={{ position: "relative" }}>
@@ -241,7 +319,7 @@ export function MediaPlayer({
             {controls?.playPause && (
               <button
                 data-testid="mediaPlayer-playPause"
-                aria-label="Play / Pause"
+                aria-label={isPaused ? "Play" : "Pause"}
                 style={{ minWidth: 44, minHeight: 44 }}
                 onClick={() => {
                   const v = videoRef.current;
@@ -250,7 +328,7 @@ export function MediaPlayer({
                   else v.pause();
                 }}
               >
-                ▶
+                {isPaused ? "▶" : "⏸"}
               </button>
             )}
 
@@ -262,9 +340,16 @@ export function MediaPlayer({
                 aria-label="Seek"
                 aria-valuemin={scrubMin}
                 aria-valuemax={scrubMax}
-                aria-valuenow={0}
+                aria-valuenow={currentTime}
                 min={scrubMin}
                 max={scrubMax}
+                step={stepDuration}
+                value={currentTime}
+                onChange={(e) => {
+                  const t = Number(e.target.value);
+                  if (videoRef.current) videoRef.current.currentTime = t;
+                  setCurrentTime(t);
+                }}
                 style={{ flex: 1 }}
               />
             )}
@@ -274,8 +359,9 @@ export function MediaPlayer({
                 data-testid="mediaPlayer-speed"
                 aria-label="Playback speed"
                 style={{ minWidth: 44, minHeight: 44 }}
+                onClick={cycleSpeed}
               >
-                1.0x
+                {playbackRate}×
               </button>
             )}
           </div>

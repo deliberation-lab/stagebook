@@ -409,3 +409,391 @@ test("caption overlay clears when no cue is active", async ({
     component.locator('[data-testid="mediaPlayer-caption"]'),
   ).not.toBeAttached();
 });
+
+// -- Scrub bar state tracking --
+
+test("scrub bar aria-valuenow tracks currentTime on timeupdate", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      Object.defineProperty(el, "currentTime", {
+        get: () => 7.5,
+        configurable: true,
+      });
+      el.dispatchEvent(new Event("timeupdate"));
+    });
+
+  await expect(
+    component.locator('[data-testid="mediaPlayer-scrubBar"]'),
+  ).toHaveAttribute("aria-valuenow", "7.5");
+});
+
+test("scrub bar step attribute equals stepDuration", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stepDuration={0.1}
+      controls={{ seek: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-scrubBar"]'),
+  ).toHaveAttribute("step", "0.1");
+});
+
+test("scrub bar step defaults to 1 when stepDuration is omitted", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-scrubBar"]'),
+  ).toHaveAttribute("step", "1");
+});
+
+// -- Play/pause button state --
+
+test("play button aria-label is Play when paused", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Play");
+});
+
+test("play button aria-label becomes Pause after play event", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => el.dispatchEvent(new Event("play")));
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Pause");
+});
+
+test("play button aria-label returns to Play after pause event", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => el.dispatchEvent(new Event("play")));
+  await video.evaluate((el) => el.dispatchEvent(new Event("pause")));
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Play");
+});
+
+// -- Speed control --
+
+test("speed button shows 1x initially", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).toContainText("1\u00d7");
+});
+
+test("speed button cycles to next speed on click", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  await component.locator('[data-testid="mediaPlayer-speed"]').click();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-speed"]'),
+  ).not.toContainText("1\u00d7");
+});
+
+test("speed button wraps back to first speed after cycling through all", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ speed: true }}
+    />,
+  );
+  const btn = component.locator('[data-testid="mediaPlayer-speed"]');
+  // SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]; starts at 1× (idx 2)
+  // 6 clicks cycles through all 6 speeds and lands back at 1×
+  for (let i = 0; i < 6; i++) await btn.click();
+  await expect(btn).toContainText("1\u00d7");
+});
+
+// -- Keyboard shortcuts --
+
+test("Space key toggles to playing state", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      el.play = () => {
+        el.dispatchEvent(new Event("play"));
+        return Promise.resolve();
+      };
+    });
+  await component.locator('[data-testid="mediaPlayer"]').press("Space");
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Pause");
+});
+
+test("K key toggles to playing state", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      el.play = () => {
+        el.dispatchEvent(new Event("play"));
+        return Promise.resolve();
+      };
+    });
+  await component.locator('[data-testid="mediaPlayer"]').press("k");
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Pause");
+});
+
+test("ArrowRight seeks forward 5 seconds", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 10;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press("ArrowRight");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBe(15);
+});
+
+test("ArrowLeft seeks backward 5 seconds", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 20;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press("ArrowLeft");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBe(15);
+});
+
+test("L key seeks forward 10 seconds", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 5;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press("l");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBe(15);
+});
+
+test("J key seeks backward 10 seconds", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 30;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press("j");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBe(20);
+});
+
+test("Period key steps forward by stepDuration", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stepDuration={0.5}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 10;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press(".");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBeCloseTo(10.5);
+});
+
+test("Comma key steps backward by stepDuration", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stepDuration={0.5}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 10;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press(",");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBeCloseTo(9.5);
+});
+
+test("ArrowLeft clamps to startAt boundary", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      startAt={10}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 12;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+  });
+  await component.locator('[data-testid="mediaPlayer"]').press("ArrowLeft");
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBe(10);
+});
