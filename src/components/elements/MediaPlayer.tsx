@@ -9,6 +9,15 @@ import { isYouTubeURL } from "./mediaPlayer/isYouTubeURL.js";
 import { parseVTT, type CaptionCue } from "./mediaPlayer/parseVTT.js";
 import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
 import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
+import { formatTime } from "../../utils/formatTime.js";
+import {
+  PlayIcon,
+  PauseIcon,
+  SeekBackIcon,
+  SeekForwardIcon,
+  StepBackIcon,
+  StepForwardIcon,
+} from "./mediaPlayer/icons.js";
 
 export interface VideoEvent {
   type: "play" | "pause" | "ended" | "stopAt";
@@ -410,7 +419,14 @@ export function MediaPlayer({
       : 0
     : (stopAt ?? duration);
 
-  // Buffered fill width
+  // Scrub bar fill widths (percentage)
+  const playedPct =
+    scrubMax > scrubMin
+      ? Math.min(
+          Math.max(((currentTime - scrubMin) / (scrubMax - scrubMin)) * 100, 0),
+          100,
+        )
+      : 0;
   const bufferedPct =
     scrubMax > scrubMin
       ? Math.min(((bufferedEnd - scrubMin) / (scrubMax - scrubMin)) * 100, 100)
@@ -508,7 +524,7 @@ export function MediaPlayer({
                     else v.pause();
                   }}
                 >
-                  {isPaused ? "▶" : "⏸"}
+                  {isPaused ? <PlayIcon /> : <PauseIcon />}
                 </button>
               )}
 
@@ -526,7 +542,7 @@ export function MediaPlayer({
                     }}
                     onMouseLeave={() => endButtonHold(false)}
                   >
-                    ⏪
+                    <SeekBackIcon />
                   </button>
                   <button
                     data-testid="mediaPlayer-seekForward"
@@ -540,7 +556,7 @@ export function MediaPlayer({
                     }}
                     onMouseLeave={() => endButtonHold(false)}
                   >
-                    ⏩
+                    <SeekForwardIcon />
                   </button>
                 </>
               )}
@@ -553,7 +569,7 @@ export function MediaPlayer({
                     style={{ minWidth: 44, minHeight: 44 }}
                     onClick={() => seek(-stepDuration)}
                   >
-                    ⏮
+                    <StepBackIcon />
                   </button>
                   <button
                     data-testid="mediaPlayer-stepForward"
@@ -561,7 +577,7 @@ export function MediaPlayer({
                     style={{ minWidth: 44, minHeight: 44 }}
                     onClick={() => seek(stepDuration)}
                   >
-                    ⏭
+                    <StepForwardIcon />
                   </button>
                 </>
               )}
@@ -578,47 +594,121 @@ export function MediaPlayer({
               )}
             </div>
 
-            {/* Scrub bar row */}
+            {/* Scrub bar + time display row */}
             {controls?.seek && (
-              <div style={{ position: "relative", height: 8 }}>
-                {/* Buffered fill */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                {/* Custom div scrub bar — consistent cross-browser appearance */}
                 <div
-                  data-testid="mediaPlayer-buffered"
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    height: "100%",
-                    width: `${String(bufferedPct)}%`,
-                    background: "rgba(255,255,255,0.3)",
-                    pointerEvents: "none",
-                  }}
-                />
-                <input
                   data-testid="mediaPlayer-scrubBar"
-                  type="range"
                   role="slider"
                   aria-label="Seek"
                   aria-valuemin={scrubMin}
                   aria-valuemax={scrubMax}
                   aria-valuenow={currentTime}
-                  min={scrubMin}
-                  max={scrubMax}
-                  step={stepDuration}
-                  value={currentTime}
-                  onChange={(e) => {
-                    const t = Number(e.target.value);
+                  data-step={stepDuration}
+                  tabIndex={0}
+                  style={{
+                    flex: 1,
+                    position: "relative",
+                    height: 20,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                  onPointerDown={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.max(
+                      0,
+                      Math.min(1, (e.clientX - rect.left) / rect.width),
+                    );
+                    const t = scrubMin + pct * (scrubMax - scrubMin);
+                    e.currentTarget.setPointerCapture(e.pointerId);
                     if (videoRef.current) videoRef.current.currentTime = t;
                     setCurrentTime(t);
                   }}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    margin: 0,
+                  onPointerMove={(e) => {
+                    if (!(e.buttons & 1)) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.max(
+                      0,
+                      Math.min(1, (e.clientX - rect.left) / rect.width),
+                    );
+                    const t = scrubMin + pct * (scrubMax - scrubMin);
+                    if (videoRef.current) videoRef.current.currentTime = t;
+                    setCurrentTime(t);
                   }}
-                />
+                >
+                  {/* Track */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      height: 4,
+                      borderRadius: 2,
+                      background: "rgba(255,255,255,0.2)",
+                    }}
+                  >
+                    {/* Buffered fill */}
+                    <div
+                      data-testid="mediaPlayer-buffered"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        height: "100%",
+                        width: `${String(bufferedPct)}%`,
+                        background: "rgba(255,255,255,0.35)",
+                        borderRadius: 2,
+                        pointerEvents: "none",
+                      }}
+                    />
+                    {/* Played fill */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        height: "100%",
+                        width: `${String(playedPct)}%`,
+                        background: "#fff",
+                        borderRadius: 2,
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+                  {/* Thumb */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${String(playedPct)}%`,
+                      transform: "translateX(-50%)",
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+                <span
+                  data-testid="mediaPlayer-time"
+                  style={{
+                    color: "#fff",
+                    fontSize: "0.75rem",
+                    whiteSpace: "nowrap",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
               </div>
             )}
           </div>

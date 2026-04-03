@@ -438,7 +438,7 @@ test("scrub bar aria-valuenow tracks currentTime on timeupdate", async ({
   ).toHaveAttribute("aria-valuenow", "7.5");
 });
 
-test("scrub bar step attribute equals stepDuration", async ({ mount }) => {
+test("scrub bar data-step equals stepDuration", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
       url="https://example.com/test.mp4"
@@ -449,10 +449,10 @@ test("scrub bar step attribute equals stepDuration", async ({ mount }) => {
   );
   await expect(
     component.locator('[data-testid="mediaPlayer-scrubBar"]'),
-  ).toHaveAttribute("step", "0.1");
+  ).toHaveAttribute("data-step", "0.1");
 });
 
-test("scrub bar step defaults to 1 when stepDuration is omitted", async ({
+test("scrub bar data-step defaults to 1 when stepDuration is omitted", async ({
   mount,
 }) => {
   const component = await mount(
@@ -464,7 +464,45 @@ test("scrub bar step defaults to 1 when stepDuration is omitted", async ({
   );
   await expect(
     component.locator('[data-testid="mediaPlayer-scrubBar"]'),
-  ).toHaveAttribute("step", "1");
+  ).toHaveAttribute("data-step", "1");
+});
+
+test("scrub bar pointerdown seeks to clicked position", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await video.evaluate((el) => {
+    let ct = 0;
+    Object.defineProperty(el, "currentTime", {
+      get: () => ct,
+      set: (v: number) => {
+        ct = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(el, "duration", {
+      get: () => 100,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event("loadedmetadata"));
+  });
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  const box = await scrub.boundingBox();
+  if (!box) throw new Error("scrub bar not found");
+  // Click at 50% of the track width → should seek to ~50s
+  await scrub.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    buttons: 1,
+    pointerId: 1,
+  });
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBeCloseTo(50, 0);
 });
 
 // -- Play/pause button state --
@@ -1369,4 +1407,54 @@ test("controls become visible on hover while playing", async ({
     );
   });
   await expect(controls).not.toBeAttached();
+});
+
+// -- Time display --
+
+test("time display shows 0:00 / 0:00 initially", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-time"]'),
+  ).toContainText("0:00 / 0:00");
+});
+
+test("time display updates after loadedmetadata and timeupdate", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+
+  // Set duration via loadedmetadata
+  await video.evaluate((el) => {
+    Object.defineProperty(el, "duration", {
+      get: () => 125,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event("loadedmetadata"));
+  });
+
+  // Advance currentTime via timeupdate
+  await video.evaluate((el) => {
+    Object.defineProperty(el, "currentTime", {
+      get: () => 65,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event("timeupdate"));
+  });
+
+  await expect(
+    component.locator('[data-testid="mediaPlayer-time"]'),
+  ).toContainText("1:05 / 2:05");
 });
