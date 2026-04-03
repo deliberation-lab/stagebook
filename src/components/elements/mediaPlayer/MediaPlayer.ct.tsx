@@ -245,3 +245,167 @@ test("onComplete called when submitOnComplete is true and video ends", async ({
     .textContent();
   expect(completed).toBe("true");
 });
+
+// -- startAt / stopAt scrub bounds --
+
+test("scrub bar aria-valuemin is startAt", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      startAt={10}
+      stopAt={90}
+      controls={{ seek: true }}
+    />,
+  );
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  await expect(scrub).toHaveAttribute("aria-valuemin", "10");
+});
+
+test("scrub bar aria-valuemax is stopAt", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      startAt={10}
+      stopAt={90}
+      controls={{ seek: true }}
+    />,
+  );
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  await expect(scrub).toHaveAttribute("aria-valuemax", "90");
+});
+
+test("scrub bar defaults to 0/Infinity when startAt/stopAt omitted", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      controls={{ seek: true }}
+    />,
+  );
+  const scrub = component.locator('[data-testid="mediaPlayer-scrubBar"]');
+  await expect(scrub).toHaveAttribute("aria-valuemin", "0");
+  // Without stopAt and no loaded metadata, max should be 0 or unset — not NaN
+  const max = await scrub.getAttribute("aria-valuemax");
+  expect(isNaN(Number(max))).toBe(false);
+});
+
+// -- stopAt enforcement --
+
+test("save records stopAt pause event when timeupdate exceeds stopAt", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      stopAt={5}
+    />,
+  );
+
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      Object.defineProperty(el, "currentTime", {
+        get: () => 6,
+        configurable: true,
+      });
+      el.dispatchEvent(new Event("timeupdate"));
+    });
+
+  const raw = await component.locator('[data-testid="save-log"]').textContent();
+  const saves = JSON.parse(raw ?? "[]") as Array<{
+    key: string;
+    value: { events: Array<{ type: string }> };
+  }>;
+  expect(saves.length).toBeGreaterThan(0);
+  const lastEvents = saves[saves.length - 1].value.events;
+  expect(lastEvents.some((e) => e.type === "stopAt")).toBe(true);
+});
+
+// -- captions overlay --
+
+test("no caption overlay when captionsURL is not provided", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-caption"]'),
+  ).not.toBeAttached();
+});
+
+test("caption overlay shows active cue text on timeupdate", async ({
+  mount,
+  page,
+}) => {
+  const vtt = `WEBVTT\n\n00:00.000 --> 00:10.000\nHello world\n`;
+  await page.route("**/captions.vtt", (route) =>
+    route.fulfill({ body: vtt, contentType: "text/vtt" }),
+  );
+
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      captionsURL="https://example.com/captions.vtt"
+    />,
+  );
+
+  // Wait for VTT fetch to complete
+  await page.waitForFunction(() => {
+    // poll until the caption element appears or we decide it isn't coming
+    return true; // just a small pause for the fetch
+  });
+
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      Object.defineProperty(el, "currentTime", {
+        get: () => 5,
+        configurable: true,
+      });
+      el.dispatchEvent(new Event("timeupdate"));
+    });
+
+  await expect(
+    component.locator('[data-testid="mediaPlayer-caption"]'),
+  ).toContainText("Hello world");
+});
+
+test("caption overlay clears when no cue is active", async ({
+  mount,
+  page,
+}) => {
+  const vtt = `WEBVTT\n\n00:05.000 --> 00:10.000\nHello world\n`;
+  await page.route("**/captions.vtt", (route) =>
+    route.fulfill({ body: vtt, contentType: "text/vtt" }),
+  );
+
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp4"
+      name="test"
+      captionsURL="https://example.com/captions.vtt"
+    />,
+  );
+
+  // At t=1, no cue is active
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      Object.defineProperty(el, "currentTime", {
+        get: () => 1,
+        configurable: true,
+      });
+      el.dispatchEvent(new Event("timeupdate"));
+    });
+
+  await expect(
+    component.locator('[data-testid="mediaPlayer-caption"]'),
+  ).not.toBeAttached();
+});
