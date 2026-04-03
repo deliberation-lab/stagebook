@@ -1458,3 +1458,50 @@ test("time display updates after loadedmetadata and timeupdate", async ({
     component.locator('[data-testid="mediaPlayer-time"]'),
   ).toContainText("1:05 / 2:05");
 });
+
+// -- Audio-only layout (playVideo: false) --
+
+test("audio-only: controls always visible while playing (no hover needed)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp3"
+      name="test"
+      playVideo={false}
+      controls={{ playPause: true, seek: true }}
+    />,
+  );
+  const player = component.locator('[data-testid="mediaPlayer"]');
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+
+  // Move mouse away and simulate play
+  await player.evaluate((el) =>
+    el.dispatchEvent(
+      new MouseEvent("mouseout", {
+        bubbles: true,
+        relatedTarget: document.body,
+      }),
+    ),
+  );
+  await video.evaluate((el) => el.dispatchEvent(new Event("play")));
+
+  // Controls should be visible without hovering (no video to obscure)
+  await expect(
+    component.locator('[data-testid="mediaPlayer-controls"]'),
+  ).toBeVisible();
+});
+
+test("audio-only: no video viewport element", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer
+      url="https://example.com/test.mp3"
+      name="test"
+      playVideo={false}
+      controls={{ playPause: true }}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-viewport"]'),
+  ).not.toBeAttached();
+});

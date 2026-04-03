@@ -408,8 +408,9 @@ export function MediaPlayer({
     !syncToStageTime &&
     controls !== undefined &&
     (controls.playPause || controls.seek || controls.step || controls.speed);
-  // Controls are always visible when paused; hidden while playing unless hovered
-  const controlsVisible = hasControls && (isPaused || isHovered);
+  // Controls are always visible when paused or hovered (video mode).
+  // In audio-only mode (playVideo:false) there's no video to obscure, so always show.
+  const controlsVisible = hasControls && (isPaused || isHovered || !playVideo);
 
   // Scrub bar bounds
   const scrubMin = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
@@ -431,6 +432,213 @@ export function MediaPlayer({
     scrubMax > scrubMin
       ? Math.min(((bufferedEnd - scrubMin) / (scrubMax - scrubMin)) * 100, 100)
       : 0;
+
+  // Transport buttons + scrub bar — shared between video-overlay and audio-flat layouts
+  const controlsContent = (
+    <>
+      {/* Transport buttons row */}
+      <div className="flex items-center gap-1">
+        {controls?.playPause && (
+          <button
+            data-testid="mediaPlayer-playPause"
+            aria-label={isPaused ? "Play" : "Pause"}
+            title={isPaused ? "Play (Space)" : "Pause (Space)"}
+            className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            onClick={() => {
+              const v = videoRef.current;
+              if (!v) return;
+              if (v.paused) void v.play();
+              else v.pause();
+            }}
+          >
+            {isPaused ? <PlayIcon /> : <PauseIcon />}
+          </button>
+        )}
+
+        {controls?.seek && (
+          <>
+            <button
+              data-testid="mediaPlayer-seekBack"
+              aria-label="Back 1s"
+              title="Back 1s (←) · Hold to scrub · J for 10s"
+              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+              onMouseDown={() => startButtonHold(-1)}
+              onMouseUp={() => {
+                const wasHeld = isFastScrubbing.current;
+                endButtonHold(false);
+                if (!wasHeld) seek(-1);
+              }}
+              onMouseLeave={() => endButtonHold(false)}
+            >
+              <SeekBackIcon />
+            </button>
+            <button
+              data-testid="mediaPlayer-seekForward"
+              aria-label="Forward 1s"
+              title="Forward 1s (→) · Hold to scrub · L for 10s"
+              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+              onMouseDown={() => startButtonHold(1)}
+              onMouseUp={() => {
+                const wasHeld = isFastScrubbing.current;
+                endButtonHold(false);
+                if (!wasHeld) seek(1);
+              }}
+              onMouseLeave={() => endButtonHold(false)}
+            >
+              <SeekForwardIcon />
+            </button>
+          </>
+        )}
+
+        {controls?.step && (
+          <>
+            <button
+              data-testid="mediaPlayer-stepBack"
+              aria-label={`Step back ${String(stepDuration)}s`}
+              title={`Step back ${String(stepDuration)}s (,)`}
+              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+              onClick={() => seek(-stepDuration)}
+            >
+              <StepBackIcon />
+            </button>
+            <button
+              data-testid="mediaPlayer-stepForward"
+              aria-label={`Step forward ${String(stepDuration)}s`}
+              title={`Step forward ${String(stepDuration)}s (.)`}
+              className="flex items-center justify-center w-11 h-11 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+              onClick={() => seek(stepDuration)}
+            >
+              <StepForwardIcon />
+            </button>
+          </>
+        )}
+
+        {controls?.speed && (
+          <button
+            data-testid="mediaPlayer-speed"
+            aria-label="Playback speed"
+            title="Playback speed (< / >)"
+            className="flex items-center justify-center w-11 h-11 rounded-full text-white text-sm font-medium tabular-nums hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            onClick={cycleSpeed}
+          >
+            {playbackRate}×
+          </button>
+        )}
+      </div>
+
+      {/* Scrub bar + time display row */}
+      {controls?.seek && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {/* Custom div scrub bar — consistent cross-browser appearance */}
+          <div
+            data-testid="mediaPlayer-scrubBar"
+            role="slider"
+            aria-label="Seek"
+            aria-valuemin={scrubMin}
+            aria-valuemax={scrubMax}
+            aria-valuenow={currentTime}
+            data-step={stepDuration}
+            tabIndex={0}
+            style={{
+              flex: 1,
+              position: "relative",
+              height: 20,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onPointerDown={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(
+                0,
+                Math.min(1, (e.clientX - rect.left) / rect.width),
+              );
+              const t = scrubMin + pct * (scrubMax - scrubMin);
+              e.currentTarget.setPointerCapture(e.pointerId);
+              if (videoRef.current) videoRef.current.currentTime = t;
+              setCurrentTime(t);
+            }}
+            onPointerMove={(e) => {
+              if (!(e.buttons & 1)) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(
+                0,
+                Math.min(1, (e.clientX - rect.left) / rect.width),
+              );
+              const t = scrubMin + pct * (scrubMax - scrubMin);
+              if (videoRef.current) videoRef.current.currentTime = t;
+              setCurrentTime(t);
+            }}
+          >
+            {/* Track */}
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                height: 4,
+                borderRadius: 2,
+                background: "rgba(255,255,255,0.2)",
+              }}
+            >
+              {/* Buffered fill */}
+              <div
+                data-testid="mediaPlayer-buffered"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  height: "100%",
+                  width: `${String(bufferedPct)}%`,
+                  background: "rgba(255,255,255,0.35)",
+                  borderRadius: 2,
+                  pointerEvents: "none",
+                }}
+              />
+              {/* Played fill */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  height: "100%",
+                  width: `${String(playedPct)}%`,
+                  background: "#fff",
+                  borderRadius: 2,
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+            {/* Thumb */}
+            <div
+              style={{
+                position: "absolute",
+                left: `${String(playedPct)}%`,
+                transform: "translateX(-50%)",
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                background: "#fff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+          <span
+            data-testid="mediaPlayer-time"
+            style={{
+              color: "#fff",
+              fontSize: "0.75rem",
+              whiteSpace: "nowrap",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+        </div>
+      )}
+    </>
+  );
 
   if (youtubeVideoId) {
     const embedUrl = `https://www.youtube.com/embed/${youtubeVideoId}?enablejsapi=1`;
@@ -472,7 +680,8 @@ export function MediaPlayer({
       onMouseLeave={() => setIsHovered(false)}
       style={{ position: "relative" }}
     >
-      <div data-testid="mediaPlayer-viewport" style={{ position: "relative" }}>
+      {/* Audio-only: hidden video element (no viewport div) */}
+      {!playVideo && (
         <video
           ref={videoRef}
           data-testid="mediaPlayer-video"
@@ -484,248 +693,84 @@ export function MediaPlayer({
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
           onProgress={handleProgress}
-          style={{
-            width: "100%",
-            aspectRatio: "16/9",
-            display: playVideo ? undefined : "none",
-          }}
+          style={{ display: "none" }}
         >
           <track kind="captions" />
         </video>
+      )}
 
-        {controlsVisible && (
-          <div
-            data-testid="mediaPlayer-controls"
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              padding: "0.5rem",
-              background: "rgba(0,0,0,0.5)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.25rem",
-            }}
-          >
-            {/* Top row: transport buttons */}
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-            >
-              {controls?.playPause && (
-                <button
-                  data-testid="mediaPlayer-playPause"
-                  aria-label={isPaused ? "Play" : "Pause"}
-                  style={{ minWidth: 44, minHeight: 44 }}
-                  onClick={() => {
-                    const v = videoRef.current;
-                    if (!v) return;
-                    if (v.paused) void v.play();
-                    else v.pause();
-                  }}
-                >
-                  {isPaused ? <PlayIcon /> : <PauseIcon />}
-                </button>
-              )}
-
-              {controls?.seek && (
-                <>
-                  <button
-                    data-testid="mediaPlayer-seekBack"
-                    aria-label="Back 1s"
-                    style={{ minWidth: 44, minHeight: 44 }}
-                    onMouseDown={() => startButtonHold(-1)}
-                    onMouseUp={() => {
-                      const wasHeld = isFastScrubbing.current;
-                      endButtonHold(false);
-                      if (!wasHeld) seek(-1);
-                    }}
-                    onMouseLeave={() => endButtonHold(false)}
-                  >
-                    <SeekBackIcon />
-                  </button>
-                  <button
-                    data-testid="mediaPlayer-seekForward"
-                    aria-label="Forward 1s"
-                    style={{ minWidth: 44, minHeight: 44 }}
-                    onMouseDown={() => startButtonHold(1)}
-                    onMouseUp={() => {
-                      const wasHeld = isFastScrubbing.current;
-                      endButtonHold(false);
-                      if (!wasHeld) seek(1);
-                    }}
-                    onMouseLeave={() => endButtonHold(false)}
-                  >
-                    <SeekForwardIcon />
-                  </button>
-                </>
-              )}
-
-              {controls?.step && (
-                <>
-                  <button
-                    data-testid="mediaPlayer-stepBack"
-                    aria-label={`Step back ${String(stepDuration)}s`}
-                    style={{ minWidth: 44, minHeight: 44 }}
-                    onClick={() => seek(-stepDuration)}
-                  >
-                    <StepBackIcon />
-                  </button>
-                  <button
-                    data-testid="mediaPlayer-stepForward"
-                    aria-label={`Step forward ${String(stepDuration)}s`}
-                    style={{ minWidth: 44, minHeight: 44 }}
-                    onClick={() => seek(stepDuration)}
-                  >
-                    <StepForwardIcon />
-                  </button>
-                </>
-              )}
-
-              {controls?.speed && (
-                <button
-                  data-testid="mediaPlayer-speed"
-                  aria-label="Playback speed"
-                  style={{ minWidth: 44, minHeight: 44 }}
-                  onClick={cycleSpeed}
-                >
-                  {playbackRate}×
-                </button>
-              )}
-            </div>
-
-            {/* Scrub bar + time display row */}
-            {controls?.seek && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-              >
-                {/* Custom div scrub bar — consistent cross-browser appearance */}
-                <div
-                  data-testid="mediaPlayer-scrubBar"
-                  role="slider"
-                  aria-label="Seek"
-                  aria-valuemin={scrubMin}
-                  aria-valuemax={scrubMax}
-                  aria-valuenow={currentTime}
-                  data-step={stepDuration}
-                  tabIndex={0}
-                  style={{
-                    flex: 1,
-                    position: "relative",
-                    height: 20,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                  onPointerDown={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.max(
-                      0,
-                      Math.min(1, (e.clientX - rect.left) / rect.width),
-                    );
-                    const t = scrubMin + pct * (scrubMax - scrubMin);
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                    if (videoRef.current) videoRef.current.currentTime = t;
-                    setCurrentTime(t);
-                  }}
-                  onPointerMove={(e) => {
-                    if (!(e.buttons & 1)) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.max(
-                      0,
-                      Math.min(1, (e.clientX - rect.left) / rect.width),
-                    );
-                    const t = scrubMin + pct * (scrubMax - scrubMin);
-                    if (videoRef.current) videoRef.current.currentTime = t;
-                    setCurrentTime(t);
-                  }}
-                >
-                  {/* Track */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      right: 0,
-                      height: 4,
-                      borderRadius: 2,
-                      background: "rgba(255,255,255,0.2)",
-                    }}
-                  >
-                    {/* Buffered fill */}
-                    <div
-                      data-testid="mediaPlayer-buffered"
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        height: "100%",
-                        width: `${String(bufferedPct)}%`,
-                        background: "rgba(255,255,255,0.35)",
-                        borderRadius: 2,
-                        pointerEvents: "none",
-                      }}
-                    />
-                    {/* Played fill */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        height: "100%",
-                        width: `${String(playedPct)}%`,
-                        background: "#fff",
-                        borderRadius: 2,
-                        pointerEvents: "none",
-                      }}
-                    />
-                  </div>
-                  {/* Thumb */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: `${String(playedPct)}%`,
-                      transform: "translateX(-50%)",
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      background: "#fff",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                      pointerEvents: "none",
-                    }}
-                  />
-                </div>
-                <span
-                  data-testid="mediaPlayer-time"
-                  style={{
-                    color: "#fff",
-                    fontSize: "0.75rem",
-                    whiteSpace: "nowrap",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {captionText !== null && (
+      {/* Video viewport — video + captions + overlay controls */}
+      {playVideo && (
         <div
-          data-testid="mediaPlayer-caption"
+          data-testid="mediaPlayer-viewport"
+          style={{ position: "relative" }}
+        >
+          <video
+            ref={videoRef}
+            data-testid="mediaPlayer-video"
+            src={url}
+            muted={!playAudio}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onEnded={handleEnded}
+            onLoadedMetadata={handleLoadedMetadata}
+            onTimeUpdate={handleTimeUpdate}
+            onProgress={handleProgress}
+            style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
+          >
+            <track kind="captions" />
+          </video>
+
+          {captionText !== null && (
+            <div
+              data-testid="mediaPlayer-caption"
+              style={{
+                textAlign: "center",
+                padding: "0.5rem",
+                background: "rgba(0,0,0,0.7)",
+                color: "#fff",
+              }}
+            >
+              {captionText}
+            </div>
+          )}
+
+          {controlsVisible && (
+            <div
+              data-testid="mediaPlayer-controls"
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background:
+                  "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)",
+                padding: "1.5rem 0.75rem 0.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              {controlsContent}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Audio-only: flat controls bar (always visible — no hover needed) */}
+      {!playVideo && controlsVisible && (
+        <div
+          data-testid="mediaPlayer-controls"
           style={{
-            textAlign: "center",
-            padding: "0.5rem",
-            background: "rgba(0,0,0,0.7)",
-            color: "#fff",
+            background: "rgba(28,28,30,0.96)",
+            borderRadius: "0.5rem",
+            padding: "0.5rem 0.75rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.25rem",
           }}
         >
-          {captionText}
+          {controlsContent}
         </div>
       )}
     </div>
