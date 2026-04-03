@@ -62,6 +62,31 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 // Number of repeated keydown events before entering fast-scrub mode
 const HOLD_REPEAT_THRESHOLD = 10;
 
+// Shared button styles — inline to avoid Tailwind dependency in CT tests
+const controlBtnBase: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "9999px",
+  color: "#fff",
+  background: "none",
+  border: "none",
+  padding: 0,
+  cursor: "pointer",
+};
+
+const controlBtnSmall: React.CSSProperties = {
+  ...controlBtnBase,
+  width: 36,
+  height: 36,
+};
+
+const controlBtnLarge: React.CSSProperties = {
+  ...controlBtnBase,
+  width: 48,
+  height: 48,
+};
+
 export function MediaPlayer({
   name,
   url,
@@ -437,13 +462,20 @@ export function MediaPlayer({
   const controlsContent = (
     <>
       {/* Transport buttons row — centered, play in the middle */}
-      <div className="flex items-center justify-center gap-1">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "0.25rem",
+        }}
+      >
         {controls?.seek && (
           <button
             data-testid="mediaPlayer-seekBack"
             aria-label="Back 1s"
             title="Back 1s (←) · Hold to scrub · J for 10s"
-            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            style={controlBtnSmall}
             onMouseDown={() => startButtonHold(-1)}
             onMouseUp={() => {
               const wasHeld = isFastScrubbing.current;
@@ -461,7 +493,7 @@ export function MediaPlayer({
             data-testid="mediaPlayer-stepBack"
             aria-label={`Step back ${String(stepDuration)}s`}
             title={`Step back ${String(stepDuration)}s (,)`}
-            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            style={controlBtnSmall}
             onClick={() => seek(-stepDuration)}
           >
             <StepBackIcon />
@@ -473,7 +505,7 @@ export function MediaPlayer({
             data-testid="mediaPlayer-playPause"
             aria-label={isPaused ? "Play" : "Pause"}
             title={isPaused ? "Play (Space)" : "Pause (Space)"}
-            className="flex items-center justify-center w-12 h-12 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            style={controlBtnLarge}
             onClick={() => {
               const v = videoRef.current;
               if (!v) return;
@@ -490,7 +522,7 @@ export function MediaPlayer({
             data-testid="mediaPlayer-stepForward"
             aria-label={`Step forward ${String(stepDuration)}s`}
             title={`Step forward ${String(stepDuration)}s (.)`}
-            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            style={controlBtnSmall}
             onClick={() => seek(stepDuration)}
           >
             <StepForwardIcon />
@@ -502,7 +534,7 @@ export function MediaPlayer({
             data-testid="mediaPlayer-seekForward"
             aria-label="Forward 1s"
             title="Forward 1s (→) · Hold to scrub · L for 10s"
-            className="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            style={controlBtnSmall}
             onMouseDown={() => startButtonHold(1)}
             onMouseUp={() => {
               const wasHeld = isFastScrubbing.current;
@@ -520,7 +552,12 @@ export function MediaPlayer({
             data-testid="mediaPlayer-speed"
             aria-label="Playback speed"
             title="Playback speed (< / >)"
-            className="flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-medium tabular-nums hover:bg-white/20 active:bg-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white transition-colors"
+            style={{
+              ...controlBtnSmall,
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              fontVariantNumeric: "tabular-nums",
+            }}
             onClick={cycleSpeed}
           >
             {playbackRate}×
