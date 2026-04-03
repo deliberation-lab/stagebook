@@ -42,6 +42,9 @@ export interface MediaPlayerProps {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
+// Number of repeated keydown events before entering fast-scrub mode
+const HOLD_REPEAT_THRESHOLD = 10;
+
 export function MediaPlayer({
   name,
   url,
@@ -55,6 +58,7 @@ export function MediaPlayer({
   captionsURL,
   startAt,
   stopAt,
+  allowScrubOutsideBounds = false,
   stepDuration = 1,
   controls,
 }: MediaPlayerProps) {
@@ -67,9 +71,16 @@ export function MediaPlayer({
   const [isPaused, setIsPaused] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState<number>(0);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [captionText, setCaptionText] = useState<string | null>(null);
+
+  // Hold-to-scrub state
+  const arrowRepeatCountRef = useRef(0);
+  const isFastScrubbing = useRef(false);
+  const pausedBeforeScrub = useRef(true);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch and parse captions when captionsURL changes
   useEffect(() => {
@@ -153,6 +164,20 @@ export function MediaPlayer({
     [],
   );
 
+  const handleProgress = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      const v = e.currentTarget;
+      if (
+        v.buffered.length > 0 &&
+        Number.isFinite(v.duration) &&
+        v.duration > 0
+      ) {
+        setBufferedEnd(v.buffered.end(v.buffered.length - 1));
+      }
+    },
+    [],
+  );
+
   const handleTimeUpdate = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
       const { currentTime: ct } = e.currentTarget;
@@ -174,16 +199,38 @@ export function MediaPlayer({
     [stopAt, cues, recordEvent],
   );
 
+  // Clamp seek target to allowed range
   const seek = useCallback(
     (delta: number) => {
       const v = videoRef.current;
       if (!v) return;
-      const min = startAt ?? 0;
-      const max = stopAt ?? v.duration ?? Infinity;
+      const min = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
+      const max = allowScrubOutsideBounds
+        ? Number.isFinite(v.duration)
+          ? v.duration
+          : Infinity
+        : (stopAt ?? (Number.isFinite(v.duration) ? v.duration : Infinity));
       v.currentTime = Math.min(Math.max(v.currentTime + delta, min), max);
     },
-    [startAt, stopAt],
+    [allowScrubOutsideBounds, startAt, stopAt],
   );
+
+  const exitFastScrub = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || !isFastScrubbing.current) return;
+    isFastScrubbing.current = false;
+    v.playbackRate = playbackRate;
+    if (pausedBeforeScrub.current) v.pause();
+  }, [playbackRate]);
+
+  const enterFastScrubForward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || isFastScrubbing.current) return;
+    isFastScrubbing.current = true;
+    pausedBeforeScrub.current = v.paused;
+    v.playbackRate = 2;
+    if (v.paused) void v.play();
+  }, []);
 
   const cycleSpeed = useCallback(() => {
     const v = videoRef.current;
@@ -208,11 +255,28 @@ export function MediaPlayer({
           break;
         case "ArrowRight":
           e.preventDefault();
-          seek(5);
+          if (e.repeat) {
+            arrowRepeatCountRef.current++;
+            if (arrowRepeatCountRef.current >= HOLD_REPEAT_THRESHOLD) {
+              enterFastScrubForward();
+            }
+          } else {
+            arrowRepeatCountRef.current = 0;
+            seek(1);
+          }
           break;
         case "ArrowLeft":
           e.preventDefault();
-          seek(-5);
+          if (e.repeat) {
+            arrowRepeatCountRef.current++;
+            if (arrowRepeatCountRef.current >= HOLD_REPEAT_THRESHOLD) {
+              // Rewind: keep seeking back rapidly
+              seek(-0.5);
+            }
+          } else {
+            arrowRepeatCountRef.current = 0;
+            seek(-1);
+          }
           break;
         case "l":
         case "L":
@@ -234,31 +298,73 @@ export function MediaPlayer({
           break;
         case ">": {
           e.preventDefault();
-          const v2 = videoRef.current;
-          if (v2) {
-            const faster =
-              SPEEDS.find((s) => s > playbackRate) ?? SPEEDS[SPEEDS.length - 1];
-            v2.playbackRate = faster;
-            setPlaybackRate(faster);
-          }
+          const faster =
+            SPEEDS.find((s) => s > playbackRate) ?? SPEEDS[SPEEDS.length - 1];
+          v.playbackRate = faster;
+          setPlaybackRate(faster);
           break;
         }
         case "<": {
           e.preventDefault();
-          const v3 = videoRef.current;
-          if (v3) {
-            const slower =
-              [...SPEEDS].reverse().find((s) => s < playbackRate) ?? SPEEDS[0];
-            v3.playbackRate = slower;
-            setPlaybackRate(slower);
-          }
+          const slower =
+            [...SPEEDS].reverse().find((s) => s < playbackRate) ?? SPEEDS[0];
+          v.playbackRate = slower;
+          setPlaybackRate(slower);
           break;
         }
         default:
           break;
       }
     },
-    [seek, stepDuration, playbackRate],
+    [seek, stepDuration, playbackRate, enterFastScrubForward],
+  );
+
+  const handleKeyUp = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        arrowRepeatCountRef.current = 0;
+        exitFastScrub();
+      }
+    },
+    [exitFastScrub],
+  );
+
+  // Button hold-to-scrub
+  const startButtonHold = useCallback(
+    (direction: 1 | -1) => {
+      holdTimerRef.current = setTimeout(() => {
+        const v = videoRef.current;
+        if (!v) return;
+        if (direction === 1) {
+          enterFastScrubForward();
+        } else {
+          isFastScrubbing.current = true;
+          pausedBeforeScrub.current = v.paused;
+          // Step back rapidly via interval
+          const interval = setInterval(() => {
+            seek(-0.5);
+          }, 100);
+          // Store interval id on the timer ref for cleanup
+          (holdTimerRef as React.MutableRefObject<unknown>).current = interval;
+        }
+      }, 500);
+    },
+    [enterFastScrubForward, seek],
+  );
+
+  const endButtonHold = useCallback(
+    (didSeekOnClick: boolean) => {
+      if (holdTimerRef.current !== null) {
+        clearTimeout(holdTimerRef.current);
+        clearInterval(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      exitFastScrub();
+      // Reset fast-scrub flag even if not fast-scrubbing (no-op)
+      isFastScrubbing.current = false;
+      void didSeekOnClick; // used by callers to decide whether to also call seek()
+    },
+    [exitFastScrub],
   );
 
   const showControls =
@@ -266,8 +372,19 @@ export function MediaPlayer({
     controls !== undefined &&
     (controls.playPause || controls.seek || controls.step || controls.speed);
 
-  const scrubMin = startAt ?? 0;
-  const scrubMax = stopAt ?? duration;
+  // Scrub bar bounds
+  const scrubMin = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
+  const scrubMax = allowScrubOutsideBounds
+    ? Number.isFinite(duration) && duration > 0
+      ? duration
+      : 0
+    : (stopAt ?? duration);
+
+  // Buffered fill width
+  const bufferedPct =
+    scrubMax > scrubMin
+      ? Math.min(((bufferedEnd - scrubMin) / (scrubMax - scrubMin)) * 100, 100)
+      : 0;
 
   if (youtubeVideoId) {
     const embedUrl = `https://www.youtube.com/embed/${youtubeVideoId}?enablejsapi=1`;
@@ -278,6 +395,7 @@ export function MediaPlayer({
         aria-label="Media player"
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         style={{ position: "relative" }}
       >
         <div data-testid="mediaPlayer-viewport">
@@ -301,6 +419,7 @@ export function MediaPlayer({
       aria-label="Media player"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
       style={{ position: "relative" }}
     >
       <div data-testid="mediaPlayer-viewport" style={{ position: "relative" }}>
@@ -314,6 +433,7 @@ export function MediaPlayer({
           onEnded={handleEnded}
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
+          onProgress={handleProgress}
           style={{
             width: "100%",
             aspectRatio: "16/9",
@@ -334,78 +454,138 @@ export function MediaPlayer({
               padding: "0.5rem",
               background: "rgba(0,0,0,0.5)",
               display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
+              flexDirection: "column",
+              gap: "0.25rem",
             }}
           >
-            {controls?.playPause && (
-              <button
-                data-testid="mediaPlayer-playPause"
-                aria-label={isPaused ? "Play" : "Pause"}
-                style={{ minWidth: 44, minHeight: 44 }}
-                onClick={() => {
-                  const v = videoRef.current;
-                  if (!v) return;
-                  if (v.paused) void v.play();
-                  else v.pause();
-                }}
-              >
-                {isPaused ? "▶" : "⏸"}
-              </button>
-            )}
+            {/* Top row: transport buttons */}
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              {controls?.playPause && (
+                <button
+                  data-testid="mediaPlayer-playPause"
+                  aria-label={isPaused ? "Play" : "Pause"}
+                  style={{ minWidth: 44, minHeight: 44 }}
+                  onClick={() => {
+                    const v = videoRef.current;
+                    if (!v) return;
+                    if (v.paused) void v.play();
+                    else v.pause();
+                  }}
+                >
+                  {isPaused ? "▶" : "⏸"}
+                </button>
+              )}
 
+              {controls?.seek && (
+                <>
+                  <button
+                    data-testid="mediaPlayer-seekBack"
+                    aria-label="Back 1s"
+                    style={{ minWidth: 44, minHeight: 44 }}
+                    onMouseDown={() => startButtonHold(-1)}
+                    onMouseUp={() => {
+                      const wasHeld = isFastScrubbing.current;
+                      endButtonHold(false);
+                      if (!wasHeld) seek(-1);
+                    }}
+                    onMouseLeave={() => endButtonHold(false)}
+                  >
+                    ⏪
+                  </button>
+                  <button
+                    data-testid="mediaPlayer-seekForward"
+                    aria-label="Forward 1s"
+                    style={{ minWidth: 44, minHeight: 44 }}
+                    onMouseDown={() => startButtonHold(1)}
+                    onMouseUp={() => {
+                      const wasHeld = isFastScrubbing.current;
+                      endButtonHold(false);
+                      if (!wasHeld) seek(1);
+                    }}
+                    onMouseLeave={() => endButtonHold(false)}
+                  >
+                    ⏩
+                  </button>
+                </>
+              )}
+
+              {controls?.step && (
+                <>
+                  <button
+                    data-testid="mediaPlayer-stepBack"
+                    aria-label={`Step back ${String(stepDuration)}s`}
+                    style={{ minWidth: 44, minHeight: 44 }}
+                    onClick={() => seek(-stepDuration)}
+                  >
+                    ⏮
+                  </button>
+                  <button
+                    data-testid="mediaPlayer-stepForward"
+                    aria-label={`Step forward ${String(stepDuration)}s`}
+                    style={{ minWidth: 44, minHeight: 44 }}
+                    onClick={() => seek(stepDuration)}
+                  >
+                    ⏭
+                  </button>
+                </>
+              )}
+
+              {controls?.speed && (
+                <button
+                  data-testid="mediaPlayer-speed"
+                  aria-label="Playback speed"
+                  style={{ minWidth: 44, minHeight: 44 }}
+                  onClick={cycleSpeed}
+                >
+                  {playbackRate}×
+                </button>
+              )}
+            </div>
+
+            {/* Scrub bar row */}
             {controls?.seek && (
-              <input
-                data-testid="mediaPlayer-scrubBar"
-                type="range"
-                role="slider"
-                aria-label="Seek"
-                aria-valuemin={scrubMin}
-                aria-valuemax={scrubMax}
-                aria-valuenow={currentTime}
-                min={scrubMin}
-                max={scrubMax}
-                step={stepDuration}
-                value={currentTime}
-                onChange={(e) => {
-                  const t = Number(e.target.value);
-                  if (videoRef.current) videoRef.current.currentTime = t;
-                  setCurrentTime(t);
-                }}
-                style={{ flex: 1 }}
-              />
-            )}
-
-            {controls?.step && (
-              <>
-                <button
-                  data-testid="mediaPlayer-stepBack"
-                  aria-label={`Step back ${String(stepDuration)}s`}
-                  style={{ minWidth: 44, minHeight: 44 }}
-                  onClick={() => seek(-stepDuration)}
-                >
-                  ⏮
-                </button>
-                <button
-                  data-testid="mediaPlayer-stepForward"
-                  aria-label={`Step forward ${String(stepDuration)}s`}
-                  style={{ minWidth: 44, minHeight: 44 }}
-                  onClick={() => seek(stepDuration)}
-                >
-                  ⏭
-                </button>
-              </>
-            )}
-
-            {controls?.speed && (
-              <button
-                data-testid="mediaPlayer-speed"
-                aria-label="Playback speed"
-                style={{ minWidth: 44, minHeight: 44 }}
-                onClick={cycleSpeed}
-              >
-                {playbackRate}×
-              </button>
+              <div style={{ position: "relative", height: 8 }}>
+                {/* Buffered fill */}
+                <div
+                  data-testid="mediaPlayer-buffered"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    height: "100%",
+                    width: `${String(bufferedPct)}%`,
+                    background: "rgba(255,255,255,0.3)",
+                    pointerEvents: "none",
+                  }}
+                />
+                <input
+                  data-testid="mediaPlayer-scrubBar"
+                  type="range"
+                  role="slider"
+                  aria-label="Seek"
+                  aria-valuemin={scrubMin}
+                  aria-valuemax={scrubMax}
+                  aria-valuenow={currentTime}
+                  min={scrubMin}
+                  max={scrubMax}
+                  step={stepDuration}
+                  value={currentTime}
+                  onChange={(e) => {
+                    const t = Number(e.target.value);
+                    if (videoRef.current) videoRef.current.currentTime = t;
+                    setCurrentTime(t);
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    margin: 0,
+                  }}
+                />
+              </div>
             )}
           </div>
         )}
