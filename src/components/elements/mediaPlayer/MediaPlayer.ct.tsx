@@ -37,15 +37,23 @@ test("renders an iframe for YouTube URL", async ({ mount }) => {
 
 // -- Controls visibility --
 
+// Real fixture video — served by the Vite dev server from the project root.
+// Minimal valid MP4 with 30-second duration metadata (no actual frames).
+const FIXTURE_VIDEO = "/playwright/fixtures/test.mp4";
+
+// Visual inspection test: all controls enabled together using the real fixture.
+// Run with `--ui` to interact — click play/pause, drag the scrub bar, etc.
 test("all controls shown together", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url={FIXTURE_VIDEO}
       name="test"
       controls={{ playPause: true, seek: true, step: true, speed: true }}
       stepDuration={5}
     />,
   );
+
+  // Controls visible on mount (paused state)
   await expect(
     component.locator('[data-testid="mediaPlayer-seekBack"]'),
   ).toBeVisible();
