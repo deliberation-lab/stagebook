@@ -6,6 +6,10 @@ function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Matches ${...} placeholders. Only alphanumeric + underscore allowed in field names.
+// Shared pattern — must match fieldPlaceholderRegex in schemas/treatment.ts
+const FIELD_PLACEHOLDER_REGEX = /\$\{([a-zA-Z0-9_]+)\}/g;
+
 export function substituteFields({
   templateContent,
   fields,
@@ -278,8 +282,9 @@ export function fillTemplates({
   }
 
   // Collect any remaining unresolved field names
-  const fieldRegex = /\$\{([a-zA-Z0-9_]+)\}/g;
-  const matches = JSON.stringify(newObj).matchAll(fieldRegex);
+  const matches = JSON.stringify(newObj).matchAll(
+    new RegExp(FIELD_PLACEHOLDER_REGEX.source, "g"),
+  );
   const unresolvedSet = new Set<string>();
   for (const match of matches) {
     unresolvedSet.add(match[1]);
@@ -312,24 +317,10 @@ export function getUnresolvedFields({
   obj: any;
   templates: any[];
 }): string[] {
-  let newObj = recursivelyFillTemplates({ obj, templates });
-
-  // Handle remaining template references (same loop as fillTemplates)
-  const templatesRemainingRegex = /"template":/g;
-  let templatesRemaining = JSON.stringify(newObj).match(
-    templatesRemainingRegex,
-  );
-  while (templatesRemaining) {
-    newObj = recursivelyFillTemplates({ obj: newObj, templates });
-    templatesRemaining = JSON.stringify(newObj).match(templatesRemainingRegex);
-  }
-
-  // Collect unresolved field names
-  const fieldRegex = /\$\{([a-zA-Z0-9_]+)\}/g;
-  const matches = JSON.stringify(newObj).matchAll(fieldRegex);
-  const fields = new Set<string>();
-  for (const match of matches) {
-    fields.add(match[1]);
-  }
-  return [...fields];
+  const { unresolvedFields } = fillTemplates({
+    obj,
+    templates,
+    allowUnresolved: true,
+  });
+  return unresolvedFields;
 }
