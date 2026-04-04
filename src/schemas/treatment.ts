@@ -18,8 +18,11 @@ function isValidRegex(pattern: string): boolean {
 
 // ------------------ Names, descriptions, and files ------------------ //
 
-const fieldPlaceholderSchema = z.string().regex(/\$\{[a-zA-Z0-9-_ ]+\}/, {
-  message: "Field placeholder must be in the format `${fieldKey}`",
+// Field placeholder pattern: only alphanumeric + underscore.
+// Must match FIELD_PLACEHOLDER_REGEX in templates/fillTemplates.ts
+const fieldPlaceholderSchema = z.string().regex(/\$\{[a-zA-Z0-9_]+\}/, {
+  message:
+    "Field placeholder must be in the format `${fieldKey}` (alphanumeric and underscores only)",
 });
 
 // Names should have properties:
@@ -349,15 +352,11 @@ export const discussionSchema = z
 export type DiscussionType = z.infer<typeof discussionSchema>;
 
 // ------------------ Template contexts ------------------ //
-const templateFieldKeysSchema = z // todo: check that the researcher doesn't try to overwrite the dimension keys (d0, d1, etc.)
+const templateFieldKeysSchema = z
   .string()
-  // .regex(/^(?!d[0-9]+)[a-zA-Z0-9_]+$/, {
-  //   message:
-  //     "String must only contain alphanumeric characters and underscores, and not overwrite the broadcast dimension keys `d0`, `d1`, etc.",
-  // })
-  .regex(/^(?!d[0-9]+$)([a-zA-Z0-9-_ ]+|\$\{[a-zA-Z0-9_]+\})$/, {
+  .regex(/^(?!d[0-9]+$)([a-zA-Z0-9_]+|\$\{[a-zA-Z0-9_]+\})$/, {
     message:
-      "Field key must be alphanumeric, may include underscores, dashes, or spaces, or be in the format `${fieldKey}` without conflicting with reserved keys (e.g., `d0`, `d1`, etc.).",
+      "Field key must be alphanumeric with underscores only (no hyphens or spaces), or a placeholder `${fieldKey}`. Cannot conflict with reserved keys (d0, d1, etc.).",
   })
   .min(1)
   .superRefine((val, ctx) => {

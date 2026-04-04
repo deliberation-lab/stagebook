@@ -6,6 +6,10 @@ function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Matches ${...} placeholders. Only alphanumeric + underscore allowed in field names.
+// Shared pattern — must match fieldPlaceholderRegex in schemas/treatment.ts
+const FIELD_PLACEHOLDER_REGEX = /\$\{([a-zA-Z0-9_]+)\}/g;
+
 export function substituteFields({
   templateContent,
   fields,
@@ -16,6 +20,10 @@ export function substituteFields({
   let expandedTemplate = JSON.parse(JSON.stringify(templateContent));
 
   for (const [key, value] of Object.entries(fields)) {
+    // Skip undefined values — they can't be JSON-serialized and would
+    // produce invalid JSON if substituted. Null is valid JSON.
+    if (value === undefined) continue;
+
     let stringifiedTemplate = JSON.stringify(expandedTemplate);
     const stringifiedValue = JSON.stringify(value);
 
@@ -212,15 +220,47 @@ export function recursivelyFillTemplates({
   return newObj;
 }
 
+/**
+ * Expand all template references and substitute field placeholders.
+ *
+ * Returns `{ result, unresolvedFields }`:
+ * - `result` — the expanded object with all resolvable templates and fields substituted
+ * - `unresolvedFields` — names of any `${...}` placeholders that remain after expansion
+ *
+ * By default, throws if any placeholders remain unresolved. Set `allowUnresolved: true`
+ * to get the partially-expanded result instead — useful for two-pass expansion where
+ * platform-provided fields are filled in a second call.
+ *
+ * @example
+ * // One-pass: expand everything, throw if anything is missing
+ * const { result } = fillTemplates({ obj, templates });
+ *
+ * @example
+ * // Two-pass: expand researcher templates first, fill platform fields second
+ * const { result: expanded, unresolvedFields } = fillTemplates({
+ *   obj: rawTreatmentFile,
+ *   templates: rawTreatmentFile.templates ?? [],
+ *   allowUnresolved: true,
+ * });
+ * // unresolvedFields = ["clipUrl", "clipStartAt", "clipStopAt"]
+ *
+ * const { result: resolved } = fillTemplates({
+ *   obj: expanded,
+ *   templates: [],
+ *   additionalFields: { clipUrl: "clip1.mp4", clipStartAt: 12.5, clipStopAt: 45.0 },
+ * });
+ */
 export function fillTemplates({
   obj,
   templates,
   additionalFields,
+  allowUnresolved = false,
 }: {
   obj: any;
   templates: any[];
   additionalFields?: Record<string, any>;
-}): any {
+  allowUnresolved?: boolean;
+}): { result: any; unresolvedFields: string[] } {
   let newObj = recursivelyFillTemplates({ obj, templates });
 
   // Check that there are no remaining templates
@@ -241,14 +281,23 @@ export function fillTemplates({
     });
   }
 
-  // Check that all fields are filled
-  const doubleCheckRegex = /\$\{[a-zA-Z0-9_]+\}/g;
-  const missingFields = JSON.stringify(newObj).match(doubleCheckRegex);
-  if (missingFields) {
-    throw new Error(`Missing fields: ${missingFields.join(", ")}`);
+  // Collect any remaining unresolved field names
+  const matches = JSON.stringify(newObj).matchAll(
+    new RegExp(FIELD_PLACEHOLDER_REGEX.source, "g"),
+  );
+  const unresolvedSet = new Set<string>();
+  for (const match of matches) {
+    unresolvedSet.add(match[1]);
+  }
+  const unresolvedFields = [...unresolvedSet];
+
+  if (!allowUnresolved && unresolvedFields.length > 0) {
+    throw new Error(
+      `Missing fields: ${unresolvedFields.map((f) => `\${${f}}`).join(", ")}`,
+    );
   }
 
-  return newObj;
+  return { result: newObj, unresolvedFields };
 }
 
 /**
@@ -257,6 +306,9 @@ export function fillTemplates({
  * additionalFields a treatment file expects.
  *
  * Does NOT throw on unresolved fields — that's the point.
+ *
+ * @deprecated Use `fillTemplates({ ..., allowUnresolved: true })` instead,
+ * which returns both the expanded result and unresolved field names.
  */
 export function getUnresolvedFields({
   obj,
@@ -265,24 +317,10 @@ export function getUnresolvedFields({
   obj: any;
   templates: any[];
 }): string[] {
-  let newObj = recursivelyFillTemplates({ obj, templates });
-
-  // Handle remaining template references (same loop as fillTemplates)
-  const templatesRemainingRegex = /"template":/g;
-  let templatesRemaining = JSON.stringify(newObj).match(
-    templatesRemainingRegex,
-  );
-  while (templatesRemaining) {
-    newObj = recursivelyFillTemplates({ obj: newObj, templates });
-    templatesRemaining = JSON.stringify(newObj).match(templatesRemainingRegex);
-  }
-
-  // Collect unresolved field names
-  const fieldRegex = /\$\{([a-zA-Z0-9_]+)\}/g;
-  const matches = JSON.stringify(newObj).matchAll(fieldRegex);
-  const fields = new Set<string>();
-  for (const match of matches) {
-    fields.add(match[1]);
-  }
-  return [...fields];
+  const { unresolvedFields } = fillTemplates({
+    obj,
+    templates,
+    allowUnresolved: true,
+  });
+  return unresolvedFields;
 }
