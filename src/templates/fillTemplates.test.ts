@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 
 import { expect, test } from "vitest";
 import { fillTemplates, getUnresolvedFields } from "./fillTemplates.js";
@@ -36,7 +36,7 @@ test("template with simple object field", () => {
     field3Key: "Adding f1Value in a string succeeds!",
   };
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -69,7 +69,7 @@ test("template with simple list field", () => {
     "Adding f1Value in a string succeeds!",
   ];
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -91,7 +91,7 @@ test("template with simple string field", () => {
 
   const expectedResult = "Adding f1Value in a string succeeds!";
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -150,7 +150,7 @@ test("nested templates", () => {
     },
   };
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -186,7 +186,7 @@ test("template with broadcast", () => {
     { name: "t_d0_2_d1_1", Aval: "A2", Bval: "B1" },
   ];
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -223,7 +223,7 @@ test("template with broadcast merging to array", () => {
     ],
   };
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -263,7 +263,7 @@ test("template with broadcast array from another template", () => {
     { name: "t_d0_2_d1_1", Aval: "A2", Bval: "B1" },
   ];
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -294,7 +294,7 @@ test("template with list and broadcast returns properly", () => {
     { outerIndex: "2", innerIndex: "1" },
   ];
 
-  const result = fillTemplates({ templates, obj: context });
+  const { result } = fillTemplates({ templates, obj: context });
   expect(result).toEqual(expectedResult);
 });
 
@@ -369,7 +369,7 @@ test("circular reference error includes template chain", () => {
 });
 
 test("non-template objects pass through unchanged", () => {
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates: [],
     obj: { name: "plain", value: 42 },
   });
@@ -377,7 +377,7 @@ test("non-template objects pass through unchanged", () => {
 });
 
 test("empty templates array with plain array", () => {
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates: [],
     obj: [{ name: "item1" }, { name: "item2" }],
   });
@@ -392,7 +392,7 @@ test("numeric field values substituted as standalone", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "numeric", fields: { num: 42 } },
   });
@@ -408,7 +408,7 @@ test("string field embedded in another string", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "embedded", fields: { name: "Alpha" } },
   });
@@ -423,7 +423,7 @@ test("array field values substituted correctly", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "arrayField", fields: { myArray: ["a", "b", "c"] } },
   });
@@ -438,7 +438,7 @@ test("boolean field values substituted correctly", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "boolField", fields: { flag: true } },
   });
@@ -461,7 +461,7 @@ test("additionalFields resolves platform-provided placeholders", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "stage", fields: { dimension: "engagement" } },
     additionalFields: {
@@ -484,7 +484,7 @@ test("additionalFields without additionalFields behaves identically", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "simple", fields: { n: "hello" } },
   });
@@ -502,7 +502,7 @@ test("researcher fields and additionalFields coexist", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "mixed", fields: { myField: "from researcher" } },
     additionalFields: { platformValue: "from platform" },
@@ -524,7 +524,7 @@ test("broadcast + additionalFields work together", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: {
       template: "rating",
@@ -574,7 +574,7 @@ test("additionalFields with object values", () => {
     },
   ];
 
-  const result = fillTemplates({
+  const { result } = fillTemplates({
     templates,
     obj: { template: "config" },
     additionalFields: {
@@ -586,8 +586,132 @@ test("additionalFields with object values", () => {
   });
 });
 
+test("returns empty unresolvedFields when all fields filled", () => {
+  const templates = [
+    { templateName: "full", templateContent: { val: "${x}" } },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "full", fields: { x: "done" } },
+  });
+  expect(result).toEqual({ val: "done" });
+  expect(unresolvedFields).toEqual([]);
+});
+
 // ----------------------------------------------------------------
-// getUnresolvedFields (#23)
+// allowUnresolved (#27)
+// ----------------------------------------------------------------
+
+test("allowUnresolved returns partial result with unresolved field names", () => {
+  const templates = [
+    {
+      templateName: "stage",
+      templateContent: {
+        name: "rate_${dimension}",
+        clip: "${clipUrl}",
+        start: "${clipStartAt}",
+      },
+    },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "stage", fields: { dimension: "engagement" } },
+    allowUnresolved: true,
+  });
+  expect(result.name).toBe("rate_engagement");
+  expect(result.clip).toBe("${clipUrl}");
+  expect(result.start).toBe("${clipStartAt}");
+  expect(unresolvedFields.sort()).toEqual(["clipStartAt", "clipUrl"]);
+});
+
+test("allowUnresolved + additionalFields: partial fill", () => {
+  const templates = [
+    {
+      templateName: "stage",
+      templateContent: {
+        clip: "${clipUrl}",
+        start: "${clipStartAt}",
+        stop: "${clipStopAt}",
+      },
+    },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "stage" },
+    additionalFields: { clipUrl: "video.mp4" },
+    allowUnresolved: true,
+  });
+  expect(result.clip).toBe("video.mp4");
+  expect(unresolvedFields.sort()).toEqual(["clipStartAt", "clipStopAt"]);
+});
+
+test("two-pass expansion: researcher templates then platform fields", () => {
+  const templates = [
+    {
+      templateName: "ratingStage",
+      templateContent: {
+        name: "rate_${dimension}",
+        clip: "${clipUrl}",
+        startAt: "${clipStartAt}",
+      },
+    },
+  ];
+
+  // Pass 1: expand researcher templates, leave platform fields
+  const { result: expanded, unresolvedFields } = fillTemplates({
+    templates,
+    obj: {
+      template: "ratingStage",
+      broadcast: {
+        d0: [{ dimension: "engagement" }, { dimension: "confidence" }],
+      },
+    },
+    allowUnresolved: true,
+  });
+  expect(unresolvedFields.sort()).toEqual(["clipStartAt", "clipUrl"]);
+  expect(expanded).toHaveLength(2);
+  expect(expanded[0].name).toBe("rate_engagement");
+  expect(expanded[1].name).toBe("rate_confidence");
+
+  // Pass 2: fill platform fields for each expanded treatment
+  const { result: resolved, unresolvedFields: remaining } = fillTemplates({
+    obj: expanded[0],
+    templates: [],
+    additionalFields: { clipUrl: "clip1.mp4", clipStartAt: 12.5 },
+  });
+  expect(remaining).toEqual([]);
+  expect(resolved.clip).toBe("clip1.mp4");
+  expect(resolved.startAt).toBe(12.5);
+  expect(resolved.name).toBe("rate_engagement");
+});
+
+test("allowUnresolved without unresolved fields returns empty array", () => {
+  const templates = [{ templateName: "done", templateContent: { x: "${a}" } }];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "done", fields: { a: "filled" } },
+    allowUnresolved: true,
+  });
+  expect(result).toEqual({ x: "filled" });
+  expect(unresolvedFields).toEqual([]);
+});
+
+test("default (allowUnresolved false) still throws on unresolved", () => {
+  const templates = [
+    { templateName: "incomplete", templateContent: { x: "${missing}" } },
+  ];
+
+  expect(() =>
+    fillTemplates({ templates, obj: { template: "incomplete" } }),
+  ).toThrow("Missing fields");
+});
+
+// ----------------------------------------------------------------
+// getUnresolvedFields (#23) — deprecated, still works
 // ----------------------------------------------------------------
 
 test("getUnresolvedFields returns platform placeholders", () => {
