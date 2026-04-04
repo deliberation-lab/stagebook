@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 
 import { expect, test } from "vitest";
 import { fillTemplates, getUnresolvedFields } from "./fillTemplates.js";
@@ -808,4 +808,272 @@ test("getUnresolvedFields returns unique names", () => {
     obj: { template: "repeated" },
   });
   expect(fields).toEqual(["same"]);
+});
+
+// ----------------------------------------------------------------
+// Edge case tests (audit)
+// ----------------------------------------------------------------
+
+// -- undefined/null additionalFields values --
+
+test("additionalFields with undefined value leaves placeholder", () => {
+  const templates = [
+    { templateName: "t", templateContent: { a: "${x}", b: "${y}" } },
+  ];
+
+  // undefined is skipped, so ${x} remains unresolved
+  expect(() =>
+    fillTemplates({
+      templates,
+      obj: { template: "t" },
+      additionalFields: { x: undefined, y: "filled" },
+    }),
+  ).toThrow("Missing fields");
+});
+
+test("additionalFields with undefined value + allowUnresolved", () => {
+  const templates = [
+    { templateName: "t", templateContent: { a: "${x}", b: "${y}" } },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "t" },
+    additionalFields: { x: undefined, y: "filled" },
+    allowUnresolved: true,
+  });
+
+  expect(result.b).toBe("filled");
+  expect(unresolvedFields).toEqual(["x"]);
+});
+
+test("additionalFields with null value substitutes null", () => {
+  const templates = [{ templateName: "t", templateContent: { val: "${x}" } }];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: { template: "t" },
+    additionalFields: { x: null },
+  });
+
+  expect(result.val).toBe(null);
+});
+
+// -- Field value containing ${...} syntax (double substitution risk) --
+
+test("field value containing placeholder-like text is not re-substituted", () => {
+  const templates = [
+    {
+      templateName: "code",
+      templateContent: { snippet: "${code}", label: "Code: ${code}" },
+    },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "code", fields: { code: "return ${x} + ${y};" } },
+    allowUnresolved: true,
+  });
+
+  // The literal ${x} and ${y} inside the field value should NOT be
+  // treated as template placeholders — they're data, not template syntax
+  expect(result.snippet).toBe("return ${x} + ${y};");
+  // But they WILL appear as unresolved fields in the scan
+  expect(unresolvedFields).toContain("x");
+  expect(unresolvedFields).toContain("y");
+});
+
+// -- additionalFields override researcher fields --
+
+test("additionalFields applied after researcher fields (later wins)", () => {
+  const templates = [
+    { templateName: "t", templateContent: { val: "${shared}" } },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: { template: "t", fields: { shared: "researcher" } },
+    additionalFields: { shared: "platform" },
+  });
+
+  // Researcher field is applied first during template expansion,
+  // so the value is already "researcher" before additionalFields runs.
+  // additionalFields can't override an already-substituted value.
+  expect(result.val).toBe("researcher");
+});
+
+// -- Array of template contexts --
+
+test("array of template contexts each expanded independently", () => {
+  const templates = [
+    { templateName: "greet", templateContent: { msg: "Hello ${name}" } },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: [
+      { template: "greet", fields: { name: "Alice" } },
+      { template: "greet", fields: { name: "Bob" } },
+    ],
+  });
+
+  expect(result).toEqual([{ msg: "Hello Alice" }, { msg: "Hello Bob" }]);
+});
+
+test("array of treatments with different unresolved fields", () => {
+  const templates = [
+    { templateName: "a", templateContent: { url: "${clipUrl}" } },
+    { templateName: "b", templateContent: { start: "${startTime}" } },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: [{ template: "a" }, { template: "b" }],
+    allowUnresolved: true,
+  });
+
+  expect(result).toHaveLength(2);
+  expect(unresolvedFields.sort()).toEqual(["clipUrl", "startTime"]);
+});
+
+// -- Broadcast edge cases --
+
+test("single-item broadcast returns array with one element", () => {
+  const templates = [{ templateName: "t", templateContent: { val: "${v}" } }];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: {
+      template: "t",
+      broadcast: { d0: [{ v: "only" }] },
+    },
+  });
+
+  expect(Array.isArray(result)).toBe(true);
+  expect(result).toHaveLength(1);
+  expect(result[0].val).toBe("only");
+});
+
+test("broadcast dimension indices don't collide with additionalFields", () => {
+  const templates = [
+    {
+      templateName: "t",
+      templateContent: { index: "${d0}", platform: "${pval}" },
+    },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: {
+      template: "t",
+      broadcast: { d0: [{ x: 1 }, { x: 2 }] },
+    },
+    additionalFields: { pval: "filled" },
+  });
+
+  // d0 should be broadcast indices "0" and "1", not overridden by additionalFields
+  expect(result).toHaveLength(2);
+  expect(result[0].index).toBe("0");
+  expect(result[1].index).toBe("1");
+  expect(result[0].platform).toBe("filled");
+});
+
+test("multi-dimensional broadcast + additionalFields", () => {
+  const templates = [
+    {
+      templateName: "t",
+      templateContent: { name: "${d0}_${d1}", url: "${platformUrl}" },
+    },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: {
+      template: "t",
+      broadcast: {
+        d0: [{ a: 1 }, { a: 2 }],
+        d1: [{ b: "x" }, { b: "y" }, { b: "z" }],
+      },
+    },
+    additionalFields: { platformUrl: "https://cdn.test/v.mp4" },
+  });
+
+  expect(result).toHaveLength(6);
+  expect(
+    result.every((item: any) => item.url === "https://cdn.test/v.mp4"),
+  ).toBe(true);
+  expect(result[0].name).toBe("0_0");
+  expect(result[5].name).toBe("1_2");
+});
+
+// -- Nested templates with unresolved fields --
+
+test("unresolved fields in nested templates bubble up", () => {
+  const templates = [
+    {
+      templateName: "outer",
+      templateContent: {
+        inner: { template: "inner", fields: { x: "resolved" } },
+      },
+    },
+    {
+      templateName: "inner",
+      templateContent: { x: "${x}", y: "${y}" },
+    },
+  ];
+
+  const { result, unresolvedFields } = fillTemplates({
+    templates,
+    obj: { template: "outer" },
+    allowUnresolved: true,
+  });
+
+  expect(result.inner.x).toBe("resolved");
+  expect(unresolvedFields).toEqual(["y"]);
+});
+
+// -- Two-pass strict second pass --
+
+test("strict second pass throws on remaining unresolved", () => {
+  const templates = [
+    { templateName: "t", templateContent: { a: "${x}", b: "${y}" } },
+  ];
+
+  const { result: partial } = fillTemplates({
+    templates,
+    obj: { template: "t" },
+    allowUnresolved: true,
+  });
+
+  expect(() =>
+    fillTemplates({
+      templates: [],
+      obj: partial,
+      additionalFields: { x: "filled" },
+    }),
+  ).toThrow("Missing fields");
+});
+
+// -- Return type consistency --
+
+test("non-broadcast returns object, broadcast returns array", () => {
+  const templates = [{ templateName: "t", templateContent: { id: "${id}" } }];
+
+  const { result: single } = fillTemplates({
+    templates,
+    obj: { template: "t", fields: { id: "1" } },
+  });
+  expect(Array.isArray(single)).toBe(false);
+
+  const { result: multi } = fillTemplates({
+    templates,
+    obj: {
+      template: "t",
+      fields: { id: "${d0}" },
+      broadcast: { d0: [{ x: 1 }, { x: 2 }] },
+    },
+    allowUnresolved: true,
+  });
+  expect(Array.isArray(multi)).toBe(true);
+  expect(multi).toHaveLength(2);
 });

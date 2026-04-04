@@ -16,6 +16,10 @@ export function substituteFields({
   let expandedTemplate = JSON.parse(JSON.stringify(templateContent));
 
   for (const [key, value] of Object.entries(fields)) {
+    // Skip undefined values — they can't be JSON-serialized and would
+    // produce invalid JSON if substituted. Null is valid JSON.
+    if (value === undefined) continue;
+
     let stringifiedTemplate = JSON.stringify(expandedTemplate);
     const stringifiedValue = JSON.stringify(value);
 
