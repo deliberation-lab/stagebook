@@ -152,13 +152,15 @@ Three sections separated by `---`:
 
 ```markdown
 ---
-name: path/to/file.md
 type: multipleChoice | openResponse | noResponse | listSorter | slider
+name: path/to/file.md   # optional — provenance tracked via file path
 ---
 Markdown body text
 ---
 - Response option 1
 - Response option 2
 ```
+
+`name` is optional. If provided, must match the file path. Provenance is tracked automatically via the source file path.
 
 Slider requires `min`, `max`, `interval` in metadata. Slider initializes without a visible thumb (anti-anchoring).

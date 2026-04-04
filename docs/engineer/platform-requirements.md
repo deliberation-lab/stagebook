@@ -200,28 +200,39 @@ Once a group is formed, each participant is assigned a position (0, 1, 2, ...). 
 
 ## 4. Content Delivery (required)
 
-SCORE components load prompt markdown files, images, and audio from project-relative paths. The platform must implement `getAssetURL(path)` and `getTextContent(path)` on the ScoreProvider.
+SCORE components load prompt markdown files, images, and audio by path. **All paths in treatment files are relative to the treatment file's location.** The platform must resolve these paths and implement `getAssetURL(path)` and `getTextContent(path)` on the ScoreProvider.
+
+For example, given this file structure:
+
+```
+my-study/
+  study.treatments.yaml
+  consent.md
+  prompts/
+    question.md
+  images/
+    diagram.png
+```
+
+The treatment file references `file: consent.md`, `file: prompts/question.md`, `file: images/diagram.png`. The platform resolves these relative to `my-study/`.
 
 ### `getAssetURL(path: string): string`
 
-Returns a URL that the browser can use to display an image, play audio, or embed a video. The implementation depends on where assets are stored:
+Returns a URL that the browser can use to display an image, play audio, or embed a video. The platform resolves the path relative to the treatment file location:
 
-- **CDN**: Prepend the CDN base URL (e.g., `https://cdn.example.com/${path}`)
-- **Local development**: Return a local server URL (e.g., `http://localhost:3000/assets/${path}`)
-- **VS Code extension**: Return a webview URI
+- **CDN**: Resolve relative to treatment file dir, prepend CDN base URL
+- **Local development**: Resolve relative to treatment file, return local server URL
+- **VS Code extension**: Resolve to webview URI
 - **Bundled**: Return an import path or data URI
 
 ### `getTextContent(path: string): Promise<string>`
 
 Returns the text content of a file (typically prompt markdown). The platform handles:
+- **Resolution**: Resolve path relative to treatment file location
 - **Fetching**: HTTP request, filesystem read, or bundled import
 - **Caching**: Prompt files don't change during a study — cache aggressively
 - **Retries**: Network requests may fail transiently
 - **Error handling**: Return a rejected promise with a descriptive error
-
-### Content Organization
-
-SCORE doesn't prescribe how content is organized on disk, but treatment files reference paths like `projects/study1/prompts/question.md`. The platform must resolve these paths to actual content.
 
 ---
 

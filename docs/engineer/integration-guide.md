@@ -142,18 +142,20 @@ const context: ScoreContext = {
     // Game stages: signal readiness, wait for all participants
   },
 
-  // Resolve a project-relative path to a renderable URL.
+  // Resolve an asset path to a renderable URL.
+  // Paths in treatment files are relative to the treatment file's location.
+  // The platform resolves them to actual URLs based on where assets are stored.
   getAssetURL(path: string): string {
-    // CDN: prepend base URL
-    // Local dev: return local file path
-    // VS Code: return webview URI
+    // CDN: resolve relative to treatment file dir, prepend CDN base URL
+    // Local dev: resolve relative to treatment file, return local server URL
+    // VS Code: resolve to webview URI
   },
 
-  // Fetch text content of a file by project-relative path.
-  // Platform handles caching, retries, error handling.
+  // Fetch text content by path (relative to treatment file).
+  // Platform handles resolution, caching, retries, error handling.
   getTextContent(path: string): Promise<string> {
-    // CDN: fetch from CDN URL
-    // Local: read from filesystem
+    // CDN: resolve and fetch from CDN
+    // Local: resolve and read from filesystem
     // Test: return fixture string
   },
 

@@ -10,7 +10,6 @@ Prompts are Markdown files with three sections separated by lines of three or mo
 
 ```markdown
 ---
-name: projects/example/multipleChoice.md
 type: multipleChoice
 ---
 
@@ -28,7 +27,7 @@ type: multipleChoice
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | yes | Must match the file path from the repository root |
+| `name` | string | no | Optional identifier. If provided, must match the file path. Omit for new prompt files — provenance is tracked automatically via the file path. |
 | `type` | enum | yes | `multipleChoice`, `openResponse`, `noResponse`, `listSorter`, `slider` |
 | `notes` | string | no | Internal notes (not displayed) |
 
@@ -120,7 +119,6 @@ Leave the section empty (or blank lines).
 
 ```markdown
 ---
-name: projects/study1/favoriteColor.md
 type: multipleChoice
 shuffleOptions: true
 ---
@@ -139,7 +137,6 @@ Use `select: multiple` for checkbox behavior:
 
 ```markdown
 ---
-name: projects/study1/selectedColors.md
 type: multipleChoice
 select: multiple
 ---
@@ -158,7 +155,6 @@ Select all colors you like:
 
 ```markdown
 ---
-name: projects/study1/describe.md
 type: openResponse
 rows: 4
 minLength: 50
@@ -180,7 +176,6 @@ The slider initializes **without a visible thumb** to avoid anchoring participan
 
 ```markdown
 ---
-name: projects/study1/agreement.md
 type: slider
 min: 0
 max: 100
@@ -203,7 +198,6 @@ How much do you agree with the following statement?
 
 ```markdown
 ---
-name: projects/study1/priorities.md
 type: listSorter
 ---
 
@@ -224,7 +218,6 @@ Use for informational text that doesn't collect a response:
 
 ```markdown
 ---
-name: projects/study1/instructions.md
 type: noResponse
 ---
 
