@@ -5,7 +5,7 @@ import { load as loadYaml } from "js-yaml";
 // Cannot be combined with the refine schema, if conditions within z.object fail, superRefine conditions will not be checked.
 // We want all of the condtions to be checked simultaneously, so we use a separate refine schema.
 export const metadataTypeSchema = z.object({
-  name: z.string(),
+  name: z.string().optional(),
   type: z.enum([
     "openResponse",
     "multipleChoice",
@@ -168,14 +168,13 @@ export const metadataRefineSchema = z
     }
   });
 
-// Function to validate that the metadata name matches the file name
-// Need to separate this from the refine schema because since it is a function, type cannot be inferred
+// Function to validate that the metadata name matches the file name (when name is provided)
 export const metadataLogicalSchema = (fileName: string) =>
   metadataRefineSchema.superRefine((data, ctx) => {
-    if (data.name !== fileName) {
+    if (data.name !== undefined && data.name !== fileName) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `name must match file path starting from repository root`,
+        message: `name must match file path (got "${data.name}", expected "${fileName}")`,
         path: ["name"],
       });
     }
