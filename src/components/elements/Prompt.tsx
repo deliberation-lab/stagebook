@@ -17,6 +17,7 @@ export interface PromptProps {
   body: string;
   responseItems: string[];
   name: string;
+  file?: string;
   shared?: boolean;
   value: unknown;
   save: (key: string, value: unknown, scope?: "player" | "shared") => void;
@@ -33,6 +34,7 @@ export function Prompt({
   body,
   responseItems,
   name,
+  file,
   shared = false,
   value,
   save,
@@ -68,6 +70,7 @@ export function Prompt({
   const record = {
     ...metadata,
     name,
+    file,
     shared,
     prompt: body,
     responses,

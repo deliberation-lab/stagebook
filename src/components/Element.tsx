@@ -189,6 +189,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           body={body}
           responseItems={responseItems}
           name={promptName}
+          file={element.file}
           shared={element.shared}
           value={currentValue}
           save={wrappedSave}
