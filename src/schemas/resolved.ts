@@ -109,7 +109,7 @@ const resolvedElementBaseSchema = z.object({
   submitOnComplete: z.boolean().optional(),
   playVideo: z.boolean().optional(),
   playAudio: z.boolean().optional(),
-  captionsURL: z.string().optional(),
+  captionsFile: z.string().optional(),
   startAt: z.number().optional(),
   stopAt: z.number().optional(),
   allowScrubOutsideBounds: z.boolean().optional(),

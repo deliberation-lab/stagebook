@@ -73,9 +73,9 @@ export function useRegisterPlayback(
 
   useEffect(() => {
     if (!ctx) return; // no PlaybackProvider above — intentional no-op
-    ctx.register(name, handleRef.current);
+    ctx.register(name, handle);
     return () => ctx.unregister(name);
-  }, [name, ctx]);
+  }, [name, ctx, handle]);
 }
 
 /**

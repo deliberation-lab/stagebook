@@ -14,9 +14,13 @@ import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 import { computeWatchedRanges } from "../../utils/watchedRanges.js";
 
 export interface VideoEvent {
-  type: "play" | "pause" | "ended";
+  type: "play" | "pause" | "ended" | "seek" | "speed" | "stopAt";
   videoTime: number;
   stageTimeElapsed: number;
+  /** Present on seek events: the position before seeking */
+  fromTime?: number;
+  /** Present on speed events: the new playback rate */
+  playbackRate?: number;
 }
 
 interface VideoRecord {
@@ -171,11 +175,16 @@ export function MediaPlayer({
   }, []); // mount-only: reads initial values of getElapsedTime/startAt
 
   const recordEvent = useCallback(
-    (type: VideoEvent["type"], videoTime: number) => {
+    (
+      type: VideoEvent["type"],
+      videoTime: number,
+      extra?: Partial<Pick<VideoEvent, "fromTime" | "playbackRate">>,
+    ) => {
       const event: VideoEvent = {
         type,
         videoTime,
         stageTimeElapsed: getElapsedTime(),
+        ...extra,
       };
       eventsRef.current = [...eventsRef.current, event];
       const record: VideoRecord = {
@@ -252,11 +261,11 @@ export function MediaPlayer({
       const { currentTime: ct } = e.currentTarget;
       setCurrentTime(ct);
 
-      // stopAt enforcement — records "ended" (spec: "ended" = natural end or stopAt)
+      // stopAt enforcement — records "stopAt" event (distinct from natural "ended")
       if (stopAt !== undefined && ct >= stopAt) {
         stopAtReachedRef.current = true;
         e.currentTarget.pause(); // fires "pause" event; handlePause suppresses it
-        recordEvent("ended", ct);
+        recordEvent("stopAt", ct);
         if (submitOnComplete) onComplete?.();
         return;
       }
@@ -282,11 +291,14 @@ export function MediaPlayer({
             ? dur
             : Infinity
           : (stopAt ?? (Number.isFinite(dur) ? dur : Infinity));
-        ytHandle.seekTo(Math.min(Math.max(cur + delta, min), max));
+        const newTime = Math.min(Math.max(cur + delta, min), max);
+        ytHandle.seekTo(newTime);
+        recordEvent("seek", newTime, { fromTime: cur });
         return;
       }
       const v = videoRef.current;
       if (!v) return;
+      const fromTime = v.currentTime;
       const min = allowScrubOutsideBounds ? 0 : (startAt ?? 0);
       const max = allowScrubOutsideBounds
         ? Number.isFinite(v.duration)
@@ -294,8 +306,9 @@ export function MediaPlayer({
           : Infinity
         : (stopAt ?? (Number.isFinite(v.duration) ? v.duration : Infinity));
       v.currentTime = Math.min(Math.max(v.currentTime + delta, min), max);
+      recordEvent("seek", v.currentTime, { fromTime });
     },
-    [allowScrubOutsideBounds, startAt, stopAt, ytHandle],
+    [allowScrubOutsideBounds, startAt, stopAt, ytHandle, recordEvent],
   );
 
   const exitFastScrub = useCallback(() => {
@@ -322,7 +335,8 @@ export function MediaPlayer({
     const next = SPEEDS[(idx + 1) % SPEEDS.length];
     v.playbackRate = next;
     setPlaybackRate(next);
-  }, [playbackRate]);
+    recordEvent("speed", v.currentTime, { playbackRate: next });
+  }, [playbackRate, recordEvent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -545,12 +559,12 @@ export function MediaPlayer({
   }, [isPaused, ytHandle]);
 
   const ytOnSeekBack = useCallback(() => {
-    ytHandle?.seekTo(Math.max(0, ytHandle.getCurrentTime() - 1));
-  }, [ytHandle]);
+    seek(-1);
+  }, [seek]);
 
   const ytOnSeekForward = useCallback(() => {
-    ytHandle?.seekTo(ytHandle.getCurrentTime() + 1);
-  }, [ytHandle]);
+    seek(1);
+  }, [seek]);
 
   const ytOnScrubStart = useCallback(
     (t: number) => {
@@ -683,10 +697,10 @@ export function MediaPlayer({
             onPause={(t) => {
               setIsPaused(true);
               setCurrentTime(t);
-              // stopAt reached via the poll: record "ended" not "pause"
+              // stopAt reached via the poll: record "stopAt" not "pause"
               if (stopAtReachedRef.current) {
                 stopAtReachedRef.current = false;
-                recordEvent("ended", t);
+                recordEvent("stopAt", t);
                 if (submitOnComplete) onComplete?.();
                 return;
               }

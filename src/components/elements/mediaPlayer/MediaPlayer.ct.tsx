@@ -609,7 +609,7 @@ test("scrub bar defaults to 0/Infinity when startAt/stopAt omitted", async ({
 
 // -- stopAt enforcement --
 
-test("save records ended event (not stopAt) when timeupdate exceeds stopAt", async ({
+test("save records stopAt event when timeupdate exceeds stopAt", async ({
   mount,
 }) => {
   const component = await mount(
@@ -637,9 +637,9 @@ test("save records ended event (not stopAt) when timeupdate exceeds stopAt", asy
   }>;
   expect(saves.length).toBeGreaterThan(0);
   const lastEvents = saves[saves.length - 1].value.events;
-  // Should record exactly one "ended" event — not "stopAt", not a duplicate "pause"
+  // Should record exactly one "stopAt" event — distinct from natural "ended"
   expect(lastEvents).toHaveLength(1);
-  expect(lastEvents[0].type).toBe("ended");
+  expect(lastEvents[0].type).toBe("stopAt");
 });
 
 test("onComplete called when submitOnComplete is true and stopAt is reached", async ({

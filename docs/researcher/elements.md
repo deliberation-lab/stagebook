@@ -145,7 +145,7 @@ Ties video time to stage elapsed time so all participants stay in sync. Hides al
 | `url` | string | required | Direct media URL or YouTube URL |
 | `playVideo` | boolean | `true` | Show the video track (set `false` for audio-only) |
 | `playAudio` | boolean | `true` | Unmute audio |
-| `captionsURL` | string | — | URL to a `.vtt` captions file |
+| `captionsFile` | string | — | Path to a `.vtt` captions file |
 | `startAt` | number | — | Jump to this timestamp (seconds) on load |
 | `stopAt` | number | — | Pause and record a `stopAt` event at this timestamp |
 | `allowScrubOutsideBounds` | boolean | `false` | Let participants scrub outside `startAt`/`stopAt` window |
@@ -172,7 +172,7 @@ When the player has focus:
 
 ### Saved data
 
-Each play, pause, end, and stopAt event is appended to a list under the element's name:
+Each interaction is appended to an event list under the element's name:
 
 ```json
 {
@@ -183,11 +183,16 @@ Each play, pause, end, and stopAt event is appended to a list under the element'
   "lastVideoTime": 87.4,
   "events": [
     { "type": "play",   "videoTime": 30.0, "stageTimeElapsed": 4.1 },
+    { "type": "seek",   "videoTime": 45.0, "stageTimeElapsed": 12.0, "fromTime": 30.0 },
     { "type": "pause",  "videoTime": 45.2, "stageTimeElapsed": 19.3 },
+    { "type": "speed",  "videoTime": 45.2, "stageTimeElapsed": 20.1, "playbackRate": 1.5 },
+    { "type": "play",   "videoTime": 45.2, "stageTimeElapsed": 20.5 },
     { "type": "stopAt", "videoTime": 90.0, "stageTimeElapsed": 74.8 }
   ]
 }
 ```
+
+Event types: `play`, `pause`, `ended` (natural end), `stopAt` (reached stopAt position), `seek` (includes `fromTime`), `speed` (includes `playbackRate`).
 
 ## Survey
 

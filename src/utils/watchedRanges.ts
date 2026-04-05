@@ -17,15 +17,22 @@ export function computeWatchedRanges(events: VideoEvent[]): [number, number][] {
 
   for (const event of events) {
     if (event.type === "play") {
-      openStart = event.videoTime;
+      // Only set start if no interval is already open — prevents duplicate
+      // play events (e.g. YouTube PLAYING→BUFFERING→PLAYING) from losing
+      // the original start time.
+      if (openStart === null) {
+        openStart = event.videoTime;
+      }
     } else if (
-      (event.type === "pause" || event.type === "ended") &&
+      (event.type === "pause" ||
+        event.type === "ended" ||
+        event.type === "stopAt") &&
       openStart !== null
     ) {
       intervals.push([openStart, event.videoTime]);
       openStart = null;
     }
-    // stopAt and unmatched pause/ended are ignored
+    // seek, speed, and unmatched pause/ended are ignored for range tracking
   }
   // open play at end is intentionally excluded
 

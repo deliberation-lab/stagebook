@@ -76,8 +76,7 @@ All elements accept: `name?`, `desc?`, `file?`, `displayTime?`, `hideTime?`, `sh
 | `separator` | `style?` (`thin`, `regular`, `thick`) |
 | `audio` | `file` (required) |
 | `image` | `file` (required), `width?` |
-| `video` | `url` (required) |
-| `mediaPlayer` | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsURL?`, `allowScrubOutsideBounds?` |
+| `mediaPlayer` | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?` |
 | `survey` | `surveyName` (required) |
 | `qualtrics` | `url` (required), `urlParams?` |
 | `trackedLink` | `name` (required), `url` (required), `displayText` (required), `urlParams?` |

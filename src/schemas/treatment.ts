@@ -959,6 +959,18 @@ export const elementSchema = altTemplateContext(
           path: ["stopAt"],
         });
       }
+      const mpSync = data as {
+        syncToStageTime?: boolean;
+        controls?: Record<string, boolean>;
+      };
+      if (mpSync.syncToStageTime && mpSync.controls) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "controls cannot be specified when syncToStageTime is true (playback is locked to stage time)",
+          path: ["controls"],
+        });
+      }
     }
   }),
 );
