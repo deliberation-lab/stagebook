@@ -1,4 +1,5 @@
 export { compare, type Comparator } from "./compare.js";
+export { computeWatchedRanges } from "./watchedRanges.js";
 export {
   getReferenceKeyAndPath,
   getNestedValueByPath,

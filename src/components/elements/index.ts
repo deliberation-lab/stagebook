@@ -8,6 +8,10 @@ export {
   type TrackedLinkProps,
   type ResolvedParam,
 } from "./TrackedLink.js";
-export { TrainingVideo, type TrainingVideoProps } from "./TrainingVideo.js";
+export {
+  MediaPlayer,
+  type MediaPlayerProps,
+  type VideoEvent,
+} from "../elements/MediaPlayer.js";
 export { Prompt, type PromptProps } from "./Prompt.js";
 export { Qualtrics, type QualtricsProps } from "./Qualtrics.js";

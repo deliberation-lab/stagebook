@@ -104,6 +104,24 @@ const resolvedElementBaseSchema = z.object({
       }),
     )
     .optional(),
+  // mediaPlayer fields
+  syncToStageTime: z.boolean().optional(),
+  submitOnComplete: z.boolean().optional(),
+  playVideo: z.boolean().optional(),
+  playAudio: z.boolean().optional(),
+  captionsFile: z.string().optional(),
+  startAt: z.number().optional(),
+  stopAt: z.number().optional(),
+  allowScrubOutsideBounds: z.boolean().optional(),
+  stepDuration: z.number().optional(),
+  controls: z
+    .object({
+      playPause: z.boolean().optional(),
+      seek: z.boolean().optional(),
+      step: z.boolean().optional(),
+      speed: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const resolvedElementSchema = resolvedElementBaseSchema;

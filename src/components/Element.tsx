@@ -9,7 +9,7 @@ import { AudioElement } from "./elements/AudioElement.js";
 import { ImageElement } from "./elements/ImageElement.js";
 import { KitchenTimer } from "./elements/KitchenTimer.js";
 import { TrackedLink, type ResolvedParam } from "./elements/TrackedLink.js";
-import { TrainingVideo } from "./elements/TrainingVideo.js";
+import { MediaPlayer } from "./elements/MediaPlayer.js";
 import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
@@ -224,17 +224,52 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
         />
       );
 
-    case "video":
+    case "mediaPlayer": {
+      const rawURL = String(element.url ?? "");
+      const resolvedURL =
+        rawURL.startsWith("http://") || rawURL.startsWith("https://")
+          ? rawURL
+          : getAssetURL(rawURL);
+      const rawCaptions =
+        typeof element.captionsFile === "string" ? element.captionsFile : null;
+      const resolvedCaptionsURL =
+        rawCaptions == null
+          ? undefined
+          : rawCaptions.startsWith("http://") ||
+              rawCaptions.startsWith("https://")
+            ? rawCaptions
+            : getAssetURL(rawCaptions);
       return (
-        <TrainingVideo
-          url={element.url ?? ""}
+        <MediaPlayer
+          name={String(element.name ?? rawURL)}
+          url={resolvedURL}
+          save={wrappedSave}
           getElapsedTime={getElapsedTime}
           onComplete={onSubmit}
-          setAllowIdle={setAllowIdle}
-          save={wrappedSave}
-          name={element.name}
+          captionsURL={resolvedCaptionsURL}
+          syncToStageTime={element.syncToStageTime as boolean | undefined}
+          submitOnComplete={element.submitOnComplete as boolean | undefined}
+          playVideo={element.playVideo as boolean | undefined}
+          playAudio={element.playAudio as boolean | undefined}
+          startAt={element.startAt as number | undefined}
+          stopAt={element.stopAt as number | undefined}
+          allowScrubOutsideBounds={
+            element.allowScrubOutsideBounds as boolean | undefined
+          }
+          stepDuration={element.stepDuration as number | undefined}
+          controls={
+            element.controls as
+              | {
+                  playPause?: boolean;
+                  seek?: boolean;
+                  step?: boolean;
+                  speed?: boolean;
+                }
+              | undefined
+          }
         />
       );
+    }
 
     case "trackedLink":
       return (
