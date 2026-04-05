@@ -59,6 +59,16 @@ export interface MediaPlayerProps {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
+/** Reject URLs with dangerous protocols (javascript:, data:, vbscript:, etc.) */
+function isSafeURL(url: string): boolean {
+  try {
+    const parsed = new URL(url, window.location.href);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 // Number of repeated keydown events before entering fast-scrub mode
 const HOLD_REPEAT_THRESHOLD = 10;
 
@@ -81,6 +91,17 @@ export function MediaPlayer({
 }: MediaPlayerProps) {
   const youtubeVideoId = isYouTubeURL(url);
   const saveKey = `mediaPlayer_${name}`;
+
+  // Defense-in-depth: reject dangerous URL protocols. Element.tsx already
+  // resolves relative paths via getAssetURL(), so this guards against
+  // javascript:, data:, and other non-HTTP schemes reaching a <video> src.
+  if (!youtubeVideoId && !isSafeURL(url)) {
+    return (
+      <div data-testid="mediaPlayer" role="alert">
+        Invalid media URL
+      </div>
+    );
+  }
 
   const eventsRef = useRef<VideoEvent[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -145,19 +166,26 @@ export function MediaPlayer({
   const arrowRepeatCountRef = useRef(0);
   const isFastScrubbing = useRef(false);
   const pausedBeforeScrub = useRef(true);
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch and parse captions when captionsURL changes
   useEffect(() => {
     if (!captionsURL) return;
+    if (!isSafeURL(captionsURL)) {
+      console.warn(
+        `[MediaPlayer] Rejected unsafe captions URL: ${captionsURL}`,
+      );
+      return;
+    }
     let cancelled = false;
     fetch(captionsURL)
       .then((r) => r.text())
       .then((text) => {
         if (!cancelled) setCues(parseVTT(text));
       })
-      .catch(() => {
-        /* silently ignore caption load failures */
+      .catch((err: unknown) => {
+        console.warn(`[MediaPlayer] Failed to load captions:`, err);
       });
     return () => {
       cancelled = true;
@@ -238,6 +266,16 @@ export function MediaPlayer({
   const handleLoadedMetadata = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
       setDuration(e.currentTarget.duration);
+    },
+    [],
+  );
+
+  const handleError = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      const err = e.currentTarget.error;
+      console.error(
+        `[MediaPlayer] Video error (code ${err?.code}): ${err?.message ?? "unknown"}`,
+      );
     },
     [],
   );
@@ -462,7 +500,7 @@ export function MediaPlayer({
   // Button hold-to-scrub
   const startButtonHold = useCallback(
     (direction: 1 | -1) => {
-      holdTimerRef.current = setTimeout(() => {
+      holdTimeoutRef.current = setTimeout(() => {
         const v = videoRef.current;
         if (!v) return;
         if (direction === 1) {
@@ -471,11 +509,9 @@ export function MediaPlayer({
           isFastScrubbing.current = true;
           pausedBeforeScrub.current = v.paused;
           // Step back rapidly via interval
-          const interval = setInterval(() => {
+          holdIntervalRef.current = setInterval(() => {
             seek(-0.5);
           }, 100);
-          // Store interval id on the timer ref for cleanup
-          (holdTimerRef as React.MutableRefObject<unknown>).current = interval;
         }
       }, 500);
     },
@@ -484,10 +520,13 @@ export function MediaPlayer({
 
   const endButtonHold = useCallback(
     (didSeekOnClick: boolean) => {
-      if (holdTimerRef.current !== null) {
-        clearTimeout(holdTimerRef.current);
-        clearInterval(holdTimerRef.current);
-        holdTimerRef.current = null;
+      if (holdTimeoutRef.current !== null) {
+        clearTimeout(holdTimeoutRef.current);
+        holdTimeoutRef.current = null;
+      }
+      if (holdIntervalRef.current !== null) {
+        clearInterval(holdIntervalRef.current);
+        holdIntervalRef.current = null;
       }
       exitFastScrub();
       isFastScrubbing.current = false;
@@ -780,6 +819,7 @@ export function MediaPlayer({
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
           onProgress={handleProgress}
+          onError={handleError}
           style={{ display: "none" }}
         >
           <track kind="captions" />
@@ -803,6 +843,7 @@ export function MediaPlayer({
             onLoadedMetadata={handleLoadedMetadata}
             onTimeUpdate={handleTimeUpdate}
             onProgress={handleProgress}
+            onError={handleError}
             style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
           >
             <track kind="captions" />

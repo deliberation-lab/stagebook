@@ -58,30 +58,51 @@ declare global {
 
 // ── API loader ────────────────────────────────────────────────────────────────
 
-// Pending callbacks waiting for the API to finish loading
-const pendingCallbacks: Array<() => void> = [];
+// Pending settle functions waiting for the API to finish loading
+const pendingSettlers: Array<{
+  resolve: () => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}> = [];
 let scriptInjected = false;
+
+const YOUTUBE_API_TIMEOUT_MS = 10_000;
 
 /** Resolves when window.YT.Player is available. Safe to call multiple times. */
 export function loadYouTubeAPI(): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     // Already loaded — resolve immediately
     if (typeof window !== "undefined" && window.YT?.Player) {
       resolve();
       return;
     }
 
-    pendingCallbacks.push(resolve);
+    const timer = setTimeout(() => {
+      reject(new Error("YouTube IFrame API failed to load within timeout"));
+    }, YOUTUBE_API_TIMEOUT_MS);
+
+    pendingSettlers.push({ resolve, reject, timer });
 
     if (!scriptInjected) {
       scriptInjected = true;
       // The API calls window.onYouTubeIframeAPIReady when ready
       window.onYouTubeIframeAPIReady = () => {
-        const cbs = pendingCallbacks.splice(0);
-        cbs.forEach((cb) => cb());
+        const settlers = pendingSettlers.splice(0);
+        settlers.forEach((s) => {
+          clearTimeout(s.timer);
+          s.resolve();
+        });
       };
       const script = document.createElement("script");
       script.src = "https://www.youtube.com/iframe_api";
+      script.onerror = () => {
+        const settlers = pendingSettlers.splice(0);
+        const err = new Error("Failed to load YouTube IFrame API script");
+        settlers.forEach((s) => {
+          clearTimeout(s.timer);
+          s.reject(err);
+        });
+      };
       document.head.appendChild(script);
     }
   });
@@ -159,7 +180,11 @@ export function createYouTubePlayer(
   if (window.YT?.Player) {
     setup();
   } else {
-    void loadYouTubeAPI().then(setup);
+    void loadYouTubeAPI()
+      .then(setup)
+      .catch((err: unknown) => {
+        console.error("[YouTubePlayer]", err);
+      });
   }
 
   return {
@@ -196,19 +221,30 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Store callbacks in refs so the useEffect always calls the latest version
+  // without needing to destroy/recreate the YT.Player on every render.
+  const onHandleReadyRef = useRef(onHandleReady);
+  const onPlayRef = useRef(onPlay);
+  const onPauseRef = useRef(onPause);
+  const onEndedRef = useRef(onEnded);
+  onHandleReadyRef.current = onHandleReady;
+  onPlayRef.current = onPlay;
+  onPauseRef.current = onPause;
+  onEndedRef.current = onEnded;
+
   useEffect(() => {
     if (!containerRef.current) return;
     const { destroy } = createYouTubePlayer({
       container: containerRef.current,
       videoId,
       startAt,
-      onHandleReady,
-      onPlay,
-      onPause,
-      onEnded,
+      onHandleReady: (h) => onHandleReadyRef.current(h),
+      onPlay: (t) => onPlayRef.current(t),
+      onPause: (t) => onPauseRef.current(t),
+      onEnded: (t) => onEndedRef.current(t),
     });
     return destroy;
-  }, [videoId]); // re-mount player only when videoId changes
+  }, [videoId, startAt]); // re-mount player when videoId or startAt changes
 
   return (
     <div
