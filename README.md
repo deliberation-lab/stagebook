@@ -11,17 +11,25 @@ SCORE defines a declarative language for specifying interactive group experiment
 - **Zod schemas** that validate treatment files and prompt files
 - **A template engine** for parameterized experiment designs with broadcast expansion
 - **Shared utilities** for condition evaluation and reference resolution
-- **React components** (planned) that render SCORE elements into participant-facing UI
+- **React components** that render SCORE elements into participant-facing UI
 
 SCORE is platform-agnostic. Define your study protocol once, then run it on any compatible platform.
 
 ## Installation
 
+From GitHub (builds automatically on install):
+
+```bash
+npm install deliberation-lab/SCORE
+```
+
+From npm (once published):
+
 ```bash
 npm install @deliberation-lab/score
 ```
 
-Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`
+Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`. React components additionally peer-depend on `react >= 18` and `react-dom >= 18`.
 
 ## Usage
 

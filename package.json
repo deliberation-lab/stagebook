@@ -43,7 +43,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
     "prepublishOnly": "npm run lint && npm run test && npm run build",
-    "prepare": "husky"
+    "prepare": "husky; npm run build"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
