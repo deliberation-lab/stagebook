@@ -114,6 +114,7 @@ export function MediaPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [captionText, setCaptionText] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // YouTube-only: handle registered by YouTubePlayer once the IFrame API is ready
   const [ytHandle, setYtHandle] = useState<PlaybackHandle | null>(null);
@@ -265,7 +266,29 @@ export function MediaPlayer({
 
   const handleLoadedMetadata = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
-      setDuration(e.currentTarget.duration);
+      const v = e.currentTarget;
+      setDuration(v.duration);
+
+      // Detect server-side range-request misconfiguration. If the server
+      // serves the video with 200 OK + no Accept-Ranges header, the
+      // browser cannot seek and silently snaps currentTime back to 0 on
+      // every seek attempt — see issue #32. The seekable TimeRanges will
+      // either be empty or end well before the video's actual duration.
+      const seekable = v.seekable;
+      const fullySeekable =
+        seekable.length > 0 &&
+        Number.isFinite(v.duration) &&
+        v.duration > 0 &&
+        seekable.end(seekable.length - 1) >= v.duration - 0.5;
+      if (!fullySeekable) {
+        console.warn(
+          `[MediaPlayer] Video at ${v.currentSrc} is not seekable. ` +
+            `The server is likely missing the "Accept-Ranges: bytes" ` +
+            `response header, which prevents the browser from seeking. ` +
+            `Seek/step controls will silently snap back to the start. ` +
+            `(seekable.length=${String(seekable.length)}, duration=${String(v.duration)})`,
+        );
+      }
     },
     [],
   );
@@ -273,9 +296,19 @@ export function MediaPlayer({
   const handleError = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
       const err = e.currentTarget.error;
+      const codeMessages: Record<number, string> = {
+        1: "Loading was aborted",
+        2: "Network error",
+        3: "Failed to decode video",
+        4: "Video format is not supported (or the file could not be loaded)",
+      };
+      const friendly = err
+        ? (codeMessages[err.code] ?? `Error code ${String(err.code)}`)
+        : "Unknown error";
       console.error(
         `[MediaPlayer] Video error (code ${err?.code}): ${err?.message ?? "unknown"}`,
       );
+      setLoadError(friendly);
     },
     [],
   );
@@ -844,10 +877,57 @@ export function MediaPlayer({
             onTimeUpdate={handleTimeUpdate}
             onProgress={handleProgress}
             onError={handleError}
-            style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
+            style={{
+              width: "100%",
+              aspectRatio: "16/9",
+              display: loadError ? "none" : "block",
+              background: "#000",
+            }}
           >
             <track kind="captions" />
           </video>
+
+          {loadError && (
+            <div
+              data-testid="mediaPlayer-error"
+              role="alert"
+              style={{
+                width: "100%",
+                aspectRatio: "16/9",
+                background: "#1c1c1e",
+                color: "#fff",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                padding: "1rem",
+                textAlign: "center",
+                fontSize: "0.875rem",
+              }}
+            >
+              <svg
+                width={32}
+                height={32}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                style={{ opacity: 0.7 }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <div style={{ fontWeight: 500 }}>Video unavailable</div>
+              <div style={{ opacity: 0.75, fontSize: "0.75rem" }}>
+                {loadError}
+              </div>
+            </div>
+          )}
 
           {captionText !== null && (
             <div
@@ -863,7 +943,7 @@ export function MediaPlayer({
             </div>
           )}
 
-          {controlsVisible && (
+          {controlsVisible && !loadError && (
             <div
               data-testid="mediaPlayer-controls"
               style={{
@@ -886,7 +966,7 @@ export function MediaPlayer({
       )}
 
       {/* Audio-only: flat controls bar (always visible — no hover needed) */}
-      {!playVideo && controlsVisible && (
+      {!playVideo && controlsVisible && !loadError && (
         <div
           data-testid="mediaPlayer-controls"
           style={{
@@ -899,6 +979,47 @@ export function MediaPlayer({
           }}
         >
           <HTML5Controls {...html5ControlsProps} />
+        </div>
+      )}
+
+      {/* Audio-only: error placeholder when load fails */}
+      {!playVideo && loadError && (
+        <div
+          data-testid="mediaPlayer-error"
+          role="alert"
+          style={{
+            background: "#1c1c1e",
+            color: "#fff",
+            borderRadius: "0.5rem",
+            padding: "1rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            fontSize: "0.875rem",
+          }}
+        >
+          <svg
+            width={24}
+            height={24}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{ opacity: 0.7, flexShrink: 0 }}
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <div>
+            <div style={{ fontWeight: 500 }}>Audio unavailable</div>
+            <div style={{ opacity: 0.75, fontSize: "0.75rem" }}>
+              {loadError}
+            </div>
+          </div>
         </div>
       )}
     </div>

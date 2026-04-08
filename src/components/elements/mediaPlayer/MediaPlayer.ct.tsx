@@ -311,9 +311,8 @@ test("YouTube: no video element rendered", async ({ mount, page }) => {
 
 // -- Controls visibility --
 
-// Real fixture video — served by the Vite dev server from the project root.
-// Minimal valid MP4 with 30-second duration metadata (no actual frames).
-const FIXTURE_VIDEO = "/playwright/fixtures/test.mp4";
+// Real fixture video served by Vite from /public.
+const FIXTURE_VIDEO = "/sample-video.mp4";
 
 // Visual inspection test: all controls enabled together using the real fixture.
 // Run with `--ui` to interact — click play/pause, drag the scrub bar, etc.
