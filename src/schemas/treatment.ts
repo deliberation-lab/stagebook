@@ -1078,6 +1078,18 @@ export const introExitStepsBaseSchema = altTemplateContext(
 // Backwards compatibility export for downstream packages still referencing the legacy name.
 export const introExitStepsSchema = introExitStepsBaseSchema;
 
+// Returns true if the element allows the step to advance without a separate
+// submitButton: qualtrics auto-submits on survey completion; mediaPlayer
+// auto-submits when submitOnComplete is set.
+function isAutoAdvanceElement(element: ElementType): boolean {
+  if (!element || typeof element !== "object") return false;
+  const el = element as Record<string, unknown>;
+  if (el.type === "submitButton") return true;
+  if (el.type === "qualtrics") return true;
+  if (el.type === "mediaPlayer" && el.submitOnComplete === true) return true;
+  return false;
+}
+
 export const introStepsSchema = introExitStepsBaseSchema.superRefine(
   (data, ctx) => {
     data?.forEach((step: IntroExitStepType, stepIdx: number) => {
@@ -1117,6 +1129,15 @@ export const introStepsSchema = introExitStepsBaseSchema.superRefine(
             });
           }
         });
+
+        if (!step.elements.some(isAutoAdvanceElement)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [stepIdx, "elements"],
+            message:
+              "Intro/exit step must include at least one submitButton element, or a qualtrics or mediaPlayer element with submitOnComplete.",
+          });
+        }
       }
     });
   },
@@ -1140,6 +1161,15 @@ export const exitStepsSchema = introExitStepsBaseSchema.superRefine(
             });
           }
         });
+
+        if (!step.elements.some(isAutoAdvanceElement)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [stepIdx, "elements"],
+            message:
+              "Intro/exit step must include at least one submitButton element, or a qualtrics or mediaPlayer element with submitOnComplete.",
+          });
+        }
       }
     });
   },

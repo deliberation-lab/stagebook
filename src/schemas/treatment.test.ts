@@ -6,6 +6,8 @@ import {
   discussionSchema,
   elementsSchema,
   elementSchema,
+  introStepsSchema,
+  exitStepsSchema,
   mediaPlayerSchema,
   promptSchema,
   treatmentFileSchema,
@@ -515,6 +517,143 @@ test("mediaPlayer: startAt < stopAt is valid", () => {
     startAt: 10,
     stopAt: 90,
   });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+// ----------- introStepsSchema / exitStepsSchema: advancement element requirement ------------
+
+test("intro step with submitButton is valid", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "consent",
+      elements: [
+        { type: "prompt", file: "intro/consent.md" },
+        { type: "submitButton", buttonText: "I agree" },
+      ],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("intro step with only prompt and no submitButton is invalid", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "consent",
+      elements: [{ type: "prompt", file: "intro/consent.md" }],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(false);
+});
+
+test("intro step with survey element and no submitButton is invalid", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "party_affiliation",
+      elements: [{ type: "survey", surveyName: "PoliticalPartyUS" }],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(false);
+});
+
+test("intro step with survey element and submitButton is valid", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "party_affiliation",
+      elements: [
+        { type: "survey", surveyName: "PoliticalPartyUS" },
+        { type: "submitButton", buttonText: "Continue" },
+      ],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("intro step with qualtrics element auto-submits (no submitButton needed)", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "screener",
+      elements: [
+        {
+          type: "qualtrics",
+          url: "https://upenn.qualtrics.com/jfe/form/SV_xxx",
+        },
+      ],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("intro step with mediaPlayer submitOnComplete auto-submits (no submitButton needed)", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "watch_video",
+      elements: [
+        {
+          type: "mediaPlayer",
+          url: "shared/intro.mp4",
+          submitOnComplete: true,
+        },
+      ],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("intro step with mediaPlayer without submitOnComplete requires submitButton", () => {
+  const result = introStepsSchema.safeParse([
+    {
+      name: "watch_video",
+      elements: [{ type: "mediaPlayer", url: "shared/intro.mp4" }],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(false);
+});
+
+test("exit step with submitButton is valid", () => {
+  const result = exitStepsSchema.safeParse([
+    {
+      name: "debrief",
+      elements: [
+        { type: "prompt", file: "exit/debrief.md" },
+        { type: "submitButton", buttonText: "Done" },
+      ],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("exit step with only prompt and no submitButton is invalid", () => {
+  const result = exitStepsSchema.safeParse([
+    {
+      name: "debrief",
+      elements: [{ type: "prompt", file: "exit/debrief.md" }],
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(false);
+});
+
+test("exit step with qualtrics auto-submits (no submitButton needed)", () => {
+  const result = exitStepsSchema.safeParse([
+    {
+      name: "exit_survey",
+      elements: [
+        {
+          type: "qualtrics",
+          url: "https://upenn.qualtrics.com/jfe/form/SV_yyy",
+        },
+      ],
+    },
+  ]);
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
 });
