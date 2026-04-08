@@ -5,7 +5,7 @@ import { MockMediaPlayer } from "../../testing/MockMediaPlayer.js";
 
 test("renders with correct ARIA region", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
   );
   const player = component.locator('[data-testid="mediaPlayer"]');
   await expect(player).toBeAttached();
@@ -15,7 +15,7 @@ test("renders with correct ARIA region", async ({ mount }) => {
 
 test("renders a video element for direct URL", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
   );
   await expect(
     component.locator('[data-testid="mediaPlayer-video"]'),
@@ -311,9 +311,8 @@ test("YouTube: no video element rendered", async ({ mount, page }) => {
 
 // -- Controls visibility --
 
-// Real fixture video — served by the Vite dev server from the project root.
-// Minimal valid MP4 with 30-second duration metadata (no actual frames).
-const FIXTURE_VIDEO = "/playwright/fixtures/test.mp4";
+// Real fixture video served by Vite from /public.
+const FIXTURE_VIDEO = "/sample-video.mp4";
 
 // Visual inspection test: all controls enabled together using the real fixture.
 // Run with `--ui` to interact — click play/pause, drag the scrub bar, etc.
@@ -353,7 +352,7 @@ test("all controls shown together", async ({ mount }) => {
 
 test("no controls shown when controls prop is omitted", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
   );
   await expect(
     component.locator('[data-testid="mediaPlayer-controls"]'),
@@ -365,7 +364,7 @@ test("play/pause button shown when controls.playPause is true", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -378,7 +377,7 @@ test("play/pause button shown when controls.playPause is true", async ({
 test("scrub bar shown when controls.seek is true", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -391,7 +390,7 @@ test("scrub bar shown when controls.seek is true", async ({ mount }) => {
 test("speed button shown when controls.speed is true", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -404,7 +403,7 @@ test("speed button shown when controls.speed is true", async ({ mount }) => {
 test("no controls shown when syncToStageTime is true", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       syncToStageTime={true}
       controls={{ playPause: true, seek: true }}
@@ -437,7 +436,7 @@ test("save is called with play event data when video plays", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test_vid" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test_vid" />,
   );
 
   await component
@@ -470,7 +469,7 @@ test("save is called with pause event data when video pauses", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test_vid" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test_vid" />,
   );
 
   await component
@@ -493,7 +492,7 @@ test("save is called with pause event data when video pauses", async ({
 
 test("save log accumulates multiple events", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test_vid" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test_vid" />,
   );
 
   const video = component.locator('[data-testid="mediaPlayer-video"]');
@@ -523,7 +522,7 @@ test("onComplete not called when submitOnComplete is false", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       submitOnComplete={false}
     />,
@@ -544,7 +543,7 @@ test("onComplete called when submitOnComplete is true and video ends", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       submitOnComplete={true}
     />,
@@ -565,7 +564,7 @@ test("onComplete called when submitOnComplete is true and video ends", async ({
 test("scrub bar aria-valuemin is startAt", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       startAt={10}
       stopAt={90}
@@ -579,7 +578,7 @@ test("scrub bar aria-valuemin is startAt", async ({ mount }) => {
 test("scrub bar aria-valuemax is stopAt", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       startAt={10}
       stopAt={90}
@@ -595,7 +594,7 @@ test("scrub bar defaults to 0/Infinity when startAt/stopAt omitted", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -613,11 +612,7 @@ test("save records stopAt event when timeupdate exceeds stopAt", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer
-      url="https://example.com/test.mp4"
-      name="test"
-      stopAt={5}
-    />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" stopAt={5} />,
   );
 
   await component
@@ -647,7 +642,7 @@ test("onComplete called when submitOnComplete is true and stopAt is reached", as
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       stopAt={5}
       submitOnComplete={true}
@@ -676,7 +671,7 @@ test("no caption overlay when captionsURL is not provided", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
   );
   await expect(
     component.locator('[data-testid="mediaPlayer-caption"]'),
@@ -694,7 +689,7 @@ test("caption overlay shows active cue text on timeupdate", async ({
 
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       captionsURL="https://example.com/captions.vtt"
     />,
@@ -732,7 +727,7 @@ test("caption overlay clears when no cue is active", async ({
 
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       captionsURL="https://example.com/captions.vtt"
     />,
@@ -761,7 +756,7 @@ test("scrub bar aria-valuenow tracks currentTime on timeupdate", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -785,7 +780,7 @@ test("scrub bar aria-valuenow tracks currentTime on timeupdate", async ({
 test("scrub bar data-step equals stepDuration", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       stepDuration={0.1}
       controls={{ seek: true }}
@@ -801,7 +796,7 @@ test("scrub bar data-step defaults to 1 when stepDuration is omitted", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -854,7 +849,7 @@ test("scrub bar: pointerdown seeks video to clicked position", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -878,7 +873,7 @@ test("scrub bar: pointerdown seeks video to clicked position", async ({
 test("scrub bar: pointermove seeks video during drag", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -909,7 +904,7 @@ test("scrub bar: pauses video on grab while playing, resumes on release", async 
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -958,7 +953,7 @@ test("scrub bar: no play/pause events when scrubbing from paused state", async (
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -996,7 +991,7 @@ test("scrub bar: no play/pause events when scrubbing from paused state", async (
 test("play button aria-label is Play when paused", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -1011,7 +1006,7 @@ test("play button aria-label becomes Pause after play event", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -1034,7 +1029,7 @@ test("play button aria-label returns to Play after pause event", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -1052,7 +1047,7 @@ test("play button aria-label returns to Play after pause event", async ({
 test("speed button shows 1x initially", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1065,7 +1060,7 @@ test("speed button shows 1x initially", async ({ mount }) => {
 test("speed button cycles to next speed on click", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1081,7 +1076,7 @@ test("speed button wraps back to first speed after cycling through all", async (
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1098,7 +1093,7 @@ test("speed button wraps back to first speed after cycling through all", async (
 test("Space key toggles to playing state", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -1125,7 +1120,7 @@ test("Space key toggles to playing state", async ({ mount }) => {
 test("K key toggles to playing state", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -1152,7 +1147,7 @@ test("K key toggles to playing state", async ({ mount }) => {
 test("ArrowRight seeks forward 1 second", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1180,7 +1175,7 @@ test("ArrowRight seeks forward 1 second", async ({ mount }) => {
 test("ArrowLeft seeks backward 1 second", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1207,7 +1202,7 @@ test("ArrowLeft seeks backward 1 second", async ({ mount }) => {
 
 test("L key seeks forward 10 seconds", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1231,7 +1226,7 @@ test("L key seeks forward 10 seconds", async ({ mount }) => {
 
 test("J key seeks backward 10 seconds", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="https://example.com/test.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1255,11 +1250,7 @@ test("J key seeks backward 10 seconds", async ({ mount }) => {
 
 test("Period key steps forward by stepDuration", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer
-      url="https://example.com/test.mp4"
-      name="test"
-      stepDuration={0.5}
-    />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" stepDuration={0.5} />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1283,11 +1274,7 @@ test("Period key steps forward by stepDuration", async ({ mount }) => {
 
 test("Comma key steps backward by stepDuration", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer
-      url="https://example.com/test.mp4"
-      name="test"
-      stepDuration={0.5}
-    />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" stepDuration={0.5} />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1312,11 +1299,7 @@ test("Comma key steps backward by stepDuration", async ({ mount }) => {
 test("ArrowLeft clamps to startAt boundary", async ({ mount }) => {
   // ct=10.5, startAt=10: seek(-1) → max(9.5, 10) = 10
   const component = await mount(
-    <MockMediaPlayer
-      url="https://example.com/test.mp4"
-      name="test"
-      startAt={10}
-    />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" startAt={10} />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1343,7 +1326,7 @@ test("ArrowLeft clamps to startAt boundary", async ({ mount }) => {
 test("Greater-than key speeds up playback", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1358,7 +1341,7 @@ test("Greater-than key speeds up playback", async ({ mount }) => {
 test("Less-than key slows down playback", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1373,7 +1356,7 @@ test("Less-than key slows down playback", async ({ mount }) => {
 test("Less-than key clamps at minimum speed", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1389,7 +1372,7 @@ test("Less-than key clamps at minimum speed", async ({ mount }) => {
 test("Greater-than key clamps at maximum speed", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ speed: true }}
     />,
@@ -1409,7 +1392,7 @@ test("Greater-than key clamps at maximum speed", async ({ mount }) => {
 test("step buttons shown when controls.step is true", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ step: true }}
     />,
@@ -1425,7 +1408,7 @@ test("step buttons shown when controls.step is true", async ({ mount }) => {
 test("step forward button advances by stepDuration", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       stepDuration={0.5}
       controls={{ step: true }}
@@ -1454,7 +1437,7 @@ test("step forward button advances by stepDuration", async ({ mount }) => {
 test("step back button retreats by stepDuration", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       stepDuration={0.5}
       controls={{ step: true }}
@@ -1485,7 +1468,7 @@ test("step back button retreats by stepDuration", async ({ mount }) => {
 test("seekBack button shown when controls.seek is true", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1500,7 +1483,7 @@ test("seekForward button shown when controls.seek is true", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1513,7 +1496,7 @@ test("seekForward button shown when controls.seek is true", async ({
 test("seekBack button tap seeks -1 second", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1541,7 +1524,7 @@ test("seekBack button tap seeks -1 second", async ({ mount }) => {
 test("seekForward button tap seeks +1 second", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1571,7 +1554,7 @@ test("seekForward button tap seeks +1 second", async ({ mount }) => {
 test("scrub bar clamped to startAt/stopAt by default", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       startAt={10}
       stopAt={50}
@@ -1588,7 +1571,7 @@ test("scrub bar full duration when allowScrubOutsideBounds is true", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       startAt={10}
       stopAt={50}
@@ -1620,7 +1603,7 @@ test("buffered range element present when controls.seek is true", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1633,7 +1616,7 @@ test("buffered range element present when controls.seek is true", async ({
 test("buffered range width updates on progress event", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1677,7 +1660,7 @@ test("holding ArrowRight enters fast-forward (playbackRate=2)", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1725,7 +1708,7 @@ test("releasing ArrowRight after fast-forward restores playback rate", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1785,7 +1768,7 @@ test("holding seekForward button enters fast-forward after threshold", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,
@@ -1837,7 +1820,7 @@ test("holding seekForward button enters fast-forward after threshold", async ({
 test("controls are visible when paused (initial state)", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true, seek: true }}
     />,
@@ -1852,7 +1835,7 @@ test("controls become visible on hover while playing", async ({
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ playPause: true }}
     />,
@@ -1897,25 +1880,12 @@ test("controls become visible on hover while playing", async ({
 
 // -- Time display --
 
-test("time display shows 0:00 / 0:00 initially", async ({ mount }) => {
-  const component = await mount(
-    <MockMediaPlayer
-      url="https://example.com/test.mp4"
-      name="test"
-      controls={{ seek: true }}
-    />,
-  );
-  await expect(
-    component.locator('[data-testid="mediaPlayer-time"]'),
-  ).toContainText("0:00 / 0:00");
-});
-
 test("time display updates after loadedmetadata and timeupdate", async ({
   mount,
 }) => {
   const component = await mount(
     <MockMediaPlayer
-      url="https://example.com/test.mp4"
+      url="/sample-video.mp4"
       name="test"
       controls={{ seek: true }}
     />,

@@ -114,6 +114,14 @@ export function MediaPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [captionText, setCaptionText] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Clear any prior error state when the source changes (e.g. parent
+  // swaps to a different clip). Without this the player would stay
+  // stuck in the error state forever after a single load failure.
+  useEffect(() => {
+    setLoadError(null);
+  }, [url]);
 
   // YouTube-only: handle registered by YouTubePlayer once the IFrame API is ready
   const [ytHandle, setYtHandle] = useState<PlaybackHandle | null>(null);
@@ -265,7 +273,31 @@ export function MediaPlayer({
 
   const handleLoadedMetadata = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
-      setDuration(e.currentTarget.duration);
+      const v = e.currentTarget;
+      setDuration(v.duration);
+
+      // Detect likely server-side range-request misconfiguration for
+      // finite-duration media. Skip the check entirely for live streams or
+      // unknown durations, where seekable ranges legitimately don't cover
+      // the full timeline. See issue #32.
+      const hasFiniteDuration = Number.isFinite(v.duration) && v.duration > 0;
+      if (!hasFiniteDuration) return;
+
+      const seekable = v.seekable;
+      const fullySeekable =
+        seekable.length > 0 &&
+        seekable.end(seekable.length - 1) >= v.duration - 0.5;
+      if (!fullySeekable) {
+        console.warn(
+          `[MediaPlayer] Video at ${v.currentSrc} does not appear fully ` +
+            `seekable. A server range-request configuration issue (for ` +
+            `example, missing "Accept-Ranges: bytes") may prevent the ` +
+            `browser from seeking correctly — seek/step controls may snap ` +
+            `back toward the start. ` +
+            `(seekable.length=${String(seekable.length)}, ` +
+            `duration=${String(v.duration)})`,
+        );
+      }
     },
     [],
   );
@@ -273,9 +305,19 @@ export function MediaPlayer({
   const handleError = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
       const err = e.currentTarget.error;
+      const codeMessages: Record<number, string> = {
+        1: "Loading was aborted",
+        2: "Network error",
+        3: "Failed to decode video",
+        4: "Video format is not supported (or the file could not be loaded)",
+      };
+      const friendly = err
+        ? (codeMessages[err.code] ?? `Error code ${String(err.code)}`)
+        : "Unknown error";
       console.error(
         `[MediaPlayer] Video error (code ${err?.code}): ${err?.message ?? "unknown"}`,
       );
+      setLoadError(friendly);
     },
     [],
   );
@@ -844,10 +886,57 @@ export function MediaPlayer({
             onTimeUpdate={handleTimeUpdate}
             onProgress={handleProgress}
             onError={handleError}
-            style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
+            style={{
+              width: "100%",
+              aspectRatio: "16/9",
+              display: loadError ? "none" : "block",
+              background: "#000",
+            }}
           >
             <track kind="captions" />
           </video>
+
+          {loadError && (
+            <div
+              data-testid="mediaPlayer-error"
+              role="alert"
+              style={{
+                width: "100%",
+                aspectRatio: "16/9",
+                background: "#1c1c1e",
+                color: "#fff",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                padding: "1rem",
+                textAlign: "center",
+                fontSize: "0.875rem",
+              }}
+            >
+              <svg
+                width={32}
+                height={32}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                style={{ opacity: 0.7 }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <div style={{ fontWeight: 500 }}>Video unavailable</div>
+              <div style={{ opacity: 0.75, fontSize: "0.75rem" }}>
+                {loadError}
+              </div>
+            </div>
+          )}
 
           {captionText !== null && (
             <div
@@ -863,7 +952,7 @@ export function MediaPlayer({
             </div>
           )}
 
-          {controlsVisible && (
+          {controlsVisible && !loadError && (
             <div
               data-testid="mediaPlayer-controls"
               style={{
@@ -886,7 +975,7 @@ export function MediaPlayer({
       )}
 
       {/* Audio-only: flat controls bar (always visible — no hover needed) */}
-      {!playVideo && controlsVisible && (
+      {!playVideo && controlsVisible && !loadError && (
         <div
           data-testid="mediaPlayer-controls"
           style={{
@@ -899,6 +988,47 @@ export function MediaPlayer({
           }}
         >
           <HTML5Controls {...html5ControlsProps} />
+        </div>
+      )}
+
+      {/* Audio-only: error placeholder when load fails */}
+      {!playVideo && loadError && (
+        <div
+          data-testid="mediaPlayer-error"
+          role="alert"
+          style={{
+            background: "#1c1c1e",
+            color: "#fff",
+            borderRadius: "0.5rem",
+            padding: "1rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            fontSize: "0.875rem",
+          }}
+        >
+          <svg
+            width={24}
+            height={24}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{ opacity: 0.7, flexShrink: 0 }}
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <div>
+            <div style={{ fontWeight: 500 }}>Audio unavailable</div>
+            <div style={{ opacity: 0.75, fontSize: "0.75rem" }}>
+              {loadError}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,9 @@
 /**
  * Inline SVG icons for MediaPlayer controls.
  * Self-contained — no external icon library dependency.
- * All icons use fill="currentColor" to inherit text color from parent.
+ * Play/Pause are filled (fill="currentColor"); the chevron-based seek/step
+ * icons are stroke-only (stroke="currentColor"). Both inherit text color
+ * from the parent button.
  */
 import React from "react";
 
@@ -34,17 +36,28 @@ export function PauseIcon() {
   );
 }
 
+// Seek vs step icons use chevron counts to communicate magnitude:
+//   double chevron (seek) = larger jump (1s), holdable for fast-scrub
+//   single chevron (step) = smaller, deterministic step (stepDuration)
+// Reading left-to-right the row goes  «« « ▶ » »»  — granularity decreases
+// toward the center, like every other video player's transport row.
+
 export function SeekBackIcon() {
   return (
     <svg
       width={20}
       height={20}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
-      {/* Counter-clockwise arrow */}
-      <path d="M12.5 8C9.46 8 7 10.46 7 13.5S9.46 19 12.5 19c2.6 0 4.8-1.8 5.36-4.24h-1.44c-.52 1.7-2.08 2.94-3.92 2.94C10.02 17.7 8.3 15.98 8.3 13.5S10.02 9.3 12.5 9.3V12l4-3.5L12.5 5v3z" />
+      {/* Two chevrons pointing left */}
+      <polyline points="11,6 5,12 11,18" />
+      <polyline points="19,6 13,12 19,18" />
     </svg>
   );
 }
@@ -55,11 +68,16 @@ export function SeekForwardIcon() {
       width={20}
       height={20}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
-      {/* Clockwise arrow */}
-      <path d="M11.5 8C14.54 8 17 10.46 17 13.5S14.54 19 11.5 19c-2.6 0-4.8-1.8-5.36-4.24h1.44c.52 1.7 2.08 2.94 3.92 2.94 2.48 0 4.2-1.72 4.2-4.2S13.98 9.3 11.5 9.3V12l-4-3.5L11.5 5v3z" />
+      {/* Two chevrons pointing right */}
+      <polyline points="5,6 11,12 5,18" />
+      <polyline points="13,6 19,12 13,18" />
     </svg>
   );
 }
@@ -70,12 +88,15 @@ export function StepBackIcon() {
       width={20}
       height={20}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
-      {/* Bar + left-pointing triangle */}
-      <rect x="5" y="5" width="3" height="14" rx="0.5" />
-      <path d="M19 5l-10 7 10 7V5z" />
+      {/* Single chevron pointing left */}
+      <polyline points="15,6 9,12 15,18" />
     </svg>
   );
 }
@@ -86,12 +107,15 @@ export function StepForwardIcon() {
       width={20}
       height={20}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
-      {/* Right-pointing triangle + bar */}
-      <path d="M5 5l10 7-10 7V5z" />
-      <rect x="16" y="5" width="3" height="14" rx="0.5" />
+      {/* Single chevron pointing right */}
+      <polyline points="9,6 15,12 9,18" />
     </svg>
   );
 }
