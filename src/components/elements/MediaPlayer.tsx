@@ -116,6 +116,13 @@ export function MediaPlayer({
   const [captionText, setCaptionText] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Clear any prior error state when the source changes (e.g. parent
+  // swaps to a different clip). Without this the player would stay
+  // stuck in the error state forever after a single load failure.
+  useEffect(() => {
+    setLoadError(null);
+  }, [url]);
+
   // YouTube-only: handle registered by YouTubePlayer once the IFrame API is ready
   const [ytHandle, setYtHandle] = useState<PlaybackHandle | null>(null);
 
@@ -269,24 +276,26 @@ export function MediaPlayer({
       const v = e.currentTarget;
       setDuration(v.duration);
 
-      // Detect server-side range-request misconfiguration. If the server
-      // serves the video with 200 OK + no Accept-Ranges header, the
-      // browser cannot seek and silently snaps currentTime back to 0 on
-      // every seek attempt — see issue #32. The seekable TimeRanges will
-      // either be empty or end well before the video's actual duration.
+      // Detect likely server-side range-request misconfiguration for
+      // finite-duration media. Skip the check entirely for live streams or
+      // unknown durations, where seekable ranges legitimately don't cover
+      // the full timeline. See issue #32.
+      const hasFiniteDuration = Number.isFinite(v.duration) && v.duration > 0;
+      if (!hasFiniteDuration) return;
+
       const seekable = v.seekable;
       const fullySeekable =
         seekable.length > 0 &&
-        Number.isFinite(v.duration) &&
-        v.duration > 0 &&
         seekable.end(seekable.length - 1) >= v.duration - 0.5;
       if (!fullySeekable) {
         console.warn(
-          `[MediaPlayer] Video at ${v.currentSrc} is not seekable. ` +
-            `The server is likely missing the "Accept-Ranges: bytes" ` +
-            `response header, which prevents the browser from seeking. ` +
-            `Seek/step controls will silently snap back to the start. ` +
-            `(seekable.length=${String(seekable.length)}, duration=${String(v.duration)})`,
+          `[MediaPlayer] Video at ${v.currentSrc} does not appear fully ` +
+            `seekable. A server range-request configuration issue (for ` +
+            `example, missing "Accept-Ranges: bytes") may prevent the ` +
+            `browser from seeking correctly — seek/step controls may snap ` +
+            `back toward the start. ` +
+            `(seekable.length=${String(seekable.length)}, ` +
+            `duration=${String(v.duration)})`,
         );
       }
     },

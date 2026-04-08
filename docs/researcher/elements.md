@@ -189,7 +189,7 @@ Each interaction is appended to an event list under the element's name:
     { "type": "play",   "videoTime": 45.2, "stageTimeElapsed": 20.5 },
     { "type": "stopAt", "videoTime": 90.0, "stageTimeElapsed": 74.8 }
   ],
-  "watchedRanges": [[30.0, 45.2], [45.2, 90.0]]
+  "watchedRanges": [[30.0, 90.0]]
 }
 ```
 

@@ -57,7 +57,7 @@ test("real video: clicking seekForward advances currentTime by 1s", async ({
     .toBe(1);
 });
 
-test("real video: clicking seekForward then seekBack returns to 0", async ({
+test("real video: clicking seekForward twice then seekBack returns to 1s", async ({
   mount,
 }) => {
   const component = await mount(
@@ -199,11 +199,10 @@ test("seek silently fails when server doesn't advertise Accept-Ranges", async ({
   await expect
     .poll(async () => video.evaluate((el: HTMLVideoElement) => el.readyState))
     .toBeGreaterThanOrEqual(1);
-  await page.waitForTimeout(100);
 
-  // SCORE should detect the no-range condition (via the response headers
-  // or via probing v.seekable after metadata) and warn so the integrator
-  // knows where to look.
-  const sawRangeWarning = warnings.some((m) => m.includes("Accept-Ranges"));
-  expect(sawRangeWarning).toBe(true);
+  // SCORE should detect the no-range condition (via probing v.seekable
+  // after metadata) and warn so the integrator knows where to look.
+  await expect
+    .poll(() => warnings.some((m) => m.includes("Accept-Ranges")))
+    .toBe(true);
 });

@@ -1,7 +1,9 @@
 /**
  * Inline SVG icons for MediaPlayer controls.
  * Self-contained — no external icon library dependency.
- * All icons use fill="currentColor" to inherit text color from parent.
+ * Play/Pause are filled (fill="currentColor"); the chevron-based seek/step
+ * icons are stroke-only (stroke="currentColor"). Both inherit text color
+ * from the parent button.
  */
 import React from "react";
 
