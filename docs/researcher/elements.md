@@ -188,11 +188,14 @@ Each interaction is appended to an event list under the element's name:
     { "type": "speed",  "videoTime": 45.2, "stageTimeElapsed": 20.1, "playbackRate": 1.5 },
     { "type": "play",   "videoTime": 45.2, "stageTimeElapsed": 20.5 },
     { "type": "stopAt", "videoTime": 90.0, "stageTimeElapsed": 74.8 }
-  ]
+  ],
+  "watchedRanges": [[30.0, 45.2], [45.2, 90.0]]
 }
 ```
 
 Event types: `play`, `pause`, `ended` (natural end), `stopAt` (reached stopAt position), `seek` (includes `fromTime`), `speed` (includes `playbackRate`).
+
+`watchedRanges` is derived from the event log: closed `[start, end]` intervals (in video seconds) of the portions the participant actually watched, with overlapping or touching intervals merged. Open intervals (a `play` with no closing event — e.g. a mid-playback disconnect) are excluded.
 
 ## Survey
 
