@@ -28,10 +28,17 @@ export interface MarkdownProps {
 // button shapes, slider thumbs, and the media player controls — visual
 // behavior is part of the contract, not a property of the host.
 //
-// These styles ARE overridable. Each value resolves to a CSS custom
-// property with a sensible fallback (e.g. var(--score-prompt-h1-size,
-// 1.875rem)). Hosts retune the type scale by overriding the variables on
-// a parent element or :root — no selector-based CSS needed:
+// These styles are tunable, but not every value is exposed as a CSS
+// custom property. Key typography and color values are variable-backed
+// (heading sizes/weights, link color, body line-height, blockquote
+// border/background, code background/font, prompt max-width). Spacing
+// and structural values (margins, padding, list bullet style, em
+// italics, strong weight) are hard-coded inline to keep the visual
+// consistent across hosts. If a researcher needs to tune one of those,
+// add a new variable in styles.css :root and reference it here.
+//
+// To override the exposed variables, set them on a parent element or
+// :root — no selector-based CSS needed:
 //
 //   :root {
 //     --score-prompt-h1-size: 1.5rem;
@@ -49,30 +56,26 @@ const headingBase: React.CSSProperties = {
 const h1Style: React.CSSProperties = {
   ...headingBase,
   fontSize: "var(--score-prompt-h1-size, 1.875rem)",
-  fontWeight:
-    "var(--score-prompt-h1-weight, 700)" as React.CSSProperties["fontWeight"],
+  fontWeight: "var(--score-prompt-h1-weight, 700)",
 };
 
 const h2Style: React.CSSProperties = {
   ...headingBase,
   fontSize: "var(--score-prompt-h2-size, 1.5rem)",
-  fontWeight:
-    "var(--score-prompt-h2-weight, 600)" as React.CSSProperties["fontWeight"],
+  fontWeight: "var(--score-prompt-h2-weight, 600)",
 };
 
 const h3Style: React.CSSProperties = {
   ...headingBase,
   fontSize: "var(--score-prompt-h3-size, 1.25rem)",
-  fontWeight:
-    "var(--score-prompt-h3-weight, 600)" as React.CSSProperties["fontWeight"],
+  fontWeight: "var(--score-prompt-h3-weight, 600)",
   marginBlock: "0.5em 0.25em",
 };
 
 const h4Style: React.CSSProperties = {
   ...headingBase,
   fontSize: "var(--score-prompt-h4-size, 1.125rem)",
-  fontWeight:
-    "var(--score-prompt-h4-weight, 600)" as React.CSSProperties["fontWeight"],
+  fontWeight: "var(--score-prompt-h4-weight, 600)",
   marginBlock: "0.5em 0.25em",
 };
 
@@ -97,18 +100,23 @@ const liStyle: React.CSSProperties = {
 };
 
 const strongStyle: React.CSSProperties = {
-  fontWeight: 600,
+  // Match the browser-default <strong> weight so **bold** looks bold even
+  // on hosts that strip the UA stylesheet.
+  fontWeight: 700,
 };
 
 const emStyle: React.CSSProperties = {
   fontStyle: "italic",
 };
 
-const codeStyle: React.CSSProperties = {
+// Inline code only — `like this`. Fenced code blocks (```...```) get
+// className="language-*" from react-markdown and are passed through
+// untouched (out of scope for issue #33).
+const inlineCodeStyle: React.CSSProperties = {
   fontFamily:
-    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    "var(--score-code-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
   fontSize: "0.9em",
-  background: "rgba(0,0,0,0.06)",
+  background: "var(--score-code-bg, rgba(0,0,0,0.06))",
   padding: "0.1em 0.3em",
   borderRadius: "0.25rem",
 };
@@ -162,7 +170,7 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
     <div
       id="markdown"
       style={{
-        maxWidth: "36rem",
+        maxWidth: "var(--score-prompt-max-width, 36rem)",
         fontSize: "var(--score-prompt-text-size, 1rem)",
         lineHeight: "var(--score-prompt-line-height, 1.5)",
         color: "var(--score-text, #1f2937)",
@@ -183,9 +191,20 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
             <strong style={strongStyle} {...props} />
           ),
           em: ({ node: _node, ...props }) => <em style={emStyle} {...props} />,
-          code: ({ node: _node, ...props }) => (
-            <code style={codeStyle} {...props} />
-          ),
+          code: ({ node: _node, className, ...props }) => {
+            // react-markdown v10 dropped the `inline` prop. Fenced code
+            // blocks get className="language-*"; inline code has no
+            // className. Style only inline code; pass fenced blocks
+            // through unchanged (out of scope for issue #33).
+            const isFenced =
+              typeof className === "string" &&
+              className.startsWith("language-");
+            return isFenced ? (
+              <code className={className} {...props} />
+            ) : (
+              <code style={inlineCodeStyle} {...props} />
+            );
+          },
           a: ({ node: _node, ...props }) => <a style={aStyle} {...props} />,
           blockquote: ({ node: _node, ...props }) => (
             <blockquote style={blockquoteStyle} {...props} />

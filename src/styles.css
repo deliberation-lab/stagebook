@@ -101,6 +101,7 @@
   --score-spinner-arc: #9ca3af;
 
   /* Markdown / prompt typography (used by the Markdown component) */
+  --score-prompt-max-width: 36rem;
   --score-prompt-text-size: 1rem;
   --score-prompt-line-height: 1.5;
   --score-prompt-h1-size: 1.875rem;
@@ -112,6 +113,9 @@
   --score-prompt-h3-weight: 600;
   --score-prompt-h4-weight: 600;
   --score-link: #2563eb;
+  --score-code-bg: rgba(0, 0, 0, 0.06);
+  --score-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
 
   /* Blockquote (used by Display element and markdown blockquotes) */
   --score-blockquote-border: #d1d5db;
@@ -234,7 +238,19 @@
     -moz-appearance: textfield;
   }
 
-  /* GFM tables (rendered by react-markdown) */
+  /*
+   * GFM tables (rendered by react-markdown).
+   *
+   * Intentionally NOT inlined into Markdown.tsx like headings/lists/etc.
+   * The table style surface is large (table + th + td + collapse behavior
+   * + cell borders) and inlining would roughly double Markdown.tsx. As a
+   * result: hosts that import this stylesheet get nice tables; hosts that
+   * don't get browser-default unstyled tables (functional but ugly).
+   *
+   * If a researcher needs portable table styling on a non-stylesheet host,
+   * follow the pattern in Markdown.tsx and add table/thead/tbody/tr/th/td
+   * entries to the components map. See issue #33.
+   */
   table {
     border-collapse: collapse;
     margin: 1rem 0;
