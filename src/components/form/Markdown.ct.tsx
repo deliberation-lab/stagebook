@@ -45,3 +45,151 @@ test("renders GFM tables", async ({ mount }) => {
   );
   await expect(component.locator("table")).toBeVisible();
 });
+
+// ---------------------------------------------------------------------------
+// Inline styling — issue #33
+//
+// These tests verify that markdown elements ship with default visual
+// hierarchy as inline styles, NOT as a stylesheet rule the host might
+// override or never load. The whole point is that prompts render
+// correctly even when the host applies an aggressive CSS reset.
+// ---------------------------------------------------------------------------
+
+test("h1 renders with default size larger than body text", async ({
+  mount,
+}) => {
+  const component = await mount(<Markdown text={"# Big\n\nSmall body."} />);
+  const h1FontSize = await component
+    .locator("h1")
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const pFontSize = await component
+    .locator("p")
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(h1FontSize).toBeGreaterThan(pFontSize);
+});
+
+test("h1 > h2 > h3 > h4 > body in font size", async ({ mount }) => {
+  const component = await mount(
+    <Markdown text={"# H1\n\n## H2\n\n### H3\n\n#### H4\n\nBody paragraph."} />,
+  );
+  const sizes = await Promise.all(
+    ["h1", "h2", "h3", "h4", "p"].map((sel) =>
+      component
+        .locator(sel)
+        .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+    ),
+  );
+  // Strictly decreasing: h1 > h2 > h3 > h4 > p
+  for (let i = 0; i < sizes.length - 1; i++) {
+    expect(sizes[i]).toBeGreaterThan(sizes[i + 1]);
+  }
+});
+
+test("h1 has bold weight", async ({ mount }) => {
+  const component = await mount(<Markdown text="# Heading" />);
+  const weight = await component
+    .locator("h1")
+    .evaluate((el) => parseInt(getComputedStyle(el).fontWeight, 10));
+  expect(weight).toBeGreaterThanOrEqual(700);
+});
+
+test("strong renders with semibold weight", async ({ mount }) => {
+  const component = await mount(<Markdown text="Some **bold** text" />);
+  const weight = await component
+    .locator("strong")
+    .evaluate((el) => parseInt(getComputedStyle(el).fontWeight, 10));
+  expect(weight).toBeGreaterThanOrEqual(600);
+});
+
+test("ul renders with disc bullets, not none", async ({ mount }) => {
+  const component = await mount(<Markdown text={"- alpha\n- beta\n- gamma"} />);
+  const listStyleType = await component
+    .locator("ul")
+    .evaluate((el) => getComputedStyle(el).listStyleType);
+  expect(listStyleType).toBe("disc");
+});
+
+test("ol renders with decimal numbering", async ({ mount }) => {
+  const component = await mount(
+    <Markdown text={"1. first\n2. second\n3. third"} />,
+  );
+  const listStyleType = await component
+    .locator("ol")
+    .evaluate((el) => getComputedStyle(el).listStyleType);
+  expect(listStyleType).toBe("decimal");
+});
+
+test("links render with the score-link color (default blue)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <Markdown text="[click](https://example.com)" />,
+  );
+  const color = await component
+    .locator("a")
+    .evaluate((el) => getComputedStyle(el).color);
+  // Default is #2563eb = rgb(37, 99, 235)
+  expect(color).toBe("rgb(37, 99, 235)");
+});
+
+test("blockquote has left border and background", async ({ mount }) => {
+  const component = await mount(<Markdown text="> A quoted line." />);
+  const styles = await component.locator("blockquote").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      borderLeftWidth: cs.borderLeftWidth,
+      borderLeftStyle: cs.borderLeftStyle,
+      backgroundColor: cs.backgroundColor,
+    };
+  });
+  // 0.25rem = 4px (assuming 16px root)
+  expect(parseFloat(styles.borderLeftWidth)).toBeGreaterThan(0);
+  expect(styles.borderLeftStyle).toBe("solid");
+  expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("CSS variable override changes h1 size", async ({ mount }) => {
+  // Wrap in a div that sets the variable; the inline-styled h1 should pick
+  // it up via var(--score-prompt-h1-size, ...). This proves the override
+  // mechanism works on hosts that don't ship the styles.css file.
+  const component = await mount(
+    <div style={{ "--score-prompt-h1-size": "3rem" } as React.CSSProperties}>
+      <Markdown text="# Override me" />
+    </div>,
+  );
+  const fontSize = await component
+    .locator("h1")
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  // 3rem = 48px (assuming 16px root)
+  expect(fontSize).toBeCloseTo(48, 0);
+});
+
+test("CSS variable override changes link color", async ({ mount }) => {
+  const component = await mount(
+    <div style={{ "--score-link": "rgb(255, 0, 0)" } as React.CSSProperties}>
+      <Markdown text="[red link](https://example.com)" />
+    </div>,
+  );
+  const color = await component
+    .locator("a")
+    .evaluate((el) => getComputedStyle(el).color);
+  expect(color).toBe("rgb(255, 0, 0)");
+});
+
+test("CSS variable override changes blockquote background", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <div
+      style={
+        { "--score-blockquote-bg": "rgb(0, 255, 0)" } as React.CSSProperties
+      }
+    >
+      <Markdown text="> green" />
+    </div>,
+  );
+  const bg = await component
+    .locator("blockquote")
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(bg).toBe("rgb(0, 255, 0)");
+});

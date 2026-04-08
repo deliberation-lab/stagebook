@@ -1,15 +1,36 @@
 /*
  * @deliberation-lab/score default styles
  *
- * Import this in your app entry point:
+ * Import this in your app entry point if you want SCORE's CSS-variable
+ * defaults and the Inter font to be available globally:
  *   import "@deliberation-lab/score/styles";
+ *
+ * This file is OPTIONAL. SCORE components ship visual styling as inline
+ * styles backed by CSS custom properties with sensible fallbacks, so the
+ * components render correctly on hosts that never import this stylesheet.
+ * The purpose of importing this file is convenience: the variable defaults
+ * become available at :root for the host to override in one place, and
+ * the Inter webfont is registered.
  *
  * Provides:
  * - Tailwind CSS utilities
  * - Inter font
- * - Base typography (headings, paragraphs, lists, links, blockquotes)
+ * - SCORE CSS custom properties at :root (default values)
  * - Form input resets
- * - SCORE component-specific styles (slider, progress bar)
+ * - GFM table styles (out of scope for inline styling — see issue #33)
+ *
+ * Customizing typography / colors: override the --score-* variables on
+ * any parent element (or :root). For example, to scale headings down on
+ * a particular platform:
+ *
+ *   :root {
+ *     --score-prompt-h1-size: 1.5rem;
+ *     --score-prompt-h2-size: 1.25rem;
+ *     --score-prompt-line-height: 1.6;
+ *     --score-link: #1e40af;
+ *   }
+ *
+ * No selector-based CSS, no specificity battles.
  */
 
 @import "tailwindcss";
@@ -78,11 +99,48 @@
   /* Loading spinner */
   --score-spinner-track: #e5e7eb;
   --score-spinner-arc: #9ca3af;
+
+  /* Markdown / prompt typography (used by the Markdown component) */
+  --score-prompt-text-size: 1rem;
+  --score-prompt-line-height: 1.5;
+  --score-prompt-h1-size: 1.875rem;
+  --score-prompt-h2-size: 1.5rem;
+  --score-prompt-h3-size: 1.25rem;
+  --score-prompt-h4-size: 1.125rem;
+  --score-prompt-h1-weight: 700;
+  --score-prompt-h2-weight: 600;
+  --score-prompt-h3-weight: 600;
+  --score-prompt-h4-weight: 600;
+  --score-link: #2563eb;
+
+  /* Blockquote (used by Display element and markdown blockquotes) */
+  --score-blockquote-border: #d1d5db;
+  --score-blockquote-bg: #f9fafb;
 }
 
 /* ------------------------------------------------------------------ */
-/* Base typography — applied to semantic HTML elements                  */
-/* These styles make Markdown-rendered content look correct.            */
+/* Base layer                                                           */
+/*                                                                      */
+/* NOTE: heading / list / blockquote / link styling for Markdown-       */
+/* rendered prompt content does NOT live here. It lives as inline       */
+/* styles in src/components/form/Markdown.tsx (and Display.tsx for     */
+/* blockquotes), backed by the CSS custom properties declared in       */
+/* :root above.                                                         */
+/*                                                                      */
+/* Why inline styles instead of @layer base rules:                      */
+/*                                                                      */
+/* SCORE is consumed as a library from node_modules. Author CSS shipped */
+/* from a dependency loses specificity battles against host CSS resets  */
+/* (Tailwind preflight, normalize.css, Bootstrap reboot, etc.) — those  */
+/* resets often collapse all heading levels to body text size, which    */
+/* destroys the visual hierarchy of researcher-authored markdown. The   */
+/* same study would render differently on every host. Inline styles     */
+/* win against everything except !important, so prompt content renders  */
+/* with the intended hierarchy regardless of what the host ships.       */
+/*                                                                      */
+/* The styles remain customizable: hosts override the --score-prompt-* */
+/* variables on a parent element (or :root) to retune the type scale    */
+/* without writing any selector-based CSS. See issue #33.               */
 /* ------------------------------------------------------------------ */
 
 @layer base {
@@ -90,109 +148,6 @@
     font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-  }
-
-  h1 {
-    font-size: 1.5rem;
-    margin-top: 1.5rem;
-    font-weight: 500;
-    color: #1a202c;
-  }
-
-  h2 {
-    font-size: 1.25rem;
-    margin-top: 1rem;
-    font-weight: 500;
-    color: #1a202c;
-  }
-
-  h3 {
-    font-size: 1.125rem;
-    margin-top: 2rem;
-    font-weight: 500;
-    color: #1a202c;
-  }
-
-  h4 {
-    font-size: 1rem;
-    margin-top: 1rem;
-    font-weight: 500;
-    color: #2d3748;
-  }
-
-  p {
-    margin-top: 0.5rem;
-    font-weight: 400;
-    font-size: 1rem;
-    color: #4a5568;
-  }
-
-  /* Unordered lists */
-  ul {
-    list-style-type: circle;
-    list-style-position: inside;
-    padding-left: 1rem;
-  }
-
-  ul li {
-    margin-top: 0.5rem;
-    list-style-type: disc;
-    font-weight: normal;
-    font-size: 1rem;
-    color: #4a5568;
-  }
-
-  /* Ordered lists with nested numbering (1. / 1.1 / 1.1.1) */
-  ol {
-    counter-reset: item;
-    list-style-type: none;
-    list-style-position: inside;
-    padding-left: 1rem;
-  }
-
-  ol > li {
-    counter-increment: item;
-    position: relative;
-    margin-top: 0.5rem;
-    font-weight: normal;
-    font-size: 1rem;
-    color: #4a5568;
-  }
-
-  ol > li::before {
-    content: counters(item, ".") ". ";
-    position: absolute;
-    left: -1rem;
-  }
-
-  ol ol > li::before {
-    content: counters(item, ".") " ";
-  }
-
-  ol ol > li {
-    padding-left: 1rem;
-  }
-
-  ol ol ol > li {
-    padding-left: 2rem;
-  }
-
-  /* Links */
-  a {
-    color: #3b82f6;
-    text-decoration: underline;
-  }
-
-  /* Blockquotes (used by Display element and markdown) */
-  blockquote {
-    max-width: 36rem;
-    word-break: break-word;
-    padding: 1rem;
-    margin: 1rem 0;
-    border-left-width: 0.25rem;
-    border-left-style: solid;
-    border-color: #d1d5db;
-    background-color: #f9fafb;
   }
 
   /* ---------------------------------------------------------------- */
