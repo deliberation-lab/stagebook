@@ -1078,6 +1078,20 @@ export const introExitStepsBaseSchema = altTemplateContext(
 // Backwards compatibility export for downstream packages still referencing the legacy name.
 export const introExitStepsSchema = introExitStepsBaseSchema;
 
+// Returns true if the element satisfies the advancement requirement for an
+// intro/exit step: submitButton (explicit), survey/qualtrics (auto-submit on
+// completion), or mediaPlayer with submitOnComplete: true (auto-submits when
+// playback ends).
+function isAdvancementElement(element: ElementType): boolean {
+  if (!element || typeof element !== "object") return false;
+  const el = element as Record<string, unknown>;
+  if (el.type === "submitButton") return true;
+  if (el.type === "survey") return true;
+  if (el.type === "qualtrics") return true;
+  if (el.type === "mediaPlayer" && el.submitOnComplete === true) return true;
+  return false;
+}
+
 export const introStepsSchema = introExitStepsBaseSchema.superRefine(
   (data, ctx) => {
     data?.forEach((step: IntroExitStepType, stepIdx: number) => {
@@ -1095,21 +1109,29 @@ export const introStepsSchema = introExitStepsBaseSchema.superRefine(
               message: `Prompt element in intro/exit steps cannot be shared.`,
             });
           }
-          if ("position" in element) {
+          if (element && typeof element === "object" && "position" in element) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: [stepIdx, "elements", elementIdx, "position"],
               message: `Elements in intro steps cannot have a 'position' field.`,
             });
           }
-          if ("showToPositions" in element) {
+          if (
+            element &&
+            typeof element === "object" &&
+            "showToPositions" in element
+          ) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: [stepIdx, "elements", elementIdx],
               message: `Elements in intro steps cannot have a 'showToPositions' field.`,
             });
           }
-          if ("hideFromPositions" in element) {
+          if (
+            element &&
+            typeof element === "object" &&
+            "hideFromPositions" in element
+          ) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: [stepIdx, "elements", elementIdx],
@@ -1117,6 +1139,15 @@ export const introStepsSchema = introExitStepsBaseSchema.superRefine(
             });
           }
         });
+
+        if (!step.elements.some(isAdvancementElement)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [stepIdx, "elements"],
+            message:
+              "Intro/exit step must include at least one advancement element: submitButton, survey, qualtrics, or mediaPlayer with submitOnComplete: true.",
+          });
+        }
       }
     });
   },
@@ -1140,6 +1171,15 @@ export const exitStepsSchema = introExitStepsBaseSchema.superRefine(
             });
           }
         });
+
+        if (!step.elements.some(isAdvancementElement)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [stepIdx, "elements"],
+            message:
+              "Intro/exit step must include at least one advancement element: submitButton, survey, qualtrics, or mediaPlayer with submitOnComplete: true.",
+          });
+        }
       }
     });
   },
