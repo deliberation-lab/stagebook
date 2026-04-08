@@ -548,25 +548,11 @@ test("intro step with only prompt and no submitButton is invalid", () => {
   expect(result.success).toBe(false);
 });
 
-test("intro step with survey element and no submitButton is invalid", () => {
+test("intro step with survey element auto-submits (no submitButton needed)", () => {
   const result = introStepsSchema.safeParse([
     {
       name: "party_affiliation",
       elements: [{ type: "survey", surveyName: "PoliticalPartyUS" }],
-    },
-  ]);
-  if (!result.success) console.log(result.error.message);
-  expect(result.success).toBe(false);
-});
-
-test("intro step with survey element and submitButton is valid", () => {
-  const result = introStepsSchema.safeParse([
-    {
-      name: "party_affiliation",
-      elements: [
-        { type: "survey", surveyName: "PoliticalPartyUS" },
-        { type: "submitButton", buttonText: "Continue" },
-      ],
     },
   ]);
   if (!result.success) console.log(result.error.message);
