@@ -34,7 +34,9 @@ test("link opens in new tab", async ({ mount }) => {
   await expect(component.locator("a")).toHaveAttribute("rel", /noreferrer/);
 });
 
-test("shows helper text about new tab", async ({ mount }) => {
+test("shows default helper text when helperText prop is omitted", async ({
+  mount,
+}) => {
   const component = await mount(
     <TrackedLink
       name="signup"
@@ -45,7 +47,46 @@ test("shows helper text about new tab", async ({ mount }) => {
       progressLabel="game_0_test"
     />,
   );
-  await expect(component).toContainText("opens in a new tab");
+  await expect(component).toContainText(
+    "Link opens in a new tab. Return to this tab to complete the study.",
+  );
+});
+
+test("renders custom helperText when provided", async ({ mount }) => {
+  const component = await mount(
+    <TrackedLink
+      name="signup"
+      url="https://example.org/form"
+      displayText="Open form"
+      helperText="You'll need about 5 minutes. Return here when done."
+      save={() => {}}
+      getElapsedTime={() => 0}
+      progressLabel="game_0_test"
+    />,
+  );
+  await expect(component).toContainText(
+    "You'll need about 5 minutes. Return here when done.",
+  );
+  // Default text should not appear when custom helperText is provided
+  await expect(component).not.toContainText(
+    "Return to this tab to complete the study",
+  );
+});
+
+test("empty helperText hides the helper line entirely", async ({ mount }) => {
+  const component = await mount(
+    <TrackedLink
+      name="signup"
+      url="https://example.org/form"
+      displayText="Open form"
+      helperText=""
+      save={() => {}}
+      getElapsedTime={() => 0}
+      progressLabel="game_0_test"
+    />,
+  );
+  await expect(component).not.toContainText("opens in a new tab");
+  await expect(component.locator("p")).toHaveCount(0);
 });
 
 test("appends resolved params to URL", async ({ mount }) => {

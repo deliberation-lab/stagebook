@@ -277,6 +277,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           name={element.name ?? ""}
           url={element.url ?? ""}
           displayText={element.displayText ?? ""}
+          helperText={element.helperText}
           resolvedParams={resolvedParams}
           save={wrappedSave}
           getElapsedTime={getElapsedTime}
