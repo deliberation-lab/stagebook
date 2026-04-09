@@ -124,6 +124,7 @@ export function Prompt({
               value: choice,
             }))}
             value={value as string | undefined}
+            layout={metadata.layout}
             onChange={(e) => debouncedSaveInteractive(e.target.value, record)}
           />
         )}
@@ -135,6 +136,7 @@ export function Prompt({
             value: choice,
           }))}
           value={(value as string[]) ?? []}
+          layout={metadata.layout}
           onChange={(newSelection) =>
             debouncedSaveInteractive(newSelection, record)
           }

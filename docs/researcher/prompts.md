@@ -47,6 +47,7 @@ type: multipleChoice
 |-------|------|-------------|
 | `select` | `"single"` or `"multiple"` | Radio buttons (default) or checkboxes |
 | `shuffleOptions` | boolean | Randomize option order before display |
+| `layout` | `"vertical"` or `"horizontal"` | Option layout direction (default: `vertical`) |
 
 **`slider`:**
 
@@ -149,6 +150,22 @@ Select all colors you like:
 - Blue
 - Green
 - Yellow
+```
+
+Use `layout: horizontal` to lay options out in a row (useful for short option sets like yes/no):
+
+```markdown
+---
+type: multipleChoice
+layout: horizontal
+---
+
+Do you agree?
+
+---
+
+- Yes
+- No
 ```
 
 ### Open Response
