@@ -57,6 +57,7 @@ export interface ElementConfig {
   buttonText?: string;
   url?: string;
   displayText?: string;
+  helperText?: string;
   urlParams?: Array<{
     key: string;
     value?: unknown;
