@@ -17,6 +17,7 @@ export const metadataTypeSchema = z.object({
   rows: z.number().int().min(1).optional(),
   shuffleOptions: z.boolean().optional(),
   select: z.enum(["single", "multiple", "undefined"]).optional(),
+  layout: z.enum(["vertical", "horizontal"]).optional(),
   minLength: z.number().int().min(0).optional(),
   maxLength: z.number().int().min(1).optional(),
   min: z.number().optional(),
@@ -37,6 +38,7 @@ export const metadataRefineSchema = z
     rows: z.any().optional(),
     shuffleOptions: z.any().optional(),
     select: z.any().optional(),
+    layout: z.any().optional(),
     minLength: z.any().optional(),
     maxLength: z.any().optional(),
     min: z.any().optional(),
@@ -57,6 +59,13 @@ export const metadataRefineSchema = z
         code: z.ZodIssueCode.custom,
         message: `select can only be specified for multipleChoice type`,
         path: ["select"],
+      });
+    }
+    if (data.type !== "multipleChoice" && data.layout !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `layout can only be specified for multipleChoice type`,
+        path: ["layout"],
       });
     }
     if (data.type === "noResponse" && data.shuffleOptions !== undefined) {

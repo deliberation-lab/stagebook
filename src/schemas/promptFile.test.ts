@@ -283,6 +283,110 @@ test("invalid: non-slider type with labelPts field", () => {
   }
 });
 
+// ----------- Layout Field (multipleChoice only) ------------
+
+test("valid: multipleChoice with layout: horizontal", () => {
+  const metadata = {
+    name: "mock-prompt-files/mc.md",
+    type: "multipleChoice",
+    layout: "horizontal",
+  };
+  const typeResult = metadataTypeSchema.safeParse(metadata);
+  expect(typeResult.success).toBe(true);
+  const refineResult = metadataRefineSchema.safeParse(metadata);
+  expect(refineResult.success).toBe(true);
+});
+
+test("valid: multipleChoice with layout: vertical", () => {
+  const metadata = {
+    name: "mock-prompt-files/mc.md",
+    type: "multipleChoice",
+    layout: "vertical",
+  };
+  const typeResult = metadataTypeSchema.safeParse(metadata);
+  expect(typeResult.success).toBe(true);
+  const refineResult = metadataRefineSchema.safeParse(metadata);
+  expect(refineResult.success).toBe(true);
+});
+
+test("valid: multipleChoice without layout (optional)", () => {
+  const metadata = {
+    name: "mock-prompt-files/mc.md",
+    type: "multipleChoice",
+  };
+  const result = metadataRefineSchema.safeParse(metadata);
+  expect(result.success).toBe(true);
+});
+
+test("invalid: layout value other than vertical or horizontal", () => {
+  const metadata = {
+    name: "mock-prompt-files/mc.md",
+    type: "multipleChoice",
+    layout: "diagonal",
+  };
+  const result = metadataTypeSchema.safeParse(metadata);
+  expect(result.success).toBe(false);
+});
+
+test("invalid: layout on openResponse type", () => {
+  const metadata = {
+    name: "mock-prompt-files/open.md",
+    type: "openResponse",
+    layout: "horizontal",
+  };
+  const result = metadataRefineSchema.safeParse(metadata);
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const layoutError = result.error.issues.find(
+      (issue) => issue.path[0] === "layout",
+    );
+    expect(layoutError?.message).toBe(
+      "layout can only be specified for multipleChoice type",
+    );
+  }
+});
+
+test("invalid: layout on slider type", () => {
+  const metadata = {
+    name: "mock-prompt-files/slider.md",
+    type: "slider",
+    min: 0,
+    max: 100,
+    interval: 1,
+    layout: "horizontal",
+  };
+  const result = metadataRefineSchema.safeParse(metadata);
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const layoutError = result.error.issues.find(
+      (issue) => issue.path[0] === "layout",
+    );
+    expect(layoutError?.message).toBe(
+      "layout can only be specified for multipleChoice type",
+    );
+  }
+});
+
+test("invalid: layout on listSorter type", () => {
+  const metadata = {
+    name: "mock-prompt-files/ls.md",
+    type: "listSorter",
+    layout: "horizontal",
+  };
+  const result = metadataRefineSchema.safeParse(metadata);
+  expect(result.success).toBe(false);
+});
+
+test("invalid: layout on noResponse type", () => {
+  const metadata = {
+    name: "mock-prompt-files/nr.md",
+    type: "noResponse",
+    layout: "horizontal",
+  };
+  const result = metadataRefineSchema.safeParse(metadata);
+  expect(result.success).toBe(false);
+});
+
 // ----------- Slider Label Validation ------------
 
 test("valid: labelPts length matches number of labels", () => {
@@ -525,5 +629,44 @@ Rate this.
   test("non-string input fails", () => {
     const result = promptFileSchema.safeParse(42);
     expect(result.success).toBe(false);
+  });
+
+  test("valid multipleChoice prompt file with layout: horizontal", () => {
+    const markdown = `---
+name: projects/example/yesNo.md
+type: multipleChoice
+layout: horizontal
+---
+Do you agree?
+---
+- Yes
+- No`;
+
+    const result = promptFileSchema.safeParse(markdown);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.metadata.layout).toBe("horizontal");
+    }
+  });
+
+  test("fails when layout is set on openResponse prompt file", () => {
+    const markdown = `---
+name: projects/example/open.md
+type: openResponse
+layout: horizontal
+---
+Describe something.
+---
+> Write your response here`;
+
+    const result = promptFileSchema.safeParse(markdown);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const layoutError = result.error.issues.find(
+        (i) =>
+          i.message === "layout can only be specified for multipleChoice type",
+      );
+      expect(layoutError).toBeDefined();
+    }
   });
 });

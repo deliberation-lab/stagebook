@@ -67,6 +67,124 @@ test.describe("Multiple Choice (multiple select)", () => {
   });
 });
 
+test.describe("Multiple Choice layout", () => {
+  test("default (no layout) renders RadioGroup options vertically", async ({
+    mount,
+  }) => {
+    const component = await mount(
+      <Prompt
+        {...multipleChoiceSingle}
+        name="testPrompt"
+        value={undefined}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const optionsContainer = component.locator(
+      '[data-testid="radioGroup"] > div',
+    );
+    await expect(optionsContainer).toHaveCSS("display", "grid");
+  });
+
+  test("layout: horizontal renders RadioGroup options horizontally", async ({
+    mount,
+  }) => {
+    const horizontalMC = {
+      ...multipleChoiceSingle,
+      metadata: {
+        ...multipleChoiceSingle.metadata,
+        layout: "horizontal" as const,
+      },
+    };
+    const component = await mount(
+      <Prompt
+        {...horizontalMC}
+        name="testPrompt"
+        value={undefined}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const optionsContainer = component.locator(
+      '[data-testid="radioGroup"] > div',
+    );
+    await expect(optionsContainer).toHaveCSS("display", "flex");
+  });
+
+  test("layout: vertical renders RadioGroup options vertically", async ({
+    mount,
+  }) => {
+    const verticalMC = {
+      ...multipleChoiceSingle,
+      metadata: {
+        ...multipleChoiceSingle.metadata,
+        layout: "vertical" as const,
+      },
+    };
+    const component = await mount(
+      <Prompt
+        {...verticalMC}
+        name="testPrompt"
+        value={undefined}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const optionsContainer = component.locator(
+      '[data-testid="radioGroup"] > div',
+    );
+    await expect(optionsContainer).toHaveCSS("display", "grid");
+  });
+
+  test("layout: horizontal on multi-select renders CheckboxGroup horizontally", async ({
+    mount,
+  }) => {
+    const horizontalCheckbox = {
+      ...multipleChoiceMultiple,
+      metadata: {
+        ...multipleChoiceMultiple.metadata,
+        layout: "horizontal" as const,
+      },
+    };
+    const component = await mount(
+      <Prompt
+        {...horizontalCheckbox}
+        name="testColors"
+        value={[]}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const optionsContainer = component.locator(
+      '[data-testid="checkboxGroup"] > div',
+    );
+    await expect(optionsContainer).toHaveCSS("display", "flex");
+  });
+
+  test("default (no layout) on multi-select renders CheckboxGroup vertically", async ({
+    mount,
+  }) => {
+    const component = await mount(
+      <Prompt
+        {...multipleChoiceMultiple}
+        name="testColors"
+        value={[]}
+        progressLabel="game_0_test"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const optionsContainer = component.locator(
+      '[data-testid="checkboxGroup"] > div',
+    );
+    await expect(optionsContainer).toHaveCSS("display", "grid");
+  });
+});
+
 // ================================================================
 // Open Response
 // ================================================================
