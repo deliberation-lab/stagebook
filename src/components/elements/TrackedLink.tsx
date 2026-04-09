@@ -25,12 +25,16 @@ export interface TrackedLinkProps {
   name: string;
   url: string;
   displayText: string;
+  helperText?: string;
   resolvedParams?: ResolvedParam[];
   save: (key: string, value: unknown) => void;
   getElapsedTime: () => number;
   progressLabel: string;
   setAllowIdle?: (allow: boolean) => void;
 }
+
+const DEFAULT_HELPER_TEXT =
+  "Link opens in a new tab. Return to this tab to complete the study.";
 
 interface LinkEvent {
   type: string;
@@ -55,12 +59,14 @@ export function TrackedLink({
   name,
   url,
   displayText,
+  helperText,
   resolvedParams = [],
   save,
   getElapsedTime,
   progressLabel,
   setAllowIdle,
 }: TrackedLinkProps) {
+  const resolvedHelperText = helperText ?? DEFAULT_HELPER_TEXT;
   const awayTrackerRef = useRef<{ startedAt: number; clickAt: number } | null>(
     null,
   );
@@ -176,15 +182,17 @@ export function TrackedLink({
         <span>{displayText}</span>
         <ExternalLinkIcon />
       </a>
-      <p
-        style={{
-          fontSize: "0.75rem",
-          color: "var(--score-text-muted, #6b7280)",
-          margin: 0,
-        }}
-      >
-        Link opens in a new tab. Return to this tab to complete the study.
-      </p>
+      {resolvedHelperText && (
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--score-text-muted, #6b7280)",
+            margin: 0,
+          }}
+        >
+          {resolvedHelperText}
+        </p>
+      )}
     </div>
   );
 }

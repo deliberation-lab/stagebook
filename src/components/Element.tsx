@@ -57,6 +57,7 @@ export interface ElementConfig {
   buttonText?: string;
   url?: string;
   displayText?: string;
+  helperText?: string;
   urlParams?: Array<{
     key: string;
     value?: unknown;
@@ -277,6 +278,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           name={element.name ?? ""}
           url={element.url ?? ""}
           displayText={element.displayText ?? ""}
+          helperText={element.helperText}
           resolvedParams={resolvedParams}
           save={wrappedSave}
           getElapsedTime={getElapsedTime}

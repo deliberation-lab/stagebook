@@ -860,6 +860,7 @@ const trackedLinkSchema = elementBaseSchema
     name: nameSchema,
     url: urlSchema,
     displayText: z.string().min(1),
+    helperText: z.string().optional(),
     urlParams: z
       .array(trackedLinkParamSchema, {
         invalid_type_error:

@@ -79,7 +79,7 @@ All elements accept: `name?`, `desc?`, `file?`, `displayTime?`, `hideTime?`, `sh
 | `mediaPlayer` | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?` |
 | `survey` | `surveyName` (required) |
 | `qualtrics` | `url` (required), `urlParams?` |
-| `trackedLink` | `name` (required), `url` (required), `displayText` (required), `urlParams?` |
+| `trackedLink` | `name` (required), `url` (required), `displayText` (required), `helperText?`, `urlParams?` |
 | `sharedNotepad` | _(no extra fields)_ |
 | `talkMeter` | _(no extra fields)_ |
 

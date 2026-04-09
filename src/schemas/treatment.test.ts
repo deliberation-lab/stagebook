@@ -187,6 +187,35 @@ test("tracked link element validation", () => {
   expect(result.success).toBe(true);
 });
 
+test("tracked link with custom helperText", () => {
+  const elements = [
+    {
+      type: "trackedLink",
+      name: "signup_link",
+      url: "https://example.org",
+      displayText: "Open signup form",
+      helperText: "You'll need about 5 minutes. Return here when done.",
+    },
+  ];
+  const result = elementsSchema.safeParse(elements);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("tracked link rejects non-string helperText", () => {
+  const elements = [
+    {
+      type: "trackedLink",
+      name: "signup_link",
+      url: "https://example.org",
+      displayText: "Open signup form",
+      helperText: 42,
+    },
+  ];
+  const result = elementsSchema.safeParse(elements);
+  expect(result.success).toBe(false);
+});
+
 test("validate entire file", () => {
   const fileJson = {
     templates: [

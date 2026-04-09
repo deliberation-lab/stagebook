@@ -239,6 +239,26 @@ An instrumented external link that records click/blur/focus events and time spen
       value: deliberation_lab
 ```
 
+By default a short helper line appears below the link reminding participants the
+link opens in a new tab. Override it with `helperText` to give task-specific
+guidance, or set it to an empty string to hide the helper entirely:
+
+```yaml
+- type: trackedLink
+  name: signup_link
+  url: https://example.org/form
+  displayText: Complete the bonus signup form
+  helperText: "You'll need about 5 minutes. Return here when you're done."
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Storage key for the tracking record |
+| `url` | string | yes | Destination URL |
+| `displayText` | string | yes | Visible link text |
+| `helperText` | string | no | Text shown below the link. Defaults to "Link opens in a new tab. Return to this tab to complete the study." Pass an empty string to hide. |
+| `urlParams` | list | no | Query parameters appended to the URL (see Qualtrics example) |
+
 ## Shared Notepad
 
 A collaborative text editor (backed by Etherpad) where participants can write together.

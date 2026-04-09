@@ -86,6 +86,7 @@ const resolvedElementBaseSchema = z.object({
   buttonText: z.string().optional(),
   url: z.string().optional(),
   displayText: z.string().optional(),
+  helperText: z.string().optional(),
   reference: z.string().optional(),
   position: positionSelectorSchema.optional(),
   surveyName: z.string().optional(),
