@@ -819,6 +819,26 @@ export const mediaPlayerSchema = elementBaseSchema
 
 export type MediaPlayerType = z.infer<typeof mediaPlayerSchema>;
 
+export const timelineSchema = elementBaseSchema
+  .extend({
+    type: z.literal("timeline"),
+    source: nameSchema,
+    name: nameSchema,
+    selectionType: z.enum(["range", "point"]),
+    selectionScope: z.enum(["track", "all"]).optional(),
+    multiSelect: z.boolean().optional(),
+    showWaveform: z.boolean().optional(),
+    trackLabels: z
+      .array(z.string(), {
+        invalid_type_error:
+          "Expected an array for `trackLabels`. Make sure each item starts with a dash (`-`) in YAML.",
+      })
+      .optional(),
+  })
+  .strict();
+
+export type TimelineType = z.infer<typeof timelineSchema>;
+
 const trackedLinkParamSchema = z
   .object({
     key: z.string().min(1),
@@ -884,6 +904,7 @@ const validElementTypes = [
   "talkMeter",
   "timer",
   "mediaPlayer",
+  "timeline",
   "trackedLink",
 ];
 
@@ -906,6 +927,7 @@ export const elementSchema = altTemplateContext(
           talkMeterSchema,
           timerSchema,
           mediaPlayerSchema,
+          timelineSchema,
           trackedLinkSchema,
         ])
       : promptShorthandSchema;

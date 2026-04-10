@@ -19,6 +19,7 @@ function maxWidthForElement(element: ElementConfig): string {
     case "qualtrics":
       return "64rem"; // ~1024px
     case "mediaPlayer":
+    case "timeline":
       return "56rem"; // ~896px
     default:
       return "42rem"; // ~672px

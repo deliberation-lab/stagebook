@@ -9,6 +9,7 @@ import {
   introStepsSchema,
   exitStepsSchema,
   mediaPlayerSchema,
+  timelineSchema,
   promptSchema,
   treatmentFileSchema,
 } from "./treatment.js";
@@ -668,6 +669,163 @@ test("exit step with qualtrics auto-submits (no submitButton needed)", () => {
         },
       ],
     },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+// ----------- timelineSchema ------------
+
+test("timeline: minimal valid config", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "range",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("timeline: full config with all fields", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "range",
+    selectionScope: "track",
+    multiSelect: true,
+    showWaveform: true,
+    trackLabels: ["Interviewer", "Participant"],
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("timeline: point selectionType is valid", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "agreements",
+    selectionType: "point",
+    multiSelect: true,
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("timeline: missing source is invalid", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    name: "interruptions",
+    selectionType: "range",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("timeline: missing name is invalid", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    selectionType: "range",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("timeline: missing selectionType is invalid", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("timeline: invalid selectionType is rejected", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "segment",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("timeline: invalid selectionScope is rejected", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "range",
+    selectionScope: "global",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("timeline: unknown fields are rejected (strict)", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "range",
+    unknownField: true,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("timeline: trackLabels accepts array of strings", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "range",
+    trackLabels: ["Speaker A", "Speaker B", "Speaker C"],
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("timeline: defaults — selectionScope defaults to all, multiSelect to false, showWaveform to true", () => {
+  const result = timelineSchema.safeParse({
+    type: "timeline",
+    source: "coding_video",
+    name: "interruptions",
+    selectionType: "range",
+  });
+  expect(result.success).toBe(true);
+});
+
+test("elementsSchema accepts type: timeline", () => {
+  const result = elementsSchema.safeParse([
+    {
+      type: "timeline",
+      source: "coding_video",
+      name: "interruptions",
+      selectionType: "range",
+    },
+  ]);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("elementsSchema accepts timeline alongside mediaPlayer", () => {
+  const result = elementsSchema.safeParse([
+    { type: "mediaPlayer", url: "shared/interview.mp4", name: "coding_video" },
+    {
+      type: "timeline",
+      source: "coding_video",
+      name: "interruptions",
+      selectionType: "range",
+      multiSelect: true,
+    },
+    {
+      type: "timeline",
+      source: "coding_video",
+      name: "agreements",
+      selectionType: "point",
+      multiSelect: true,
+    },
+    { type: "submitButton", buttonText: "Submit" },
   ]);
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);

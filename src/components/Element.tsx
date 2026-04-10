@@ -10,6 +10,7 @@ import { ImageElement } from "./elements/ImageElement.js";
 import { KitchenTimer } from "./elements/KitchenTimer.js";
 import { TrackedLink, type ResolvedParam } from "./elements/TrackedLink.js";
 import { MediaPlayer } from "./elements/MediaPlayer.js";
+import { Timeline } from "./elements/Timeline.js";
 import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
@@ -56,6 +57,7 @@ export interface ElementConfig {
   shared?: boolean;
   buttonText?: string;
   url?: string;
+  source?: string;
   displayText?: string;
   helperText?: string;
   urlParams?: Array<{
@@ -271,6 +273,22 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
         />
       );
     }
+
+    case "timeline":
+      return (
+        <Timeline
+          source={String(element.source ?? "")}
+          name={String(element.name ?? "")}
+          selectionType={
+            (element.selectionType as "range" | "point") ?? "range"
+          }
+          selectionScope={element.selectionScope as "track" | "all" | undefined}
+          multiSelect={element.multiSelect as boolean | undefined}
+          showWaveform={element.showWaveform as boolean | undefined}
+          trackLabels={element.trackLabels as string[] | undefined}
+          save={wrappedSave}
+        />
+      );
 
     case "trackedLink":
       return (

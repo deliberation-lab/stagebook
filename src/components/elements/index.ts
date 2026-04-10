@@ -15,3 +15,4 @@ export {
 } from "../elements/MediaPlayer.js";
 export { Prompt, type PromptProps } from "./Prompt.js";
 export { Qualtrics, type QualtricsProps } from "./Qualtrics.js";
+export { Timeline, type TimelineProps } from "./Timeline.js";
