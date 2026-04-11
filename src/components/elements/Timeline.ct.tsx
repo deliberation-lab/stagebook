@@ -1246,6 +1246,270 @@ test("Space key never intercepted by timeline", async ({ mount }) => {
   expect(afterSaves.length).toBe(beforeSaves.length);
 });
 
+// -- Footer / zoom / minimap / help (#49) --
+
+test("footer renders with default zoom buttons and selection summary", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-footer"]'),
+  ).toBeAttached();
+  await expect(
+    component.locator('[data-testid="timeline-zoom-in"]'),
+  ).toBeAttached();
+  await expect(
+    component.locator('[data-testid="timeline-zoom-out"]'),
+  ).toBeAttached();
+  await expect(
+    component.locator('[data-testid="timeline-help-button"]'),
+  ).toBeAttached();
+});
+
+test("zoom-out button disabled at minimum zoom", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-zoom-out"]'),
+  ).toBeDisabled();
+});
+
+test("zoom-in button increases zoom level", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toHaveAttribute("data-zoom-level", "1");
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "2");
+});
+
+test("zoom-out button decreases zoom level", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+  await component.locator('[data-testid="timeline-zoom-out"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "2");
+});
+
+test("minimap not visible at zoom level 1", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-minimap"]'),
+  ).not.toBeAttached();
+});
+
+test("minimap appears when zoomed in", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(
+    component.locator('[data-testid="timeline-minimap"]'),
+  ).toBeAttached();
+  await expect(
+    component.locator('[data-testid="minimap-viewport"]'),
+  ).toBeAttached();
+});
+
+test("clicking minimap pans viewport", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+
+  const minimap = component.locator('[data-testid="timeline-minimap"]');
+  const viewport = component.locator('[data-testid="minimap-viewport"]');
+  const beforeBox = await viewport.boundingBox();
+  if (!beforeBox) throw new Error("viewport rect not found");
+
+  const minimapBox = await minimap.boundingBox();
+  if (!minimapBox) throw new Error("minimap not found");
+  await minimap.dispatchEvent("pointerdown", {
+    clientX: minimapBox.x + minimapBox.width * 0.85,
+    clientY: minimapBox.y + minimapBox.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await minimap.dispatchEvent("pointerup", {
+    clientX: minimapBox.x + minimapBox.width * 0.85,
+    clientY: minimapBox.y + minimapBox.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+
+  // Wait for the viewport to actually move
+  await expect
+    .poll(async () => {
+      const box = await viewport.boundingBox();
+      return box?.x ?? 0;
+    })
+    .toBeGreaterThan(beforeBox.x);
+});
+
+test("footer summary: 0 ranges selected by default", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-selection-summary"]'),
+  ).toContainText("0 ranges selected");
+});
+
+test("footer summary: 0 points marked by default in point mode", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      mockDuration={60}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-selection-summary"]'),
+  ).toContainText("0 points marked");
+});
+
+test("footer summary: shows time range for active selection", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.1, 0.2);
+  // After creation, the range is active so the footer shows the time readout
+  await expect(
+    component.locator('[data-testid="timeline-selection-summary"]'),
+  ).toContainText(":");
+});
+
+test("help button opens popover", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-help-popover"]'),
+  ).not.toBeAttached();
+  await component.locator('[data-testid="timeline-help-button"]').click();
+  await expect(
+    component.locator('[data-testid="timeline-help-popover"]'),
+  ).toBeAttached();
+});
+
+test("help popover shows range-mode shortcuts in range mode", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-help-button"]').click();
+  const popover = component.locator('[data-testid="timeline-help-popover"]');
+  await expect(popover).toContainText("Create range");
+  await expect(popover).toContainText("Switch handle");
+});
+
+test("help popover shows point-mode shortcuts in point mode", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-help-button"]').click();
+  const popover = component.locator('[data-testid="timeline-help-popover"]');
+  await expect(popover).toContainText("Place point");
+  await expect(popover).toContainText("Reposition");
+});
+
 test("debounced save: rapid arrow keypresses produce a single save", async ({
   mount,
 }) => {

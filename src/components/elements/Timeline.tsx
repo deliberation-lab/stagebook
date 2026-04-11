@@ -10,6 +10,9 @@ import { TimeRuler } from "./timeline/TimeRuler.js";
 import { TimelineTrack, GUTTER_WIDTH } from "./timeline/TimelineTrack.js";
 import { Playhead } from "./timeline/Playhead.js";
 import { SelectionOverlay } from "./timeline/SelectionOverlay.js";
+import { TimelineFooter } from "./timeline/TimelineFooter.js";
+import { Minimap } from "./timeline/Minimap.js";
+import { HelpPopover } from "./timeline/HelpPopover.js";
 import { computeBucketCount } from "./mediaPlayer/waveformCapture.js";
 import {
   initialSelectionState,
@@ -17,6 +20,16 @@ import {
 } from "./timeline/selectionsReducer.js";
 import { keyToAction } from "./timeline/keyboardActions.js";
 import type { PointSelection, RangeSelection } from "./timeline/selections.js";
+import {
+  AUTO_SCROLL_THRESHOLD,
+  clampViewportStart,
+  computeViewportAfterScroll,
+  computeViewportAfterSeek,
+  computeViewportAfterZoom,
+  isPlayheadPastThreshold,
+  zoomIn as nextZoomIn,
+  zoomOut as nextZoomOut,
+} from "./timeline/viewport.js";
 
 export interface TimelineProps {
   source: string;
@@ -74,9 +87,16 @@ export function Timeline({
     };
   }, []);
 
-  // Zoom & pan state. Setters will be wired up in #49.
-  const [zoomLevel] = useState(1);
-  const [viewportStart] = useState(0);
+  // Zoom & pan state
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [viewportStart, setViewportStart] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  // Track whether the playhead changes are "natural playback" (RAF tick)
+  // versus "external seek" (someone called handle.seekTo() out of band).
+  // Auto-scroll uses the former; snap-on-seek uses the latter.
+  const lastPlayheadRef = useRef(0);
+  const lastTickWasPlayingRef = useRef(false);
 
   // Selection state via reducer (pure logic in selectionsReducer.ts)
   const [state, dispatch] = useReducer(
@@ -144,9 +164,13 @@ export function Timeline({
   }, [showWaveform]);
 
   // Poll currentTime via RAF for smooth playhead movement during playback.
+  // Also tracks isPaused so the viewport effect knows when to auto-scroll
+  // versus snap-on-seek.
+  const [isPaused, setIsPaused] = useState(true);
   useEffect(() => {
     let cancelled = false;
     let lastValue = -1;
+    let lastPaused: boolean | null = null;
     let rafId = 0;
 
     function tick() {
@@ -158,6 +182,11 @@ export function Timeline({
           lastValue = t;
           setCurrentTime(t);
         }
+        const paused = h.isPaused();
+        if (paused !== lastPaused) {
+          lastPaused = paused;
+          setIsPaused(paused);
+        }
       }
       rafId = requestAnimationFrame(tick);
     }
@@ -168,6 +197,103 @@ export function Timeline({
       cancelAnimationFrame(rafId);
     };
   }, []);
+
+  // Viewport scrolling effect: keeps the playhead within view as it moves.
+  // - During playback: when playhead crosses 90%, scroll smoothly
+  // - On seek/scrub (large playhead delta): snap so playhead is at ~25%
+  //
+  // Only triggered by playhead motion, not by viewport changes — otherwise
+  // a manual pan via the minimap would immediately get undone (the playhead
+  // would suddenly look "off-screen" relative to the new viewport).
+  useEffect(() => {
+    if (zoomLevel <= 1) return;
+    const duration = handleRef.current?.getDuration() ?? 0;
+    if (duration <= 0) return;
+
+    const visibleDuration = duration / zoomLevel;
+    const lastT = lastPlayheadRef.current;
+    lastPlayheadRef.current = currentTime;
+    lastTickWasPlayingRef.current = !isPaused;
+
+    // No motion → nothing to do
+    if (currentTime === lastT) return;
+
+    // Detect "jump" — large delta or transition to/from playing means
+    // the user seeked rather than naturally played through
+    const delta = currentTime - lastT;
+    const isJump = Math.abs(delta) > 1.5;
+
+    if (isJump) {
+      // Snap viewport so the playhead is ~25% from the left
+      const newStart = computeViewportAfterSeek(
+        currentTime,
+        visibleDuration,
+        duration,
+      );
+      setViewportStart(newStart);
+      return;
+    }
+
+    // Continuous playback: auto-scroll when playhead crosses 90%
+    if (
+      isPlayheadPastThreshold(
+        currentTime,
+        viewportStart,
+        visibleDuration,
+        AUTO_SCROLL_THRESHOLD,
+      )
+    ) {
+      const newStart = computeViewportAfterScroll(
+        currentTime,
+        visibleDuration,
+        duration,
+      );
+      if (newStart !== viewportStart) setViewportStart(newStart);
+    }
+  }, [currentTime, isPaused, zoomLevel, viewportStart]);
+
+  // Zoom handlers
+  const onZoomIn = useCallback(() => {
+    const duration = handleRef.current?.getDuration() ?? 0;
+    if (duration <= 0) return;
+    const newZoom = nextZoomIn(zoomLevel);
+    if (newZoom === zoomLevel) return;
+    setZoomLevel(newZoom);
+    setViewportStart(
+      computeViewportAfterZoom({
+        currentZoom: zoomLevel,
+        newZoom,
+        duration,
+        currentViewportStart: viewportStart,
+        playheadTime: currentTime,
+      }),
+    );
+  }, [zoomLevel, viewportStart, currentTime]);
+
+  const onZoomOut = useCallback(() => {
+    const duration = handleRef.current?.getDuration() ?? 0;
+    if (duration <= 0) return;
+    const newZoom = nextZoomOut(zoomLevel);
+    if (newZoom === zoomLevel) return;
+    setZoomLevel(newZoom);
+    setViewportStart(
+      computeViewportAfterZoom({
+        currentZoom: zoomLevel,
+        newZoom,
+        duration,
+        currentViewportStart: viewportStart,
+        playheadTime: currentTime,
+      }),
+    );
+  }, [zoomLevel, viewportStart, currentTime]);
+
+  const onMinimapPan = useCallback(
+    (newStart: number) => {
+      const duration = handleRef.current?.getDuration() ?? 0;
+      setViewportStart(clampViewportStart(newStart, duration, zoomLevel));
+    },
+    [zoomLevel],
+  );
 
   // Keyboard handler — delegates to keyboardActions.ts for the key-to-action
   // mapping. Returns null when the key should fall through to MediaPlayer.
@@ -283,6 +409,7 @@ export function Timeline({
       data-selection-scope={selectionScope}
       data-multi-select={multiSelect}
       data-show-waveform={showWaveform}
+      data-zoom-level={zoomLevel}
       role="region"
       aria-label={`Timeline: ${name}`}
       tabIndex={0}
@@ -292,8 +419,24 @@ export function Timeline({
         borderRadius: "0.5rem",
         overflow: "hidden",
         outline: "none",
+        position: "relative",
       }}
     >
+      {/* Minimap — only when zoomed in */}
+      {zoomLevel > 1 && (
+        <div style={{ marginLeft: `${String(GUTTER_WIDTH)}px` }}>
+          <Minimap
+            duration={duration}
+            width={waveformWidth}
+            zoomLevel={zoomLevel}
+            viewportStart={viewportStart}
+            currentTime={currentTime}
+            selections={state.selections}
+            onViewportChange={onMinimapPan}
+          />
+        </div>
+      )}
+
       {/* Time ruler — offset by gutter width */}
       <div style={{ marginLeft: `${String(GUTTER_WIDTH)}px` }}>
         <TimeRuler
@@ -382,6 +525,26 @@ export function Timeline({
           />
         </div>
       </div>
+
+      {/* Footer */}
+      <TimelineFooter
+        selectionType={selectionType}
+        selections={state.selections}
+        activeIndex={state.activeIndex}
+        zoomLevel={zoomLevel}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        onHelpToggle={() => setHelpOpen((v) => !v)}
+        helpOpen={helpOpen}
+      />
+
+      {/* Help popover */}
+      {helpOpen && (
+        <HelpPopover
+          selectionType={selectionType}
+          onClose={() => setHelpOpen(false)}
+        />
+      )}
     </div>
   );
 }
