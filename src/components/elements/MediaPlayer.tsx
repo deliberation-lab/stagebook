@@ -12,6 +12,11 @@ import { HTML5Controls, YouTubeControls } from "./mediaPlayer/controls.js";
 import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
 import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 import { computeWatchedRanges } from "../../utils/watchedRanges.js";
+import {
+  computeBucketCount,
+  createPeaksArrays,
+  accumulatePeaks,
+} from "./mediaPlayer/waveformCapture.js";
 
 export interface VideoEvent {
   type: "play" | "pause" | "ended" | "seek" | "speed" | "stopAt";
@@ -135,6 +140,93 @@ export function MediaPlayer({
   // handlePause can suppress the phantom "pause" event and we record "ended".
   const stopAtReachedRef = useRef(false);
 
+  // ── Waveform capture (lazy — only activated when a Timeline requests it) ──
+  const BUCKETS_PER_SECOND = 10;
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analysersRef = useRef<AnalyserNode[]>([]);
+  const analyserBuffersRef = useRef<Uint8Array[]>([]);
+  const peaksRef = useRef<Float32Array[]>([]);
+  const [channelCount, setChannelCount] = useState(0);
+  const waveformRafRef = useRef<number>(0);
+  const waveformActiveRef = useRef(false);
+
+  const startWaveformCapture = useCallback(() => {
+    if (waveformActiveRef.current) return; // already active
+    const v = videoRef.current;
+    if (!v) return;
+
+    try {
+      const ctx = new AudioContext();
+      const source = ctx.createMediaElementSource(v);
+      const splitter = ctx.createChannelSplitter(source.channelCount || 1);
+      source.connect(splitter);
+
+      const numChannels = source.channelCount || 1;
+      const analysers: AnalyserNode[] = [];
+      const buffers: Uint8Array[] = [];
+      const merger = ctx.createChannelMerger(numChannels);
+
+      for (let ch = 0; ch < numChannels; ch++) {
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        splitter.connect(analyser, ch);
+        analyser.connect(merger, 0, ch);
+        analysers.push(analyser);
+        buffers.push(new Uint8Array(analyser.frequencyBinCount));
+      }
+
+      merger.connect(ctx.destination);
+
+      audioCtxRef.current = ctx;
+      analysersRef.current = analysers;
+      analyserBuffersRef.current = buffers;
+      setChannelCount(numChannels);
+
+      waveformActiveRef.current = true;
+    } catch (err) {
+      console.warn("[MediaPlayer] Waveform capture unavailable:", err);
+    }
+  }, []);
+
+  // Initialize peaks array when duration or channelCount becomes known
+  useEffect(() => {
+    if (channelCount === 0 || !Number.isFinite(duration) || duration <= 0)
+      return;
+    const buckets = computeBucketCount(duration, BUCKETS_PER_SECOND);
+    if (buckets === 0) return;
+    // Only allocate if not already the right size
+    if (
+      peaksRef.current.length === channelCount &&
+      peaksRef.current[0]?.length === buckets * 2
+    )
+      return;
+    peaksRef.current = createPeaksArrays(channelCount, buckets);
+  }, [channelCount, duration]);
+
+  // RAF loop: accumulate peaks while playing
+  useEffect(() => {
+    if (!waveformActiveRef.current || isPaused) return;
+
+    const analysers = analysersRef.current;
+    const buffers = analyserBuffersRef.current;
+    const peaks = peaksRef.current;
+
+    function tick() {
+      const v = videoRef.current;
+      if (!v || v.paused) return;
+
+      for (let i = 0; i < analysers.length; i++) {
+        analysers[i].getByteTimeDomainData(buffers[i]);
+      }
+
+      accumulatePeaks(peaks, buffers, v.currentTime, BUCKETS_PER_SECOND);
+      waveformRafRef.current = requestAnimationFrame(tick);
+    }
+
+    waveformRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(waveformRafRef.current);
+  }, [isPaused]);
+
   // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
   useEffect(() => {
     if (!ytHandle || isPaused) return;
@@ -164,8 +256,15 @@ export function MediaPlayer({
       getDuration: () => videoRef.current?.duration ?? 0,
       isPaused: () => videoRef.current?.paused ?? true,
       isYouTube: false,
+      get channelCount() {
+        return channelCount;
+      },
+      get peaks() {
+        return peaksRef.current;
+      },
+      requestWaveformCapture: startWaveformCapture,
     }),
-    [], // stable: all methods close over videoRef which is a stable ref
+    [channelCount, startWaveformCapture], // re-create when channelCount changes so consumers see the update
   );
   // Use the YouTube handle when available, fall back to the HTML5 handle
   useRegisterPlayback(name, ytHandle ?? handle);
