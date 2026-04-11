@@ -127,3 +127,130 @@ test("renders in point mode", async ({ mount }) => {
   const timeline = component.locator('[data-testid="timeline"]');
   await expect(timeline).toHaveAttribute("data-selection-type", "point");
 });
+
+// -- Visual components --
+
+test("renders time ruler", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={120}
+    />,
+  );
+  const ruler = component.locator('[data-testid="time-ruler"]');
+  await expect(ruler).toBeAttached();
+});
+
+test("renders playhead", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockCurrentTime={30}
+    />,
+  );
+  const playhead = component.locator('[data-testid="playhead"]');
+  await expect(playhead).toBeAttached();
+});
+
+test("renders at least one track", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const tracks = component.locator('[data-testid="timeline-track"]');
+  await expect(tracks.first()).toBeAttached();
+});
+
+test("renders default track label as Position N", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={2}
+    />,
+  );
+  const labels = component.locator('[data-testid="track-label"]');
+  await expect(labels.nth(0)).toContainText("Position 0");
+  await expect(labels.nth(1)).toContainText("Position 1");
+});
+
+test("renders custom track labels", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      trackLabels={["Interviewer", "Participant"]}
+      mockDuration={60}
+      mockChannelCount={2}
+    />,
+  );
+  const labels = component.locator('[data-testid="track-label"]');
+  await expect(labels.nth(0)).toContainText("Interviewer");
+  await expect(labels.nth(1)).toContainText("Participant");
+});
+
+test("falls back to Position N for extra channels beyond trackLabels", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      trackLabels={["Speaker A"]}
+      mockDuration={60}
+      mockChannelCount={3}
+    />,
+  );
+  const labels = component.locator('[data-testid="track-label"]');
+  await expect(labels.nth(0)).toContainText("Speaker A");
+  await expect(labels.nth(1)).toContainText("Position 1");
+  await expect(labels.nth(2)).toContainText("Position 2");
+});
+
+test("renders canvas for waveform", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const canvas = component.locator('[data-testid="waveform-canvas"]');
+  await expect(canvas).toBeAttached();
+});
+
+test("renders multiple tracks for multi-channel audio", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={4}
+    />,
+  );
+  const tracks = component.locator('[data-testid="timeline-track"]');
+  await expect(tracks).toHaveCount(4);
+});
