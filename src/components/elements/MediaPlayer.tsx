@@ -144,7 +144,10 @@ export function MediaPlayer({
   const BUCKETS_PER_SECOND = 10;
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analysersRef = useRef<AnalyserNode[]>([]);
-  const analyserBuffersRef = useRef<Uint8Array[]>([]);
+  // The lib.d.ts signature for getByteTimeDomainData expects the strict
+  // Uint8Array<ArrayBuffer> variant, not Uint8Array<ArrayBufferLike>.
+  // Type the array element explicitly so TS doesn't widen it.
+  const analyserBuffersRef = useRef<Uint8Array<ArrayBuffer>[]>([]);
   const peaksRef = useRef<Float32Array[]>([]);
   const [channelCount, setChannelCount] = useState(0);
   const waveformRafRef = useRef<number>(0);
@@ -163,7 +166,7 @@ export function MediaPlayer({
 
       const numChannels = source.channelCount || 1;
       const analysers: AnalyserNode[] = [];
-      const buffers: Uint8Array[] = [];
+      const buffers: Uint8Array<ArrayBuffer>[] = [];
       const merger = ctx.createChannelMerger(numChannels);
 
       for (let ch = 0; ch < numChannels; ch++) {
