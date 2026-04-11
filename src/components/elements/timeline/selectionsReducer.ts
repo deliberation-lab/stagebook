@@ -54,12 +54,25 @@ export type SelectionAction =
       index: number;
       handle: "start" | "end";
       time: number;
+      /**
+       * If true, the reducer updates selections without pushing an undo
+       * snapshot. SelectionOverlay uses this for live drag pointermove
+       * events so that an entire drag collapses into a single undo step.
+       */
+      noSnapshot?: boolean;
     }
   | {
       type: "REPOSITION_POINT";
       index: number;
       time: number;
+      noSnapshot?: boolean;
     }
+  /**
+   * Pushes a snapshot of the current selections to the undo stack without
+   * changing them. Dispatched at the start of a drag (after the dead zone)
+   * so undo restores the pre-drag state in one step.
+   */
+  | { type: "BEGIN_DRAG" }
   | { type: "DELETE" }
   | { type: "SELECT"; index: number }
   | { type: "DESELECT" }
@@ -127,8 +140,9 @@ export function selectionsReducer(
         action.handle,
         action.time,
       );
+      const base = action.noSnapshot ? state : snapshot(state);
       return {
-        ...snapshot(state),
+        ...base,
         selections: sortRanges(next),
         activeHandle: action.handle,
       };
@@ -137,10 +151,15 @@ export function selectionsReducer(
     case "REPOSITION_POINT": {
       if (isRangeArray(state.selections)) return state;
       const next = repositionPoint(state.selections, action.index, action.time);
+      const base = action.noSnapshot ? state : snapshot(state);
       return {
-        ...snapshot(state),
+        ...base,
         selections: sortPoints(next),
       };
+    }
+
+    case "BEGIN_DRAG": {
+      return snapshot(state);
     }
 
     case "DELETE": {

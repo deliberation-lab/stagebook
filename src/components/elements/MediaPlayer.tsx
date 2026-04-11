@@ -191,6 +191,25 @@ export function MediaPlayer({
     }
   }, []);
 
+  // Close the AudioContext on unmount. Chrome enforces a hard limit of ~6
+  // simultaneous AudioContexts per tab; without this, an experiment that
+  // navigates through several stages each with a Timeline+MediaPlayer would
+  // exhaust the limit and silently fail.
+  useEffect(() => {
+    return () => {
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") {
+        void ctx.close().catch(() => {
+          // Best-effort cleanup; ignore errors during teardown.
+        });
+      }
+      audioCtxRef.current = null;
+      analysersRef.current = [];
+      analyserBuffersRef.current = [];
+      waveformActiveRef.current = false;
+    };
+  }, []);
+
   // Initialize peaks array when duration or channelCount becomes known
   useEffect(() => {
     if (channelCount === 0 || !Number.isFinite(duration) || duration <= 0)

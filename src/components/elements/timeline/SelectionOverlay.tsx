@@ -34,15 +34,28 @@ export interface SelectionOverlayProps {
     track: number | undefined,
   ) => void;
   onCreatePoint: (time: number, track: number | undefined) => void;
+  /**
+   * `noSnapshot=true` skips the undo snapshot — used for live drag
+   * pointermove events so the entire drag collapses into one undo step.
+   */
   onAdjustHandle: (
     index: number,
     handle: "start" | "end",
     time: number,
+    noSnapshot?: boolean,
   ) => void;
-  onRepositionPoint: (index: number, time: number) => void;
+  onRepositionPoint: (
+    index: number,
+    time: number,
+    noSnapshot?: boolean,
+  ) => void;
   onSelect: (index: number) => void;
   onDeselect: () => void;
   onSetActiveHandle: (handle: "start" | "end" | null) => void;
+  /** Begin a drag transaction — pushes one undo snapshot, defers saves. */
+  onBeginDrag: () => void;
+  /** End a drag transaction — releases the save defer. */
+  onEndDrag: () => void;
 }
 
 const DRAG_DEAD_ZONE_PX = 4;
@@ -59,6 +72,11 @@ interface DragState {
   handle?: "start" | "end";
   /** For all drags in track mode: which track. */
   track?: number;
+  /**
+   * Has this drag already pushed its undo snapshot via onBeginDrag?
+   * Used to ensure each drag collapses to a single undo step.
+   */
+  beganDrag?: boolean;
 }
 
 function isRangeArray(s: TimelineValue): s is RangeSelection[] {
@@ -90,6 +108,8 @@ export function SelectionOverlay({
   onSelect,
   onDeselect,
   onSetActiveHandle,
+  onBeginDrag,
+  onEndDrag,
 }: SelectionOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -173,12 +193,29 @@ export function SelectionOverlay({
         drag.index !== undefined &&
         drag.handle
       ) {
-        onAdjustHandle(drag.index, drag.handle, currentTime);
+        // First move of an adjust-handle drag: snapshot once, then defer
+        // saves until pointerup. Subsequent moves use noSnapshot=true so
+        // the entire drag collapses to one undo step.
+        if (!drag.beganDrag) {
+          drag.beganDrag = true;
+          onBeginDrag();
+        }
+        onAdjustHandle(drag.index, drag.handle, currentTime, true);
       } else if (drag.mode === "reposition-point" && drag.index !== undefined) {
-        onRepositionPoint(drag.index, currentTime);
+        if (!drag.beganDrag) {
+          drag.beganDrag = true;
+          onBeginDrag();
+        }
+        onRepositionPoint(drag.index, currentTime, true);
       }
     },
-    [eventToTime, onAdjustHandle, onRepositionPoint, selectionType],
+    [
+      eventToTime,
+      onAdjustHandle,
+      onRepositionPoint,
+      onBeginDrag,
+      selectionType,
+    ],
   );
 
   const handlePointerUp = useCallback(
@@ -208,6 +245,10 @@ export function SelectionOverlay({
         setDragPreview(null);
       }
 
+      // Release the save defer for adjust-handle / reposition-point drags
+      if (drag.beganDrag) {
+        onEndDrag();
+      }
       dragRef.current = null;
     },
     [
@@ -218,6 +259,7 @@ export function SelectionOverlay({
       onSeek,
       onDeselect,
       onCreateRange,
+      onEndDrag,
     ],
   );
 
@@ -472,6 +514,9 @@ export function SelectionOverlay({
       onPointerUp={handlePointerUp}
       onPointerLeave={() => {
         if (dragRef.current) {
+          // If a transaction was open (we'd already pushed BEGIN_DRAG),
+          // close it so the save effect doesn't stay paused.
+          if (dragRef.current.beganDrag) onEndDrag();
           dragRef.current = null;
           setDragPreview(null);
         }

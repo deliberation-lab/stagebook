@@ -39,11 +39,65 @@ export interface TimelineProps {
   multiSelect?: boolean;
   showWaveform?: boolean;
   trackLabels?: string[];
+  /**
+   * Previously saved selections to restore on mount. Element.tsx resolves
+   * this from `timeline.<name>` so participants who reload the stage see
+   * their existing marks. Untrusted shape — validated before use.
+   */
+  initialSelections?: unknown;
   save: (key: string, value: unknown) => void;
 }
 
 const TRACK_HEIGHT = 48;
 const BUCKETS_PER_SECOND = 10;
+
+/**
+ * Validate restored selections from saved state. Returns an empty array if
+ * the input is malformed — better to start fresh than to crash on a bad save.
+ */
+function validateSavedSelections(
+  raw: unknown,
+  selectionType: "range" | "point",
+): RangeSelection[] | PointSelection[] {
+  if (!Array.isArray(raw)) return [];
+  if (selectionType === "range") {
+    const valid: RangeSelection[] = [];
+    for (const item of raw) {
+      if (
+        item &&
+        typeof item === "object" &&
+        typeof (item as { start?: unknown }).start === "number" &&
+        typeof (item as { end?: unknown }).end === "number" &&
+        Number.isFinite((item as { start: number }).start) &&
+        Number.isFinite((item as { end: number }).end)
+      ) {
+        const r: RangeSelection = {
+          start: (item as { start: number }).start,
+          end: (item as { end: number }).end,
+        };
+        const t = (item as { track?: unknown }).track;
+        if (typeof t === "number" && Number.isFinite(t)) r.track = t;
+        valid.push(r);
+      }
+    }
+    return valid;
+  }
+  const valid: PointSelection[] = [];
+  for (const item of raw) {
+    if (
+      item &&
+      typeof item === "object" &&
+      typeof (item as { time?: unknown }).time === "number" &&
+      Number.isFinite((item as { time: number }).time)
+    ) {
+      const p: PointSelection = { time: (item as { time: number }).time };
+      const t = (item as { track?: unknown }).track;
+      if (typeof t === "number" && Number.isFinite(t)) p.track = t;
+      valid.push(p);
+    }
+  }
+  return valid;
+}
 
 export function Timeline({
   source,
@@ -53,6 +107,7 @@ export function Timeline({
   multiSelect = false,
   showWaveform = true,
   trackLabels,
+  initialSelections,
   save,
 }: TimelineProps) {
   const handle = usePlayback(source);
@@ -98,16 +153,28 @@ export function Timeline({
   const lastPlayheadRef = useRef(0);
   const lastTickWasPlayingRef = useRef(false);
 
-  // Selection state via reducer (pure logic in selectionsReducer.ts)
-  const [state, dispatch] = useReducer(
-    selectionsReducer,
-    undefined,
-    initialSelectionState,
-  );
+  // Selection state via reducer. Lazy initializer hydrates from saved state
+  // when present so participants who reload mid-stage see their existing
+  // selections (validated to drop malformed items).
+  const [state, dispatch] = useReducer(selectionsReducer, undefined, () => {
+    const base = initialSelectionState();
+    if (initialSelections === undefined) return base;
+    return {
+      ...base,
+      selections: validateSavedSelections(initialSelections, selectionType),
+    };
+  });
+
+  // Drag transaction state — set true between BEGIN_DRAG (first pointermove
+  // past the dead zone) and pointerup/leave. While true, the save effect
+  // skips so we don't spam the server with one save per pixel of motion.
+  const [isDragging, setIsDragging] = useState(false);
 
   // Save selections whenever they change (after the initial mount). Mouse-
-  // driven changes save immediately; keyboard-driven changes are debounced
-  // ~500ms so holding an arrow key collapses to one save.
+  // driven changes save immediately on commit (drag end / click); keyboard
+  // adjustments are debounced ~500ms so holding an arrow key collapses to
+  // one save; mid-drag pointermove dispatches are deferred until the drag
+  // ends to avoid server spam.
   const lastSavedRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Set to true by the keyboard handler before dispatching, so the save
@@ -120,6 +187,9 @@ export function Timeline({
       return;
     }
     if (serialized === lastSavedRef.current) return;
+    // While a pointer drag is in progress, defer — the save will fire when
+    // isDragging transitions back to false (this same effect re-runs).
+    if (isDragging) return;
 
     if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
 
@@ -141,7 +211,7 @@ export function Timeline({
         saveTimerRef.current = null;
       }
     };
-  }, [state.selections, name, save]);
+  }, [state.selections, isDragging, name, save]);
 
   // Measure container width. Read from getBoundingClientRect on every render
   // via a callback ref, and observe with ResizeObserver for ongoing updates.
@@ -501,17 +571,33 @@ export function Timeline({
                 multiSelect,
               })
             }
-            onAdjustHandle={(index, h, time) =>
-              dispatch({ type: "ADJUST_HANDLE", index, handle: h, time })
+            onAdjustHandle={(index, h, time, noSnapshot) =>
+              dispatch({
+                type: "ADJUST_HANDLE",
+                index,
+                handle: h,
+                time,
+                noSnapshot,
+              })
             }
-            onRepositionPoint={(index, time) =>
-              dispatch({ type: "REPOSITION_POINT", index, time })
+            onRepositionPoint={(index, time, noSnapshot) =>
+              dispatch({
+                type: "REPOSITION_POINT",
+                index,
+                time,
+                noSnapshot,
+              })
             }
             onSelect={(index) => dispatch({ type: "SELECT", index })}
             onDeselect={() => dispatch({ type: "DESELECT" })}
             onSetActiveHandle={(h) =>
               dispatch({ type: "SET_ACTIVE_HANDLE", handle: h })
             }
+            onBeginDrag={() => {
+              dispatch({ type: "BEGIN_DRAG" });
+              setIsDragging(true);
+            }}
+            onEndDrag={() => setIsDragging(false)}
           />
 
           {/* Playhead — over selection overlay */}

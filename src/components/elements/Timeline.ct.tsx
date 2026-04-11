@@ -255,6 +255,100 @@ test("renders multiple tracks for multi-channel audio", async ({ mount }) => {
   await expect(tracks).toHaveCount(4);
 });
 
+// -- Saved state restoration --
+
+test("restores saved range selections on mount", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      initialSelections={[
+        { start: 5, end: 10 },
+        { start: 20, end: 30 },
+      ]}
+    />,
+  );
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-1"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-2"]')).not.toBeAttached();
+});
+
+test("restores saved point selections on mount", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+      initialSelections={[{ time: 10 }, { time: 25 }, { time: 40 }]}
+    />,
+  );
+  await expect(component.locator('[data-testid="point-0"]')).toBeAttached();
+  await expect(component.locator('[data-testid="point-1"]')).toBeAttached();
+  await expect(component.locator('[data-testid="point-2"]')).toBeAttached();
+});
+
+test("restoration discards malformed entries", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      initialSelections={[
+        { start: 5, end: 10 },
+        { start: "bad", end: 20 } as unknown as { start: number; end: number },
+        null as unknown as { start: number; end: number },
+        { start: 30, end: 40 },
+      ]}
+    />,
+  );
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-1"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-2"]')).not.toBeAttached();
+});
+
+test("restoration with no saved value starts empty", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await expect(component.locator('[data-testid="range-0"]')).not.toBeAttached();
+});
+
+test("does not re-save the restored value on mount", async ({ mount }) => {
+  // Mounting with initialSelections should hydrate the reducer but NOT
+  // immediately call save() — that would clobber the original write with
+  // a new echo on every page load.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      initialSelections={[{ start: 5, end: 10 }]}
+    />,
+  );
+  // Wait for the save log; should be empty.
+  const saves = await readSaveLog(component);
+  expect(saves).toEqual([]);
+});
+
 // -- Selection interactions --
 
 async function readSaveLog(component: import("@playwright/test").Locator) {
@@ -1547,9 +1641,148 @@ test("debounced save: rapid arrow keypresses produce a single save", async ({
     })
     .toBeGreaterThan(0);
 
-  // The number of new saves should be small (ideally 1) — definitely
-  // not 5. We allow some flexibility for React batching, but assert <3.
+  // After 5 rapid ArrowRights, the 500ms debounce should produce
+  // exactly one new save — not five (raw) or two (premature flush).
   const afterSaves = await readSaveLog(component);
   const newSaves = afterSaves.length - beforeSaves.length;
-  expect(newSaves).toBeLessThan(3);
+  expect(newSaves).toBe(1);
+});
+
+test("dragging a range handle produces a single save (not one per move)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5);
+  const beforeSaves = await readSaveLog(component);
+
+  // Drag the end handle right with multiple intermediate moves
+  const endHandle = component.locator('[data-testid="range-0-handle-end"]');
+  const handleBox = await endHandle.boundingBox();
+  if (!handleBox) throw new Error("end handle not found");
+
+  await endHandle.dispatchEvent("pointerdown", {
+    clientX: handleBox.x + handleBox.width / 2,
+    clientY: handleBox.y + handleBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  // Several intermediate pointermoves
+  for (let dx = 10; dx <= 50; dx += 10) {
+    await component
+      .locator('[data-testid="selection-overlay"]')
+      .dispatchEvent("pointermove", {
+        clientX: handleBox.x + handleBox.width / 2 + dx,
+        clientY: handleBox.y + handleBox.height / 2,
+        button: 0,
+        buttons: 1,
+        pointerId: 1,
+        isPrimary: true,
+      });
+  }
+  await component
+    .locator('[data-testid="selection-overlay"]')
+    .dispatchEvent("pointerup", {
+      clientX: handleBox.x + handleBox.width / 2 + 50,
+      clientY: handleBox.y + handleBox.height / 2,
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      isPrimary: true,
+    });
+
+  // Wait for the save log to settle, then assert exactly one new save
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      return saves.length - beforeSaves.length;
+    })
+    .toBe(1);
+});
+
+test("undo after a drag restores the pre-drag state in one step", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5);
+
+  // Capture the original end position
+  const savesBeforeDrag = await readSaveLog(component);
+  const originalRange = (
+    savesBeforeDrag[savesBeforeDrag.length - 1]?.value as {
+      start: number;
+      end: number;
+    }[]
+  )[0];
+
+  // Drag the end handle
+  const endHandle = component.locator('[data-testid="range-0-handle-end"]');
+  const handleBox = await endHandle.boundingBox();
+  if (!handleBox) throw new Error("end handle not found");
+
+  await endHandle.dispatchEvent("pointerdown", {
+    clientX: handleBox.x + handleBox.width / 2,
+    clientY: handleBox.y + handleBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  for (let dx = 10; dx <= 50; dx += 10) {
+    await component
+      .locator('[data-testid="selection-overlay"]')
+      .dispatchEvent("pointermove", {
+        clientX: handleBox.x + handleBox.width / 2 + dx,
+        clientY: handleBox.y + handleBox.height / 2,
+        button: 0,
+        buttons: 1,
+        pointerId: 1,
+        isPrimary: true,
+      });
+  }
+  await component
+    .locator('[data-testid="selection-overlay"]')
+    .dispatchEvent("pointerup", {
+      clientX: handleBox.x + handleBox.width / 2 + 50,
+      clientY: handleBox.y + handleBox.height / 2,
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      isPrimary: true,
+    });
+
+  // One Ctrl+Z should bring it all the way back
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Control+z");
+
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as {
+        start: number;
+        end: number;
+      }[];
+      return last[0]?.end ?? -1;
+    })
+    .toBeCloseTo(originalRange?.end ?? -1, 0);
 });

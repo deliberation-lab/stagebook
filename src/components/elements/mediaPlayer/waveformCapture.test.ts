@@ -4,6 +4,7 @@ import {
   timeToBucket,
   accumulatePeaks,
   createPeaksArrays,
+  MAX_BUCKETS,
 } from "./waveformCapture.js";
 
 describe("computeBucketCount", () => {
@@ -26,6 +27,16 @@ describe("computeBucketCount", () => {
   it("handles non-finite duration", () => {
     expect(computeBucketCount(Infinity, 10)).toBe(0);
     expect(computeBucketCount(NaN, 10)).toBe(0);
+  });
+
+  it("caps at MAX_BUCKETS to prevent unbounded memory allocation", () => {
+    // 1 million seconds × 10 bps = 10M, way over MAX_BUCKETS (1M)
+    expect(computeBucketCount(1_000_000, 10)).toBe(MAX_BUCKETS);
+  });
+
+  it("does not cap when below MAX_BUCKETS", () => {
+    // Just under the cap
+    expect(computeBucketCount(99_999, 10)).toBe(999_990);
   });
 });
 

@@ -274,11 +274,16 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       );
     }
 
-    case "timeline":
+    case "timeline": {
+      const timelineName = String(element.name ?? "");
+      // Read previously saved selections so participants who reload the
+      // stage see their existing marks. Matches the form-input convention
+      // (Prompt reads `prompt.<name>`, Timeline reads `timeline.<name>`).
+      const savedSelections = resolve(`timeline.${timelineName}`)[0];
       return (
         <Timeline
           source={String(element.source ?? "")}
-          name={String(element.name ?? "")}
+          name={timelineName}
           selectionType={
             (element.selectionType as "range" | "point") ?? "range"
           }
@@ -286,9 +291,11 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           multiSelect={element.multiSelect as boolean | undefined}
           showWaveform={element.showWaveform as boolean | undefined}
           trackLabels={element.trackLabels as string[] | undefined}
+          initialSelections={savedSelections as unknown[] | undefined}
           save={wrappedSave}
         />
       );
+    }
 
     case "trackedLink":
       return (

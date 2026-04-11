@@ -366,4 +366,72 @@ describe("selectionsReducer", () => {
       expect(result.activeHandle).toBe("end");
     });
   });
+
+  describe("BEGIN_DRAG + noSnapshot collapse", () => {
+    it("BEGIN_DRAG snapshots without changing selections", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+      };
+      const result = selectionsReducer(state, { type: "BEGIN_DRAG" });
+      expect(result.selections).toEqual([{ start: 10, end: 20 }]);
+      expect(result.undoStack).toHaveLength(1);
+    });
+
+    it("ADJUST_HANDLE with noSnapshot does not push to undo stack", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+      };
+      const after = selectionsReducer(state, {
+        type: "ADJUST_HANDLE",
+        index: 0,
+        handle: "end",
+        time: 25,
+        noSnapshot: true,
+      });
+      expect((after.selections[0] as { end: number }).end).toBe(25);
+      expect(after.undoStack).toHaveLength(0);
+    });
+
+    it("REPOSITION_POINT with noSnapshot does not push to undo stack", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ time: 10 }],
+      };
+      const after = selectionsReducer(state, {
+        type: "REPOSITION_POINT",
+        index: 0,
+        time: 25,
+        noSnapshot: true,
+      });
+      expect((after.selections[0] as { time: number }).time).toBe(25);
+      expect(after.undoStack).toHaveLength(0);
+    });
+
+    it("BEGIN_DRAG + many noSnapshot adjusts collapses to a single undo step", () => {
+      let state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+      };
+      // Simulate the start of a drag — single snapshot at start
+      state = selectionsReducer(state, { type: "BEGIN_DRAG" });
+      // Then 10 noSnapshot pointermove dispatches
+      for (let t = 21; t <= 30; t++) {
+        state = selectionsReducer(state, {
+          type: "ADJUST_HANDLE",
+          index: 0,
+          handle: "end",
+          time: t,
+          noSnapshot: true,
+        });
+      }
+      expect((state.selections[0] as { end: number }).end).toBe(30);
+      expect(state.undoStack).toHaveLength(1);
+
+      // One UNDO restores all the way back to the pre-drag state
+      state = selectionsReducer(state, { type: "UNDO" });
+      expect((state.selections[0] as { end: number }).end).toBe(20);
+    });
+  });
 });

@@ -2,15 +2,24 @@
 // Used by MediaPlayer to accumulate peak data from AnalyserNodes.
 
 /**
+ * Hard cap on the number of buckets allocated per channel. At the default
+ * 10 buckets/second this caps memory at ~16 MB per channel (8 bytes per
+ * Float32 × 2 entries × 1_000_000 buckets), which is ~28 hours of audio.
+ * Beyond this, we degrade gracefully — capture still runs but the buffer
+ * stops growing rather than blowing up memory on pathological inputs.
+ */
+export const MAX_BUCKETS = 1_000_000;
+
+/**
  * How many time buckets are needed to cover the given duration.
- * Returns 0 for non-finite or non-positive durations.
+ * Returns 0 for non-finite or non-positive durations, capped at MAX_BUCKETS.
  */
 export function computeBucketCount(
   duration: number,
   bucketsPerSecond: number,
 ): number {
   if (!Number.isFinite(duration) || duration <= 0) return 0;
-  return Math.ceil(duration * bucketsPerSecond);
+  return Math.min(Math.ceil(duration * bucketsPerSecond), MAX_BUCKETS);
 }
 
 /**
