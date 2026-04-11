@@ -1205,6 +1205,92 @@ test("ArrowLeft on end handle moves it left by 1s", async ({ mount }) => {
     .toBeCloseTo(29, 0); // 30 - 1
 });
 
+test("keyboard handle adjustment is clamped to media duration", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  // Create a range very close to the end of the media (54-58s)
+  await createRangeViaDrag(component, 0.9, 0.9667);
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Tab"); // end handle
+  // Press ArrowRight enough times that it would push past duration (60s)
+  for (let i = 0; i < 10; i++) {
+    await timeline.press("ArrowRight");
+  }
+
+  // The end handle should be clamped at duration (60), not pushed past it.
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as { end: number }[];
+      return last[0]?.end ?? 0;
+    })
+    .toBeLessThanOrEqual(60);
+});
+
+test("keyboard point reposition is clamped to [0, duration]", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+
+  // Place a point near time 2s
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * (2 / 60),
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * (2 / 60),
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  // Press ArrowLeft enough times to push below 0
+  for (let i = 0; i < 10; i++) {
+    await timeline.press("ArrowLeft");
+  }
+
+  // The point should be clamped at 0, not pushed negative.
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as { time: number }[];
+      return last[0]?.time ?? -1;
+    })
+    .toBeGreaterThanOrEqual(0);
+});
+
 test("Tab switches active handle (end → start)", async ({ mount }) => {
   const component = await mount(
     <MockTimeline

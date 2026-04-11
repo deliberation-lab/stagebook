@@ -41,6 +41,7 @@ function makeMockHandle(config: MockHandleConfig): PlaybackHandle {
     isYouTube: false,
     channelCount,
     peaks: [],
+    peaksVersion: 0,
     requestWaveformCapture() {},
   };
 }

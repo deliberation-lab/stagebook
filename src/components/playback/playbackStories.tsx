@@ -22,6 +22,7 @@ export function makeHandle(
     isYouTube: false,
     channelCount: 0,
     peaks: [],
+    peaksVersion: 0,
     requestWaveformCapture() {},
     ...overrides,
   };

@@ -6,6 +6,11 @@ export interface TimelineTrackProps {
   label: string;
   /** Interleaved min/max peaks for this channel. */
   peaks: Float32Array | null;
+  /**
+   * Render token: bumps when peaks are mutated in place. Forces the
+   * WaveformRenderer to redraw despite a stable array reference.
+   */
+  peaksVersion: number;
   /** Width of the waveform area in pixels (excludes gutter). */
   waveformWidth: number;
   /** Height of this track in pixels. */
@@ -24,6 +29,7 @@ const GUTTER_WIDTH = 72;
 export function TimelineTrack({
   label,
   peaks,
+  peaksVersion,
   waveformWidth,
   height,
   startBucket,
@@ -60,6 +66,7 @@ export function TimelineTrack({
       </div>
       <WaveformRenderer
         peaks={peaks}
+        peaksVersion={peaksVersion}
         width={waveformWidth}
         height={height}
         startBucket={startBucket}

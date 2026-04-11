@@ -3,6 +3,13 @@ import React, { useRef, useEffect } from "react";
 export interface WaveformRendererProps {
   /** Interleaved min/max pairs per time bucket. */
   peaks: Float32Array | null;
+  /**
+   * Render token. The peaks array is mutated in place during capture, so
+   * its reference doesn't change. Bumping this counter (in MediaPlayer's
+   * RAF accumulation loop, polled by Timeline) tells this component to
+   * redraw with the new data.
+   */
+  peaksVersion: number;
   /** Width of the canvas in CSS pixels. */
   width: number;
   /** Height of the canvas in CSS pixels. */
@@ -19,6 +26,7 @@ export interface WaveformRendererProps {
  */
 export function WaveformRenderer({
   peaks,
+  peaksVersion,
   width,
   height,
   startBucket,
@@ -36,7 +44,9 @@ export function WaveformRenderer({
     const dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
+    // Use setTransform (not scale) so repeated draws don't compound the
+    // DPR scaling on top of itself.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     ctx.clearRect(0, 0, width, height);
 
@@ -77,7 +87,7 @@ export function WaveformRenderer({
         Math.max(barHeight, 1),
       );
     }
-  }, [peaks, width, height, startBucket, endBucket]);
+  }, [peaks, peaksVersion, width, height, startBucket, endBucket]);
 
   return (
     <canvas

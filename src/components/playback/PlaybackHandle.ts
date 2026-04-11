@@ -16,8 +16,20 @@ export interface PlaybackHandle {
    * Per-channel waveform peaks. One Float32Array per channel, containing
    * interleaved min/max pairs per time bucket. Empty until capture starts.
    * Shared across all timelines — read-only.
+   *
+   * IMPORTANT: these arrays are mutated in place during capture. Consumers
+   * that need to know when the data changed should read `peaksVersion`,
+   * which bumps every time a frame is accumulated.
    */
   readonly peaks: Float32Array[];
+
+  /**
+   * Monotonically increasing counter that bumps every time `peaks` is
+   * mutated by the capture loop. Use this as a render-token in React effects
+   * (e.g., a canvas redraw effect) so they re-run when peaks change despite
+   * the array reference being stable.
+   */
+  readonly peaksVersion: number;
 
   /**
    * Request the MediaPlayer to start capturing waveform data.

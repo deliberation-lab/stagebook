@@ -64,7 +64,7 @@ describe("selectionsReducer", () => {
       expect(sels[1]?.start).toBe(30);
     });
 
-    it("replaces existing when multiSelect is false", () => {
+    it("replaces existing when multiSelect is false (new is later)", () => {
       let state = emptyState();
       state = selectionsReducer(state, {
         type: "CREATE_RANGE",
@@ -81,6 +81,50 @@ describe("selectionsReducer", () => {
         multiSelect: false,
       });
       expect(state.selections).toEqual([{ start: 30, end: 40 }]);
+    });
+
+    it("replaces existing when multiSelect is false (new is EARLIER)", () => {
+      // Regression: previously the reducer kept the latest-by-time selection,
+      // not the newly-created one. Creating an earlier range incorrectly kept
+      // the older later range.
+      let state = emptyState();
+      state = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 30,
+        end: 40,
+        track: undefined,
+        multiSelect: false,
+      });
+      state = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 5,
+        end: 10,
+        track: undefined,
+        multiSelect: false,
+      });
+      expect(state.selections).toEqual([{ start: 5, end: 10 }]);
+    });
+
+    it("multiSelect=false: new range is not blocked by existing range overlap", () => {
+      // Previously, createRange clamped against the existing range even
+      // when multiSelect=false, which could prevent creation entirely if
+      // the new range was fully enclosed by an existing one.
+      let state = emptyState();
+      state = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 0,
+        end: 60,
+        track: undefined,
+        multiSelect: false,
+      });
+      state = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 20,
+        end: 40,
+        track: undefined,
+        multiSelect: false,
+      });
+      expect(state.selections).toEqual([{ start: 20, end: 40 }]);
     });
 
     it("includes track field in scope=track mode", () => {
@@ -126,7 +170,7 @@ describe("selectionsReducer", () => {
       expect(pts.map((p) => p.time)).toEqual([10, 30]);
     });
 
-    it("replaces existing when multiSelect is false", () => {
+    it("replaces existing when multiSelect is false (new is later)", () => {
       let state = emptyState();
       state = selectionsReducer(state, {
         type: "CREATE_POINT",
@@ -141,6 +185,24 @@ describe("selectionsReducer", () => {
         multiSelect: false,
       });
       expect(state.selections).toEqual([{ time: 20 }]);
+    });
+
+    it("replaces existing when multiSelect is false (new is EARLIER)", () => {
+      // Regression: previously kept the latest-by-time point.
+      let state = emptyState();
+      state = selectionsReducer(state, {
+        type: "CREATE_POINT",
+        time: 30,
+        track: undefined,
+        multiSelect: false,
+      });
+      state = selectionsReducer(state, {
+        type: "CREATE_POINT",
+        time: 5,
+        track: undefined,
+        multiSelect: false,
+      });
+      expect(state.selections).toEqual([{ time: 5 }]);
     });
   });
 

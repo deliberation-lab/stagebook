@@ -233,14 +233,18 @@ export function Timeline({
     setCurrentTime(h.getCurrentTime());
   }, [showWaveform]);
 
-  // Poll currentTime via RAF for smooth playhead movement during playback.
-  // Also tracks isPaused so the viewport effect knows when to auto-scroll
-  // versus snap-on-seek.
+  // Poll currentTime + peaksVersion + isPaused via RAF. peaksVersion is the
+  // render token for the waveform — peaks are mutated in place by the
+  // capture loop, so React never sees the array reference change. Polling
+  // the version and storing it in state lets the WaveformRenderer effect
+  // re-run when new data arrives.
   const [isPaused, setIsPaused] = useState(true);
+  const [peaksVersion, setPeaksVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     let lastValue = -1;
     let lastPaused: boolean | null = null;
+    let lastPeaksVersion = -1;
     let rafId = 0;
 
     function tick() {
@@ -256,6 +260,11 @@ export function Timeline({
         if (paused !== lastPaused) {
           lastPaused = paused;
           setIsPaused(paused);
+        }
+        const v = h.peaksVersion;
+        if (v !== lastPeaksVersion) {
+          lastPeaksVersion = v;
+          setPeaksVersion(v);
         }
       }
       rafId = requestAnimationFrame(tick);
@@ -397,27 +406,41 @@ export function Timeline({
     e.preventDefault();
     e.stopPropagation();
 
+    // Clamp time to [0, duration] before dispatch + seek so a keyboard
+    // adjustment can never push a selection past the media bounds.
+    const dur = handleRef.current?.getDuration() ?? 0;
+    const clampToMedia = (t: number): number => {
+      if (Number.isFinite(dur) && dur > 0) {
+        return Math.max(0, Math.min(t, dur));
+      }
+      return Math.max(0, t);
+    };
+
     switch (action.type) {
-      case "adjustHandle":
+      case "adjustHandle": {
+        const t = clampToMedia(action.time);
         debounceNextSaveRef.current = true;
         dispatch({
           type: "ADJUST_HANDLE",
           index: action.index,
           handle: action.handle,
-          time: action.time,
+          time: t,
         });
         // Sync video to the new handle position so the user sees the frame
-        handleRef.current?.seekTo(action.time);
+        handleRef.current?.seekTo(t);
         break;
-      case "repositionPoint":
+      }
+      case "repositionPoint": {
+        const t = clampToMedia(action.time);
         debounceNextSaveRef.current = true;
         dispatch({
           type: "REPOSITION_POINT",
           index: action.index,
-          time: action.time,
+          time: t,
         });
-        handleRef.current?.seekTo(action.time);
+        handleRef.current?.seekTo(t);
         break;
+      }
       case "switchHandle":
         dispatch({ type: "SET_ACTIVE_HANDLE", handle: action.handle });
         break;
@@ -524,6 +547,7 @@ export function Timeline({
             key={i}
             label={label}
             peaks={peaks[i] ?? null}
+            peaksVersion={peaksVersion}
             waveformWidth={waveformWidth}
             height={TRACK_HEIGHT}
             startBucket={startBucket}

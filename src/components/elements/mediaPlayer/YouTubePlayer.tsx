@@ -122,6 +122,7 @@ export function buildYouTubeHandle(player: YTPlayer): PlaybackHandle {
     isYouTube: true,
     channelCount: 0,
     peaks: [],
+    peaksVersion: 0,
     requestWaveformCapture() {}, // no-op for YouTube
   };
 }

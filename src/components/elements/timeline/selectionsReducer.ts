@@ -12,7 +12,6 @@ import {
   adjustHandle,
   repositionPoint,
   deleteSelection,
-  enforceMultiSelect,
   sortRanges,
   sortPoints,
   pushUndo,
@@ -97,6 +96,22 @@ export function selectionsReducer(
 ): SelectionState {
   switch (action.type) {
     case "CREATE_RANGE": {
+      // multiSelect: false → the new range REPLACES any existing one. Don't
+      // clamp against ranges that are about to be discarded, and don't try
+      // to "keep the last in time order" (that would keep the wrong one).
+      if (!action.multiSelect) {
+        const lo = Math.min(action.start, action.end);
+        const hi = Math.max(action.start, action.end);
+        if (hi <= lo) return state;
+        const range: RangeSelection = { start: lo, end: hi };
+        if (action.track !== undefined) range.track = action.track;
+        return {
+          ...snapshot(state),
+          selections: [range],
+          activeIndex: 0,
+          activeHandle: null,
+        };
+      }
       const existing = isRangeArray(state.selections) ? state.selections : [];
       const range = createRange(
         action.start,
@@ -105,10 +120,7 @@ export function selectionsReducer(
         existing,
       );
       if (!range) return state;
-      const next = enforceMultiSelect(
-        sortRanges([...existing, range]),
-        action.multiSelect,
-      );
+      const next = sortRanges([...existing, range]);
       return {
         ...snapshot(state),
         selections: next,
@@ -118,12 +130,19 @@ export function selectionsReducer(
     }
 
     case "CREATE_POINT": {
+      // multiSelect: false → the new point REPLACES any existing one.
+      if (!action.multiSelect) {
+        const point = createPoint(action.time, action.track);
+        return {
+          ...snapshot(state),
+          selections: [point],
+          activeIndex: 0,
+          activeHandle: null,
+        };
+      }
       const existing = !isRangeArray(state.selections) ? state.selections : [];
       const point = createPoint(action.time, action.track);
-      const next = enforceMultiSelect(
-        sortPoints([...existing, point]),
-        action.multiSelect,
-      );
+      const next = sortPoints([...existing, point]);
       return {
         ...snapshot(state),
         selections: next,

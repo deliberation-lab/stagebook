@@ -149,12 +149,17 @@ export function MediaPlayer({
   // Type the array element explicitly so TS doesn't widen it.
   const analyserBuffersRef = useRef<Uint8Array<ArrayBuffer>[]>([]);
   const peaksRef = useRef<Float32Array[]>([]);
+  // Render token: bumps every time peaks are mutated, so consumers can
+  // re-run effects despite the array reference being stable.
+  const peaksVersionRef = useRef(0);
   const [channelCount, setChannelCount] = useState(0);
   const waveformRafRef = useRef<number>(0);
-  const waveformActiveRef = useRef(false);
+  // Promote waveformActive to state so React effects (e.g., the RAF loop)
+  // re-evaluate when capture is requested mid-playback.
+  const [waveformActive, setWaveformActive] = useState(false);
 
   const startWaveformCapture = useCallback(() => {
-    if (waveformActiveRef.current) return; // already active
+    if (waveformActive) return; // already active
     const v = videoRef.current;
     if (!v) return;
 
@@ -184,12 +189,11 @@ export function MediaPlayer({
       analysersRef.current = analysers;
       analyserBuffersRef.current = buffers;
       setChannelCount(numChannels);
-
-      waveformActiveRef.current = true;
+      setWaveformActive(true);
     } catch (err) {
       console.warn("[MediaPlayer] Waveform capture unavailable:", err);
     }
-  }, []);
+  }, [waveformActive]);
 
   // Close the AudioContext on unmount. Chrome enforces a hard limit of ~6
   // simultaneous AudioContexts per tab; without this, an experiment that
@@ -206,7 +210,6 @@ export function MediaPlayer({
       audioCtxRef.current = null;
       analysersRef.current = [];
       analyserBuffersRef.current = [];
-      waveformActiveRef.current = false;
     };
   }, []);
 
@@ -225,29 +228,39 @@ export function MediaPlayer({
     peaksRef.current = createPeaksArrays(channelCount, buckets);
   }, [channelCount, duration]);
 
-  // RAF loop: accumulate peaks while playing
+  // RAF loop: accumulate peaks while playing. Reads from refs each frame so
+  // it picks up newly-allocated peak arrays after duration changes; depends
+  // on waveformActive (state) so it re-runs when capture begins mid-playback.
   useEffect(() => {
-    if (!waveformActiveRef.current || isPaused) return;
-
-    const analysers = analysersRef.current;
-    const buffers = analyserBuffersRef.current;
-    const peaks = peaksRef.current;
+    if (!waveformActive || isPaused) return;
 
     function tick() {
       const v = videoRef.current;
       if (!v || v.paused) return;
+      const analysers = analysersRef.current;
+      const buffers = analyserBuffersRef.current;
+      const peaks = peaksRef.current;
+
+      if (analysers.length === 0 || peaks.length === 0) {
+        // Capture not yet wired up — skip and try again next frame.
+        waveformRafRef.current = requestAnimationFrame(tick);
+        return;
+      }
 
       for (let i = 0; i < analysers.length; i++) {
         analysers[i].getByteTimeDomainData(buffers[i]);
       }
 
       accumulatePeaks(peaks, buffers, v.currentTime, BUCKETS_PER_SECOND);
+      // Bump the render token so consumers (Timeline → WaveformRenderer)
+      // know the in-place mutation needs a redraw.
+      peaksVersionRef.current += 1;
       waveformRafRef.current = requestAnimationFrame(tick);
     }
 
     waveformRafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(waveformRafRef.current);
-  }, [isPaused]);
+  }, [isPaused, waveformActive]);
 
   // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
   useEffect(() => {
@@ -283,6 +296,9 @@ export function MediaPlayer({
       },
       get peaks() {
         return peaksRef.current;
+      },
+      get peaksVersion() {
+        return peaksVersionRef.current;
       },
       requestWaveformCapture: startWaveformCapture,
     }),
