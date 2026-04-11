@@ -94,10 +94,13 @@ export function MockTimeline({
   return (
     <PlaybackProvider>
       {playerName && <MockPlayer name={playerName} handle={handle} />}
-      <Timeline
-        {...props}
-        save={(key, value) => setSaves((prev) => [...prev, { key, value }])}
-      />
+      {/* Force a fixed width so ResizeObserver in tests has a known size. */}
+      <div style={{ width: "800px" }}>
+        <Timeline
+          {...props}
+          save={(key, value) => setSaves((prev) => [...prev, { key, value }])}
+        />
+      </div>
       <div data-testid="save-log" style={{ display: "none" }}>
         {JSON.stringify(saves)}
       </div>

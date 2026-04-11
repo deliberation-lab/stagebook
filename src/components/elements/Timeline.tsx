@@ -1,9 +1,20 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { usePlayback } from "../playback/PlaybackProvider.js";
 import { TimeRuler } from "./timeline/TimeRuler.js";
 import { TimelineTrack, GUTTER_WIDTH } from "./timeline/TimelineTrack.js";
 import { Playhead } from "./timeline/Playhead.js";
+import { SelectionOverlay } from "./timeline/SelectionOverlay.js";
 import { computeBucketCount } from "./mediaPlayer/waveformCapture.js";
+import {
+  initialSelectionState,
+  selectionsReducer,
+} from "./timeline/selectionsReducer.js";
 
 export interface TimelineProps {
   source: string;
@@ -27,39 +38,71 @@ export function Timeline({
   multiSelect = false,
   showWaveform = true,
   trackLabels,
-  save: _save,
+  save,
 }: TimelineProps) {
   const handle = usePlayback(source);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const tracksAreaRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
-  // Zoom & pan state. Setters will be wired up in the next subissue.
-  const [zoomLevel] = useState(1);
-  const [viewportStart] = useState(0);
-
-  // Measure container width via ResizeObserver. Only update state when the
-  // width actually changes — otherwise layout-driven re-renders from this
-  // observer race with React's render loop in CT tests.
-  useLayoutEffect(() => {
-    const el = containerRef.current;
+  // Callback ref: measures the container immediately on attach. Works
+  // regardless of mount order — unlike useEffect, a callback ref fires when
+  // React attaches the DOM element, even if the component re-renders later
+  // (e.g. when the playback handle becomes available).
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const containerRef = useCallback((el: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
     if (!el) return;
-    let lastWidth = -1;
-    function update(width: number) {
-      if (width === lastWidth) return;
-      lastWidth = width;
-      setContainerWidth(width);
-    }
-    update(el.getBoundingClientRect().width);
+    setContainerWidth(el.getBoundingClientRect().width);
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        update(entry.contentRect.width);
+        setContainerWidth(entry.contentRect.width);
       }
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    observerRef.current = observer;
   }, []);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+    };
+  }, []);
+
+  // Zoom & pan state. Setters will be wired up in #49.
+  const [zoomLevel] = useState(1);
+  const [viewportStart] = useState(0);
+
+  // Selection state via reducer (pure logic in selectionsReducer.ts)
+  const [state, dispatch] = useReducer(
+    selectionsReducer,
+    undefined,
+    initialSelectionState,
+  );
+
+  // Save selections whenever they change (after the initial mount). Tracking
+  // the selection list itself ensures undo also triggers a save.
+  const lastSavedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const serialized = JSON.stringify(state.selections);
+    // Skip the very first run — we don't want to overwrite saved state on mount.
+    if (lastSavedRef.current === null) {
+      lastSavedRef.current = serialized;
+      return;
+    }
+    if (serialized === lastSavedRef.current) return;
+    lastSavedRef.current = serialized;
+    save(`timeline_${name}`, state.selections);
+  }, [state.selections, name, save]);
+
+  // Measure container width. Read from getBoundingClientRect on every render
+  // via a callback ref, and observe with ResizeObserver for ongoing updates.
+  // The callback ref fires synchronously when the element is attached, which
+  // gives a usable width on first paint even in test environments where the
+  // ResizeObserver callback is delayed.
 
   // Keep a ref to the handle so effects don't re-run when its identity changes
   const handleRef = useRef(handle);
@@ -100,6 +143,24 @@ export function Timeline({
       cancelAnimationFrame(rafId);
     };
   }, []);
+
+  // Keyboard: Delete, Escape, Ctrl+Z (#48 will expand this)
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (state.activeIndex !== null) {
+        e.preventDefault();
+        dispatch({ type: "DELETE" });
+      }
+    } else if (e.key === "Escape") {
+      if (state.activeIndex !== null) {
+        e.preventDefault();
+        dispatch({ type: "DESELECT" });
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      e.preventDefault();
+      dispatch({ type: "UNDO" });
+    }
+  };
 
   if (!handle) {
     return (
@@ -149,10 +210,13 @@ export function Timeline({
       data-show-waveform={showWaveform}
       role="region"
       aria-label={`Timeline: ${name}`}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
       style={{
         border: "1px solid var(--score-border, #e5e7eb)",
         borderRadius: "0.5rem",
         overflow: "hidden",
+        outline: "none",
       }}
     >
       {/* Time ruler — offset by gutter width */}
@@ -165,8 +229,8 @@ export function Timeline({
         />
       </div>
 
-      {/* Tracks + playhead */}
-      <div style={{ position: "relative" }}>
+      {/* Tracks + selection overlay + playhead */}
+      <div ref={tracksAreaRef} style={{ position: "relative" }}>
         {labels.map((label, i) => (
           <TimelineTrack
             key={i}
@@ -179,7 +243,7 @@ export function Timeline({
           />
         ))}
 
-        {/* Playhead — positioned over the waveform area, offset by gutter */}
+        {/* Selection overlay — positioned over the waveform area, offset by gutter */}
         <div
           style={{
             position: "absolute",
@@ -187,9 +251,52 @@ export function Timeline({
             left: `${String(GUTTER_WIDTH)}px`,
             width: `${String(waveformWidth)}px`,
             height: `${String(tracksHeight)}px`,
-            pointerEvents: "none",
           }}
         >
+          <SelectionOverlay
+            width={waveformWidth}
+            height={tracksHeight}
+            duration={duration}
+            zoomLevel={zoomLevel}
+            viewportStart={viewportStart}
+            selectionType={selectionType}
+            selectionScope={selectionScope}
+            channelCount={channelCount}
+            selections={state.selections}
+            activeIndex={state.activeIndex}
+            activeHandle={state.activeHandle}
+            onSeek={(t) => handle.seekTo(t)}
+            onCreateRange={(start, end, track) =>
+              dispatch({
+                type: "CREATE_RANGE",
+                start,
+                end,
+                track,
+                multiSelect,
+              })
+            }
+            onCreatePoint={(time, track) =>
+              dispatch({
+                type: "CREATE_POINT",
+                time,
+                track,
+                multiSelect,
+              })
+            }
+            onAdjustHandle={(index, h, time) =>
+              dispatch({ type: "ADJUST_HANDLE", index, handle: h, time })
+            }
+            onRepositionPoint={(index, time) =>
+              dispatch({ type: "REPOSITION_POINT", index, time })
+            }
+            onSelect={(index) => dispatch({ type: "SELECT", index })}
+            onDeselect={() => dispatch({ type: "DESELECT" })}
+            onSetActiveHandle={(h) =>
+              dispatch({ type: "SET_ACTIVE_HANDLE", handle: h })
+            }
+          />
+
+          {/* Playhead — over selection overlay */}
           <Playhead
             currentTime={currentTime}
             duration={duration}
