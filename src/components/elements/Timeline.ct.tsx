@@ -1019,3 +1019,273 @@ test("clicking an existing range selects it (data-active becomes true)", async (
   // Newly created range is active by default
   await expect(range).toHaveAttribute("data-active", "true");
 });
+
+// -- Keyboard editing (#48) --
+
+async function createRangeViaDrag(
+  component: import("@playwright/test").Locator,
+  startPct: number,
+  endPct: number,
+) {
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * startPct,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointermove", {
+    clientX: box.x + box.width * endPct,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * endPct,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+}
+
+test("ArrowRight extends end handle by 1s and seeks", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5); // 18-30s
+
+  // After creation, range is active but no handle yet — Tab to focus end handle
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Tab");
+  await timeline.press("ArrowRight");
+
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as { end: number }[];
+      return last[0]?.end ?? 0;
+    })
+    .toBeCloseTo(31, 0); // 30 + 1
+});
+
+test("ArrowLeft on end handle moves it left by 1s", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5); // 18-30s
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Tab"); // focus end handle
+  await timeline.press("ArrowLeft");
+
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as { end: number }[];
+      return last[0]?.end ?? 0;
+    })
+    .toBeCloseTo(29, 0); // 30 - 1
+});
+
+test("Tab switches active handle (end → start)", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5); // 18-30s
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Tab"); // first Tab → end handle active
+  await timeline.press("ArrowLeft"); // moves end -1s
+
+  // Tab again → start handle
+  await timeline.press("Tab");
+  await timeline.press("ArrowRight"); // moves start +1s
+
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as {
+        start: number;
+        end: number;
+      }[];
+      return { start: last[0]?.start ?? 0, end: last[0]?.end ?? 0 };
+    })
+    .toEqual({ start: expect.closeTo(19, 0), end: expect.closeTo(29, 0) });
+});
+
+test("comma/period adjust handle by one frame", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5); // 18-30s
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Tab"); // end handle
+
+  // Period: +1 frame = +1/30s ≈ +0.033s
+  await timeline.press(".");
+
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as { end: number }[];
+      return last[0]?.end ?? 0;
+    })
+    .toBeGreaterThan(30); // moved a frame past 30
+});
+
+test("point mode: arrow keys reposition the active point", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+
+  // Click at 50% to place a point at ~30s
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("ArrowRight"); // +1s
+
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      const last = saves[saves.length - 1]?.value as { time: number }[];
+      return last[0]?.time ?? 0;
+    })
+    .toBeCloseTo(31, 0);
+});
+
+test("Space key never intercepted by timeline", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5);
+  const beforeSaves = await readSaveLog(component);
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press(" ");
+  // No new save should fire (space doesn't change selections)
+  // Wait a bit to be sure no debounced save sneaks in
+  await timeline.evaluate(() => new Promise((r) => setTimeout(r, 300)));
+  const afterSaves = await readSaveLog(component);
+  expect(afterSaves.length).toBe(beforeSaves.length);
+});
+
+test("debounced save: rapid arrow keypresses produce a single save", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  await createRangeViaDrag(component, 0.3, 0.5);
+
+  // After creation, the save log has 1 entry. Capture it.
+  const beforeSaves = await readSaveLog(component);
+
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.press("Tab"); // end handle
+
+  // Fire 5 ArrowRights in quick succession
+  await timeline.press("ArrowRight");
+  await timeline.press("ArrowRight");
+  await timeline.press("ArrowRight");
+  await timeline.press("ArrowRight");
+  await timeline.press("ArrowRight");
+
+  // Wait for debounced save to land
+  await expect
+    .poll(async () => {
+      const saves = await readSaveLog(component);
+      return saves.length - beforeSaves.length;
+    })
+    .toBeGreaterThan(0);
+
+  // The number of new saves should be small (ideally 1) — definitely
+  // not 5. We allow some flexibility for React batching, but assert <3.
+  const afterSaves = await readSaveLog(component);
+  const newSaves = afterSaves.length - beforeSaves.length;
+  expect(newSaves).toBeLessThan(3);
+});

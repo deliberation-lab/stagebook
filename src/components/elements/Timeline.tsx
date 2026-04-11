@@ -15,6 +15,8 @@ import {
   initialSelectionState,
   selectionsReducer,
 } from "./timeline/selectionsReducer.js";
+import { keyToAction } from "./timeline/keyboardActions.js";
+import type { PointSelection, RangeSelection } from "./timeline/selections.js";
 
 export interface TimelineProps {
   source: string;
@@ -83,19 +85,42 @@ export function Timeline({
     initialSelectionState,
   );
 
-  // Save selections whenever they change (after the initial mount). Tracking
-  // the selection list itself ensures undo also triggers a save.
+  // Save selections whenever they change (after the initial mount). Mouse-
+  // driven changes save immediately; keyboard-driven changes are debounced
+  // ~500ms so holding an arrow key collapses to one save.
   const lastSavedRef = useRef<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set to true by the keyboard handler before dispatching, so the save
+  // effect can debounce this particular state change. Reset after the save.
+  const debounceNextSaveRef = useRef(false);
   useEffect(() => {
     const serialized = JSON.stringify(state.selections);
-    // Skip the very first run — we don't want to overwrite saved state on mount.
     if (lastSavedRef.current === null) {
       lastSavedRef.current = serialized;
       return;
     }
     if (serialized === lastSavedRef.current) return;
-    lastSavedRef.current = serialized;
-    save(`timeline_${name}`, state.selections);
+
+    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+
+    if (debounceNextSaveRef.current) {
+      debounceNextSaveRef.current = false;
+      saveTimerRef.current = setTimeout(() => {
+        lastSavedRef.current = serialized;
+        save(`timeline_${name}`, state.selections);
+        saveTimerRef.current = null;
+      }, 500);
+    } else {
+      lastSavedRef.current = serialized;
+      save(`timeline_${name}`, state.selections);
+    }
+
+    return () => {
+      if (saveTimerRef.current !== null) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
   }, [state.selections, name, save]);
 
   // Measure container width. Read from getBoundingClientRect on every render
@@ -144,21 +169,71 @@ export function Timeline({
     };
   }, []);
 
-  // Keyboard: Delete, Escape, Ctrl+Z (#48 will expand this)
+  // Keyboard handler — delegates to keyboardActions.ts for the key-to-action
+  // mapping. Returns null when the key should fall through to MediaPlayer.
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Delete" || e.key === "Backspace") {
-      if (state.activeIndex !== null) {
-        e.preventDefault();
+    const currentRange =
+      selectionType === "range" && state.activeIndex !== null
+        ? ((state.selections as RangeSelection[])[state.activeIndex] ?? null)
+        : null;
+    const currentPoint =
+      selectionType === "point" && state.activeIndex !== null
+        ? ((state.selections as PointSelection[])[state.activeIndex] ?? null)
+        : null;
+
+    const action = keyToAction(
+      {
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+      },
+      {
+        selectionType,
+        activeIndex: state.activeIndex,
+        activeHandle: state.activeHandle,
+        currentRange,
+        currentPoint,
+      },
+    );
+    if (!action) return; // Fall through to MediaPlayer
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    switch (action.type) {
+      case "adjustHandle":
+        debounceNextSaveRef.current = true;
+        dispatch({
+          type: "ADJUST_HANDLE",
+          index: action.index,
+          handle: action.handle,
+          time: action.time,
+        });
+        // Sync video to the new handle position so the user sees the frame
+        handleRef.current?.seekTo(action.time);
+        break;
+      case "repositionPoint":
+        debounceNextSaveRef.current = true;
+        dispatch({
+          type: "REPOSITION_POINT",
+          index: action.index,
+          time: action.time,
+        });
+        handleRef.current?.seekTo(action.time);
+        break;
+      case "switchHandle":
+        dispatch({ type: "SET_ACTIVE_HANDLE", handle: action.handle });
+        break;
+      case "delete":
         dispatch({ type: "DELETE" });
-      }
-    } else if (e.key === "Escape") {
-      if (state.activeIndex !== null) {
-        e.preventDefault();
+        break;
+      case "deselect":
         dispatch({ type: "DESELECT" });
-      }
-    } else if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-      e.preventDefault();
-      dispatch({ type: "UNDO" });
+        break;
+      case "undo":
+        dispatch({ type: "UNDO" });
+        break;
     }
   };
 
