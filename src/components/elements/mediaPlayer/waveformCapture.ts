@@ -52,6 +52,22 @@ export function createPeaksArrays(
 }
 
 /**
+ * Returns true if every analyser buffer contains only the silence midpoint
+ * (128 from getByteTimeDomainData). Used by the tainting detector — if all
+ * buffers are flat after several seconds of playback, the AnalyserNode is
+ * almost certainly receiving CORS-tainted (zeroed) audio.
+ */
+export function allBuffersSilent(buffers: Uint8Array[]): boolean {
+  if (buffers.length === 0) return false;
+  for (const buf of buffers) {
+    for (let i = 0; i < buf.length; i++) {
+      if (buf[i] !== 128) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Accumulate one frame of analyser data into the peaks arrays.
  *
  * @param peaks - Per-channel Float32Arrays (interleaved min/max)

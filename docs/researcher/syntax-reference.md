@@ -77,6 +77,7 @@ All elements accept: `name?`, `desc?`, `file?`, `displayTime?`, `hideTime?`, `sh
 | `audio` | `file` (required) |
 | `image` | `file` (required), `width?` |
 | `mediaPlayer` | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?` |
+| `timeline` | `source` (required, name of a sibling `mediaPlayer`), `name` (required), `selectionType` (required, `range` or `point`), `selectionScope?` (default `all`), `multiSelect?` (default `false`), `showWaveform?` (default `true`), `trackLabels?` |
 | `survey` | `surveyName` (required) |
 | `qualtrics` | `url` (required), `urlParams?` |
 | `trackedLink` | `name` (required), `url` (required), `displayText` (required), `helperText?`, `urlParams?` |
@@ -84,6 +85,18 @@ All elements accept: `name?`, `desc?`, `file?`, `displayTime?`, `hideTime?`, `sh
 | `talkMeter` | _(no extra fields)_ |
 
 **Shorthand:** bare string → `{ type: "prompt", file: "<string>", name: "<string>" }`.
+
+### Media hosting requirements
+
+The `<video>` element rendered by `mediaPlayer` always sets `crossOrigin="anonymous"`. This is required for the Web Audio API to read the audio stream when a `timeline` element with `showWaveform: true` is attached — without it, the analyser is silently CORS-tainted and the waveform tracks render as flat lines.
+
+**This means all media URLs must be served with proper CORS headers** (`Access-Control-Allow-Origin: *` or matching the experiment origin), regardless of whether you use the timeline. Same-origin media (e.g., served from the same host as the experiment) is unaffected.
+
+If you see flat waveforms in the timeline despite audio playing, check the browser console — SCORE logs a warning after 5 seconds of playback if the AnalyserNode is producing only silence:
+
+```
+[MediaPlayer] Waveform capture is producing all-zero data after 5s of playback...
+```
 
 ## 7. Stages
 

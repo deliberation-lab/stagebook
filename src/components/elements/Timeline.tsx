@@ -219,19 +219,23 @@ export function Timeline({
   // gives a usable width on first paint even in test environments where the
   // ResizeObserver callback is delayed.
 
-  // Keep a ref to the handle so effects don't re-run when its identity changes
+  // Keep a ref to the handle so other effects can read the current handle
+  // without re-running when its identity changes.
   const handleRef = useRef(handle);
   handleRef.current = handle;
 
-  // Request waveform capture and capture an initial currentTime on mount.
+  // Request waveform capture once the handle becomes available. We depend
+  // on `handle` (not just on `showWaveform`) so the effect re-runs when the
+  // handle transitions from undefined to defined — important when MediaPlayer
+  // and Timeline mount in the same render but the handle is registered in a
+  // post-render effect from MockPlayer / MediaPlayer.
   useEffect(() => {
-    const h = handleRef.current;
-    if (!h) return;
+    if (!handle) return;
     if (showWaveform) {
-      h.requestWaveformCapture();
+      handle.requestWaveformCapture();
     }
-    setCurrentTime(h.getCurrentTime());
-  }, [showWaveform]);
+    setCurrentTime(handle.getCurrentTime());
+  }, [handle, showWaveform]);
 
   // Poll currentTime + peaksVersion + isPaused via RAF. peaksVersion is the
   // render token for the waveform — peaks are mutated in place by the

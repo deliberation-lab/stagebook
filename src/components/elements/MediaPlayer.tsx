@@ -16,6 +16,7 @@ import {
   computeBucketCount,
   createPeaksArrays,
   accumulatePeaks,
+  allBuffersSilent,
 } from "./mediaPlayer/waveformCapture.js";
 
 export interface VideoEvent {
@@ -228,6 +229,15 @@ export function MediaPlayer({
     peaksRef.current = createPeaksArrays(channelCount, buckets);
   }, [channelCount, duration]);
 
+  // Silent-tainting detector. CORS-tainted media plays normally but the
+  // AnalyserNode receives all-zero (centered at 128) samples — the waveform
+  // appears as a flat line forever. We watch for the "still no signal after
+  // several seconds of playback" pattern and log a clear warning so
+  // researchers debugging a flat waveform know exactly where to look.
+  const TAINTING_DETECTION_THRESHOLD_SEC = 5;
+  const taintWarnedRef = useRef(false);
+  const captureStartTimeRef = useRef<number | null>(null);
+
   // RAF loop: accumulate peaks while playing. Reads from refs each frame so
   // it picks up newly-allocated peak arrays after duration changes; depends
   // on waveformActive (state) so it re-runs when capture begins mid-playback.
@@ -247,6 +257,11 @@ export function MediaPlayer({
         return;
       }
 
+      // Initialize capture start time on first tick
+      if (captureStartTimeRef.current === null) {
+        captureStartTimeRef.current = v.currentTime;
+      }
+
       for (let i = 0; i < analysers.length; i++) {
         analysers[i].getByteTimeDomainData(buffers[i]);
       }
@@ -255,12 +270,41 @@ export function MediaPlayer({
       // Bump the render token so consumers (Timeline → WaveformRenderer)
       // know the in-place mutation needs a redraw.
       peaksVersionRef.current += 1;
+
+      // Check for silent tainting: have we played enough but still see zero
+      // signal? Almost certainly a CORS issue.
+      if (
+        !taintWarnedRef.current &&
+        v.currentTime - (captureStartTimeRef.current ?? 0) >
+          TAINTING_DETECTION_THRESHOLD_SEC &&
+        allBuffersSilent(buffers)
+      ) {
+        taintWarnedRef.current = true;
+        console.warn(
+          "[MediaPlayer] Waveform capture is producing all-zero data after " +
+            `${String(TAINTING_DETECTION_THRESHOLD_SEC)}s of playback. This ` +
+            "usually means the media is hosted cross-origin without proper " +
+            "CORS headers (Access-Control-Allow-Origin), so the AnalyserNode " +
+            "is silently tainted. Configure the media server to allow CORS, " +
+            "or host the media same-origin.",
+        );
+      }
+
       waveformRafRef.current = requestAnimationFrame(tick);
     }
 
     waveformRafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(waveformRafRef.current);
   }, [isPaused, waveformActive]);
+
+  // Reset the tainting detector state when capture ends or media changes,
+  // so we re-arm for the next capture attempt.
+  useEffect(() => {
+    if (!waveformActive) {
+      taintWarnedRef.current = false;
+      captureStartTimeRef.current = null;
+    }
+  }, [waveformActive, url]);
 
   // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
   useEffect(() => {
@@ -992,6 +1036,12 @@ export function MediaPlayer({
           data-testid="mediaPlayer-video"
           src={url}
           muted={!playAudio}
+          // crossOrigin="anonymous" is required for Web Audio API capture
+          // (Timeline waveform). Without it, cross-origin media plays but
+          // taints the AnalyserNode → all-zero peaks. SCORE convention:
+          // media MUST be served with proper CORS headers. Same-origin media
+          // is unaffected.
+          crossOrigin="anonymous"
           onPlay={handlePlay}
           onPause={handlePause}
           onEnded={handleEnded}
@@ -1016,6 +1066,8 @@ export function MediaPlayer({
             data-testid="mediaPlayer-video"
             src={url}
             muted={!playAudio}
+            // See above — required for waveform capture. Same-origin no-op.
+            crossOrigin="anonymous"
             onPlay={handlePlay}
             onPause={handlePause}
             onEnded={handleEnded}

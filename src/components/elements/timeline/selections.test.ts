@@ -315,7 +315,23 @@ describe("undo stack", () => {
     for (let i = 0; i < 60; i++) {
       stack = pushUndo(stack, [{ start: i, end: i + 1 }]);
     }
-    expect(stack.length).toBeLessThanOrEqual(50);
+    expect(stack.length).toBe(50);
+  });
+
+  test("stack drops the OLDEST entry when overflowing", () => {
+    // Push 60 distinct snapshots; the trimmed stack should keep entries
+    // 10–59 (the most recent 50), not 0–49.
+    let stack: SelectionSnapshot[] = [];
+    for (let i = 0; i < 60; i++) {
+      stack = pushUndo(stack, [{ start: i, end: i + 1 }]);
+    }
+    expect(stack.length).toBe(50);
+    // First (oldest) surviving entry should be the i=10 push
+    expect(stack[0]?.selections).toEqual([{ start: 10, end: 11 }]);
+    // Last (newest) surviving entry should be the i=59 push
+    expect(stack[stack.length - 1]?.selections).toEqual([
+      { start: 59, end: 60 },
+    ]);
   });
 });
 

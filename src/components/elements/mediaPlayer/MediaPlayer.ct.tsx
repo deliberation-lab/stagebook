@@ -22,6 +22,29 @@ test("renders a video element for direct URL", async ({ mount }) => {
   ).toBeAttached();
 });
 
+test("video element has crossOrigin=anonymous for waveform capture", async ({
+  mount,
+}) => {
+  // Required so the Web Audio API can read audio samples when a Timeline
+  // attaches to this player. Without it, cross-origin media is silently
+  // CORS-tainted and waveforms render as flat lines.
+  const component = await mount(
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await expect(video).toHaveAttribute("crossorigin", "anonymous");
+});
+
+test("audio-only video element also has crossOrigin=anonymous", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playVideo={false} />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+  await expect(video).toHaveAttribute("crossorigin", "anonymous");
+});
+
 test("renders an iframe for YouTube URL", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer url="https://youtu.be/QC8iQqtG0hg" name="test" />,

@@ -8,7 +8,7 @@
  * (which contains methods), this wrapper accepts plain serializable values
  * (numbers/booleans) and constructs the handle internally.
  */
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Timeline, type TimelineProps } from "../elements/Timeline.js";
 import {
   PlaybackProvider,
@@ -24,25 +24,44 @@ export interface MockHandleConfig {
   channelCount?: number;
 }
 
-function makeMockHandle(config: MockHandleConfig): PlaybackHandle {
-  const {
-    duration = 60,
-    currentTime = 0,
-    paused = true,
-    channelCount = 0,
-  } = config;
+/**
+ * Build a handle whose getter methods read from the supplied refs. Updating
+ * a ref's `.current` makes the handle's methods see the new value without
+ * re-creating the handle — important for tests that drive playback over
+ * time (auto-scroll, snap-on-seek).
+ *
+ * `captureCallCount` tracks how many times requestWaveformCapture has been
+ * called, so tests can assert that showWaveform=false suppresses the call.
+ */
+function makeRefBackedHandle(refs: {
+  duration: { current: number };
+  currentTime: { current: number };
+  paused: { current: boolean };
+  channelCount: { current: number };
+  captureCallCount: { current: number };
+}): PlaybackHandle {
   return {
-    play() {},
-    pause() {},
-    seekTo() {},
-    getCurrentTime: () => currentTime,
-    getDuration: () => duration,
-    isPaused: () => paused,
+    play() {
+      refs.paused.current = false;
+    },
+    pause() {
+      refs.paused.current = true;
+    },
+    seekTo(s: number) {
+      refs.currentTime.current = s;
+    },
+    getCurrentTime: () => refs.currentTime.current,
+    getDuration: () => refs.duration.current,
+    isPaused: () => refs.paused.current,
     isYouTube: false,
-    channelCount,
+    get channelCount() {
+      return refs.channelCount.current;
+    },
     peaks: [],
     peaksVersion: 0,
-    requestWaveformCapture() {},
+    requestWaveformCapture() {
+      refs.captureCallCount.current += 1;
+    },
   };
 }
 
@@ -80,17 +99,51 @@ export function MockTimeline({
     [],
   );
 
-  // Memoize the handle so its identity is stable across re-renders.
+  // Refs that the handle's getter methods read from. Updating these via a
+  // re-render with new prop values lets tests drive playback over time
+  // (e.g., for auto-scroll and snap-on-seek tests).
+  const durationRef = useRef(mockDuration ?? 60);
+  const currentTimeRef = useRef(mockCurrentTime ?? 0);
+  const pausedRef = useRef(mockPaused ?? true);
+  const channelCountRef = useRef(mockChannelCount ?? 0);
+  // Counts how many times Timeline called requestWaveformCapture, so tests
+  // can verify that showWaveform=false suppresses it.
+  const captureCallCountRef = useRef(0);
+  // Sync refs to props on every render (cheap, idempotent)
+  durationRef.current = mockDuration ?? 60;
+  currentTimeRef.current = mockCurrentTime ?? 0;
+  pausedRef.current = mockPaused ?? true;
+  channelCountRef.current = mockChannelCount ?? 0;
+
+  // Memoize the handle once — its methods close over the refs above, so
+  // updates flow through without recreating.
   const handle = useMemo(
     () =>
-      makeMockHandle({
-        duration: mockDuration,
-        currentTime: mockCurrentTime,
-        paused: mockPaused,
-        channelCount: mockChannelCount,
+      makeRefBackedHandle({
+        duration: durationRef,
+        currentTime: currentTimeRef,
+        paused: pausedRef,
+        channelCount: channelCountRef,
+        captureCallCount: captureCallCountRef,
       }),
-    [mockDuration, mockCurrentTime, mockPaused, mockChannelCount],
+    // Refs only — handle is stable for the lifetime of the mock.
+    [],
   );
+
+  // Re-render the capture count display whenever it might have changed.
+  // Poll the ref on a short interval — Timeline's requestWaveformCapture
+  // call happens in its mount effect, which runs AFTER the child render
+  // but BEFORE this parent's effect, so a one-shot effect would already
+  // have observed the current value. We poll to catch later changes too.
+  const [captureCallCount, setCaptureCallCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (captureCallCountRef.current !== captureCallCount) {
+        setCaptureCallCount(captureCallCountRef.current);
+      }
+    }, 30);
+    return () => clearInterval(id);
+  }, [captureCallCount]);
 
   return (
     <PlaybackProvider>
@@ -104,6 +157,9 @@ export function MockTimeline({
       </div>
       <div data-testid="save-log" style={{ display: "none" }}>
         {JSON.stringify(saves)}
+      </div>
+      <div data-testid="capture-call-count" style={{ display: "none" }}>
+        {String(captureCallCount)}
       </div>
     </PlaybackProvider>
   );

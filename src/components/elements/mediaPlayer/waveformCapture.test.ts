@@ -4,6 +4,7 @@ import {
   timeToBucket,
   accumulatePeaks,
   createPeaksArrays,
+  allBuffersSilent,
   MAX_BUCKETS,
 } from "./waveformCapture.js";
 
@@ -157,5 +158,45 @@ describe("accumulatePeaks", () => {
     // Channel 1 should still be at or near zero (silence)
     // With all-128 data, both min and max normalize to 0
     expect(peaks[1][1]).toBeCloseTo(0, 1);
+  });
+});
+
+describe("allBuffersSilent", () => {
+  it("returns true when all buffers contain only the silence midpoint (128)", () => {
+    // getByteTimeDomainData uses 128 as the zero-amplitude midpoint.
+    // CORS-tainted AnalyserNodes return constant 128 (true silence).
+    const buf1 = new Uint8Array(256);
+    const buf2 = new Uint8Array(256);
+    buf1.fill(128);
+    buf2.fill(128);
+    expect(allBuffersSilent([buf1, buf2])).toBe(true);
+  });
+
+  it("returns false when any buffer contains a non-silence sample", () => {
+    const buf1 = new Uint8Array(256);
+    const buf2 = new Uint8Array(256);
+    buf1.fill(128);
+    buf2.fill(128);
+    buf2[0] = 200; // signal in channel 1
+    expect(allBuffersSilent([buf1, buf2])).toBe(false);
+  });
+
+  it("returns false for an empty buffer list", () => {
+    // Empty input is ambiguous, but the detector should not warn when
+    // there are no buffers to check yet. Returning false defers warning.
+    expect(allBuffersSilent([])).toBe(false);
+  });
+
+  it("handles a single buffer", () => {
+    const buf = new Uint8Array(256);
+    buf.fill(128);
+    expect(allBuffersSilent([buf])).toBe(true);
+  });
+
+  it("a single non-128 sample is enough to count as non-silent", () => {
+    const buf = new Uint8Array(256);
+    buf.fill(128);
+    buf[42] = 129;
+    expect(allBuffersSilent([buf])).toBe(false);
   });
 });
