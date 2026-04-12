@@ -20,6 +20,10 @@ export interface SelectionOverlayProps {
   selectionScope: "track" | "all";
   /** Number of tracks (for track-mode hit testing). */
   channelCount: number;
+  /** Whether multiple selections are allowed. When false, new selections
+   *  replace existing ones — the drag preview should not clamp against
+   *  ranges that are about to be replaced. */
+  multiSelect: boolean;
   /** Current selections from reducer state. */
   selections: TimelineValue;
   /** Index of the active/focused selection. */
@@ -102,6 +106,7 @@ export function SelectionOverlay({
   selectionType,
   selectionScope,
   channelCount,
+  multiSelect,
   selections,
   activeIndex,
   activeHandle,
@@ -530,7 +535,9 @@ export function SelectionOverlay({
 
     // Clamp the preview to free space so it doesn't visually overlap existing
     // ranges — matching the clamping that will happen on commit (pointerup).
-    const existing = isRangeArray(selections) ? selections : [];
+    // When multiSelect is false the new range replaces all existing ones, so
+    // there's nothing to clamp against.
+    const existing = multiSelect && isRangeArray(selections) ? selections : [];
     const clamped = clampToFreeGap(
       dragPreview.startTime,
       dragPreview.endTime,

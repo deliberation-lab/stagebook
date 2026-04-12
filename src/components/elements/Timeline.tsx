@@ -582,6 +582,7 @@ export function Timeline({
             selectionType={selectionType}
             selectionScope={selectionScope}
             channelCount={channelCount}
+            multiSelect={multiSelect}
             selections={state.selections}
             activeIndex={state.activeIndex}
             activeHandle={state.activeHandle}
@@ -630,7 +631,9 @@ export function Timeline({
               setIsDragging(true);
             }}
             onEndDrag={() => setIsDragging(false)}
-            onRequestFocus={() => containerElRef.current?.focus()}
+            onRequestFocus={() =>
+              containerElRef.current?.focus({ preventScroll: true })
+            }
           />
 
           {/* Playhead — over selection overlay */}
