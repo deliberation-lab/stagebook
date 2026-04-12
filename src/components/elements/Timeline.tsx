@@ -120,8 +120,11 @@ export function Timeline({
   // regardless of mount order — unlike useEffect, a callback ref fires when
   // React attaches the DOM element, even if the component re-renders later
   // (e.g. when the playback handle becomes available).
+  // Also stores the element in containerElRef so we can call .focus() later.
   const observerRef = useRef<ResizeObserver | null>(null);
+  const containerElRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useCallback((el: HTMLDivElement | null) => {
+    containerElRef.current = el;
     observerRef.current?.disconnect();
     observerRef.current = null;
     if (!el) return;
@@ -627,6 +630,7 @@ export function Timeline({
               setIsDragging(true);
             }}
             onEndDrag={() => setIsDragging(false)}
+            onRequestFocus={() => containerElRef.current?.focus()}
           />
 
           {/* Playhead — over selection overlay */}
