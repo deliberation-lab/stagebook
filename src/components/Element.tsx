@@ -10,6 +10,7 @@ import { ImageElement } from "./elements/ImageElement.js";
 import { KitchenTimer } from "./elements/KitchenTimer.js";
 import { TrackedLink, type ResolvedParam } from "./elements/TrackedLink.js";
 import { MediaPlayer } from "./elements/MediaPlayer.js";
+import { Timeline } from "./elements/Timeline.js";
 import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
@@ -56,6 +57,7 @@ export interface ElementConfig {
   shared?: boolean;
   buttonText?: string;
   url?: string;
+  source?: string;
   displayText?: string;
   helperText?: string;
   urlParams?: Array<{
@@ -268,6 +270,29 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
                 }
               | undefined
           }
+        />
+      );
+    }
+
+    case "timeline": {
+      const timelineName = String(element.name ?? "");
+      // Read previously saved selections so participants who reload the
+      // stage see their existing marks. Matches the form-input convention
+      // (Prompt reads `prompt.<name>`, Timeline reads `timeline.<name>`).
+      const savedSelections = resolve(`timeline.${timelineName}`)[0];
+      return (
+        <Timeline
+          source={String(element.source ?? "")}
+          name={timelineName}
+          selectionType={
+            (element.selectionType as "range" | "point") ?? "range"
+          }
+          selectionScope={element.selectionScope as "track" | "all" | undefined}
+          multiSelect={element.multiSelect as boolean | undefined}
+          showWaveform={element.showWaveform as boolean | undefined}
+          trackLabels={element.trackLabels as string[] | undefined}
+          initialSelections={savedSelections as unknown[] | undefined}
+          save={wrappedSave}
         />
       );
     }

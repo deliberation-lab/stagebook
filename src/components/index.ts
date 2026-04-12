@@ -66,6 +66,8 @@ export {
   type PromptProps,
   Qualtrics,
   type QualtricsProps,
+  Timeline,
+  type TimelineProps,
 } from "./elements/index.js";
 
 // Conditional rendering components

@@ -120,6 +120,10 @@ export function buildYouTubeHandle(player: YTPlayer): PlaybackHandle {
     getDuration: () => player.getDuration(),
     isPaused: () => player.getPlayerState() !== 1 /* YT.PlayerState.PLAYING */,
     isYouTube: true,
+    channelCount: 0,
+    peaks: [],
+    peaksVersion: 0,
+    requestWaveformCapture() {}, // no-op for YouTube
   };
 }
 

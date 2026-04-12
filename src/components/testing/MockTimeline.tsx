@@ -1,0 +1,166 @@
+/**
+ * Test wrapper for Timeline. Provides a PlaybackProvider with an optional
+ * mock PlaybackHandle registered under a given name. Exposes save calls
+ * via the DOM so Playwright can assert on them.
+ *
+ * IMPORTANT: Playwright CT cannot serialize function props across the worker
+ * boundary. So instead of accepting `handleOverrides: Partial<PlaybackHandle>`
+ * (which contains methods), this wrapper accepts plain serializable values
+ * (numbers/booleans) and constructs the handle internally.
+ */
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Timeline, type TimelineProps } from "../elements/Timeline.js";
+import {
+  PlaybackProvider,
+  useRegisterPlayback,
+} from "../playback/PlaybackProvider.js";
+import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
+
+/** Plain-value config for the mock handle (serializable across CT boundary). */
+export interface MockHandleConfig {
+  duration?: number;
+  currentTime?: number;
+  paused?: boolean;
+  channelCount?: number;
+}
+
+/**
+ * Build a handle whose getter methods read from the supplied refs. Updating
+ * a ref's `.current` makes the handle's methods see the new value without
+ * re-creating the handle — important for tests that drive playback over
+ * time (auto-scroll, snap-on-seek).
+ *
+ * `captureCallCount` tracks how many times requestWaveformCapture has been
+ * called, so tests can assert that showWaveform=false suppresses the call.
+ */
+function makeRefBackedHandle(refs: {
+  duration: { current: number };
+  currentTime: { current: number };
+  paused: { current: boolean };
+  channelCount: { current: number };
+  captureCallCount: { current: number };
+}): PlaybackHandle {
+  return {
+    play() {
+      refs.paused.current = false;
+    },
+    pause() {
+      refs.paused.current = true;
+    },
+    seekTo(s: number) {
+      refs.currentTime.current = s;
+    },
+    getCurrentTime: () => refs.currentTime.current,
+    getDuration: () => refs.duration.current,
+    isPaused: () => refs.paused.current,
+    isYouTube: false,
+    get channelCount() {
+      return refs.channelCount.current;
+    },
+    peaks: [],
+    peaksVersion: 0,
+    requestWaveformCapture() {
+      refs.captureCallCount.current += 1;
+    },
+  };
+}
+
+/** Registers a mock handle inside the PlaybackProvider. */
+function MockPlayer({
+  name,
+  handle,
+}: {
+  name: string;
+  handle: PlaybackHandle;
+}) {
+  useRegisterPlayback(name, handle);
+  return null;
+}
+
+export interface MockTimelineProps extends Omit<TimelineProps, "save"> {
+  /** Name of the mock player to register. Omit to test the "no player" case. */
+  playerName?: string;
+  /** Plain-value overrides for the mock PlaybackHandle. */
+  mockDuration?: number;
+  mockCurrentTime?: number;
+  mockPaused?: boolean;
+  mockChannelCount?: number;
+}
+
+export function MockTimeline({
+  playerName,
+  mockDuration,
+  mockCurrentTime,
+  mockPaused,
+  mockChannelCount,
+  ...props
+}: MockTimelineProps) {
+  const [saves, setSaves] = useState<Array<{ key: string; value: unknown }>>(
+    [],
+  );
+
+  // Refs that the handle's getter methods read from. Updating these via a
+  // re-render with new prop values lets tests drive playback over time
+  // (e.g., for auto-scroll and snap-on-seek tests).
+  const durationRef = useRef(mockDuration ?? 60);
+  const currentTimeRef = useRef(mockCurrentTime ?? 0);
+  const pausedRef = useRef(mockPaused ?? true);
+  const channelCountRef = useRef(mockChannelCount ?? 0);
+  // Counts how many times Timeline called requestWaveformCapture, so tests
+  // can verify that showWaveform=false suppresses it.
+  const captureCallCountRef = useRef(0);
+  // Sync refs to props on every render (cheap, idempotent)
+  durationRef.current = mockDuration ?? 60;
+  currentTimeRef.current = mockCurrentTime ?? 0;
+  pausedRef.current = mockPaused ?? true;
+  channelCountRef.current = mockChannelCount ?? 0;
+
+  // Memoize the handle once — its methods close over the refs above, so
+  // updates flow through without recreating.
+  const handle = useMemo(
+    () =>
+      makeRefBackedHandle({
+        duration: durationRef,
+        currentTime: currentTimeRef,
+        paused: pausedRef,
+        channelCount: channelCountRef,
+        captureCallCount: captureCallCountRef,
+      }),
+    // Refs only — handle is stable for the lifetime of the mock.
+    [],
+  );
+
+  // Re-render the capture count display whenever it might have changed.
+  // Poll the ref on a short interval — Timeline's requestWaveformCapture
+  // call happens in its mount effect, which runs AFTER the child render
+  // but BEFORE this parent's effect, so a one-shot effect would already
+  // have observed the current value. We poll to catch later changes too.
+  const [captureCallCount, setCaptureCallCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (captureCallCountRef.current !== captureCallCount) {
+        setCaptureCallCount(captureCallCountRef.current);
+      }
+    }, 30);
+    return () => clearInterval(id);
+  }, [captureCallCount]);
+
+  return (
+    <PlaybackProvider>
+      {playerName && <MockPlayer name={playerName} handle={handle} />}
+      {/* Force a fixed width so ResizeObserver in tests has a known size. */}
+      <div style={{ width: "800px" }}>
+        <Timeline
+          {...props}
+          save={(key, value) => setSaves((prev) => [...prev, { key, value }])}
+        />
+      </div>
+      <div data-testid="save-log" style={{ display: "none" }}>
+        {JSON.stringify(saves)}
+      </div>
+      <div data-testid="capture-call-count" style={{ display: "none" }}>
+        {String(captureCallCount)}
+      </div>
+    </PlaybackProvider>
+  );
+}

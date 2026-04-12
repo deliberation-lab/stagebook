@@ -197,6 +197,178 @@ Event types: `play`, `pause`, `ended` (natural end), `stopAt` (reached stopAt po
 
 `watchedRanges` is derived from the event log: closed `[start, end]` intervals (in video seconds) of the portions the participant actually watched, with overlapping or touching intervals merged. Open intervals (a `play` with no closing event — e.g. a mid-playback disconnect) are excluded.
 
+## Timeline
+
+A form input for marking ranges (intervals) or points (moments) on a media player's timeline. Like a slider saves a number or a radio group saves a choice, the timeline saves a list of time-stamped selections. Use it for annotation and coding tasks — e.g., "mark every segment where Speaker A interrupts Speaker B" or "mark each time the participant nods."
+
+The timeline links to a sibling `mediaPlayer` element by name via the `source` field. It is always a consumer — it reads playback state and can seek, but never controls play/pause directly.
+
+```yaml
+- type: mediaPlayer
+  name: coding_video
+  url: shared/interview.mp4
+  controls:
+    playPause: true
+    seek: true
+
+- type: timeline
+  source: coding_video          # links to the player above by name
+  name: interruptions
+  selectionType: range          # "range" or "point"
+  multiSelect: true             # allow multiple selections
+```
+
+### Range mode vs point mode
+
+**Range mode** (`selectionType: range`) — for marking intervals with a start and end time. Participants click-and-drag on the waveform to create a range.
+
+**Point mode** (`selectionType: point`) — for marking individual moments. Participants click on the waveform to place a point marker.
+
+### Selection scope
+
+By default (`selectionScope: all`), selections span all audio channels. In `track` mode, each selection belongs to the specific speaker track the participant clicks on — two speakers can have overlapping time ranges across tracks, but not within the same track.
+
+```yaml
+- type: timeline
+  source: coding_video
+  name: assertions
+  selectionType: range
+  selectionScope: track         # selections are per-speaker
+  multiSelect: true
+  trackLabels:                  # custom labels for the track gutter
+    - "Interviewer"
+    - "Participant"
+```
+
+When `trackLabels` is omitted, tracks are labeled by position index: "Position 0", "Position 1", etc. (matching the channel order in the composed video). If there are more audio channels than labels, extra channels fall back to "Position N".
+
+### Use case examples
+
+| `selectionType` | `multiSelect` | `selectionScope` | Use case |
+|-----------------|---------------|------------------|----------|
+| `range` | `false` | `all` | "Select when the story starts and ends" |
+| `range` | `true` | `all` | "Mark every pause longer than 3 seconds" |
+| `range` | `true` | `track` | "Mark every segment where each speaker makes an assertion" |
+| `point` | `false` | `all` | "Mark the moment the participant changes their mind" |
+| `point` | `true` | `all` | "Mark each time someone laughs" |
+| `point` | `true` | `track` | "Mark each time each speaker nods" |
+
+### Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `source` | string | required | `name` of a sibling `mediaPlayer` element to link to |
+| `name` | string | required | Storage key for saved selections |
+| `selectionType` | `"range"` or `"point"` | required | Whether participants mark intervals or moments |
+| `selectionScope` | `"all"` or `"track"` | `"all"` | Whether selections span all tracks or belong to a specific speaker track |
+| `multiSelect` | boolean | `false` | Allow multiple selections. When `false`, creating a new selection replaces the previous one |
+| `showWaveform` | boolean | `true` | Show the audio waveform visualization (fills in as the clip plays) |
+| `trackLabels` | string[] | — | Custom labels for the track gutter. Falls back to "Position N" |
+
+### Mouse interactions
+
+**Range mode:**
+
+| Gesture | Action |
+|---------|--------|
+| Click on empty space | Seek playhead to that time |
+| Click-and-drag on empty space | Create a new range (clamped to free space — ranges cannot overlap within a track/scope) |
+| Click on an existing range | Select it (shows handles) |
+| Drag a handle | Adjust the range boundary (clamped so ranges cannot overlap or invert) |
+| Click outside all ranges | Deselect |
+
+**Point mode:**
+
+| Gesture | Action |
+|---------|--------|
+| Click on empty space | Place a new point and seek playhead there |
+| Click on an existing point | Select it |
+| Drag a selected point | Reposition it |
+
+### Keyboard shortcuts
+
+The timeline only captures keys when a selection is active. Otherwise all keys fall through to the media player (Space, K, J, L, arrows, etc. still work for playback).
+
+**Range mode (handle active):**
+
+| Key | Action |
+|-----|--------|
+| `Left` / `Right` | Adjust active handle +-1 second (video seeks to show the frame) |
+| `,` / `.` | Adjust active handle +-1 frame (~0.033s) |
+| `Tab` | Switch active handle (start / end) |
+| `Delete` / `Backspace` | Remove the selected range |
+| `Ctrl+Z` / `Cmd+Z` | Undo last action |
+| `Escape` | Deselect |
+
+**Point mode (point selected):**
+
+| Key | Action |
+|-----|--------|
+| `Left` / `Right` | Reposition +-1 second |
+| `,` / `.` | Reposition +-1 frame |
+| `Delete` / `Backspace` | Remove the selected point |
+| `Ctrl+Z` / `Cmd+Z` | Undo last action |
+| `Escape` | Deselect |
+
+### Zoom and minimap
+
+The footer bar contains `[+]` and `[-]` buttons for zooming in and out. When zoomed in:
+
+- A **minimap** appears above the time ruler showing a compressed overview of the full duration. Click the minimap to pan, or drag the viewport rectangle.
+- The viewport **auto-scrolls** during playback when the playhead reaches 90% of the visible area.
+- A **seek or scrub** (via the media player's controls or clicking the timeline) snaps the viewport so the playhead is ~25% from the left edge.
+
+The footer also shows a selection summary (count when nothing is active, time readout when a selection is focused) and a `[?]` help button that opens a keyboard shortcut reference.
+
+### Waveform
+
+The waveform tracks fill in progressively as the participant plays the clip — empty at first, fully drawn after one complete playthrough. This uses the Web Audio API's AnalyserNode and requires no pre-processing or extra files.
+
+If the media file has multiple audio channels (e.g., per-speaker audio from a group video composition), each channel is displayed as a separate track. Mono or stereo files show a single track.
+
+**CORS requirement:** The media must be served with proper CORS headers (`Access-Control-Allow-Origin`). Without them, the waveform tracks render as flat lines (the browser silently taints the audio stream). Same-origin media is unaffected. If this happens, a console warning appears after 5 seconds of playback.
+
+### Saved data
+
+Saved under `timeline_<name>`. The value is always a chronologically sorted array — even when `multiSelect: false` (the array has at most one item).
+
+**Range mode, `selectionScope: "all"`:**
+```json
+[
+  { "start": 12.5, "end": 18.3 },
+  { "start": 45.0, "end": 52.1 }
+]
+```
+
+**Range mode, `selectionScope: "track"`:**
+```json
+[
+  { "track": 0, "start": 12.5, "end": 18.3 },
+  { "track": 1, "start": 14.0, "end": 20.5 }
+]
+```
+
+**Point mode, `selectionScope: "all"`:**
+```json
+[
+  { "time": 8.2 },
+  { "time": 31.0 },
+  { "time": 55.7 }
+]
+```
+
+**Point mode, `selectionScope: "track"`:**
+```json
+[
+  { "track": 0, "time": 8.2 },
+  { "track": 1, "time": 15.4 }
+]
+```
+
+Selections are saved on each user action (creating, adjusting, deleting, or undoing). Keyboard adjustments (holding arrow keys) are debounced — the save fires ~500ms after the last keypress. Handle drags save once on release, not on every pixel of motion.
+
+Saved selections are **restored on reload** — if a participant refreshes mid-stage, their existing marks reappear.
+
 ## Survey
 
 Renders a pre-built survey from the `@watts-lab/surveys` package.

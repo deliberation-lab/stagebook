@@ -45,6 +45,7 @@ export {
   templateSchema,
   treatmentFileSchema,
   discussionSchema,
+  timelineSchema,
   matchContentType,
   type NameType,
   type DescriptionType,
@@ -71,6 +72,7 @@ export {
   type TreatmentType,
   type TreatmentFileType,
   type DiscussionType,
+  type TimelineType,
 } from "./treatment.js";
 
 export {

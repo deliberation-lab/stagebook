@@ -12,6 +12,12 @@ import { HTML5Controls, YouTubeControls } from "./mediaPlayer/controls.js";
 import { useRegisterPlayback } from "../playback/PlaybackProvider.js";
 import type { PlaybackHandle } from "../playback/PlaybackHandle.js";
 import { computeWatchedRanges } from "../../utils/watchedRanges.js";
+import {
+  computeBucketCount,
+  createPeaksArrays,
+  accumulatePeaks,
+  allBuffersSilent,
+} from "./mediaPlayer/waveformCapture.js";
 
 export interface VideoEvent {
   type: "play" | "pause" | "ended" | "seek" | "speed" | "stopAt";
@@ -135,6 +141,171 @@ export function MediaPlayer({
   // handlePause can suppress the phantom "pause" event and we record "ended".
   const stopAtReachedRef = useRef(false);
 
+  // ── Waveform capture (lazy — only activated when a Timeline requests it) ──
+  const BUCKETS_PER_SECOND = 10;
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analysersRef = useRef<AnalyserNode[]>([]);
+  // The lib.d.ts signature for getByteTimeDomainData expects the strict
+  // Uint8Array<ArrayBuffer> variant, not Uint8Array<ArrayBufferLike>.
+  // Type the array element explicitly so TS doesn't widen it.
+  const analyserBuffersRef = useRef<Uint8Array<ArrayBuffer>[]>([]);
+  const peaksRef = useRef<Float32Array[]>([]);
+  // Render token: bumps every time peaks are mutated, so consumers can
+  // re-run effects despite the array reference being stable.
+  const peaksVersionRef = useRef(0);
+  const [channelCount, setChannelCount] = useState(0);
+  const waveformRafRef = useRef<number>(0);
+  // Promote waveformActive to state so React effects (e.g., the RAF loop)
+  // re-evaluate when capture is requested mid-playback.
+  const [waveformActive, setWaveformActive] = useState(false);
+
+  const startWaveformCapture = useCallback(() => {
+    if (waveformActive) return; // already active
+    const v = videoRef.current;
+    if (!v) return;
+
+    try {
+      const ctx = new AudioContext();
+      const source = ctx.createMediaElementSource(v);
+      const splitter = ctx.createChannelSplitter(source.channelCount || 1);
+      source.connect(splitter);
+
+      const numChannels = source.channelCount || 1;
+      const analysers: AnalyserNode[] = [];
+      const buffers: Uint8Array<ArrayBuffer>[] = [];
+      const merger = ctx.createChannelMerger(numChannels);
+
+      for (let ch = 0; ch < numChannels; ch++) {
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        splitter.connect(analyser, ch);
+        analyser.connect(merger, 0, ch);
+        analysers.push(analyser);
+        buffers.push(new Uint8Array(analyser.frequencyBinCount));
+      }
+
+      merger.connect(ctx.destination);
+
+      audioCtxRef.current = ctx;
+      analysersRef.current = analysers;
+      analyserBuffersRef.current = buffers;
+      setChannelCount(numChannels);
+      setWaveformActive(true);
+    } catch (err) {
+      console.warn("[MediaPlayer] Waveform capture unavailable:", err);
+    }
+  }, [waveformActive]);
+
+  // Close the AudioContext on unmount. Chrome enforces a hard limit of ~6
+  // simultaneous AudioContexts per tab; without this, an experiment that
+  // navigates through several stages each with a Timeline+MediaPlayer would
+  // exhaust the limit and silently fail.
+  useEffect(() => {
+    return () => {
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") {
+        void ctx.close().catch(() => {
+          // Best-effort cleanup; ignore errors during teardown.
+        });
+      }
+      audioCtxRef.current = null;
+      analysersRef.current = [];
+      analyserBuffersRef.current = [];
+    };
+  }, []);
+
+  // Initialize peaks array when duration or channelCount becomes known
+  useEffect(() => {
+    if (channelCount === 0 || !Number.isFinite(duration) || duration <= 0)
+      return;
+    const buckets = computeBucketCount(duration, BUCKETS_PER_SECOND);
+    if (buckets === 0) return;
+    // Only allocate if not already the right size
+    if (
+      peaksRef.current.length === channelCount &&
+      peaksRef.current[0]?.length === buckets * 2
+    )
+      return;
+    peaksRef.current = createPeaksArrays(channelCount, buckets);
+  }, [channelCount, duration]);
+
+  // Silent-tainting detector. CORS-tainted media plays normally but the
+  // AnalyserNode receives all-zero (centered at 128) samples — the waveform
+  // appears as a flat line forever. We watch for the "still no signal after
+  // several seconds of playback" pattern and log a clear warning so
+  // researchers debugging a flat waveform know exactly where to look.
+  const TAINTING_DETECTION_THRESHOLD_SEC = 5;
+  const taintWarnedRef = useRef(false);
+  const captureStartTimeRef = useRef<number | null>(null);
+
+  // RAF loop: accumulate peaks while playing. Reads from refs each frame so
+  // it picks up newly-allocated peak arrays after duration changes; depends
+  // on waveformActive (state) so it re-runs when capture begins mid-playback.
+  useEffect(() => {
+    if (!waveformActive || isPaused) return;
+
+    function tick() {
+      const v = videoRef.current;
+      if (!v || v.paused) return;
+      const analysers = analysersRef.current;
+      const buffers = analyserBuffersRef.current;
+      const peaks = peaksRef.current;
+
+      if (analysers.length === 0 || peaks.length === 0) {
+        // Capture not yet wired up — skip and try again next frame.
+        waveformRafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Initialize capture start time on first tick
+      if (captureStartTimeRef.current === null) {
+        captureStartTimeRef.current = v.currentTime;
+      }
+
+      for (let i = 0; i < analysers.length; i++) {
+        analysers[i].getByteTimeDomainData(buffers[i]);
+      }
+
+      accumulatePeaks(peaks, buffers, v.currentTime, BUCKETS_PER_SECOND);
+      // Bump the render token so consumers (Timeline → WaveformRenderer)
+      // know the in-place mutation needs a redraw.
+      peaksVersionRef.current += 1;
+
+      // Check for silent tainting: have we played enough but still see zero
+      // signal? Almost certainly a CORS issue.
+      if (
+        !taintWarnedRef.current &&
+        v.currentTime - (captureStartTimeRef.current ?? 0) >
+          TAINTING_DETECTION_THRESHOLD_SEC &&
+        allBuffersSilent(buffers)
+      ) {
+        taintWarnedRef.current = true;
+        console.warn(
+          "[MediaPlayer] Waveform capture is producing all-zero data after " +
+            `${String(TAINTING_DETECTION_THRESHOLD_SEC)}s of playback. This ` +
+            "usually means the media is hosted cross-origin without proper " +
+            "CORS headers (Access-Control-Allow-Origin), so the AnalyserNode " +
+            "is silently tainted. Configure the media server to allow CORS, " +
+            "or host the media same-origin.",
+        );
+      }
+
+      waveformRafRef.current = requestAnimationFrame(tick);
+    }
+
+    waveformRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(waveformRafRef.current);
+  }, [isPaused, waveformActive]);
+
+  // Reset the tainting detector state when capture ends or media changes,
+  // so we re-arm for the next capture attempt.
+  useEffect(() => {
+    if (!waveformActive) {
+      taintWarnedRef.current = false;
+      captureStartTimeRef.current = null;
+    }
+  }, [waveformActive, url]);
+
   // Poll YouTube currentTime ~4×/sec while playing (no timeupdate event from IFrame API)
   useEffect(() => {
     if (!ytHandle || isPaused) return;
@@ -164,8 +335,18 @@ export function MediaPlayer({
       getDuration: () => videoRef.current?.duration ?? 0,
       isPaused: () => videoRef.current?.paused ?? true,
       isYouTube: false,
+      get channelCount() {
+        return channelCount;
+      },
+      get peaks() {
+        return peaksRef.current;
+      },
+      get peaksVersion() {
+        return peaksVersionRef.current;
+      },
+      requestWaveformCapture: startWaveformCapture,
     }),
-    [], // stable: all methods close over videoRef which is a stable ref
+    [channelCount, startWaveformCapture], // re-create when channelCount changes so consumers see the update
   );
   // Use the YouTube handle when available, fall back to the HTML5 handle
   useRegisterPlayback(name, ytHandle ?? handle);
@@ -855,6 +1036,12 @@ export function MediaPlayer({
           data-testid="mediaPlayer-video"
           src={url}
           muted={!playAudio}
+          // crossOrigin="anonymous" is required for Web Audio API capture
+          // (Timeline waveform). Without it, cross-origin media plays but
+          // taints the AnalyserNode → all-zero peaks. SCORE convention:
+          // media MUST be served with proper CORS headers. Same-origin media
+          // is unaffected.
+          crossOrigin="anonymous"
           onPlay={handlePlay}
           onPause={handlePause}
           onEnded={handleEnded}
@@ -879,6 +1066,8 @@ export function MediaPlayer({
             data-testid="mediaPlayer-video"
             src={url}
             muted={!playAudio}
+            // See above — required for waveform capture. Same-origin no-op.
+            crossOrigin="anonymous"
             onPlay={handlePlay}
             onPause={handlePause}
             onEnded={handleEnded}

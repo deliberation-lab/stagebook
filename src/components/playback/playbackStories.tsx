@@ -20,6 +20,10 @@ export function makeHandle(
     getDuration: () => 60,
     isPaused: () => true,
     isYouTube: false,
+    channelCount: 0,
+    peaks: [],
+    peaksVersion: 0,
+    requestWaveformCapture() {},
     ...overrides,
   };
 }
