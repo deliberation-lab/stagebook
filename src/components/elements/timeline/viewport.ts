@@ -11,6 +11,17 @@ export const AUTO_SCROLL_THRESHOLD = 0.9;
 export const SEEK_SNAP_POSITION = 0.25;
 
 /**
+ * Minimum delta (seconds) between RAF ticks that counts as a "seek jump"
+ * rather than continuous playback. When the playhead moves by more than
+ * this in a single tick, the viewport snaps rather than scrolling smoothly.
+ *
+ * At normal 1x playback with 60fps RAF, each tick is ~0.017s. At 2x it's
+ * ~0.033s. A threshold of 1.5s provides a wide margin above both while
+ * still catching all scrub-bar and keyboard seeks (which move 1s+ at once).
+ */
+export const SEEK_JUMP_THRESHOLD = 1.5;
+
+/**
  * Clamp viewport start so the visible region stays inside [0, duration].
  */
 export function clampViewportStart(

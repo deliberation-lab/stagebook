@@ -22,6 +22,7 @@ import { keyToAction } from "./timeline/keyboardActions.js";
 import type { PointSelection, RangeSelection } from "./timeline/selections.js";
 import {
   AUTO_SCROLL_THRESHOLD,
+  SEEK_JUMP_THRESHOLD,
   clampViewportStart,
   computeViewportAfterScroll,
   computeViewportAfterSeek,
@@ -304,7 +305,7 @@ export function Timeline({
     // Detect "jump" — large delta or transition to/from playing means
     // the user seeked rather than naturally played through
     const delta = currentTime - lastT;
-    const isJump = Math.abs(delta) > 1.5;
+    const isJump = Math.abs(delta) > SEEK_JUMP_THRESHOLD;
 
     if (isJump) {
       // Snap viewport so the playhead is ~25% from the left

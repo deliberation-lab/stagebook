@@ -496,4 +496,39 @@ describe("selectionsReducer", () => {
       expect((state.selections[0] as { end: number }).end).toBe(20);
     });
   });
+
+  describe("REPLACE_ALL", () => {
+    it("replaces selections and pushes undo snapshot", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+      };
+      const result = selectionsReducer(state, {
+        type: "REPLACE_ALL",
+        selections: [
+          { start: 30, end: 40 },
+          { start: 50, end: 60 },
+        ],
+      });
+      expect(result.selections).toEqual([
+        { start: 30, end: 40 },
+        { start: 50, end: 60 },
+      ]);
+      expect(result.undoStack).toHaveLength(1);
+    });
+
+    it("ignores non-array input", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+      };
+      const result = selectionsReducer(state, {
+        type: "REPLACE_ALL",
+        selections: "not an array" as unknown as typeof state.selections,
+      });
+      // State unchanged — the guard rejects malformed input
+      expect(result.selections).toEqual([{ start: 10, end: 20 }]);
+      expect(result.undoStack).toHaveLength(0);
+    });
+  });
 });

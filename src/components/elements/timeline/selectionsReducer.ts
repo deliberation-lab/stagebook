@@ -231,6 +231,10 @@ export function selectionsReducer(
     }
 
     case "REPLACE_ALL": {
+      // Guard against malformed input from future consumers (e.g., saved
+      // state rehydration) — better to ignore than crash downstream in
+      // clampToFreeGap, adjustHandle, etc. which assume numeric fields.
+      if (!Array.isArray(action.selections)) return state;
       return {
         ...snapshot(state),
         selections: action.selections,
