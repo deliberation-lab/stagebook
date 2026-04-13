@@ -1,6 +1,6 @@
 # Stagebook
 
-Executable study protocols for small group conversation studies. A stagebook defines everything that happens in an experiment - what gets shown to who, when, and under what conditions - to enable complete documentation and perfect replication.
+Executable study protocols for small group conversation studies. A stagebook defines everything that happens in an experiment - what gets shown to whom, when, and under what conditions - to enable complete documentation and perfect replication.
 
 ## What is Stagebook?
 
