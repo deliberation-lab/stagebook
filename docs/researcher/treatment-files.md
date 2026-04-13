@@ -39,7 +39,7 @@ introSequences:
       - name: Consent
         elements:
           - type: prompt
-            file: intro/consent.md
+            file: intro/consent.prompt.md
           - type: submitButton
 
       - name: Pre-Survey
@@ -63,7 +63,7 @@ treatments:
           showTitle: false
         elements:
           - type: prompt
-            file: game/discussion_prompt.md
+            file: game/discussion_prompt.prompt.md
           - type: submitButton
             buttonText: Leave Discussion
 
@@ -71,14 +71,14 @@ treatments:
         duration: 120
         elements:
           - type: prompt
-            file: game/post_discussion.md
+            file: game/post_discussion.prompt.md
           - type: submitButton
 
     exitSequence:
       - name: Debrief
         elements:
           - type: prompt
-            file: exit/debrief.md
+            file: exit/debrief.prompt.md
           - type: submitButton
             buttonText: Finish
 ```
@@ -103,10 +103,10 @@ When players join a group, each is assigned a zero-based position index (0, 1, 2
 ```yaml
 elements:
   - type: prompt
-    file: game/democrat_instructions.md
+    file: game/democrat_instructions.prompt.md
     showToPositions: [0]
   - type: prompt
-    file: game/republican_instructions.md
+    file: game/republican_instructions.prompt.md
     showToPositions: [1]
 ```
 

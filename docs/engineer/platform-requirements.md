@@ -207,14 +207,14 @@ For example, given this file structure:
 ```
 my-study/
   study.treatments.yaml
-  consent.md
+  consent.prompt.md
   prompts/
-    question.md
+    question.prompt.md
   images/
     diagram.png
 ```
 
-The treatment file references `file: consent.md`, `file: prompts/question.md`, `file: images/diagram.png`. The platform resolves these relative to `my-study/`.
+The treatment file references `file: consent.prompt.md`, `file: prompts/question.prompt.md`, `file: images/diagram.png`. The platform resolves these relative to `my-study/`.
 
 ### `getAssetURL(path: string): string`
 

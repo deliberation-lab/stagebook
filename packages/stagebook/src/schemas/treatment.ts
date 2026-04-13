@@ -46,6 +46,13 @@ export type DescriptionType = z.infer<typeof descriptionSchema>;
 // TODO: check that file exists
 export const fileSchema = z.string().optional();
 
+export const promptFilePathSchema = z
+  .string()
+  .refine((s) => s.endsWith(".prompt.md"), {
+    message:
+      'Prompt files must use the .prompt.md extension (e.g., "myPrompt.prompt.md")',
+  });
+
 export type FileType = z.infer<typeof fileSchema>;
 
 export const urlSchema = z
@@ -377,7 +384,7 @@ const templateBroadcastAxisNameSchema = z.string().regex(/^d\d+$/, {
   message: "String must start with 'd' followed by a nonnegative integer",
 });
 
-const templateBroadcastAxisValuesSchema: any = z.lazy(() =>
+const templateBroadcastAxisValuesSchema: z.ZodType = z.lazy(() =>
   z
     .array(templateFieldsSchema)
     .nonempty()
@@ -731,12 +738,12 @@ const displaySchema = elementBaseSchema
 export const promptSchema = elementBaseSchema
   .extend({
     type: z.literal("prompt"),
-    file: fileSchema,
+    file: promptFilePathSchema,
     shared: z.boolean().optional(),
   })
   .strict();
 
-const promptShorthandSchema = fileSchema.transform((str) => {
+const promptShorthandSchema = promptFilePathSchema.transform((str) => {
   const newElement = {
     type: "prompt",
     file: str,
@@ -1039,26 +1046,28 @@ export const stageSchema = altTemplateContext(
       const duration = data.duration;
       if (typeof duration !== "number" || !Array.isArray(data.elements)) return;
 
-      data.elements.forEach((element: any, elementIndex: number) => {
-        if (!element || typeof element !== "object") return;
+      data.elements.forEach(
+        (element: Record<string, unknown>, elementIndex: number) => {
+          if (!element || typeof element !== "object") return;
 
-        const timeFields = [
-          "displayTime",
-          "hideTime",
-          "startTime",
-          "endTime",
-        ] as const;
-        for (const field of timeFields) {
-          const value = element[field];
-          if (typeof value === "number" && value > duration) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ["elements", elementIndex, field],
-              message: `${field} (${value}) exceeds stage duration (${duration}) for element "${element.name || element.type}"`,
-            });
+          const timeFields = [
+            "displayTime",
+            "hideTime",
+            "startTime",
+            "endTime",
+          ] as const;
+          for (const field of timeFields) {
+            const value = element[field];
+            if (typeof value === "number" && value > duration) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["elements", elementIndex, field],
+                message: `${field} (${value}) exceeds stage duration (${duration}) for element "${String(element.name || element.type)}"`,
+              });
+            }
           }
-        }
-      });
+        },
+      );
     }),
 );
 export type StageType = z.infer<typeof stageSchema>;
@@ -1299,11 +1308,15 @@ export const treatmentSchema = altTemplateContext(
       }
       gameStages?.forEach(
         (
-          stage: { elements: any[]; name: any; discussion?: any },
-          stageIndex: string | number,
+          stage: {
+            elements?: Record<string, unknown>[];
+            name?: string;
+            discussion?: Record<string, unknown>;
+          },
+          stageIndex: number,
         ) => {
           stage?.elements?.forEach(
-            (element: any, elementIndex: string | number) => {
+            (element: Record<string, unknown>, elementIndex: number) => {
               ["showToPositions", "hideFromPositions"].forEach((key) => {
                 const positions = element[key];
                 if (Array.isArray(positions)) {
@@ -1377,31 +1390,33 @@ export const treatmentSchema = altTemplateContext(
               }
 
               const assigned = new Set<number>();
-              rooms.forEach((room: any, roomIndex: number) => {
-                const inc = room?.includePositions;
-                if (Array.isArray(inc)) {
-                  inc.forEach((pos: any, posIndex: number) => {
-                    if (typeof pos === "number") {
-                      assigned.add(pos);
-                      if (pos >= playerCount) {
-                        ctx.addIssue({
-                          code: z.ZodIssueCode.custom,
-                          path: [
-                            "gameStages",
-                            stageIndex,
-                            "discussion",
-                            "rooms",
-                            roomIndex,
-                            "includePositions",
-                            posIndex,
-                          ],
-                          message: `includePositions index ${pos} in discussion room exceeds playerCount of ${playerCount}.`,
-                        });
+              rooms.forEach(
+                (room: Record<string, unknown>, roomIndex: number) => {
+                  const inc = room?.includePositions;
+                  if (Array.isArray(inc)) {
+                    inc.forEach((pos: unknown, posIndex: number) => {
+                      if (typeof pos === "number") {
+                        assigned.add(pos);
+                        if (pos >= playerCount) {
+                          ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            path: [
+                              "gameStages",
+                              stageIndex,
+                              "discussion",
+                              "rooms",
+                              roomIndex,
+                              "includePositions",
+                              posIndex,
+                            ],
+                            message: `includePositions index ${pos} in discussion room exceeds playerCount of ${playerCount}.`,
+                          });
+                        }
                       }
-                    }
-                  });
-                }
-              });
+                    });
+                  }
+                },
+              );
 
               const missing = candidatePositions.filter(
                 (p) => !assigned.has(p),
@@ -1466,7 +1481,7 @@ export const templateContentSchema = z.any().superRefine((data, ctx) => {
 
   interface Issue {
     code: string;
-    path: any[];
+    path: (string | number)[];
     keys?: string[];
   }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

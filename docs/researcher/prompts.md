@@ -27,7 +27,7 @@ type: multipleChoice
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | no | Optional identifier. If provided, must match the file path. Omit for new prompt files — provenance is tracked automatically via the file path. |
+| `name` | string | no | Optional human-readable identifier. Can be any string. |
 | `type` | enum | yes | `multipleChoice`, `openResponse`, `noResponse`, `listSorter`, `slider` |
 | `notes` | string | no | Internal notes (not displayed) |
 

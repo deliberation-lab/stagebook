@@ -18,7 +18,7 @@ Renders a question or informational text from a Markdown file. This is the most 
 
 ```yaml
 - type: prompt
-  file: game/discussion_prompt.md
+  file: game/discussion_prompt.prompt.md
   name: topicA_prompt        # optional — names the saved response
   shared: true               # optional — single response editable by all participants
 ```
@@ -27,7 +27,7 @@ Renders a question or informational text from a Markdown file. This is the most 
 
 ```yaml
 elements:
-  - game/discussion_prompt.md   # equivalent to { type: prompt, file: "..." }
+  - game/discussion_prompt.prompt.md   # equivalent to { type: prompt, file: "..." }
   - type: submitButton
 ```
 
@@ -462,7 +462,7 @@ Show wrap-up instructions in the last minute:
 
 ```yaml
 - type: prompt
-  file: game/wrapup.md
+  file: game/wrapup.prompt.md
   displayTime: 540    # 9 minutes into a 10-minute stage
 ```
 
@@ -470,7 +470,7 @@ Show an element only to position 0, only after a condition is met:
 
 ```yaml
 - type: prompt
-  file: game/leader_instructions.md
+  file: game/leader_instructions.prompt.md
   showToPositions: [0]
   conditions:
     - reference: prompt.readiness_check

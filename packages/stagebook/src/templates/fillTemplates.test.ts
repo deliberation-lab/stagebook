@@ -1000,7 +1000,9 @@ test("multi-dimensional broadcast + additionalFields", () => {
 
   expect(result).toHaveLength(6);
   expect(
-    result.every((item: any) => item.url === "https://cdn.test/v.mp4"),
+    result.every(
+      (item: Record<string, unknown>) => item.url === "https://cdn.test/v.mp4",
+    ),
   ).toBe(true);
   expect(result[0].name).toBe("0_0");
   expect(result[5].name).toBe("1_2");

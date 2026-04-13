@@ -29,7 +29,7 @@ All schemas are [Zod](https://zod.dev/) objects. Use `.safeParse(data)` for vali
 | `promptFileSchema` | Parses raw markdown → `{ metadata, body, responseItems }` with full validation |
 | `metadataTypeSchema` | Prompt metadata field types (name, type, rows, min/max, etc.) |
 | `metadataRefineSchema` | Cross-field metadata rules (e.g., slider requires min/max/interval) |
-| `metadataLogicalSchema(fileName)` | Factory: validates `name` matches the given file path |
+| `metadataLogicalSchema` | Alias for `metadataRefineSchema` (name field is optional, no filename matching) |
 | `validateSliderLabels(metadata, items)` | Checks labelPts length matches response item count |
 
 ### Types

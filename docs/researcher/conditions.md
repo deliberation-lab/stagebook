@@ -131,7 +131,7 @@ Show content when 80%+ agree:
 
 ```yaml
 - type: prompt
-  file: game/consensus_reached.md
+  file: game/consensus_reached.prompt.md
   conditions:
     - reference: prompt.topic_vote
       position: percentAgreement

@@ -12,7 +12,7 @@ gameStages:
       showTitle: false
     elements:
       - type: prompt
-        file: game/discussion_prompt.md
+        file: game/discussion_prompt.prompt.md
       - type: submitButton
         buttonText: End Discussion
 ```
