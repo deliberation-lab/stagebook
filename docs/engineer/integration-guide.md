@@ -61,7 +61,7 @@ if (!result.success) {
 ```typescript
 import { promptFileSchema } from "stagebook";
 
-const markdown = readFileSync("prompts/question.md", "utf-8");
+const markdown = readFileSync("prompts/question.prompt.md", "utf-8");
 const result = promptFileSchema.safeParse(markdown);
 
 if (result.success) {
