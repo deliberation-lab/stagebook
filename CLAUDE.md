@@ -67,7 +67,7 @@ This is an **npm workspaces monorepo** with two packages:
 ```
 stagebook/                          # workspace root
 ├── packages/
-│   └── stagebook/                  # npm library: @deliberation-lab/stagebook
+│   └── stagebook/                  # npm library: stagebook
 │       ├── src/
 │       │   ├── schemas/
 │       │   │   ├── treatment.ts          # treatmentFileSchema, element/stage/condition/discussion/template schemas + types
@@ -87,7 +87,7 @@ stagebook/                          # workspace root
 │       │   │   └── form/                 # RadioGroup, CheckboxGroup, TextArea, Slider, ListSorter, Markdown, Button
 │       │   └── index.ts                  # top-level re-exports (schemas, utils, templates)
 │       ├── playwright/                   # Playwright CT test infrastructure
-│       ├── package.json                  # @deliberation-lab/stagebook
+│       ├── package.json                  # stagebook
 │       ├── tsconfig.json
 │       ├── tsup.config.ts                # dual CJS/ESM + dts generation
 │       ├── vitest.config.ts
@@ -96,7 +96,7 @@ stagebook/                          # workspace root
 ├── apps/
 │   └── viewer/                     # Vite SPA: interactive study previewer
 │       ├── src/
-│       ├── package.json            # @deliberation-lab/stagebook-viewer (private)
+│       ├── package.json            # stagebook-viewer (private)
 │       ├── tsconfig.json
 │       └── vite.config.ts
 ├── docs/                           # repo-level documentation
@@ -111,13 +111,13 @@ stagebook/                          # workspace root
 ### Workspaces
 
 - **Root scripts** delegate to all workspaces: `npm run build`, `npm test`, `npm run lint`
-- **Library-specific commands**: `npm run build -w @deliberation-lab/stagebook`
-- **Viewer-specific commands**: `npm run dev -w @deliberation-lab/stagebook-viewer`
+- **Library-specific commands**: `npm run build -w stagebook`
+- **Viewer-specific commands**: `npm run dev -w stagebook-viewer`
 - The viewer imports the library via workspace link (resolves to source, not published npm)
 
 ### Package Exports
 
-- `@deliberation-lab/stagebook` — schemas, utils, templates (no React dependency)
-- `@deliberation-lab/stagebook/components` — React components, StagebookProvider (peer-depends on React)
+- `stagebook` — schemas, utils, templates (no React dependency)
+- `stagebook/components` — React components, StagebookProvider (peer-depends on React)
 
 Each directory has an `index.ts` barrel; `src/index.ts` re-exports the full public API for the main entrypoint.

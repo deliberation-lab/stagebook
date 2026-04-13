@@ -30,7 +30,7 @@ Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`. React components additionally 
 ### Validating a treatment file
 
 ```typescript
-import { treatmentFileSchema } from "@deliberation-lab/stagebook";
+import { treatmentFileSchema } from "stagebook";
 import { load as loadYaml } from "js-yaml";
 
 const config = loadYaml(yamlString);
@@ -46,7 +46,7 @@ if (!result.success) {
 `promptFileSchema` takes raw markdown, parses it, and validates structure, metadata, response format, and slider labels in a single pass:
 
 ```typescript
-import { promptFileSchema } from "@deliberation-lab/stagebook";
+import { promptFileSchema } from "stagebook";
 
 const result = promptFileSchema.safeParse(markdownString);
 
@@ -63,7 +63,7 @@ if (result.success) {
 ### Evaluating conditions
 
 ```typescript
-import { compare } from "@deliberation-lab/stagebook";
+import { compare } from "stagebook";
 
 compare(5, "isAbove", 3); // true
 compare("hello", "includes", "ell"); // true
@@ -76,7 +76,7 @@ The 16 canonical comparators: `exists`, `doesNotExist`, `equals`, `doesNotEqual`
 ### Parsing reference strings
 
 ```typescript
-import { getReferenceKeyAndPath } from "@deliberation-lab/stagebook";
+import { getReferenceKeyAndPath } from "stagebook";
 
 getReferenceKeyAndPath("survey.bigFive.result.score");
 // { referenceKey: "survey_bigFive", path: ["result", "score"] }
@@ -90,7 +90,7 @@ Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedL
 ### Expanding templates
 
 ```typescript
-import { fillTemplates } from "@deliberation-lab/stagebook";
+import { fillTemplates } from "stagebook";
 
 const result = fillTemplates({
   obj: treatmentConfig,

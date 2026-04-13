@@ -1,5 +1,6 @@
 {
   "private": true,
+  "license": "MIT",
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
