@@ -2,7 +2,7 @@ node_modules/
 dist/
 coverage/
 playwright-report/
-playwright/.cache/
+**/playwright/.cache/
 test-results/
 *.tsbuildinfo
 .DS_Store

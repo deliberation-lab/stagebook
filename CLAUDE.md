@@ -12,7 +12,7 @@ Never skip the red step. Tests document intent.
 
 - **Fast-forward only** merges (no merge commits, no squash)
 - **Pre-commit hook:** lint-staged runs Prettier + ESLint on staged files
-- **Pre-push hook:** full lint + all tests
+- **Pre-push hook:** full lint + all tests across workspaces
 - **CI:** format check, lint, backend tests, frontend tests, Playwright e2e
 
 ### Issues and PRs
@@ -62,37 +62,58 @@ Stagebook components are **measurement instruments**, not general-purpose UI. Th
 
 ## Project Structure
 
+This is an **npm workspaces monorepo** with two packages:
+
 ```
-@deliberation-lab/stagebook
-├── src/
-│   ├── schemas/
-│   │   ├── treatment.ts          # treatmentFileSchema, element/stage/condition/discussion/template schemas + types
-│   │   ├── promptFile.ts         # metadataTypeSchema, metadataRefineSchema, metadataLogicalSchema, validateSliderLabels
-│   │   └── index.ts              # re-exports all schemas and types
-│   ├── templates/
-│   │   └── fillTemplates.ts      # substituteFields, expandTemplate, fillTemplates, recursivelyFillTemplates
-│   ├── utils/
-│   │   ├── compare.ts            # compare() — unified from server+client, Comparator type
-│   │   ├── reference.ts          # getReferenceKeyAndPath(), getNestedValueByPath()
-│   │   └── parsePromptFile.ts    # parsePromptFile() → { metadata, body, responseItems }
-│   ├── components/
-│   │   ├── StagebookProvider.tsx      # context definition + useStagebookContext, useResolve, useSave, useElapsedTime hooks
-│   │   ├── Element.tsx            # element type router
-│   │   ├── elements/              # Prompt, Display, Separator, SubmitButton, AudioElement, TrainingVideo, KitchenTimer, TrackedLink, Image
-│   │   ├── conditions/            # TimeConditionalRender, PositionConditionalRender, ConditionsConditionalRender
-│   │   └── form/                  # RadioGroup, CheckboxGroup, TextArea, Slider, ListSorter, Markdown, Button
-│   └── index.ts                   # top-level re-exports (schemas, utils, templates)
-├── docs/
-│   └── syntax-reference.md       # language spec (from deliberation-empirica docs/study-design/)
-├── package.json                   # @deliberation-lab/stagebook, subpath exports for / and /components
-├── tsconfig.json
-├── tsup.config.ts                 # dual CJS/ESM + dts generation
-├── vitest.config.ts
-├── playwright-ct.config.ts        # Playwright component testing (Tier 2)
-├── eslint.config.js               # ESLint 9 flat config
-├── .prettierrc
-└── .gitignore
+stagebook/                          # workspace root
+├── packages/
+│   └── stagebook/                  # npm library: @deliberation-lab/stagebook
+│       ├── src/
+│       │   ├── schemas/
+│       │   │   ├── treatment.ts          # treatmentFileSchema, element/stage/condition/discussion/template schemas + types
+│       │   │   ├── promptFile.ts         # metadataTypeSchema, metadataRefineSchema, metadataLogicalSchema, validateSliderLabels
+│       │   │   └── index.ts              # re-exports all schemas and types
+│       │   ├── templates/
+│       │   │   └── fillTemplates.ts      # substituteFields, expandTemplate, fillTemplates, recursivelyFillTemplates
+│       │   ├── utils/
+│       │   │   ├── compare.ts            # compare() — unified from server+client, Comparator type
+│       │   │   ├── reference.ts          # getReferenceKeyAndPath(), getNestedValueByPath()
+│       │   │   └── parsePromptFile.ts    # parsePromptFile() → { metadata, body, responseItems }
+│       │   ├── components/
+│       │   │   ├── StagebookProvider.tsx  # context definition + useStagebookContext, useResolve, useSave, useElapsedTime hooks
+│       │   │   ├── Element.tsx           # element type router
+│       │   │   ├── elements/             # Prompt, Display, Separator, SubmitButton, AudioElement, TrainingVideo, KitchenTimer, TrackedLink, Image
+│       │   │   ├── conditions/           # TimeConditionalRender, PositionConditionalRender, ConditionsConditionalRender
+│       │   │   └── form/                 # RadioGroup, CheckboxGroup, TextArea, Slider, ListSorter, Markdown, Button
+│       │   └── index.ts                  # top-level re-exports (schemas, utils, templates)
+│       ├── playwright/                   # Playwright CT test infrastructure
+│       ├── package.json                  # @deliberation-lab/stagebook
+│       ├── tsconfig.json
+│       ├── tsup.config.ts                # dual CJS/ESM + dts generation
+│       ├── vitest.config.ts
+│       ├── playwright-ct.config.ts
+│       └── eslint.config.js              # ESLint 9 flat config
+├── apps/
+│   └── viewer/                     # Vite SPA: interactive study previewer
+│       ├── src/
+│       ├── package.json            # @deliberation-lab/stagebook-viewer (private)
+│       ├── tsconfig.json
+│       └── vite.config.ts
+├── docs/                           # repo-level documentation
+├── package.json                    # workspace root (private, not published)
+├── .prettierrc                     # shared formatting config
+├── .husky/                         # git hooks
+├── .github/workflows/              # CI workflows
+├── CLAUDE.md
+└── README.md
 ```
+
+### Workspaces
+
+- **Root scripts** delegate to all workspaces: `npm run build`, `npm test`, `npm run lint`
+- **Library-specific commands**: `npm run build -w @deliberation-lab/stagebook`
+- **Viewer-specific commands**: `npm run dev -w @deliberation-lab/stagebook-viewer`
+- The viewer imports the library via workspace link (resolves to source, not published npm)
 
 ### Package Exports
 
