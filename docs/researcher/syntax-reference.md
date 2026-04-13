@@ -1,6 +1,6 @@
-# SCORE Syntax Reference
+# Stagebook Syntax Reference
 
-A concise, precise reference for the SCORE experiment description language. For detailed explanations, see the individual guides: [Treatment Files](treatment-files.md), [Elements](elements.md), [Prompts](prompts.md), [Conditions](conditions.md), [Discussions](discussions.md), [Templates](templates.md).
+A concise, precise reference for the Stagebook experiment description language. For detailed explanations, see the individual guides: [Treatment Files](treatment-files.md), [Elements](elements.md), [Prompts](prompts.md), [Conditions](conditions.md), [Discussions](discussions.md), [Templates](templates.md).
 
 ## 1. Top-Level Structure
 
@@ -92,7 +92,7 @@ The `<video>` element rendered by `mediaPlayer` always sets `crossOrigin="anonym
 
 **This means all media URLs must be served with proper CORS headers** (`Access-Control-Allow-Origin: *` or matching the experiment origin), regardless of whether you use the timeline. Same-origin media (e.g., served from the same host as the experiment) is unaffected.
 
-If you see flat waveforms in the timeline despite audio playing, check the browser console — SCORE logs a warning after 5 seconds of playback if the AnalyserNode is producing only silence:
+If you see flat waveforms in the timeline despite audio playing, check the browser console — Stagebook logs a warning after 5 seconds of playback if the AnalyserNode is producing only silence:
 
 ```
 [MediaPlayer] Waveform capture is producing all-zero data after 5s of playback...

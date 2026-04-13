@@ -1,6 +1,6 @@
 # Platform Requirements
 
-This document describes everything a platform must provide to run SCORE experiments. SCORE handles the experiment description language and participant-facing rendering. The platform handles everything else: state management, orchestration, group formation, content delivery, and service integrations.
+This document describes everything a platform must provide to run Stagebook experiments. Stagebook handles the experiment description language and participant-facing rendering. The platform handles everything else: state management, orchestration, group formation, content delivery, and service integrations.
 
 Not every platform needs every capability. A VS Code preview tool only needs content delivery and mock state. A solo survey tool doesn't need group formation or video calls. The sections below are marked as **required**, **required for multiplayer**, or **optional** accordingly.
 
@@ -8,7 +8,7 @@ Not every platform needs every capability. A VS Code preview tool only needs con
 
 ## 1. State Management (required)
 
-SCORE components read and write experiment state through the `resolve()` and `save()` methods on the ScoreProvider. The platform must implement a state store that supports these operations.
+Stagebook components read and write experiment state through the `resolve()` and `save()` methods on the StagebookProvider. The platform must implement a state store that supports these operations.
 
 ### State Scopes
 
@@ -20,7 +20,7 @@ The platform needs two scopes of state:
 
 ### Key Patterns
 
-SCORE components write state under predictable keys:
+Stagebook components write state under predictable keys:
 
 | Key pattern | Written by | Value shape |
 |-------------|-----------|-------------|
@@ -33,7 +33,7 @@ SCORE components write state under predictable keys:
 
 `resolve(reference, position)` must:
 
-1. Parse the reference string (use `getReferenceKeyAndPath()` from SCORE)
+1. Parse the reference string (use `getReferenceKeyAndPath()` from Stagebook)
 2. Look up the key in the appropriate state scope
 3. Navigate the nested path to the requested value
 4. Return an **array** of values, because some positions (`"all"`, `"any"`) return one value per participant
@@ -64,14 +64,14 @@ State must survive page refreshes. If a participant disconnects and reconnects, 
 
 ### Platform-Populated State
 
-Some reference namespaces require the platform to collect and store data that SCORE components don't produce. If your treatment files use conditions or displays referencing these namespaces, the platform must populate them in player state during onboarding:
+Some reference namespaces require the platform to collect and store data that Stagebook components don't produce. If your treatment files use conditions or displays referencing these namespaces, the platform must populate them in player state during onboarding:
 
 **`connectionInfo.*`** — Network metadata collected during consent/onboarding:
 - `connectionInfo.country` — ISO country code (e.g., from IP geolocation)
 - `connectionInfo.timezone` — IP-based timezone
 - `connectionInfo.isKnownVpn` — whether the IP is on a known VPN list
 
-The platform stores this under the key `connectionInfo` in player state. SCORE's `resolve("connectionInfo.country")` looks up `connectionInfo` and traverses `.country`.
+The platform stores this under the key `connectionInfo` in player state. Stagebook's `resolve("connectionInfo.country")` looks up `connectionInfo` and traverses `.country`.
 
 **`browserInfo.*`** — Client-side browser information:
 - `browserInfo.screenWidth`, `browserInfo.screenHeight` — screen resolution
@@ -90,7 +90,7 @@ If these namespaces are not populated, conditions referencing them will evaluate
 
 ### Browser Compatibility
 
-SCORE components are tested against modern browsers. The platform should verify browser compatibility during onboarding, before loading the experiment. Minimum supported versions:
+Stagebook components are tested against modern browsers. The platform should verify browser compatibility during onboarding, before loading the experiment. Minimum supported versions:
 - Chrome >= 89
 - Edge >= 89
 - Firefox >= 89
@@ -125,7 +125,7 @@ The platform must:
 - **Track submissions**: when a participant calls `submit()`, record their readiness
 - **Advance early** if all participants have submitted before the timer expires
 - **Provide synchronized elapsed time** via `getElapsedTime()` — all participants should see approximately the same elapsed time (within ~1 second)
-- After a participant submits, set `isSubmitted = true` so SCORE shows a waiting message
+- After a participant submits, set `isSubmitted = true` so Stagebook shows a waiting message
 
 **Timer synchronization** is critical for multiplayer. The server must be the authority on when stages start and end. Client-side display of elapsed time can use a local clock corrected for server offset:
 
@@ -192,7 +192,7 @@ Between intro completion and game start, participants wait in a lobby. The platf
 
 Once a group is formed, each participant is assigned a position (0, 1, 2, ...). This position is:
 - Stored in player state (`position`)
-- Available via `ScoreContext.position`
+- Available via `StagebookContext.position`
 - Used by `showToPositions`, `hideFromPositions`, and `groupComposition` throughout the game
 - Immutable for the duration of the treatment
 
@@ -200,7 +200,7 @@ Once a group is formed, each participant is assigned a position (0, 1, 2, ...). 
 
 ## 4. Content Delivery (required)
 
-SCORE components load prompt markdown files, images, and audio by path. **All paths in treatment files are relative to the treatment file's location.** The platform must resolve these paths and implement `getAssetURL(path)` and `getTextContent(path)` on the ScoreProvider.
+Stagebook components load prompt markdown files, images, and audio by path. **All paths in treatment files are relative to the treatment file's location.** The platform must resolve these paths and implement `getAssetURL(path)` and `getTextContent(path)` on the StagebookProvider.
 
 For example, given this file structure:
 
@@ -238,7 +238,7 @@ Returns the text content of a file (typically prompt markdown). The platform han
 
 ## 5. Pre-Game Infrastructure (recommended)
 
-These features are not required by SCORE's rendering layer but are necessary for running real experiments.
+These features are not required by Stagebook's rendering layer but are necessary for running real experiments.
 
 ### Platform Consent
 
@@ -259,7 +259,7 @@ For studies involving video or audio:
 
 ### Browser Compatibility
 
-Check that the participant's browser meets minimum requirements. SCORE's `BrowserConditionalRender` component can block unsupported browsers, but the platform may want to check earlier (before loading the full experiment).
+Check that the participant's browser meets minimum requirements. Stagebook's `BrowserConditionalRender` component can block unsupported browsers, but the platform may want to check earlier (before loading the full experiment).
 
 ### Participant Identity
 
@@ -272,7 +272,7 @@ Collect or verify a participant identifier:
 
 ## 6. Service Integrations (optional)
 
-SCORE uses render slots for elements tightly coupled to external services. The platform provides the actual implementation via the ScoreProvider.
+Stagebook uses render slots for elements tightly coupled to external services. The platform provides the actual implementation via the StagebookProvider.
 
 ### Video Calls
 
@@ -289,7 +289,7 @@ The platform must:
 
 **Services used in deliberation-empirica**: Daily.co
 
-Provide via: `renderDiscussion(config)` on ScoreProvider.
+Provide via: `renderDiscussion(config)` on StagebookProvider.
 
 ### Text Chat
 
@@ -301,7 +301,7 @@ The platform must:
 - Display sender nicknames or positions
 - Persist messages for the stage duration
 
-Provide via: `renderDiscussion(config)` on ScoreProvider (same slot as video — dispatch on `config.chatType`).
+Provide via: `renderDiscussion(config)` on StagebookProvider (same slot as video — dispatch on `config.chatType`).
 
 ### Shared Notepad
 
@@ -315,7 +315,7 @@ The platform must:
 
 **Services used in deliberation-empirica**: Etherpad
 
-Provide via: `renderSharedNotepad(config)` on ScoreProvider.
+Provide via: `renderSharedNotepad(config)` on StagebookProvider.
 
 ### Talk Meter
 
@@ -326,17 +326,17 @@ The platform must:
 - Track cumulative speaking time per participant
 - Display the results
 
-Provide via: `renderTalkMeter()` on ScoreProvider.
+Provide via: `renderTalkMeter()` on StagebookProvider.
 
 ---
 
 ## 7. Data Export (recommended)
 
-SCORE does not define a data export format, but experiments need to produce analyzable data. The platform should export:
+Stagebook does not define a data export format, but experiments need to produce analyzable data. The platform should export:
 
 ### Per-Participant Science Data
 
-All state written by SCORE components during the experiment:
+All state written by Stagebook components during the experiment:
 - Prompt responses (with timestamps and metadata)
 - Survey results
 - Submit button timing
@@ -395,4 +395,4 @@ For pre-registered studies, the platform should:
 | Data export | Simple JSON | N/A | JSONL + GitHub push |
 | Pre-registration | N/A | N/A | Recommended |
 
-A minimal SCORE integration (solo, no video, local content) requires only: React state for `resolve`/`save`, step sequencing for `submit`, `Date.now()` for `getElapsedTime`, and local file reading for `getTextContent`. Everything else is additive.
+A minimal Stagebook integration (solo, no video, local content) requires only: React state for `resolve`/`save`, step sequencing for `submit`, `Date.now()` for `getElapsedTime`, and local file reading for `getTextContent`. Everything else is additive.

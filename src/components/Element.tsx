@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import React from "react";
-import { useScoreContext, useTextContent } from "./ScoreProvider.js";
+import { useStagebookContext, useTextContent } from "./StagebookProvider.js";
 import { promptFileSchema } from "../schemas/promptFile.js";
 import { Separator } from "./form/Separator.js";
 import { Display } from "./elements/Display.js";
@@ -15,7 +15,7 @@ import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
 
-// Resolve URL params for TrackedLink using the ScoreProvider's resolve
+// Resolve URL params for TrackedLink using the StagebookProvider's resolve
 function useResolvedParams(
   urlParams:
     | Array<{
@@ -83,7 +83,7 @@ export interface ElementProps {
 }
 
 export function Element({ element, onSubmit, stageDuration }: ElementProps) {
-  const ctx = useScoreContext();
+  const ctx = useStagebookContext();
   const {
     resolve,
     save,
@@ -169,7 +169,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
         return (
           <p
             style={{
-              color: "var(--score-danger, #dc2626)",
+              color: "var(--stagebook-danger, #dc2626)",
               fontSize: "0.875rem",
             }}
           >

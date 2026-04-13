@@ -7,12 +7,12 @@ import { SideBySideButtons } from "../testing/SideBySideButtons";
 // Orange theme — deliberately very different from the default blue
 // to make visual differences obvious in the Playwright UI
 const orangeTheme = {
-  "--score-primary": "#ea580c", // orange-600
-  "--score-timer-fill": "#f97316", // orange-500
-  "--score-danger": "#dc2626", // red-600
-  "--score-border": "#fb923c", // orange-400
-  "--score-success": "#ea580c", // orange-600 (green → orange)
-  "--score-warning": "#f97316", // orange-500 (red → orange)
+  "--stagebook-primary": "#ea580c", // orange-600
+  "--stagebook-timer-fill": "#f97316", // orange-500
+  "--stagebook-danger": "#dc2626", // red-600
+  "--stagebook-border": "#fb923c", // orange-400
+  "--stagebook-success": "#ea580c", // orange-600 (green → orange)
+  "--stagebook-warning": "#f97316", // orange-500 (red → orange)
 };
 
 test.describe("CSS Variable Theme Override", () => {

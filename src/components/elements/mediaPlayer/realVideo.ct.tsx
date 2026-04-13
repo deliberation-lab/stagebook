@@ -120,8 +120,8 @@ test("real video: stepForward advances by stepDuration", async ({ mount }) => {
 //
 // Reproduces the bug from issue #32: when the asset server returns 200 OK with
 // the full body and NO Accept-Ranges header, browsers reject any seek by
-// silently snapping currentTime back to 0. SCORE's seek() correctly assigns
-// currentTime; the browser undoes it. SCORE should detect this and warn so
+// silently snapping currentTime back to 0. Stagebook's seek() correctly assigns
+// currentTime; the browser undoes it. Stagebook should detect this and warn so
 // integrators don't waste time debugging the wrong layer.
 
 // -- Load failure fallback --------------------------------------------------
@@ -200,7 +200,7 @@ test("seek silently fails when server doesn't advertise Accept-Ranges", async ({
     .poll(async () => video.evaluate((el: HTMLVideoElement) => el.readyState))
     .toBeGreaterThanOrEqual(1);
 
-  // SCORE should detect the no-range condition (via probing v.seekable
+  // Stagebook should detect the no-range condition (via probing v.seekable
   // after metadata) and warn so the integrator knows where to look.
   await expect
     .poll(() => warnings.some((m) => m.includes("Accept-Ranges")))

@@ -43,14 +43,14 @@ export function Button({
   const colorStyle: React.CSSProperties = primary
     ? {
         color: "#fff",
-        backgroundColor: "var(--score-primary, #3b82f6)",
+        backgroundColor: "var(--stagebook-primary, #3b82f6)",
         borderColor: "transparent",
         boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
       }
     : {
-        color: "var(--score-text-secondary, #374151)",
+        color: "var(--stagebook-text-secondary, #374151)",
         backgroundColor: "#fff",
-        borderColor: "var(--score-border, #d1d5db)",
+        borderColor: "var(--stagebook-border, #d1d5db)",
         boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
       };
 

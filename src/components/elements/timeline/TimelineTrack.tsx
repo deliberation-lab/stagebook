@@ -54,12 +54,12 @@ export function TimelineTrack({
           justifyContent: "flex-end",
           paddingRight: "0.5rem",
           fontSize: "0.6875rem",
-          color: "var(--score-muted, #9ca3af)",
+          color: "var(--stagebook-muted, #9ca3af)",
           userSelect: "none",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-          borderRight: "1px solid var(--score-border, #e5e7eb)",
+          borderRight: "1px solid var(--stagebook-border, #e5e7eb)",
         }}
       >
         {label}

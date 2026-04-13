@@ -70,8 +70,8 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
         right: "0.5rem",
         bottom: "2rem",
         zIndex: 100,
-        background: "var(--score-bg, #ffffff)",
-        border: "1px solid var(--score-border, #e5e7eb)",
+        background: "var(--stagebook-bg, #ffffff)",
+        border: "1px solid var(--stagebook-border, #e5e7eb)",
         borderRadius: "0.375rem",
         padding: "0.5rem 0.75rem",
         fontSize: "0.75rem",
@@ -83,7 +83,7 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
         style={{
           fontWeight: 600,
           marginBottom: "0.375rem",
-          color: "var(--score-text, #111827)",
+          color: "var(--stagebook-text, #111827)",
         }}
       >
         Keyboard shortcuts
@@ -101,7 +101,7 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
                 style={{
                   paddingRight: "0.75rem",
                   fontFamily: "monospace",
-                  color: "var(--score-text, #111827)",
+                  color: "var(--stagebook-text, #111827)",
                   whiteSpace: "nowrap",
                   verticalAlign: "top",
                 }}
@@ -110,7 +110,7 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
               </td>
               <td
                 style={{
-                  color: "var(--score-muted, #6b7280)",
+                  color: "var(--stagebook-muted, #6b7280)",
                   verticalAlign: "top",
                 }}
               >

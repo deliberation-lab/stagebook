@@ -57,7 +57,7 @@ export function WaveformRenderer({
     const midY = height / 2;
 
     ctx.fillStyle =
-      getComputedStyle(canvas).getPropertyValue("--score-waveform-color") ||
+      getComputedStyle(canvas).getPropertyValue("--stagebook-waveform-color") ||
       "#6b7280";
 
     for (let i = 0; i < visibleBuckets; i++) {

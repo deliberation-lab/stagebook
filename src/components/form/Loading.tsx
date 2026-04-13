@@ -29,7 +29,7 @@ export function Loading({ size = "md" }: LoadingProps) {
         fill="none"
         aria-label="Loading"
         style={{
-          animation: "score-spin 0.75s linear infinite",
+          animation: "stagebook-spin 0.75s linear infinite",
         }}
       >
         {/* Track — full circle, light gray */}
@@ -37,7 +37,7 @@ export function Loading({ size = "md" }: LoadingProps) {
           cx="12"
           cy="12"
           r="10"
-          style={{ stroke: "var(--score-spinner-track, #e5e7eb)" }}
+          style={{ stroke: "var(--stagebook-spinner-track, #e5e7eb)" }}
           strokeWidth="3"
           fill="none"
         />
@@ -46,7 +46,7 @@ export function Loading({ size = "md" }: LoadingProps) {
           cx="12"
           cy="12"
           r="10"
-          style={{ stroke: "var(--score-spinner-arc, #9ca3af)" }}
+          style={{ stroke: "var(--stagebook-spinner-arc, #9ca3af)" }}
           strokeWidth="3"
           fill="none"
           strokeLinecap="round"
@@ -54,7 +54,7 @@ export function Loading({ size = "md" }: LoadingProps) {
         />
       </svg>
       <style>{`
-        @keyframes score-spin {
+        @keyframes stagebook-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }

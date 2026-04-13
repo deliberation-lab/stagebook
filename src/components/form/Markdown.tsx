@@ -13,7 +13,7 @@ export interface MarkdownProps {
 //
 // Why inline styles instead of a stylesheet?
 //
-// SCORE is consumed as a library. The same SCORE study should render
+// Stagebook is consumed as a library. The same Stagebook study should render
 // consistently across every host platform — that's the whole point of the
 // portable treatment file. But hosts ship wildly different CSS environments:
 // one ships Tailwind preflight, another ships Bootstrap reboot, another
@@ -24,7 +24,7 @@ export interface MarkdownProps {
 // Author CSS shipped from node_modules loses specificity battles against
 // host CSS. Inline styles win against everything except !important, so
 // prompt content renders with the intended hierarchy regardless of what
-// the host's reset does. This is the same logic that makes SCORE own
+// the host's reset does. This is the same logic that makes Stagebook own
 // button shapes, slider thumbs, and the media player controls — visual
 // behavior is part of the contract, not a property of the host.
 //
@@ -41,9 +41,9 @@ export interface MarkdownProps {
 // :root — no selector-based CSS needed:
 //
 //   :root {
-//     --score-prompt-h1-size: 1.5rem;
-//     --score-prompt-line-height: 1.6;
-//     --score-link: #1e40af;
+//     --stagebook-prompt-h1-size: 1.5rem;
+//     --stagebook-prompt-line-height: 1.6;
+//     --stagebook-link: #1e40af;
 //   }
 //
 // See issue #33 for the full discussion.
@@ -55,27 +55,27 @@ const headingBase: React.CSSProperties = {
 
 const h1Style: React.CSSProperties = {
   ...headingBase,
-  fontSize: "var(--score-prompt-h1-size, 1.875rem)",
-  fontWeight: "var(--score-prompt-h1-weight, 700)",
+  fontSize: "var(--stagebook-prompt-h1-size, 1.875rem)",
+  fontWeight: "var(--stagebook-prompt-h1-weight, 700)",
 };
 
 const h2Style: React.CSSProperties = {
   ...headingBase,
-  fontSize: "var(--score-prompt-h2-size, 1.5rem)",
-  fontWeight: "var(--score-prompt-h2-weight, 600)",
+  fontSize: "var(--stagebook-prompt-h2-size, 1.5rem)",
+  fontWeight: "var(--stagebook-prompt-h2-weight, 600)",
 };
 
 const h3Style: React.CSSProperties = {
   ...headingBase,
-  fontSize: "var(--score-prompt-h3-size, 1.25rem)",
-  fontWeight: "var(--score-prompt-h3-weight, 600)",
+  fontSize: "var(--stagebook-prompt-h3-size, 1.25rem)",
+  fontWeight: "var(--stagebook-prompt-h3-weight, 600)",
   marginBlock: "0.5em 0.25em",
 };
 
 const h4Style: React.CSSProperties = {
   ...headingBase,
-  fontSize: "var(--score-prompt-h4-size, 1.125rem)",
-  fontWeight: "var(--score-prompt-h4-weight, 600)",
+  fontSize: "var(--stagebook-prompt-h4-size, 1.125rem)",
+  fontWeight: "var(--stagebook-prompt-h4-weight, 600)",
   marginBlock: "0.5em 0.25em",
 };
 
@@ -114,15 +114,15 @@ const emStyle: React.CSSProperties = {
 // untouched (out of scope for issue #33).
 const inlineCodeStyle: React.CSSProperties = {
   fontFamily:
-    "var(--score-code-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+    "var(--stagebook-code-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
   fontSize: "0.9em",
-  background: "var(--score-code-bg, rgba(0,0,0,0.06))",
+  background: "var(--stagebook-code-bg, rgba(0,0,0,0.06))",
   padding: "0.1em 0.3em",
   borderRadius: "0.25rem",
 };
 
 const aStyle: React.CSSProperties = {
-  color: "var(--score-link, #2563eb)",
+  color: "var(--stagebook-link, #2563eb)",
   textDecoration: "underline",
 };
 
@@ -135,8 +135,8 @@ const blockquoteStyle: React.CSSProperties = {
   margin: "1rem 0",
   borderLeftWidth: "0.25rem",
   borderLeftStyle: "solid",
-  borderLeftColor: "var(--score-blockquote-border, #d1d5db)",
-  background: "var(--score-blockquote-bg, #f9fafb)",
+  borderLeftColor: "var(--stagebook-blockquote-border, #d1d5db)",
+  background: "var(--stagebook-blockquote-bg, #f9fafb)",
 };
 
 export function Markdown({ text, resolveURL }: MarkdownProps) {
@@ -170,10 +170,10 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
     <div
       id="markdown"
       style={{
-        maxWidth: "var(--score-prompt-max-width, 36rem)",
-        fontSize: "var(--score-prompt-text-size, 1rem)",
-        lineHeight: "var(--score-prompt-line-height, 1.5)",
-        color: "var(--score-text, #1f2937)",
+        maxWidth: "var(--stagebook-prompt-max-width, 36rem)",
+        fontSize: "var(--stagebook-prompt-text-size, 1rem)",
+        lineHeight: "var(--stagebook-prompt-line-height, 1.5)",
+        color: "var(--stagebook-text, #1f2937)",
       }}
     >
       <ReactMarkdown

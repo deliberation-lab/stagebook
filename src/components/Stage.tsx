@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import React, { useRef } from "react";
-import { useScoreContext } from "./ScoreProvider.js";
+import { useStagebookContext } from "./StagebookProvider.js";
 import { Element, type ElementConfig } from "./Element.js";
 import { TimeConditionalRender } from "./conditions/TimeConditionalRender.js";
 import { PositionConditionalRender } from "./conditions/PositionConditionalRender.js";
@@ -47,7 +47,7 @@ function WrappedElement({
   onSubmit: () => void;
   stageDuration?: number;
 }) {
-  const { getElapsedTime, position, resolve } = useScoreContext();
+  const { getElapsedTime, position, resolve } = useStagebookContext();
 
   return (
     <TimeConditionalRender
@@ -131,7 +131,7 @@ function positionAllowsDiscussion(
 }
 
 export function Stage({ stage, onSubmit }: StageProps) {
-  const ctx = useScoreContext();
+  const ctx = useStagebookContext();
   const { isSubmitted, playerCount, position, resolve, renderDiscussion } = ctx;
 
   const showDiscussion = positionAllowsDiscussion(stage.discussion, position);

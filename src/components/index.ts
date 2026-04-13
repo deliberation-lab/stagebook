@@ -1,23 +1,23 @@
-// @deliberation-lab/score/components
-// React components for rendering SCORE elements
+// @deliberation-lab/stagebook/components
+// React components for rendering Stagebook elements
 
 // Context provider and hooks
 export {
-  ScoreProvider,
-  useScoreContext,
+  StagebookProvider,
+  useStagebookContext,
   useResolve,
   useSave,
   useElapsedTime,
   useTextContent,
-  type ScoreContext,
+  type StagebookContext,
   type TextContentResult,
-} from "./ScoreProvider.js";
+} from "./StagebookProvider.js";
 
-// Stage and element rendering (requires ScoreProvider)
+// Stage and element rendering (requires StagebookProvider)
 export { Stage, type StageConfig, type StageProps } from "./Stage.js";
 export { Element, type ElementConfig, type ElementProps } from "./Element.js";
 
-// Standalone form components — no ScoreProvider required
+// Standalone form components — no StagebookProvider required
 export {
   Button,
   type ButtonProps,

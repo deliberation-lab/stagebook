@@ -1,4 +1,4 @@
-// @deliberation-lab/score
+// @deliberation-lab/stagebook
 // Schemas, validators, and utilities for interactive social science experiments
 
 export * from "./schemas/index.js";

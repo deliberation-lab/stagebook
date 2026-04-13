@@ -174,7 +174,7 @@ export function TrackedLink({
           display: "inline-flex",
           alignItems: "center",
           gap: "0.5rem",
-          color: "var(--score-primary, #3b82f6)",
+          color: "var(--stagebook-primary, #3b82f6)",
           fontWeight: 600,
           textDecoration: "none",
         }}
@@ -186,7 +186,7 @@ export function TrackedLink({
         <p
           style={{
             fontSize: "0.75rem",
-            color: "var(--score-text-muted, #6b7280)",
+            color: "var(--stagebook-text-muted, #6b7280)",
             margin: 0,
           }}
         >

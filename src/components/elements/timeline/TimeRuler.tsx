@@ -53,7 +53,7 @@ export function TimeRuler({
         width: `${String(width)}px`,
         overflow: "hidden",
         fontSize: "0.625rem",
-        color: "var(--score-muted, #9ca3af)",
+        color: "var(--stagebook-muted, #9ca3af)",
         userSelect: "none",
       }}
     >

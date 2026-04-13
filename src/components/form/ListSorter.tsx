@@ -37,12 +37,12 @@ function ListItem({
           style={{
             ...provided.draggableProps.style,
             padding: "0.5rem 0.75rem",
-            border: `1px solid ${snapshot.isDragging ? "var(--score-text-secondary, #374151)" : "var(--score-border, #d1d5db)"}`,
-            backgroundColor: "var(--score-bg-muted, #f9fafb)",
+            border: `1px solid ${snapshot.isDragging ? "var(--stagebook-text-secondary, #374151)" : "var(--stagebook-border, #d1d5db)"}`,
+            backgroundColor: "var(--stagebook-bg-muted, #f9fafb)",
             borderRadius: "0.375rem",
             boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
             fontSize: "0.875rem",
-            color: "var(--score-text, #1f2937)",
+            color: "var(--stagebook-text, #1f2937)",
             cursor: "grab",
           }}
         >
@@ -59,7 +59,7 @@ function List({ items }: { items: string[] }) {
     <div
       style={{
         display: "flex",
-        border: "1px solid var(--score-border, #d1d5db)",
+        border: "1px solid var(--stagebook-border, #d1d5db)",
         borderRadius: "0.375rem",
         boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
       }}
@@ -70,7 +70,7 @@ function List({ items }: { items: string[] }) {
           padding: "0.5rem",
           alignContent: "start",
           gap: "0.5rem",
-          color: "var(--score-text-muted, #6b7280)",
+          color: "var(--stagebook-text-muted, #6b7280)",
           fontSize: "0.875rem",
         }}
       >

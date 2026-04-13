@@ -1,11 +1,13 @@
 import { describe, test, expect, vi } from "vitest";
 import React from "react";
-import { type ScoreContext } from "./ScoreProvider.js";
+import { type StagebookContext } from "./StagebookProvider.js";
 
 // We test the provider/hooks via a simple test component pattern
 // that captures hook return values into a ref we can assert on.
 
-function createMockContext(overrides?: Partial<ScoreContext>): ScoreContext {
+function createMockContext(
+  overrides?: Partial<StagebookContext>,
+): StagebookContext {
   return {
     resolve: vi.fn(() => []),
     save: vi.fn(),
@@ -22,7 +24,7 @@ function createMockContext(overrides?: Partial<ScoreContext>): ScoreContext {
   };
 }
 
-describe("ScoreContext interface", () => {
+describe("StagebookContext interface", () => {
   test("mock context satisfies the interface", () => {
     const ctx = createMockContext();
 
@@ -95,18 +97,18 @@ describe("ScoreContext interface", () => {
   });
 });
 
-describe("ScoreProvider + useScoreContext", () => {
-  test("useScoreContext throws without provider", async () => {
+describe("StagebookProvider + useStagebookContext", () => {
+  test("useStagebookContext throws without provider", async () => {
     // Dynamic import to test the throw behavior
-    const { useScoreContext } = await import("./ScoreProvider.js");
+    const { useStagebookContext } = await import("./StagebookProvider.js");
 
-    // useScoreContext is a hook — calling it outside React should throw
+    // useStagebookContext is a hook — calling it outside React should throw
     // We test this by verifying the error message pattern
     expect(() => {
       // This will throw because there's no React render context
-      // In a real component tree without ScoreProvider, it throws our custom error
+      // In a real component tree without StagebookProvider, it throws our custom error
       // Outside React entirely, it throws a different React error
-      useScoreContext();
+      useStagebookContext();
     }).toThrow();
   });
 });

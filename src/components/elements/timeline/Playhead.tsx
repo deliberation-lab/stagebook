@@ -44,7 +44,7 @@ export function Playhead({
         top: 0,
         width: "2px",
         height: `${String(height)}px`,
-        background: "var(--score-primary, #3b82f6)",
+        background: "var(--stagebook-primary, #3b82f6)",
         pointerEvents: "none",
         zIndex: 10,
         transform: "translateX(-1px)",
