@@ -3,7 +3,10 @@
  * added by Element.tsx's wrappedSave.
  */
 import React, { useState } from "react";
-import { ScoreProvider, type ScoreContext } from "../ScoreProvider.js";
+import {
+  StagebookProvider,
+  type StagebookContext,
+} from "../StagebookProvider.js";
 import { Stage, type StageConfig } from "../Stage.js";
 
 export interface SaveEntry {
@@ -23,7 +26,7 @@ export function MockSaveTracker({
 }: MockSaveTrackerProps) {
   const [saves, setSaves] = useState<SaveEntry[]>([]);
 
-  const mockContext: ScoreContext = {
+  const mockContext: StagebookContext = {
     resolve: () => [],
     save: (key: string, value: unknown, scope?: "player" | "shared") => {
       setSaves((prev) => [...prev, { key, value, scope }]);
@@ -44,9 +47,9 @@ export function MockSaveTracker({
 
   return (
     <div>
-      <ScoreProvider value={mockContext}>
+      <StagebookProvider value={mockContext}>
         <Stage stage={stage} onSubmit={() => {}} />
-      </ScoreProvider>
+      </StagebookProvider>
       <div data-testid="save-log" style={{ display: "none" }}>
         {JSON.stringify(saves)}
       </div>

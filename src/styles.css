@@ -1,9 +1,9 @@
 /*
- * @deliberation-lab/score default styles
+ * @deliberation-lab/stagebook default styles
  *
  * Import this in your app entry point if you want SCORE's CSS-variable
  * defaults and the Inter font to be available globally:
- *   import "@deliberation-lab/score/styles";
+ *   import "@deliberation-lab/stagebook/styles";
  *
  * This file is OPTIONAL. SCORE components ship visual styling as inline
  * styles backed by CSS custom properties with sensible fallbacks, so the
@@ -19,15 +19,15 @@
  * - Form input resets
  * - GFM table styles (out of scope for inline styling — see issue #33)
  *
- * Customizing typography / colors: override the --score-* variables on
+ * Customizing typography / colors: override the --stagebook-* variables on
  * any parent element (or :root). For example, to scale headings down on
  * a particular platform:
  *
  *   :root {
- *     --score-prompt-h1-size: 1.5rem;
- *     --score-prompt-h2-size: 1.25rem;
- *     --score-prompt-line-height: 1.6;
- *     --score-link: #1e40af;
+ *     --stagebook-prompt-h1-size: 1.5rem;
+ *     --stagebook-prompt-h2-size: 1.25rem;
+ *     --stagebook-prompt-line-height: 1.6;
+ *     --stagebook-link: #1e40af;
  *   }
  *
  * No selector-based CSS, no specificity battles.
@@ -52,16 +52,16 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
   /* SCORE color palette — replaces Empirica's brand colors */
-  --color-score-50: #eff6ff;
-  --color-score-100: #dbeafe;
-  --color-score-200: #bfdbfe;
-  --color-score-300: #93c5fd;
-  --color-score-400: #60a5fa;
-  --color-score-500: #3b82f6;
-  --color-score-600: #2563eb;
-  --color-score-700: #1d4ed8;
-  --color-score-800: #1e40af;
-  --color-score-900: #1e3a8a;
+  --color-stagebook-50: #eff6ff;
+  --color-stagebook-100: #dbeafe;
+  --color-stagebook-200: #bfdbfe;
+  --color-stagebook-300: #93c5fd;
+  --color-stagebook-400: #60a5fa;
+  --color-stagebook-500: #3b82f6;
+  --color-stagebook-600: #2563eb;
+  --color-stagebook-700: #1d4ed8;
+  --color-stagebook-800: #1e40af;
+  --color-stagebook-900: #1e3a8a;
 }
 
 /* ------------------------------------------------------------------ */
@@ -72,54 +72,54 @@
 
 :root {
   /* Primary action color (buttons, slider thumb, focus rings) */
-  --score-primary: #3b82f6;
-  --score-primary-hover: #2563eb;
+  --stagebook-primary: #3b82f6;
+  --stagebook-primary-hover: #2563eb;
 
   /* Status colors */
-  --score-success: #16a34a;
-  --score-danger: #ef4444;
-  --score-warning: #dc2626;
+  --stagebook-success: #16a34a;
+  --stagebook-danger: #ef4444;
+  --stagebook-warning: #dc2626;
 
   /* Timer */
-  --score-timer-fill: #60a5fa;
-  --score-timer-warn: #ef4444;
-  --score-timer-track: #e5e7eb;
+  --stagebook-timer-fill: #60a5fa;
+  --stagebook-timer-warn: #ef4444;
+  --stagebook-timer-track: #e5e7eb;
 
   /* Text */
-  --score-text: #1f2937;
-  --score-text-secondary: #374151;
-  --score-text-muted: #6b7280;
-  --score-text-faint: #9ca3af;
+  --stagebook-text: #1f2937;
+  --stagebook-text-secondary: #374151;
+  --stagebook-text-muted: #6b7280;
+  --stagebook-text-faint: #9ca3af;
 
   /* Borders and backgrounds */
-  --score-border: #d1d5db;
-  --score-bg-muted: #f9fafb;
-  --score-bg-track: #e5e7eb;
+  --stagebook-border: #d1d5db;
+  --stagebook-bg-muted: #f9fafb;
+  --stagebook-bg-track: #e5e7eb;
 
   /* Loading spinner */
-  --score-spinner-track: #e5e7eb;
-  --score-spinner-arc: #9ca3af;
+  --stagebook-spinner-track: #e5e7eb;
+  --stagebook-spinner-arc: #9ca3af;
 
   /* Markdown / prompt typography (used by the Markdown component) */
-  --score-prompt-max-width: 36rem;
-  --score-prompt-text-size: 1rem;
-  --score-prompt-line-height: 1.5;
-  --score-prompt-h1-size: 1.875rem;
-  --score-prompt-h2-size: 1.5rem;
-  --score-prompt-h3-size: 1.25rem;
-  --score-prompt-h4-size: 1.125rem;
-  --score-prompt-h1-weight: 700;
-  --score-prompt-h2-weight: 600;
-  --score-prompt-h3-weight: 600;
-  --score-prompt-h4-weight: 600;
-  --score-link: #2563eb;
-  --score-code-bg: rgba(0, 0, 0, 0.06);
-  --score-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  --stagebook-prompt-max-width: 36rem;
+  --stagebook-prompt-text-size: 1rem;
+  --stagebook-prompt-line-height: 1.5;
+  --stagebook-prompt-h1-size: 1.875rem;
+  --stagebook-prompt-h2-size: 1.5rem;
+  --stagebook-prompt-h3-size: 1.25rem;
+  --stagebook-prompt-h4-size: 1.125rem;
+  --stagebook-prompt-h1-weight: 700;
+  --stagebook-prompt-h2-weight: 600;
+  --stagebook-prompt-h3-weight: 600;
+  --stagebook-prompt-h4-weight: 600;
+  --stagebook-link: #2563eb;
+  --stagebook-code-bg: rgba(0, 0, 0, 0.06);
+  --stagebook-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     monospace;
 
   /* Blockquote (used by Display element and markdown blockquotes) */
-  --score-blockquote-border: #d1d5db;
-  --score-blockquote-bg: #f9fafb;
+  --stagebook-blockquote-border: #d1d5db;
+  --stagebook-blockquote-bg: #f9fafb;
 }
 
 /* ------------------------------------------------------------------ */
@@ -142,7 +142,7 @@
 /* win against everything except !important, so prompt content renders  */
 /* with the intended hierarchy regardless of what the host ships.       */
 /*                                                                      */
-/* The styles remain customizable: hosts override the --score-prompt-* */
+/* The styles remain customizable: hosts override the --stagebook-prompt-* */
 /* variables on a parent element (or :root) to retune the type scale    */
 /* without writing any selector-based CSS. See issue #33.               */
 /* ------------------------------------------------------------------ */

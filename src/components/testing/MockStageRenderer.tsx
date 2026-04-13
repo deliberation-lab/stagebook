@@ -1,12 +1,15 @@
 /**
- * Test wrapper for rendering Stage with a mock ScoreProvider.
+ * Test wrapper for rendering Stage with a mock StagebookProvider.
  * Used by Playwright CT tests where function props can't be serialized.
  *
  * The mock provider returns static data — no real state management.
  * This is sufficient for testing layout, conditional rendering, and styling.
  */
 import React from "react";
-import { ScoreProvider, type ScoreContext } from "../ScoreProvider.js";
+import {
+  StagebookProvider,
+  type StagebookContext,
+} from "../StagebookProvider.js";
 import { Stage, type StageConfig } from "../Stage.js";
 
 export interface MockStageRendererProps {
@@ -27,7 +30,7 @@ export function MockStageRenderer({
   elapsedTime = 0,
   stateValues = {},
 }: MockStageRendererProps) {
-  const mockContext: ScoreContext = {
+  const mockContext: StagebookContext = {
     resolve: (reference: string) => {
       const val = stateValues[reference];
       return val !== undefined ? [val] : [];
@@ -70,8 +73,8 @@ export function MockStageRenderer({
   };
 
   return (
-    <ScoreProvider value={mockContext}>
+    <StagebookProvider value={mockContext}>
       <Stage stage={stage} onSubmit={() => {}} />
-    </ScoreProvider>
+    </StagebookProvider>
   );
 }

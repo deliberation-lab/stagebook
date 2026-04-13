@@ -130,7 +130,7 @@ test("nested ol uses flat decimal numbering at every level", async ({
   // lists as 1., 1.1, 1.1.1. The new inline approach can't express
   // counter-based nested numbering (no ::before in inline styles), so
   // every level uses decimal "1., 2., 3.". If a researcher needs
-  // counter-style nesting they can override --score-prompt-* via a
+  // counter-style nesting they can override --stagebook-prompt-* via a
   // host stylesheet that targets `#markdown ol > li::before`.
   const component = await mount(
     <Markdown text={"1. outer\n   1. inner\n   2. inner two"} />,
@@ -178,12 +178,12 @@ test("blockquote has left border and background", async ({ mount }) => {
 
 test("CSS variable override changes h1 size", async ({ mount }) => {
   // Wrap in a div that sets the variable; the inline-styled h1 should pick
-  // it up via var(--score-prompt-h1-size, ...). This proves the override
+  // it up via var(--stagebook-prompt-h1-size, ...). This proves the override
   // mechanism works on hosts that don't ship the styles.css file.
   // Use an absolute unit so the assertion isn't sensitive to the host's
   // root font-size.
   const component = await mount(
-    <div style={{ "--score-prompt-h1-size": "48px" } as CSSProperties}>
+    <div style={{ "--stagebook-prompt-h1-size": "48px" } as CSSProperties}>
       <Markdown text="# Override me" />
     </div>,
   );
@@ -195,7 +195,7 @@ test("CSS variable override changes h1 size", async ({ mount }) => {
 
 test("CSS variable override changes link color", async ({ mount }) => {
   const component = await mount(
-    <div style={{ "--score-link": "rgb(255, 0, 0)" } as CSSProperties}>
+    <div style={{ "--stagebook-link": "rgb(255, 0, 0)" } as CSSProperties}>
       <Markdown text="[red link](https://example.com)" />
     </div>,
   );
@@ -254,7 +254,9 @@ test("CSS variable override changes blockquote background", async ({
   mount,
 }) => {
   const component = await mount(
-    <div style={{ "--score-blockquote-bg": "rgb(0, 255, 0)" } as CSSProperties}>
+    <div
+      style={{ "--stagebook-blockquote-bg": "rgb(0, 255, 0)" } as CSSProperties}
+    >
       <Markdown text="> green" />
     </div>,
   );

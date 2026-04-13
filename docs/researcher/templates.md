@@ -137,6 +137,6 @@ treatments:
 
 - All `${field}` placeholders must be resolved after expansion. Leftover placeholders cause validation errors.
 - All template blocks must be resolved. Leftover `template:` entries cause validation errors.
-- Template expansion happens before schema validation. The expanded result must satisfy all SCORE schemas.
+- Template expansion happens before schema validation. The expanded result must satisfy all Stagebook schemas.
 - Field keys cannot be `type` (reserved for element type discrimination).
 - Broadcast axis names must match `d0`, `d1`, `d2`, etc.

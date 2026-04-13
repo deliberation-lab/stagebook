@@ -1,11 +1,11 @@
-# ScoreProvider: Architecture
+# StagebookProvider: Architecture
 
-SCORE display components need to do four things: read experiment state, write participant responses, track time within a step, and load content (prompt markdown, images, audio) from wherever the platform stores it. The ScoreProvider abstracts all of these behind a single context that any platform can implement.
+SCORE display components need to do four things: read experiment state, write participant responses, track time within a step, and load content (prompt markdown, images, audio) from wherever the platform stores it. The StagebookProvider abstracts all of these behind a single context that any platform can implement.
 
 ## The interface
 
 ```typescript
-interface ScoreContext {
+interface StagebookContext {
   // Read state via DSL reference strings
   resolve(reference: string, position?: string): unknown[];
 
@@ -42,15 +42,15 @@ interface ScoreContext {
 
 ## Three-layer component architecture
 
-SCORE components are organized in three layers:
+Stagebook components are organized in three layers:
 
-1. **Pure components** (form/) — `Button`, `Separator`, `RadioGroup`, `CheckboxGroup`, `TextArea`, `Slider`, `ListSorter`, `Markdown`, `Loading`. These take props and render UI. No ScoreProvider needed. Usable anywhere in the app (consent screens, debrief, etc.).
+1. **Pure components** (form/) — `Button`, `Separator`, `RadioGroup`, `CheckboxGroup`, `TextArea`, `Slider`, `ListSorter`, `Markdown`, `Loading`. These take props and render UI. No StagebookProvider needed. Usable anywhere in the app (consent screens, debrief, etc.).
 
 2. **Element components** (elements/) — `Prompt`, `Display`, `SubmitButton`, `AudioElement`, `ImageElement`, `KitchenTimer`, `TrackedLink`, `TrainingVideo`, `Qualtrics`. These are pure prop-based components that render specific experiment elements. They receive data and callbacks as props, not from context.
 
-3. **Stage renderer** — The `Stage` component reads from ScoreProvider, wraps each element in conditional rendering (time, position, conditions), handles layout (single column or two-column with discussion), and bridges context to element components via the `Element` router.
+3. **Stage renderer** — The `Stage` component reads from StagebookProvider, wraps each element in conditional rendering (time, position, conditions), handles layout (single column or two-column with discussion), and bridges context to element components via the `Element` router.
 
-The platform provides the ScoreProvider context. SCORE handles everything inside it.
+The platform provides the StagebookProvider context. Stagebook handles everything inside it.
 
 ## How reading works
 
@@ -85,11 +85,11 @@ Components need images, audio, and prompt markdown files. The platform implement
 - **`getAssetURL(path)`** — returns a renderable `src` (CDN URL, local file path, webview URI, etc.)
 - **`getTextContent(path)`** — returns file content as a string (platform handles fetching, caching, retries)
 
-SCORE provides `useTextContent(path)` — a hook that wraps `getTextContent` with React loading/error state.
+Stagebook provides `useTextContent(path)` — a hook that wraps `getTextContent` with React loading/error state.
 
 ## Render slots for service-coupled elements
 
-Some elements depend on external services. SCORE validates config, manages layout, and handles conditional rendering — but the platform supplies the actual component:
+Some elements depend on external services. Stagebook validates config, manages layout, and handles conditional rendering — but the platform supplies the actual component:
 
 | Slot | When used | What the platform provides |
 |------|-----------|---------------------------|
@@ -102,16 +102,16 @@ All slots are optional. If not provided, the element renders nothing.
 
 ## Idle management
 
-Some elements temporarily expect the participant to be away (watching a video, following an external link). SCORE components call `setAllowIdle?.(true/false)` to signal this. The platform's idle detection system uses this signal to suppress inactivity warnings during expected away periods.
+Some elements temporarily expect the participant to be away (watching a video, following an external link). Stagebook components call `setAllowIdle?.(true/false)` to signal this. The platform's idle detection system uses this signal to suppress inactivity warnings during expected away periods.
 
 ## CSS theming
 
-SCORE ships a default stylesheet (`@deliberation-lab/score/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
+SCORE ships a default stylesheet (`@deliberation-lab/stagebook/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
 
 ```css
 :root {
-  --score-primary: #7c3aed;    /* change blue to purple */
-  --score-danger: #b91c1c;     /* darker red */
+  --stagebook-primary: #7c3aed;    /* change blue to purple */
+  --stagebook-danger: #b91c1c;     /* darker red */
 }
 ```
 

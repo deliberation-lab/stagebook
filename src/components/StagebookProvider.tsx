@@ -2,9 +2,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { DiscussionType } from "../schemas/treatment.js";
 
-// --------------- ScoreContext Interface ---------------
+// --------------- StagebookContext Interface ---------------
 
-export interface ScoreContext {
+export interface StagebookContext {
   // Read state via DSL reference strings
   resolve(reference: string, position?: string): unknown[];
 
@@ -45,49 +45,49 @@ export interface ScoreContext {
 
 // --------------- Context ---------------
 
-const ScoreReactContext = createContext<ScoreContext | null>(null);
+const StagebookReactContext = createContext<StagebookContext | null>(null);
 
 // --------------- Provider ---------------
 
-export function ScoreProvider({
+export function StagebookProvider({
   value,
   children,
 }: {
-  value: ScoreContext;
+  value: StagebookContext;
   children: React.ReactNode;
 }) {
   return (
-    <ScoreReactContext.Provider value={value}>
+    <StagebookReactContext.Provider value={value}>
       {children}
-    </ScoreReactContext.Provider>
+    </StagebookReactContext.Provider>
   );
 }
 
 // --------------- Hooks ---------------
 
-export function useScoreContext(): ScoreContext {
-  const ctx = useContext(ScoreReactContext);
+export function useStagebookContext(): StagebookContext {
+  const ctx = useContext(StagebookReactContext);
   if (!ctx) {
     throw new Error(
-      "useScoreContext must be used within a <ScoreProvider>. " +
-        "Wrap your component tree with <ScoreProvider value={...}>.",
+      "useStagebookContext must be used within a <StagebookProvider>. " +
+        "Wrap your component tree with <StagebookProvider value={...}>.",
     );
   }
   return ctx;
 }
 
 export function useResolve(reference: string, position?: string): unknown[] {
-  const { resolve } = useScoreContext();
+  const { resolve } = useStagebookContext();
   return resolve(reference, position);
 }
 
-export function useSave(): ScoreContext["save"] {
-  const { save } = useScoreContext();
+export function useSave(): StagebookContext["save"] {
+  const { save } = useStagebookContext();
   return save;
 }
 
 export function useElapsedTime(): number {
-  const { getElapsedTime } = useScoreContext();
+  const { getElapsedTime } = useStagebookContext();
   return getElapsedTime();
 }
 
@@ -100,7 +100,7 @@ export interface TextContentResult {
 }
 
 export function useTextContent(path: string): TextContentResult {
-  const { getTextContent } = useScoreContext();
+  const { getTextContent } = useStagebookContext();
   const [data, setData] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>(undefined);

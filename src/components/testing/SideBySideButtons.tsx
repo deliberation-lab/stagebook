@@ -10,7 +10,7 @@ export function SideBySideButtons() {
     <div style={{ display: "flex", gap: "1rem", padding: "2rem" }}>
       <style>{`
         .orange-theme {
-          --score-primary: #ea580c !important;
+          --stagebook-primary: #ea580c !important;
         }
       `}</style>
       <div>

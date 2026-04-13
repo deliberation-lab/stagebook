@@ -4,7 +4,10 @@
  * that calls onComplete with test results.
  */
 import React, { useState } from "react";
-import { ScoreProvider, type ScoreContext } from "../ScoreProvider.js";
+import {
+  StagebookProvider,
+  type StagebookContext,
+} from "../StagebookProvider.js";
 import { Stage, type StageConfig } from "../Stage.js";
 
 const mockSurveyResults = {
@@ -27,7 +30,7 @@ export function MockSurveyStage() {
     ],
   };
 
-  const mockContext: ScoreContext = {
+  const mockContext: StagebookContext = {
     resolve: () => [],
     save: (key: string, value: unknown) => {
       setSavedEntries((prev) => [...prev, { key, value }]);
@@ -47,7 +50,7 @@ export function MockSurveyStage() {
         data-testid="mock-survey"
         style={{
           padding: "1.5rem",
-          border: "2px dashed var(--score-border, #d1d5db)",
+          border: "2px dashed var(--stagebook-border, #d1d5db)",
           borderRadius: "0.5rem",
           maxWidth: "32rem",
         }}
@@ -112,7 +115,7 @@ export function MockSurveyStage() {
           onClick={() => onComplete(mockSurveyResults)}
           style={{
             padding: "0.5rem 1rem",
-            backgroundColor: "var(--score-primary, #3b82f6)",
+            backgroundColor: "var(--stagebook-primary, #3b82f6)",
             color: "#fff",
             border: "none",
             borderRadius: "0.375rem",
@@ -128,9 +131,9 @@ export function MockSurveyStage() {
 
   return (
     <div>
-      <ScoreProvider value={mockContext}>
+      <StagebookProvider value={mockContext}>
         <Stage stage={stage} onSubmit={() => setStageSubmitted(true)} />
-      </ScoreProvider>
+      </StagebookProvider>
       {/* Hidden elements for test assertions */}
       <div data-testid="stage-submitted" style={{ display: "none" }}>
         {stageSubmitted ? "true" : "false"}

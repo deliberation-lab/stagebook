@@ -1,11 +1,11 @@
-# Integrating SCORE into Your Platform
+# Integrating Stagebook into Your Platform
 
-This guide explains how to add SCORE as a dependency and implement the platform-specific backend that powers SCORE's rendering components. SCORE provides the experiment description language (schemas + validation) and the rendering layer (React components). Your platform provides the state management, content delivery, and service integrations.
+This guide explains how to add SCORE as a dependency and implement the platform-specific backend that powers Stagebook's rendering components. Stagebook provides the experiment description language (schemas + validation) and the rendering layer (React components). Your platform provides the state management, content delivery, and service integrations.
 
 ## Installation
 
 ```bash
-npm install @deliberation-lab/score
+npm install @deliberation-lab/stagebook
 ```
 
 Peer dependencies (install if not already present):
@@ -16,14 +16,14 @@ npm install zod js-yaml react react-dom
 
 ## Package Structure
 
-SCORE exports from two entry points:
+Stagebook exports from two entry points:
 
 ```typescript
 // Schemas, validators, and utilities — no React dependency
-import { treatmentFileSchema, compare, fillTemplates } from "@deliberation-lab/score";
+import { treatmentFileSchema, compare, fillTemplates } from "@deliberation-lab/stagebook";
 
 // React components — requires React 18+
-import { ScoreProvider, Element, Markdown, Button } from "@deliberation-lab/score/components";
+import { StagebookProvider, Element, Markdown, Button } from "@deliberation-lab/stagebook/components";
 ```
 
 ## Validating Treatment Files
@@ -31,7 +31,7 @@ import { ScoreProvider, Element, Markdown, Button } from "@deliberation-lab/scor
 The most basic integration is validation. Use this in build tools, CI pipelines, or editor extensions:
 
 ```typescript
-import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/score";
+import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/stagebook";
 import { load as loadYaml } from "js-yaml";
 import { readFileSync } from "fs";
 
@@ -59,7 +59,7 @@ if (!result.success) {
 ## Validating Prompt Files
 
 ```typescript
-import { promptFileSchema } from "@deliberation-lab/score";
+import { promptFileSchema } from "@deliberation-lab/stagebook";
 
 const markdown = readFileSync("prompts/question.md", "utf-8");
 const result = promptFileSchema.safeParse(markdown);
@@ -78,10 +78,10 @@ if (result.success) {
 
 ## Treatment Hydration Pipeline
 
-Before passing treatment data to SCORE's rendering components, the platform must **hydrate** it — expand templates, validate, and resolve all placeholders. SCORE components expect fully resolved data with no template contexts or `${field}` placeholders remaining.
+Before passing treatment data to Stagebook's rendering components, the platform must **hydrate** it — expand templates, validate, and resolve all placeholders. Stagebook components expect fully resolved data with no template contexts or `${field}` placeholders remaining.
 
 ```typescript
-import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/score";
+import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/stagebook";
 import { load as loadYaml } from "js-yaml";
 
 // 1. Load and parse YAML
@@ -99,7 +99,7 @@ const hydrated = {
 const result = treatmentFileSchema.safeParse(hydrated);
 if (!result.success) throw new Error(result.error.message);
 
-// 4. Pass resolved stages to SCORE components
+// 4. Pass resolved stages to Stagebook components
 // Each treatment.gameStages[i] is now a concrete stage object
 // that can be passed directly to <Stage stage={...} />
 ```
@@ -108,16 +108,16 @@ if (!result.success) throw new Error(result.error.message);
 
 The hydration step also resolves broadcast expansion — a single template with `broadcast: { d0: [...], d1: [...] }` may produce multiple stages or elements via cartesian product. This happens during `fillTemplates()`, not during rendering.
 
-## Implementing a ScoreProvider
+## Implementing a StagebookProvider
 
-To render SCORE elements, your platform must implement the `ScoreContext` interface and wrap your component tree with `<ScoreProvider>`.
+To render Stagebook elements, your platform must implement the `StagebookContext` interface and wrap your component tree with `<StagebookProvider>`.
 
 ### The Interface
 
 ```typescript
-import type { ScoreContext } from "@deliberation-lab/score/components";
+import type { StagebookContext } from "@deliberation-lab/stagebook/components";
 
-const context: ScoreContext = {
+const context: StagebookContext = {
   // Read experiment state by DSL reference string.
   // Returns an array because some references resolve across multiple participants.
   resolve(reference: string, position?: string): unknown[] {
@@ -175,16 +175,16 @@ const context: ScoreContext = {
 
 ### Wiring It Up
 
-SCORE provides a `Stage` component that handles all element layout, conditional rendering, and discussion placement. The platform just provides the context and the hydrated stage config:
+Stagebook provides a `Stage` component that handles all element layout, conditional rendering, and discussion placement. The platform just provides the context and the hydrated stage config:
 
 ```tsx
-import { ScoreProvider, Stage } from "@deliberation-lab/score/components";
-import type { ScoreContext } from "@deliberation-lab/score/components";
+import { StagebookProvider, Stage } from "@deliberation-lab/stagebook/components";
+import type { StagebookContext } from "@deliberation-lab/stagebook/components";
 
 function GameStage({ stageConfig, onSubmit }) {
   const context = useYourPlatformContext(); // your platform's hooks
 
-  const scoreContext: ScoreContext = {
+  const scoreContext: StagebookContext = {
     resolve: (ref, pos) => yourResolve(ref, pos, context),
     save: (key, val, scope) => yourSave(key, val, scope, context),
     getElapsedTime: () => context.timer.elapsed,
@@ -200,9 +200,9 @@ function GameStage({ stageConfig, onSubmit }) {
   };
 
   return (
-    <ScoreProvider value={scoreContext}>
+    <StagebookProvider value={scoreContext}>
       <Stage stage={stageConfig} onSubmit={onSubmit} />
-    </ScoreProvider>
+    </StagebookProvider>
   );
 }
 ```
@@ -217,7 +217,7 @@ If you need lower-level control, you can use the `Element` component directly to
 
 ### The Three Phases
 
-The same `ScoreContext` interface works across all three experiment phases. The platform adapts its implementation:
+The same `StagebookContext` interface works across all three experiment phases. The platform adapts its implementation:
 
 | | Intro (async, solo) | Game (sync, group) | Exit (async, solo) |
 |---|---|---|---|
@@ -232,10 +232,10 @@ Components don't need to know which phase they're in.
 
 ## Using Standalone Components
 
-Form components work without ScoreProvider. Use them anywhere in your app:
+Form components work without StagebookProvider. Use them anywhere in your app:
 
 ```tsx
-import { Markdown, Button, Separator } from "@deliberation-lab/score/components";
+import { Markdown, Button, Separator } from "@deliberation-lab/stagebook/components";
 
 function ConsentPage({ consentText, onAccept }) {
   return (
@@ -261,7 +261,7 @@ import {
   compare,
   getReferenceKeyAndPath,
   fillTemplates,
-} from "@deliberation-lab/score";
+} from "@deliberation-lab/stagebook";
 
 // Validate a treatment
 treatmentFileSchema.safeParse(config);
@@ -278,11 +278,11 @@ const expanded = fillTemplates({ obj: treatments, templates });
 
 ## Render Slots for Service-Coupled Elements
 
-Some elements depend on external services or platform-specific libraries. SCORE validates the config, manages layout and conditional rendering, and handles data storage — but your platform supplies the actual component via render props on the provider.
+Some elements depend on external services or platform-specific libraries. Stagebook validates the config, manages layout and conditional rendering, and handles data storage — but your platform supplies the actual component via render props on the provider.
 
 ### Survey
 
-Surveys are rendered by the platform because they depend on a survey library (e.g., `@watts-lab/surveys`). SCORE validates the element config, wraps the survey in conditional rendering, and handles data storage — but the platform provides the actual survey UI.
+Surveys are rendered by the platform because they depend on a survey library (e.g., `@watts-lab/surveys`). Stagebook validates the element config, wraps the survey in conditional rendering, and handles data storage — but the platform provides the actual survey UI.
 
 #### What the researcher writes
 
@@ -294,14 +294,14 @@ elements:
   - type: submitButton
 ```
 
-#### What SCORE does
+#### What Stagebook does
 
-When SCORE encounters a `type: "survey"` element, it:
+When Stagebook encounters a `type: "survey"` element, it:
 
 1. Reads `surveyName` and `name` from the element config
 2. Computes the storage key: `survey_${name ?? surveyName}` (e.g., `survey_preTIPI`)
 3. Calls your `renderSurvey` function, passing `{ surveyName, onComplete }`
-4. When `onComplete(results)` is called, SCORE saves the results: `save("survey_preTIPI", results)`
+4. When `onComplete(results)` is called, Stagebook saves the results: `save("survey_preTIPI", results)`
 5. The results are then available to other elements and conditions via the reference `survey.preTIPI.result.<key>` or `survey.preTIPI.responses.<questionId>`
 
 #### What the platform implements
@@ -309,7 +309,7 @@ When SCORE encounters a `type: "survey"` element, it:
 ```typescript
 import { getSurvey } from "@watts-lab/surveys";  // or your survey library
 
-const context: ScoreContext = {
+const context: StagebookContext = {
   // ...other fields...
 
   renderSurvey: ({ surveyName, onComplete }) => {
@@ -323,11 +323,11 @@ Your survey component must:
 1. **Render** the survey questions and response controls
 2. **Call `onComplete(results)`** when the participant finishes, passing the results object
 
-That's it. SCORE handles everything else: the storage key, making results available to `display` elements and `conditions`, and all the standard element wrapping (time gating, position visibility, conditional rendering).
+That's it. Stagebook handles everything else: the storage key, making results available to `display` elements and `conditions`, and all the standard element wrapping (time gating, position visibility, conditional rendering).
 
 #### The results object
 
-The shape of `results` is determined by your survey library. SCORE stores it opaquely — it doesn't inspect the contents. However, researchers will reference specific paths in conditions:
+The shape of `results` is determined by your survey library. Stagebook stores it opaquely — it doesn't inspect the contents. However, researchers will reference specific paths in conditions:
 
 ```yaml
 conditions:
@@ -336,24 +336,24 @@ conditions:
     value: 0.75
 ```
 
-For this to work, the results object must have the structure that matches the reference path. If the reference is `survey.preTIPI.result.normAgreeableness`, then `results.result.normAgreeableness` must exist. This is a contract between the survey library and the treatment author — SCORE just traverses the path.
+For this to work, the results object must have the structure that matches the reference path. If the reference is `survey.preTIPI.result.normAgreeableness`, then `results.result.normAgreeableness` must exist. This is a contract between the survey library and the treatment author — Stagebook just traverses the path.
 
 #### Example: full data flow
 
 1. Researcher writes `surveyName: TIPI, name: preTIPI` in treatment YAML
 2. Participant completes the survey in the intro sequence
 3. Survey component calls `onComplete({ result: { normAgreeableness: 0.82, ... }, responses: { ... } })`
-4. SCORE saves under key `survey_preTIPI`
+4. Stagebook saves under key `survey_preTIPI`
 5. Later, in a treatment's `groupComposition`, a condition references `survey.preTIPI.result.normAgreeableness`
-6. SCORE's `resolve("survey.preTIPI.result.normAgreeableness")` looks up `survey_preTIPI` in state, traverses `.result.normAgreeableness`, and returns `0.82`
+6. Stagebook's `resolve("survey.preTIPI.result.normAgreeableness")` looks up `survey_preTIPI` in state, traverses `.result.normAgreeableness`, and returns `0.82`
 7. The condition `isAtLeast: 0.75` evaluates to `true`, and the participant is assigned to the matching position
 
 ### Discussion
 
-Video calls and text chat are tightly coupled to external services (Daily.co, Twilio, etc.). SCORE handles the two-column layout, position-based visibility, and breakout room config, but the platform provides the actual communication component.
+Video calls and text chat are tightly coupled to external services (Daily.co, Twilio, etc.). Stagebook handles the two-column layout, position-based visibility, and breakout room config, but the platform provides the actual communication component.
 
 ```typescript
-const context: ScoreContext = {
+const context: StagebookContext = {
   renderDiscussion: (config) => {
     if (config.chatType === "video") {
       return <DailyVideoCall {...config} />;
@@ -370,7 +370,7 @@ The `config` parameter is the full `discussion` object from the treatment YAML, 
 Collaborative text editors (e.g., Etherpad) are used for `sharedNotepad` elements and `shared: true` open response prompts.
 
 ```typescript
-const context: ScoreContext = {
+const context: StagebookContext = {
   renderSharedNotepad: ({ padName }) => (
     <EtherpadEmbed padName={padName} />
   ),
@@ -382,7 +382,7 @@ const context: ScoreContext = {
 Speaking time tracking requires audio analysis, which is platform-specific.
 
 ```typescript
-const context: ScoreContext = {
+const context: StagebookContext = {
   renderTalkMeter: () => <TalkTimeDisplay />,
 };
 ```

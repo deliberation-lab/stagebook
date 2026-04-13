@@ -74,7 +74,7 @@ export function Slider({
             position: "relative",
             width: "100%",
             height: "8px",
-            backgroundColor: "var(--score-bg-track, #e5e7eb)",
+            backgroundColor: "var(--stagebook-bg-track, #e5e7eb)",
             borderRadius: "4px",
             cursor: "pointer",
           }}
@@ -89,7 +89,7 @@ export function Slider({
                 top: 0,
                 width: "2px",
                 height: "12px",
-                backgroundColor: "var(--score-text-faint, #9ca3af)",
+                backgroundColor: "var(--stagebook-text-faint, #9ca3af)",
               }}
             />
           ))}
@@ -104,7 +104,7 @@ export function Slider({
               transform: "translateX(-50%)",
               top: "-0.75rem",
               fontSize: "0.75rem",
-              color: "var(--score-text-muted, #6b7280)",
+              color: "var(--stagebook-text-muted, #6b7280)",
               textAlign: "center",
               whiteSpace: "nowrap",
             }}
@@ -164,7 +164,7 @@ export function Slider({
                   textAlign,
                   maxWidth: "80px",
                   fontSize: "0.75rem",
-                  color: "var(--score-text-muted, #6b7280)",
+                  color: "var(--stagebook-text-muted, #6b7280)",
                 }}
               >
                 {labels[idx]}
@@ -180,7 +180,7 @@ export function Slider({
           appearance: none;
           width: 20px;
           height: 24px;
-          background: var(--score-primary, #3b82f6);
+          background: var(--stagebook-primary, #3b82f6);
           border-radius: 50%;
           cursor: pointer;
           border: 2px solid white;
@@ -190,7 +190,7 @@ export function Slider({
         input[type="range"]::-moz-range-thumb {
           width: 20px;
           height: 24px;
-          background: var(--score-primary, #3b82f6);
+          background: var(--stagebook-primary, #3b82f6);
           border-radius: 50%;
           cursor: pointer;
           border: 2px solid white;

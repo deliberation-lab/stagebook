@@ -46,7 +46,7 @@ import type {
   ConditionType,
   MetadataType,
   PromptFileType,
-} from "@deliberation-lab/score";
+} from "@deliberation-lab/stagebook";
 ```
 
 ## Utilities
@@ -56,7 +56,7 @@ import type {
 Evaluate a condition comparator.
 
 ```typescript
-import { compare, type Comparator } from "@deliberation-lab/score";
+import { compare, type Comparator } from "@deliberation-lab/stagebook";
 
 compare(5, "isAbove", 3);              // true
 compare(undefined, "doesNotEqual", "x"); // true (undefined != anything)
@@ -73,7 +73,7 @@ compare("hello", "matches", "\\d+");    // false
 Parse a DSL reference string into a storage key and nested path.
 
 ```typescript
-import { getReferenceKeyAndPath } from "@deliberation-lab/score";
+import { getReferenceKeyAndPath } from "@deliberation-lab/stagebook";
 
 getReferenceKeyAndPath("survey.bigFive.result.score");
 // { referenceKey: "survey_bigFive", path: ["result", "score"] }
@@ -92,7 +92,7 @@ Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedL
 Traverse a nested object by path array.
 
 ```typescript
-import { getNestedValueByPath } from "@deliberation-lab/score";
+import { getNestedValueByPath } from "@deliberation-lab/stagebook";
 
 getNestedValueByPath({ a: { b: { c: 42 } } }, ["a", "b", "c"]); // 42
 getNestedValueByPath({ a: 1 }, ["x"]);                           // undefined
@@ -104,7 +104,7 @@ getNestedValueByPath({ a: 1 });                                   // { a: 1 }
 Expand all template references in a structure.
 
 ```typescript
-import { fillTemplates } from "@deliberation-lab/score";
+import { fillTemplates } from "@deliberation-lab/stagebook";
 
 const expanded = fillTemplates({
   obj: rawTreatments,
@@ -118,21 +118,21 @@ Also exported: `expandTemplate`, `substituteFields`, `recursivelyFillTemplates` 
 
 ## React Components
 
-### ScoreProvider
+### StagebookProvider
 
 ```tsx
-import { ScoreProvider, type ScoreContext } from "@deliberation-lab/score/components";
+import { StagebookProvider, type StagebookContext } from "@deliberation-lab/stagebook/components";
 
-<ScoreProvider value={context}>
+<StagebookProvider value={context}>
   {children}
-</ScoreProvider>
+</StagebookProvider>
 ```
 
 ### Hooks
 
 | Hook | Returns | Requires Provider |
 |------|---------|-------------------|
-| `useScoreContext()` | Full `ScoreContext` object | yes |
+| `useStagebookContext()` | Full `StagebookContext` object | yes |
 | `useResolve(reference, position?)` | `unknown[]` | yes |
 | `useSave()` | `save` function | yes |
 | `useElapsedTime()` | `number` (seconds) | yes |
@@ -141,24 +141,24 @@ import { ScoreProvider, type ScoreContext } from "@deliberation-lab/score/compon
 ### Stage
 
 ```tsx
-import { Stage, type StageConfig } from "@deliberation-lab/score/components";
+import { Stage, type StageConfig } from "@deliberation-lab/stagebook/components";
 
 <Stage stage={stageConfig} onSubmit={handleSubmit} />
 ```
 
-Requires ScoreProvider. Renders a complete stage: lays out elements with conditional rendering (time, position, conditions), handles two-column layout when a discussion is present, and shows a waiting message after submission. **This is the primary rendering API** — prefer `Stage` over manually rendering `Element` components.
+Requires StagebookProvider. Renders a complete stage: lays out elements with conditional rendering (time, position, conditions), handles two-column layout when a discussion is present, and shows a waiting message after submission. **This is the primary rendering API** — prefer `Stage` over manually rendering `Element` components.
 
 `StageConfig` has: `name` (string), `duration?` (number), `elements` (ElementConfig[]), `discussion?` (DiscussionType).
 
 ### Element Router
 
 ```tsx
-import { Element, type ElementConfig } from "@deliberation-lab/score/components";
+import { Element, type ElementConfig } from "@deliberation-lab/stagebook/components";
 
 <Element element={elementConfig} onSubmit={handleSubmit} stageDuration={300} />
 ```
 
-Requires ScoreProvider. Dispatches to the appropriate element component based on `element.type`. Use this for lower-level control when `Stage` doesn't fit your needs.
+Requires StagebookProvider. Dispatches to the appropriate element component based on `element.type`. Use this for lower-level control when `Stage` doesn't fit your needs.
 
 ### Form Components (standalone)
 

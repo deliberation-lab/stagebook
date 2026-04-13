@@ -1,7 +1,7 @@
 {
-  "name": "@deliberation-lab/score",
+  "name": "@deliberation-lab/stagebook",
   "version": "0.1.0",
-  "description": "Structured Complete Open Record of Experiment — schemas, validators, utilities, and components for interactive social science experiments",
+  "description": "Schemas, validators, utilities, and components for interactive social science experiments",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -97,7 +97,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/deliberation-lab/SCORE.git"
+    "url": "https://github.com/deliberation-lab/stagebook.git"
   },
   "license": "MIT"
 }

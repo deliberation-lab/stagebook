@@ -39,14 +39,14 @@ Never skip the red step. Tests document intent.
 
 ### Component Design
 
-SCORE components are **measurement instruments**, not general-purpose UI. The goal is that the same SCORE version produces identical participant experiences across platforms and deployments.
+Stagebook components are **measurement instruments**, not general-purpose UI. The goal is that the same Stagebook version produces identical participant experiences across platforms and deployments.
 
 - **Reproducibility over composability.** Baked-in behavior (keystroke stats, paste detection, debounce timing, unanchored slider) is intentional — it's what makes experiments standardized. Don't separate it out.
 - **No external UI library dependencies.** Don't import Radix, shadcn, etc. Use them as references to audit our implementations for accessibility and edge cases, but keep full ownership so upstream changes can't alter experiment behavior.
 - **Slider initializes without a visible thumb** to avoid anchoring participants' responses.
 - **Two tiers of components:**
-  - **Standalone** (Markdown, Button, Separator, form components) — no ScoreProvider needed, usable anywhere
-  - **Context-dependent** (Element, Prompt, Display, conditionals) — require ScoreProvider, error clearly without one
+  - **Standalone** (Markdown, Button, Separator, form components) — no StagebookProvider needed, usable anywhere
+  - **Context-dependent** (Element, Prompt, Display, conditionals) — require StagebookProvider, error clearly without one
 
 ### Testing
 
@@ -63,7 +63,7 @@ SCORE components are **measurement instruments**, not general-purpose UI. The go
 ## Project Structure
 
 ```
-@deliberation-lab/score
+@deliberation-lab/stagebook
 ├── src/
 │   ├── schemas/
 │   │   ├── treatment.ts          # treatmentFileSchema, element/stage/condition/discussion/template schemas + types
@@ -76,7 +76,7 @@ SCORE components are **measurement instruments**, not general-purpose UI. The go
 │   │   ├── reference.ts          # getReferenceKeyAndPath(), getNestedValueByPath()
 │   │   └── parsePromptFile.ts    # parsePromptFile() → { metadata, body, responseItems }
 │   ├── components/
-│   │   ├── ScoreProvider.tsx      # context definition + useScoreContext, useResolve, useSave, useElapsedTime hooks
+│   │   ├── StagebookProvider.tsx      # context definition + useStagebookContext, useResolve, useSave, useElapsedTime hooks
 │   │   ├── Element.tsx            # element type router
 │   │   ├── elements/              # Prompt, Display, Separator, SubmitButton, AudioElement, TrainingVideo, KitchenTimer, TrackedLink, Image
 │   │   ├── conditions/            # TimeConditionalRender, PositionConditionalRender, ConditionsConditionalRender
@@ -84,7 +84,7 @@ SCORE components are **measurement instruments**, not general-purpose UI. The go
 │   └── index.ts                   # top-level re-exports (schemas, utils, templates)
 ├── docs/
 │   └── syntax-reference.md       # language spec (from deliberation-empirica docs/study-design/)
-├── package.json                   # @deliberation-lab/score, subpath exports for / and /components
+├── package.json                   # @deliberation-lab/stagebook, subpath exports for / and /components
 ├── tsconfig.json
 ├── tsup.config.ts                 # dual CJS/ESM + dts generation
 ├── vitest.config.ts
@@ -96,7 +96,7 @@ SCORE components are **measurement instruments**, not general-purpose UI. The go
 
 ### Package Exports
 
-- `@deliberation-lab/score` — schemas, utils, templates (no React dependency)
-- `@deliberation-lab/score/components` — React components, ScoreProvider (peer-depends on React)
+- `@deliberation-lab/stagebook` — schemas, utils, templates (no React dependency)
+- `@deliberation-lab/stagebook/components` — React components, StagebookProvider (peer-depends on React)
 
 Each directory has an `index.ts` barrel; `src/index.ts` re-exports the full public API for the main entrypoint.

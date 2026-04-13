@@ -1,32 +1,30 @@
-# SCORE
-
-**Structured Complete Open Record of Experiment**
+# Stagebook
 
 A language for describing interactive social science experiments — the schemas, validators, utilities, and rendering components that turn a study protocol into what participants actually see.
 
-## What is SCORE?
+## What is Stagebook?
 
-SCORE defines a declarative language for specifying interactive group experiments: stages, elements (prompts, surveys, timers, discussions), conditional logic, templates, and participant positioning. It provides:
+Stagebook defines a declarative language for specifying interactive group experiments: stages, elements (prompts, surveys, timers, discussions), conditional logic, templates, and participant positioning. It provides:
 
 - **Zod schemas** that validate treatment files and prompt files
 - **A template engine** for parameterized experiment designs with broadcast expansion
 - **Shared utilities** for condition evaluation and reference resolution
-- **React components** that render SCORE elements into participant-facing UI
+- **React components** that render Stagebook elements into participant-facing UI
 
-SCORE is platform-agnostic. Define your study protocol once, then run it on any compatible platform.
+Stagebook is platform-agnostic. Define your study protocol once, then run it on any compatible platform.
 
 ## Installation
 
 From GitHub (builds automatically on install):
 
 ```bash
-npm install deliberation-lab/SCORE
+npm install deliberation-lab/stagebook
 ```
 
 From npm (once published):
 
 ```bash
-npm install @deliberation-lab/score
+npm install @deliberation-lab/stagebook
 ```
 
 Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`. React components additionally peer-depend on `react >= 18` and `react-dom >= 18`.
@@ -36,7 +34,7 @@ Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`. React components additionally 
 ### Validating a treatment file
 
 ```typescript
-import { treatmentFileSchema } from "@deliberation-lab/score";
+import { treatmentFileSchema } from "@deliberation-lab/stagebook";
 import { load as loadYaml } from "js-yaml";
 
 const config = loadYaml(yamlString);
@@ -52,7 +50,7 @@ if (!result.success) {
 `promptFileSchema` takes raw markdown, parses it, and validates structure, metadata, response format, and slider labels in a single pass:
 
 ```typescript
-import { promptFileSchema } from "@deliberation-lab/score";
+import { promptFileSchema } from "@deliberation-lab/stagebook";
 
 const result = promptFileSchema.safeParse(markdownString);
 
@@ -69,7 +67,7 @@ if (result.success) {
 ### Evaluating conditions
 
 ```typescript
-import { compare } from "@deliberation-lab/score";
+import { compare } from "@deliberation-lab/stagebook";
 
 compare(5, "isAbove", 3);           // true
 compare("hello", "includes", "ell"); // true
@@ -82,7 +80,7 @@ The 16 canonical comparators: `exists`, `doesNotExist`, `equals`, `doesNotEqual`
 ### Parsing reference strings
 
 ```typescript
-import { getReferenceKeyAndPath } from "@deliberation-lab/score";
+import { getReferenceKeyAndPath } from "@deliberation-lab/stagebook";
 
 getReferenceKeyAndPath("survey.bigFive.result.score");
 // { referenceKey: "survey_bigFive", path: ["result", "score"] }
@@ -96,7 +94,7 @@ Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedL
 ### Expanding templates
 
 ```typescript
-import { fillTemplates } from "@deliberation-lab/score";
+import { fillTemplates } from "@deliberation-lab/stagebook";
 
 const result = fillTemplates({
   obj: treatmentConfig,
@@ -157,12 +155,12 @@ All schemas export corresponding TypeScript types (e.g., `TreatmentType`, `Stage
 - [Templates](docs/researcher/templates.md) — reusable structures with field substitution and broadcast
 - [Syntax Reference](docs/researcher/syntax-reference.md) — compact cheat sheet for the full language
 
-### For Engineers (integrating SCORE)
+### For Engineers (integrating Stagebook)
 
-- [Integration Guide](docs/engineer/integration-guide.md) — implementing a ScoreProvider backend
+- [Integration Guide](docs/engineer/integration-guide.md) — implementing a StagebookProvider backend
 - [Platform Requirements](docs/engineer/platform-requirements.md) — what the host platform must provide (state, orchestration, group formation, services)
 - [API Reference](docs/engineer/api-reference.md) — all exports, types, and component props
-- [Architecture](docs/engineer/architecture.md) — ScoreProvider design, three-layer component model, render slots, CSS theming
+- [Architecture](docs/engineer/architecture.md) — StagebookProvider design, three-layer component model, render slots, CSS theming
 
 ## License
 

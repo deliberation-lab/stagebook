@@ -14,8 +14,8 @@ export interface DisplayProps {
 // element looks the same on every host without each platform reinventing
 // the styling.
 //
-// The colors ARE overridable: hosts can set --score-blockquote-border and
-// --score-blockquote-bg on a parent element to retune without writing any
+// The colors ARE overridable: hosts can set --stagebook-blockquote-border and
+// --stagebook-blockquote-bg on a parent element to retune without writing any
 // selector-based CSS.
 //
 // Intentional duplication with Markdown.tsx's blockquote entry — both
@@ -28,8 +28,8 @@ const blockquoteStyle: React.CSSProperties = {
   margin: "1rem 0",
   borderLeftWidth: "0.25rem",
   borderLeftStyle: "solid",
-  borderLeftColor: "var(--score-blockquote-border, #d1d5db)",
-  background: "var(--score-blockquote-bg, #f9fafb)",
+  borderLeftColor: "var(--stagebook-blockquote-border, #d1d5db)",
+  background: "var(--stagebook-blockquote-bg, #f9fafb)",
 };
 
 export function Display({ reference, values }: DisplayProps) {

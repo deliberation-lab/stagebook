@@ -55,9 +55,9 @@ const buttonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  border: "1px solid var(--score-border, #e5e7eb)",
+  border: "1px solid var(--stagebook-border, #e5e7eb)",
   borderRadius: "0.25rem",
-  background: "var(--score-bg, #ffffff)",
+  background: "var(--stagebook-bg, #ffffff)",
   cursor: "pointer",
   fontSize: "0.875rem",
   lineHeight: 1,
@@ -89,9 +89,9 @@ export function TimelineFooter({
         alignItems: "center",
         justifyContent: "space-between",
         padding: "0.25rem 0.5rem",
-        borderTop: "1px solid var(--score-border, #e5e7eb)",
+        borderTop: "1px solid var(--stagebook-border, #e5e7eb)",
         fontSize: "0.75rem",
-        color: "var(--score-muted, #6b7280)",
+        color: "var(--stagebook-muted, #6b7280)",
         userSelect: "none",
       }}
     >

@@ -469,7 +469,7 @@ export function Timeline({
       <p
         data-testid="timeline-error"
         style={{
-          color: "var(--score-danger, #dc2626)",
+          color: "var(--stagebook-danger, #dc2626)",
           fontSize: "0.875rem",
         }}
       >
@@ -516,7 +516,7 @@ export function Timeline({
       tabIndex={0}
       onKeyDown={onKeyDown}
       style={{
-        border: "1px solid var(--score-border, #e5e7eb)",
+        border: "1px solid var(--stagebook-border, #e5e7eb)",
         borderRadius: "0.5rem",
         overflow: "hidden",
         outline: "none",
