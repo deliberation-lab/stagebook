@@ -272,7 +272,7 @@ Collect or verify a participant identifier:
 
 ## 6. Service Integrations (optional)
 
-SCORE uses render slots for elements tightly coupled to external services. The platform provides the actual implementation via the StagebookProvider.
+Stagebook uses render slots for elements tightly coupled to external services. The platform provides the actual implementation via the StagebookProvider.
 
 ### Video Calls
 

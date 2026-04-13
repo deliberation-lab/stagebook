@@ -1038,7 +1038,7 @@ export function MediaPlayer({
           muted={!playAudio}
           // crossOrigin="anonymous" is required for Web Audio API capture
           // (Timeline waveform). Without it, cross-origin media plays but
-          // taints the AnalyserNode → all-zero peaks. SCORE convention:
+          // taints the AnalyserNode → all-zero peaks. Stagebook convention:
           // media MUST be served with proper CORS headers. Same-origin media
           // is unaffected.
           crossOrigin="anonymous"

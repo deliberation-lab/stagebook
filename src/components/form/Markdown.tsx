@@ -13,7 +13,7 @@ export interface MarkdownProps {
 //
 // Why inline styles instead of a stylesheet?
 //
-// SCORE is consumed as a library. The same SCORE study should render
+// Stagebook is consumed as a library. The same Stagebook study should render
 // consistently across every host platform — that's the whole point of the
 // portable treatment file. But hosts ship wildly different CSS environments:
 // one ships Tailwind preflight, another ships Bootstrap reboot, another
@@ -24,7 +24,7 @@ export interface MarkdownProps {
 // Author CSS shipped from node_modules loses specificity battles against
 // host CSS. Inline styles win against everything except !important, so
 // prompt content renders with the intended hierarchy regardless of what
-// the host's reset does. This is the same logic that makes SCORE own
+// the host's reset does. This is the same logic that makes Stagebook own
 // button shapes, slider thumbs, and the media player controls — visual
 // behavior is part of the contract, not a property of the host.
 //

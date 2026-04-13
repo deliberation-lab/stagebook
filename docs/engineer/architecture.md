@@ -1,6 +1,6 @@
 # StagebookProvider: Architecture
 
-SCORE display components need to do four things: read experiment state, write participant responses, track time within a step, and load content (prompt markdown, images, audio) from wherever the platform stores it. The StagebookProvider abstracts all of these behind a single context that any platform can implement.
+Stagebook display components need to do four things: read experiment state, write participant responses, track time within a step, and load content (prompt markdown, images, audio) from wherever the platform stores it. The StagebookProvider abstracts all of these behind a single context that any platform can implement.
 
 ## The interface
 
@@ -106,7 +106,7 @@ Some elements temporarily expect the participant to be away (watching a video, f
 
 ## CSS theming
 
-SCORE ships a default stylesheet (`@deliberation-lab/stagebook/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
+Stagebook ships a default stylesheet (`@deliberation-lab/stagebook/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
 
 ```css
 :root {

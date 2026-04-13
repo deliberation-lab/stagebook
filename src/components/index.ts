@@ -1,5 +1,5 @@
 // @deliberation-lab/stagebook/components
-// React components for rendering SCORE elements
+// React components for rendering Stagebook elements
 
 // Context provider and hooks
 export {

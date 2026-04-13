@@ -8,7 +8,7 @@ export interface DisplayProps {
 
 // Inline blockquote style — see Markdown.tsx for the full rationale.
 //
-// Short version: SCORE is consumed as a library, host CSS resets routinely
+// Short version: Stagebook is consumed as a library, host CSS resets routinely
 // strip default styling, and inline styles win against everything except
 // !important. Shipping the visual as inline styles guarantees the Display
 // element looks the same on every host without each platform reinventing

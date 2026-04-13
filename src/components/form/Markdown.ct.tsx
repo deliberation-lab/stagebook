@@ -147,7 +147,7 @@ test("nested ol uses flat decimal numbering at every level", async ({
   expect(inner).toBe("decimal");
 });
 
-test("links render with the score-link color (default blue)", async ({
+test("links render with the stagebook-link color (default blue)", async ({
   mount,
 }) => {
   const component = await mount(
@@ -215,7 +215,7 @@ test("inline styles beat a host CSS reset (the load-bearing claim)", async ({
   //
   // We mount Markdown alongside an aggressive <style> tag that targets
   // h1/p/blockquote with the same kind of selector a host reset would.
-  // It does NOT use !important — so this test only passes if SCORE's
+  // It does NOT use !important — so this test only passes if Stagebook's
   // inline styles win on specificity grounds (which they always do
   // against selector-based rules). If someone refactors back to a
   // stylesheet-based approach, this test catches it.

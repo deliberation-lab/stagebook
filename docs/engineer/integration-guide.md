@@ -1,6 +1,6 @@
 # Integrating Stagebook into Your Platform
 
-This guide explains how to add SCORE as a dependency and implement the platform-specific backend that powers Stagebook's rendering components. Stagebook provides the experiment description language (schemas + validation) and the rendering layer (React components). Your platform provides the state management, content delivery, and service integrations.
+This guide explains how to add Stagebook as a dependency and implement the platform-specific backend that powers Stagebook's rendering components. Stagebook provides the experiment description language (schemas + validation) and the rendering layer (React components). Your platform provides the state management, content delivery, and service integrations.
 
 ## Installation
 

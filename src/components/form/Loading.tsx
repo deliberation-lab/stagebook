@@ -29,7 +29,7 @@ export function Loading({ size = "md" }: LoadingProps) {
         fill="none"
         aria-label="Loading"
         style={{
-          animation: "score-spin 0.75s linear infinite",
+          animation: "stagebook-spin 0.75s linear infinite",
         }}
       >
         {/* Track — full circle, light gray */}
@@ -54,7 +54,7 @@ export function Loading({ size = "md" }: LoadingProps) {
         />
       </svg>
       <style>{`
-        @keyframes score-spin {
+        @keyframes stagebook-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }

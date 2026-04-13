@@ -1,11 +1,11 @@
 /*
  * @deliberation-lab/stagebook default styles
  *
- * Import this in your app entry point if you want SCORE's CSS-variable
+ * Import this in your app entry point if you want Stagebook's CSS-variable
  * defaults and the Inter font to be available globally:
  *   import "@deliberation-lab/stagebook/styles";
  *
- * This file is OPTIONAL. SCORE components ship visual styling as inline
+ * This file is OPTIONAL. Stagebook components ship visual styling as inline
  * styles backed by CSS custom properties with sensible fallbacks, so the
  * components render correctly on hosts that never import this stylesheet.
  * The purpose of importing this file is convenience: the variable defaults
@@ -15,7 +15,7 @@
  * Provides:
  * - Tailwind CSS utilities
  * - Inter font
- * - SCORE CSS custom properties at :root (default values)
+ * - Stagebook CSS custom properties at :root (default values)
  * - Form input resets
  * - GFM table styles (out of scope for inline styling — see issue #33)
  *
@@ -51,7 +51,7 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* SCORE color palette — replaces Empirica's brand colors */
+  /* Stagebook color palette — replaces Empirica's brand colors */
   --color-stagebook-50: #eff6ff;
   --color-stagebook-100: #dbeafe;
   --color-stagebook-200: #bfdbfe;
@@ -66,7 +66,7 @@
 
 /* ------------------------------------------------------------------ */
 /* Component theme — CSS custom properties for themeable values         */
-/* Override these on a parent element to customize SCORE's appearance.  */
+/* Override these on a parent element to customize Stagebook's appearance.  */
 /* Layout (padding, flex, positioning) is inline and not overridable.   */
 /* ------------------------------------------------------------------ */
 
@@ -133,7 +133,7 @@
 /*                                                                      */
 /* Why inline styles instead of @layer base rules:                      */
 /*                                                                      */
-/* SCORE is consumed as a library from node_modules. Author CSS shipped */
+/* Stagebook is consumed as a library from node_modules. Author CSS shipped */
 /* from a dependency loses specificity battles against host CSS resets  */
 /* (Tailwind preflight, normalize.css, Bootstrap reboot, etc.) — those  */
 /* resets often collapse all heading levels to body text size, which    */
