@@ -1,4 +1,4 @@
-// @deliberation-lab/stagebook/components
+// stagebook/components
 // React components for rendering Stagebook elements
 
 // Context provider and hooks

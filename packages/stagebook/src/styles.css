@@ -1,9 +1,9 @@
 /*
- * @deliberation-lab/stagebook default styles
+ * stagebook default styles
  *
  * Import this in your app entry point if you want Stagebook's CSS-variable
  * defaults and the Inter font to be available globally:
- *   import "@deliberation-lab/stagebook/styles";
+ *   import "stagebook/styles";
  *
  * This file is OPTIONAL. Stagebook components ship visual styling as inline
  * styles backed by CSS custom properties with sensible fallbacks, so the

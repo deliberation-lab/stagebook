@@ -5,7 +5,7 @@ This guide explains how to add Stagebook as a dependency and implement the platf
 ## Installation
 
 ```bash
-npm install @deliberation-lab/stagebook
+npm install stagebook
 ```
 
 Peer dependencies (install if not already present):
@@ -20,10 +20,10 @@ Stagebook exports from two entry points:
 
 ```typescript
 // Schemas, validators, and utilities — no React dependency
-import { treatmentFileSchema, compare, fillTemplates } from "@deliberation-lab/stagebook";
+import { treatmentFileSchema, compare, fillTemplates } from "stagebook";
 
 // React components — requires React 18+
-import { StagebookProvider, Element, Markdown, Button } from "@deliberation-lab/stagebook/components";
+import { StagebookProvider, Element, Markdown, Button } from "stagebook/components";
 ```
 
 ## Validating Treatment Files
@@ -31,7 +31,7 @@ import { StagebookProvider, Element, Markdown, Button } from "@deliberation-lab/
 The most basic integration is validation. Use this in build tools, CI pipelines, or editor extensions:
 
 ```typescript
-import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/stagebook";
+import { treatmentFileSchema, fillTemplates } from "stagebook";
 import { load as loadYaml } from "js-yaml";
 import { readFileSync } from "fs";
 
@@ -59,7 +59,7 @@ if (!result.success) {
 ## Validating Prompt Files
 
 ```typescript
-import { promptFileSchema } from "@deliberation-lab/stagebook";
+import { promptFileSchema } from "stagebook";
 
 const markdown = readFileSync("prompts/question.md", "utf-8");
 const result = promptFileSchema.safeParse(markdown);
@@ -81,7 +81,7 @@ if (result.success) {
 Before passing treatment data to Stagebook's rendering components, the platform must **hydrate** it — expand templates, validate, and resolve all placeholders. Stagebook components expect fully resolved data with no template contexts or `${field}` placeholders remaining.
 
 ```typescript
-import { treatmentFileSchema, fillTemplates } from "@deliberation-lab/stagebook";
+import { treatmentFileSchema, fillTemplates } from "stagebook";
 import { load as loadYaml } from "js-yaml";
 
 // 1. Load and parse YAML
@@ -115,7 +115,7 @@ To render Stagebook elements, your platform must implement the `StagebookContext
 ### The Interface
 
 ```typescript
-import type { StagebookContext } from "@deliberation-lab/stagebook/components";
+import type { StagebookContext } from "stagebook/components";
 
 const context: StagebookContext = {
   // Read experiment state by DSL reference string.
@@ -178,8 +178,8 @@ const context: StagebookContext = {
 Stagebook provides a `Stage` component that handles all element layout, conditional rendering, and discussion placement. The platform just provides the context and the hydrated stage config:
 
 ```tsx
-import { StagebookProvider, Stage } from "@deliberation-lab/stagebook/components";
-import type { StagebookContext } from "@deliberation-lab/stagebook/components";
+import { StagebookProvider, Stage } from "stagebook/components";
+import type { StagebookContext } from "stagebook/components";
 
 function GameStage({ stageConfig, onSubmit }) {
   const context = useYourPlatformContext(); // your platform's hooks
@@ -235,7 +235,7 @@ Components don't need to know which phase they're in.
 Form components work without StagebookProvider. Use them anywhere in your app:
 
 ```tsx
-import { Markdown, Button, Separator } from "@deliberation-lab/stagebook/components";
+import { Markdown, Button, Separator } from "stagebook/components";
 
 function ConsentPage({ consentText, onAccept }) {
   return (
@@ -261,7 +261,7 @@ import {
   compare,
   getReferenceKeyAndPath,
   fillTemplates,
-} from "@deliberation-lab/stagebook";
+} from "stagebook";
 
 // Validate a treatment
 treatmentFileSchema.safeParse(config);

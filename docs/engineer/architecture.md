@@ -106,7 +106,7 @@ Some elements temporarily expect the participant to be away (watching a video, f
 
 ## CSS theming
 
-Stagebook ships a default stylesheet (`@deliberation-lab/stagebook/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
+Stagebook ships a default stylesheet (`stagebook/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
 
 ```css
 :root {

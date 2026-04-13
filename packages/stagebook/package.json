@@ -1,5 +1,5 @@
 {
-  "name": "@deliberation-lab/stagebook",
+  "name": "stagebook",
   "version": "0.1.0",
   "description": "Schemas, validators, utilities, and components for interactive social science experiments",
   "type": "module",

@@ -46,7 +46,7 @@ import type {
   ConditionType,
   MetadataType,
   PromptFileType,
-} from "@deliberation-lab/stagebook";
+} from "stagebook";
 ```
 
 ## Utilities
@@ -56,7 +56,7 @@ import type {
 Evaluate a condition comparator.
 
 ```typescript
-import { compare, type Comparator } from "@deliberation-lab/stagebook";
+import { compare, type Comparator } from "stagebook";
 
 compare(5, "isAbove", 3);              // true
 compare(undefined, "doesNotEqual", "x"); // true (undefined != anything)
@@ -73,7 +73,7 @@ compare("hello", "matches", "\\d+");    // false
 Parse a DSL reference string into a storage key and nested path.
 
 ```typescript
-import { getReferenceKeyAndPath } from "@deliberation-lab/stagebook";
+import { getReferenceKeyAndPath } from "stagebook";
 
 getReferenceKeyAndPath("survey.bigFive.result.score");
 // { referenceKey: "survey_bigFive", path: ["result", "score"] }
@@ -92,7 +92,7 @@ Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedL
 Traverse a nested object by path array.
 
 ```typescript
-import { getNestedValueByPath } from "@deliberation-lab/stagebook";
+import { getNestedValueByPath } from "stagebook";
 
 getNestedValueByPath({ a: { b: { c: 42 } } }, ["a", "b", "c"]); // 42
 getNestedValueByPath({ a: 1 }, ["x"]);                           // undefined
@@ -104,7 +104,7 @@ getNestedValueByPath({ a: 1 });                                   // { a: 1 }
 Expand all template references in a structure.
 
 ```typescript
-import { fillTemplates } from "@deliberation-lab/stagebook";
+import { fillTemplates } from "stagebook";
 
 const expanded = fillTemplates({
   obj: rawTreatments,
@@ -121,7 +121,7 @@ Also exported: `expandTemplate`, `substituteFields`, `recursivelyFillTemplates` 
 ### StagebookProvider
 
 ```tsx
-import { StagebookProvider, type StagebookContext } from "@deliberation-lab/stagebook/components";
+import { StagebookProvider, type StagebookContext } from "stagebook/components";
 
 <StagebookProvider value={context}>
   {children}
@@ -141,7 +141,7 @@ import { StagebookProvider, type StagebookContext } from "@deliberation-lab/stag
 ### Stage
 
 ```tsx
-import { Stage, type StageConfig } from "@deliberation-lab/stagebook/components";
+import { Stage, type StageConfig } from "stagebook/components";
 
 <Stage stage={stageConfig} onSubmit={handleSubmit} />
 ```
@@ -153,7 +153,7 @@ Requires StagebookProvider. Renders a complete stage: lays out elements with con
 ### Element Router
 
 ```tsx
-import { Element, type ElementConfig } from "@deliberation-lab/stagebook/components";
+import { Element, type ElementConfig } from "stagebook/components";
 
 <Element element={elementConfig} onSubmit={handleSubmit} stageDuration={300} />
 ```

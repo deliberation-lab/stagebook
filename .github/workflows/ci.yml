@@ -43,7 +43,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:ct -w @deliberation-lab/stagebook
+      - run: npm run test:ct -w stagebook
 
   build:
     name: Build
