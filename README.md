@@ -1,10 +1,12 @@
 # Stagebook
 
-A language for describing interactive social science experiments — the schemas, validators, utilities, and rendering components that turn a study protocol into what participants actually see.
+Executable study protocols for small group conversation studies. A stagebook defines everything that happens in an experiment - what gets shown to who, when, and under what conditions - to enable complete documentation and perfect replication.
 
 ## What is Stagebook?
 
-Stagebook defines a declarative language for specifying interactive group experiments: stages, elements (prompts, surveys, timers, discussions), conditional logic, templates, and participant positioning. It provides:
+Stagebook defines a declarative language for specifying interactive group experiments: stages, elements (prompts, surveys, timers, discussion windows), conditional logic, templates, and participant positioning.
+
+This repository provides supporting infrastructure for translating stagebook manifests into automated experiments:
 
 - **Zod schemas** that validate treatment files and prompt files
 - **A template engine** for parameterized experiment designs with broadcast expansion
@@ -19,12 +21,6 @@ From GitHub (builds automatically on install):
 
 ```bash
 npm install deliberation-lab/stagebook
-```
-
-From npm (once published):
-
-```bash
-npm install @deliberation-lab/stagebook
 ```
 
 Peer dependencies: `zod >= 3.23`, `js-yaml >= 4`. React components additionally peer-depend on `react >= 18` and `react-dom >= 18`.
@@ -69,9 +65,9 @@ if (result.success) {
 ```typescript
 import { compare } from "@deliberation-lab/stagebook";
 
-compare(5, "isAbove", 3);           // true
+compare(5, "isAbove", 3); // true
 compare("hello", "includes", "ell"); // true
-compare(undefined, "exists");        // false
+compare(undefined, "exists"); // false
 compare(undefined, "doesNotEqual", "x"); // true
 ```
 
@@ -108,40 +104,40 @@ The template engine supports field substitution (`${fieldName}`), nested templat
 
 ### Schemas
 
-| Export | Description |
-|--------|-------------|
-| `treatmentFileSchema` | Top-level schema for a treatment YAML file (templates, introSequences, treatments) |
-| `treatmentSchema` | Single treatment with playerCount, gameStages, exitSequence |
-| `stageSchema` | Game stage with name, duration, elements, discussion; validates element time bounds against duration |
-| `elementSchema` | Any DSL element (prompt, display, survey, timer, etc.) with conditional rendering support |
-| `promptSchema` | Prompt element with file reference and optional shared flag |
-| `discussionSchema` | Discussion config (chat type, layout, rooms, visibility) |
-| `conditionSchema` | Condition with reference, comparator, value, and position |
-| `referenceSchema` | DSL reference string validator |
-| `promptFileSchema` | Parses and validates a complete prompt markdown file |
-| `metadataTypeSchema` | Prompt metadata field types and constraints |
-| `metadataRefineSchema` | Cross-field metadata validation (e.g., slider requires min/max/interval) |
-| `templateContextSchema` | Template reference with fields and broadcast dimensions |
-| `templateSchema` | Named template definition with content type |
+| Export                  | Description                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `treatmentFileSchema`   | Top-level schema for a treatment YAML file (templates, introSequences, treatments)                   |
+| `treatmentSchema`       | Single treatment with playerCount, gameStages, exitSequence                                          |
+| `stageSchema`           | Game stage with name, duration, elements, discussion; validates element time bounds against duration |
+| `elementSchema`         | Any DSL element (prompt, display, survey, timer, etc.) with conditional rendering support            |
+| `promptSchema`          | Prompt element with file reference and optional shared flag                                          |
+| `discussionSchema`      | Discussion config (chat type, layout, rooms, visibility)                                             |
+| `conditionSchema`       | Condition with reference, comparator, value, and position                                            |
+| `referenceSchema`       | DSL reference string validator                                                                       |
+| `promptFileSchema`      | Parses and validates a complete prompt markdown file                                                 |
+| `metadataTypeSchema`    | Prompt metadata field types and constraints                                                          |
+| `metadataRefineSchema`  | Cross-field metadata validation (e.g., slider requires min/max/interval)                             |
+| `templateContextSchema` | Template reference with fields and broadcast dimensions                                              |
+| `templateSchema`        | Named template definition with content type                                                          |
 
 All schemas export corresponding TypeScript types (e.g., `TreatmentType`, `StageType`, `ElementType`).
 
 ### Utilities
 
-| Export | Description |
-|--------|-------------|
-| `compare(lhs, comparator, rhs?)` | Evaluate a condition. Returns `boolean \| undefined` |
-| `Comparator` | String literal union type of the 16 canonical comparator names |
-| `getReferenceKeyAndPath(reference)` | Parse a DSL reference string into storage key + nested path |
-| `getNestedValueByPath(obj, path?)` | Traverse a nested object by path array |
+| Export                              | Description                                                    |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `compare(lhs, comparator, rhs?)`    | Evaluate a condition. Returns `boolean \| undefined`           |
+| `Comparator`                        | String literal union type of the 16 canonical comparator names |
+| `getReferenceKeyAndPath(reference)` | Parse a DSL reference string into storage key + nested path    |
+| `getNestedValueByPath(obj, path?)`  | Traverse a nested object by path array                         |
 
 ### Templates
 
-| Export | Description |
-|--------|-------------|
-| `fillTemplates({ obj, templates })` | Expand all template references and validate no placeholders remain |
-| `expandTemplate({ templates, context })` | Expand a single template context with fields and broadcast |
-| `substituteFields({ templateContent, fields })` | Replace `${key}` placeholders with values |
+| Export                                          | Description                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| `fillTemplates({ obj, templates })`             | Expand all template references and validate no placeholders remain |
+| `expandTemplate({ templates, context })`        | Expand a single template context with fields and broadcast         |
+| `substituteFields({ templateContent, fields })` | Replace `${key}` placeholders with values                          |
 
 ## Documentation
 
