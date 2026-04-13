@@ -90,10 +90,19 @@ test("break name requirements", () => {
   const element = {
     type: "prompt",
     name: "This name has !!! some serious \\ issues that *(&@#$( need fixing 123 and change to fill in the 64 character limit etc etc etc etc",
-    file: "projects/example/testDisplay00.md",
+    file: "projects/example/testDisplay00.prompt.md",
   };
   const result = promptSchema.safeParse(element);
   if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(false);
+});
+
+test("prompt file must use .prompt.md extension", () => {
+  const element = {
+    type: "prompt",
+    file: "projects/example/consent.md",
+  };
+  const result = promptSchema.safeParse(element);
   expect(result.success).toBe(false);
 });
 
@@ -102,7 +111,7 @@ test("prompt element validation", () => {
   const element = {
     type: "prompt",
     name: "namedPrompt",
-    file: "projects/example/testDisplay00.md",
+    file: "projects/example/testDisplay00.prompt.md",
     conditions: [
       {
         reference: "prompt.namedPrompt",
@@ -139,12 +148,12 @@ test("multiple elements validation", () => {
   const elements = [
     {
       type: "prompt",
-      file: "projects/example/testDisplay00.md",
+      file: "projects/example/testDisplay00.prompt.md",
     },
     {
       type: "prompt",
       name: "namedPrompt2",
-      file: "projects/example/testDisplay01.md",
+      file: "projects/example/testDisplay01.prompt.md",
       conditions: [
         {
           reference: "prompt.namedPrompt",
@@ -226,7 +235,7 @@ test("validate entire file", () => {
         templateContent: {
           type: "prompt",
           name: "namedPrompt",
-          file: "projects/example/testDisplay00.md",
+          file: "projects/example/testDisplay00.prompt.md",
         },
       },
     ],
@@ -240,7 +249,7 @@ test("validate entire file", () => {
               {
                 type: "prompt",
                 name: "namedPrompt",
-                file: "projects/example/testDisplay00.md",
+                file: "projects/example/testDisplay00.prompt.md",
                 conditions: [
                   {
                     reference: "prompt.namedPrompt",
@@ -274,7 +283,7 @@ test("validate entire file", () => {
               {
                 type: "prompt",
                 name: "namedPrompt",
-                file: "projects/example/testDisplay00.md",
+                file: "projects/example/testDisplay00.prompt.md",
                 conditions: [
                   {
                     reference: "prompt.namedPrompt",
@@ -293,7 +302,7 @@ test("validate entire file", () => {
               {
                 type: "prompt",
                 name: "namedPrompt2",
-                file: "projects/example/testDisplay01.md",
+                file: "projects/example/testDisplay01.prompt.md",
                 conditions: [
                   {
                     reference: "prompt.namedPrompt",
@@ -558,7 +567,7 @@ test("intro step with submitButton is valid", () => {
     {
       name: "consent",
       elements: [
-        { type: "prompt", file: "intro/consent.md" },
+        { type: "prompt", file: "intro/consent.prompt.md" },
         { type: "submitButton", buttonText: "I agree" },
       ],
     },
@@ -571,7 +580,7 @@ test("intro step with only prompt and no submitButton is invalid", () => {
   const result = introStepsSchema.safeParse([
     {
       name: "consent",
-      elements: [{ type: "prompt", file: "intro/consent.md" }],
+      elements: [{ type: "prompt", file: "intro/consent.prompt.md" }],
     },
   ]);
   if (!result.success) console.log(result.error.message);
@@ -638,7 +647,7 @@ test("exit step with submitButton is valid", () => {
     {
       name: "debrief",
       elements: [
-        { type: "prompt", file: "exit/debrief.md" },
+        { type: "prompt", file: "exit/debrief.prompt.md" },
         { type: "submitButton", buttonText: "Done" },
       ],
     },
@@ -651,7 +660,7 @@ test("exit step with only prompt and no submitButton is invalid", () => {
   const result = exitStepsSchema.safeParse([
     {
       name: "debrief",
-      elements: [{ type: "prompt", file: "exit/debrief.md" }],
+      elements: [{ type: "prompt", file: "exit/debrief.prompt.md" }],
     },
   ]);
   if (!result.success) console.log(result.error.message);

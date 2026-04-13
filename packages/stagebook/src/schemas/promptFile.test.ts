@@ -91,24 +91,21 @@ test("invalid: shuffleOptions provided but type is noResponse", () => {
 
 // ----------- Logical Schema (metadataLogicalSchema) ------------
 
-test("valid logical schema with matching file name", () => {
-  const filename = "mock-prompt-files/prompt.md";
+test("valid logical schema with arbitrary name", () => {
   const metadata = {
-    name: filename,
+    name: "any name the author wants",
     type: "openResponse",
   };
-  const result = metadataLogicalSchema(filename).safeParse(metadata);
+  const result = metadataLogicalSchema.safeParse(metadata);
   expect(result.success).toBe(true);
 });
 
-test("invalid: metadata name does not match filename", () => {
-  const filename = "mock-prompt-files/prompt.md";
+test("valid logical schema without name", () => {
   const metadata = {
-    name: "mock-prompt-files/WRONG.md",
     type: "openResponse",
   };
-  const result = metadataLogicalSchema(filename).safeParse(metadata);
-  expect(result.success).toBe(false);
+  const result = metadataLogicalSchema.safeParse(metadata);
+  expect(result.success).toBe(true);
 });
 
 // ----------- Slider Type Validation ------------

@@ -46,6 +46,14 @@ export type DescriptionType = z.infer<typeof descriptionSchema>;
 // TODO: check that file exists
 export const fileSchema = z.string().optional();
 
+export const promptFileSchema = z
+  .string()
+  .refine((s) => s.endsWith(".prompt.md"), {
+    message:
+      'Prompt files must use the .prompt.md extension (e.g., "myPrompt.prompt.md")',
+  })
+  .optional();
+
 export type FileType = z.infer<typeof fileSchema>;
 
 export const urlSchema = z
@@ -731,12 +739,12 @@ const displaySchema = elementBaseSchema
 export const promptSchema = elementBaseSchema
   .extend({
     type: z.literal("prompt"),
-    file: fileSchema,
+    file: promptFileSchema,
     shared: z.boolean().optional(),
   })
   .strict();
 
-const promptShorthandSchema = fileSchema.transform((str) => {
+const promptShorthandSchema = promptFileSchema.transform((str) => {
   const newElement = {
     type: "prompt",
     file: str,

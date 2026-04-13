@@ -177,17 +177,7 @@ export const metadataRefineSchema = z
     }
   });
 
-// Function to validate that the metadata name matches the file name (when name is provided)
-export const metadataLogicalSchema = (fileName: string) =>
-  metadataRefineSchema.superRefine((data, ctx) => {
-    if (data.name !== undefined && data.name !== fileName) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `name must match file path (got "${data.name}", expected "${fileName}")`,
-        path: ["name"],
-      });
-    }
-  });
+export const metadataLogicalSchema = metadataRefineSchema;
 
 export type MetadataType = z.infer<typeof metadataTypeSchema>;
 export type MetadataRefineType = z.infer<typeof metadataRefineSchema>;
