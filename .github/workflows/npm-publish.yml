@@ -21,7 +21,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
-      - run: npm run build -w stagebook
-      - run: npm test
       - run: npm run build
+      - run: npm test
       - run: npm publish -w stagebook --provenance --access public
