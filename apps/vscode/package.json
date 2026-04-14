@@ -1,0 +1,70 @@
+{
+  "name": "stagebook-vscode",
+  "displayName": "Stagebook",
+  "description": "Validation, syntax highlighting, and preview for Stagebook treatment and prompt files",
+  "version": "0.1.0",
+  "publisher": "deliberation-lab",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deliberation-lab/stagebook.git",
+    "directory": "apps/vscode"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": ["Programming Languages", "Linters"],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:treatmentsYaml",
+    "onLanguage:stagebookPrompt"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "treatmentsYaml",
+        "aliases": ["Treatments YAML"],
+        "extensions": [".treatments.yaml"],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "stagebookPrompt",
+        "aliases": ["Stagebook Prompt"],
+        "extensions": [".prompt.md"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "treatmentsYaml",
+        "scopeName": "source.treatments-yaml",
+        "path": "./syntaxes/treatmentsYaml.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[treatmentsYaml]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "build:watch": "npm run build -- --watch",
+    "package": "vsce package",
+    "lint": "echo 'no linter configured yet'",
+    "test": "echo 'no tests configured yet'"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1",
+    "stagebook": "*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.96.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.5.0"
+  }
+}
