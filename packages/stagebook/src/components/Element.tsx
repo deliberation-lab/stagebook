@@ -157,7 +157,8 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       if (promptError) {
         return (
           <p style={{ color: "#dc2626", fontSize: "0.875rem" }}>
-            Error loading prompt: {promptError.message}
+            Error loading prompt{element.file ? ` "${element.file}"` : ""}:{" "}
+            {promptError.message}
           </p>
         );
       }
@@ -173,7 +174,8 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
               fontSize: "0.875rem",
             }}
           >
-            Error parsing prompt: {parsed.error.issues[0]?.message}
+            Error parsing prompt{element.file ? ` "${element.file}"` : ""}:{" "}
+            {parsed.error.issues[0]?.message}
           </p>
         );
       }

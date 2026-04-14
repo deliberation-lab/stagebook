@@ -1,0 +1,11 @@
+@import "stagebook/styles";
+
+/* Viewer-specific layout */
+:root {
+  --viewer-sidebar-width: 320px;
+  --viewer-header-height: auto;
+}
+
+body {
+  margin: 0;
+}

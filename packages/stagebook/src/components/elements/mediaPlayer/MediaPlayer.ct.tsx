@@ -1942,7 +1942,22 @@ test("time display updates after loadedmetadata and timeupdate", async ({
 
 test("audio-only: controls always visible while playing (no hover needed)", async ({
   mount,
+  page,
 }) => {
+  // Intercept the media request to prevent network errors that would
+  // set loadError and hide controls (see #72).
+  // Serve a minimal valid WAV so the video element doesn't fire onerror
+  // (which would set loadError and hide controls — see #72).
+  await page.route("**/test.mp3", (route) =>
+    route.fulfill({
+      contentType: "audio/wav",
+      body: Buffer.from(
+        "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=",
+        "base64",
+      ),
+    }),
+  );
+
   const component = await mount(
     <MockMediaPlayer
       url="https://example.com/test.mp3"
@@ -1971,7 +1986,19 @@ test("audio-only: controls always visible while playing (no hover needed)", asyn
   ).toBeVisible();
 });
 
-test("audio-only: no video viewport element", async ({ mount }) => {
+test("audio-only: no video viewport element", async ({ mount, page }) => {
+  // Serve a minimal valid WAV so the video element doesn't fire onerror
+  // (which would set loadError and hide controls — see #72).
+  await page.route("**/test.mp3", (route) =>
+    route.fulfill({
+      contentType: "audio/wav",
+      body: Buffer.from(
+        "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=",
+        "base64",
+      ),
+    }),
+  );
+
   const component = await mount(
     <MockMediaPlayer
       url="https://example.com/test.mp3"
