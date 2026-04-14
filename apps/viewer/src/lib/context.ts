@@ -9,6 +9,15 @@ export interface ViewerContextOptions {
   onSubmit: () => void;
   getTextContent: (path: string) => Promise<string>;
   getAssetURL: (path: string) => string;
+  renderers?: Partial<
+    Pick<
+      StagebookContext,
+      | "renderDiscussion"
+      | "renderSurvey"
+      | "renderSharedNotepad"
+      | "renderTalkMeter"
+    >
+  >;
 }
 
 /**
@@ -28,6 +37,7 @@ export function createViewerContext(
     onSubmit,
     getTextContent,
     getAssetURL,
+    renderers,
   } = options;
 
   return {
@@ -63,6 +73,8 @@ export function createViewerContext(
     get isSubmitted() {
       return store.getSubmitted(stageIndex);
     },
+
+    ...renderers,
   };
 }
 

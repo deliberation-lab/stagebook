@@ -7,6 +7,7 @@ import { createViewerContext } from "../lib/context";
 import { StageNav } from "./StageNav";
 import { StateInspector } from "./StateInspector";
 import { TimeScrubber } from "./TimeScrubber";
+import { createSkeletonRenderers } from "./SkeletonPlaceholder";
 
 interface ViewerProps {
   treatmentFile: TreatmentFileType;
@@ -92,6 +93,7 @@ export function Viewer({
         playerCount: treatment.playerCount,
         onSubmit: handleSubmit,
         ...stableContentFns,
+        renderers: createSkeletonRenderers(),
       }),
     [
       store,
