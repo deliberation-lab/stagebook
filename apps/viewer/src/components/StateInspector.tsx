@@ -93,7 +93,25 @@ function ReferenceEditor({
   position: number;
   stageIndex: number;
 }) {
-  const { referenceKey, path } = getReferenceKeyAndPath(reference);
+  let referenceKey: string;
+  let path: string[];
+  try {
+    ({ referenceKey, path } = getReferenceKeyAndPath(reference));
+  } catch {
+    return (
+      <div style={refGroupStyle}>
+        <label style={refLabelStyle}>{reference}</label>
+        <input
+          type="text"
+          value=""
+          disabled
+          placeholder="(invalid reference)"
+          style={{ ...refInputStyle, opacity: 0.5 }}
+        />
+      </div>
+    );
+  }
+
   const rawValues = store.lookup(referenceKey, position);
   const values = rawValues
     .map((v) => getNestedValueByPath(v, path))
@@ -101,8 +119,6 @@ function ReferenceEditor({
   const currentValue = values[0] !== undefined ? String(values[0]) : "";
 
   const handleChange = (newValue: string) => {
-    const { referenceKey, path } = getReferenceKeyAndPath(reference);
-
     if (path.length === 0) {
       // No nested path — store the value directly
       store.set(position, referenceKey, newValue, stageIndex);

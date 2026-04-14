@@ -23,27 +23,44 @@ export interface MockStageRendererProps {
   stateValues?: Record<string, unknown>;
 }
 
-/** Wrap a value at a nested path, e.g. wrapAtPath("yes", ["value"]) → { value: "yes" } */
-function wrapAtPath(value: unknown, path: string[]): unknown {
-  if (path.length === 0) return value;
-  const result: Record<string, unknown> = {};
-  let cursor = result;
+/** Set a value at a nested path within an object, mutating in place. */
+function setAtPath(
+  obj: Record<string, unknown>,
+  path: string[],
+  value: unknown,
+): void {
+  let cursor = obj;
   for (let i = 0; i < path.length - 1; i++) {
-    cursor[path[i]] = {};
-    cursor = cursor[path[i]] as Record<string, unknown>;
+    const seg = path[i];
+    if (typeof cursor[seg] !== "object" || cursor[seg] === null) {
+      cursor[seg] = {};
+    }
+    cursor = cursor[seg] as Record<string, unknown>;
   }
   cursor[path[path.length - 1]] = value;
-  return result;
 }
 
-/** Convert DSL-reference-keyed stateValues to flat-key → raw-record map */
+/**
+ * Convert DSL-reference-keyed stateValues to flat-key → raw-record map.
+ * Multiple references sharing a storage key (e.g., "survey.TIPI.result.score"
+ * and "survey.TIPI.result.other") are deep-merged into a single record.
+ */
 function buildFlatValues(
   stateValues: Record<string, unknown>,
 ): Map<string, unknown> {
   const flat = new Map<string, unknown>();
   for (const [ref, val] of Object.entries(stateValues)) {
     const { referenceKey, path } = getReferenceKeyAndPath(ref);
-    flat.set(referenceKey, wrapAtPath(val, path));
+    if (path.length === 0) {
+      flat.set(referenceKey, val);
+    } else {
+      let record = flat.get(referenceKey);
+      if (typeof record !== "object" || record === null) {
+        record = {};
+        flat.set(referenceKey, record);
+      }
+      setAtPath(record as Record<string, unknown>, path, val);
+    }
   }
   return flat;
 }
