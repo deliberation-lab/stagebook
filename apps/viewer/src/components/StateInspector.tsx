@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getReferenceKeyAndPath } from "stagebook";
 import { ViewerStateStore } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
@@ -96,16 +97,29 @@ function ReferenceEditor({
   const currentValue = values[0] !== undefined ? String(values[0]) : "";
 
   const handleChange = (newValue: string) => {
-    // Parse the reference to get the store key, then write directly
-    // For now, store as a simple value under the reference key
-    const parts = reference.split(".");
-    const type = parts[0];
-    const name = parts[1];
-    if (type && name) {
-      const key = `${type}_${name}`;
-      // For prompts, wrap in { value: ... } since resolve extracts .value
-      const stored = type === "prompt" ? { value: newValue } : newValue;
-      store.set(position, key, stored, stageIndex);
+    const { referenceKey, path } = getReferenceKeyAndPath(reference);
+
+    if (path.length === 0) {
+      // No nested path — store the value directly
+      store.set(position, referenceKey, newValue, stageIndex);
+    } else {
+      // Nested path (e.g., prompt → path=["value"]) — preserve existing
+      // object structure and write the value at the correct path
+      const existing = store.get(position, referenceKey)?.value;
+      const obj =
+        existing && typeof existing === "object" && !Array.isArray(existing)
+          ? { ...(existing as Record<string, unknown>) }
+          : {};
+      let cursor: Record<string, unknown> = obj;
+      for (let i = 0; i < path.length - 1; i++) {
+        const seg = path[i];
+        if (typeof cursor[seg] !== "object" || cursor[seg] === null) {
+          cursor[seg] = {};
+        }
+        cursor = cursor[seg] as Record<string, unknown>;
+      }
+      cursor[path[path.length - 1]] = newValue;
+      store.set(position, referenceKey, obj, stageIndex);
     }
   };
 

@@ -69,12 +69,17 @@ export function Viewer({
       getTextContent(path: string): Promise<string> {
         const cached = cache.get(path);
         if (cached) return cached;
-        const promise = fetch(rawBaseUrl + path).then((res) => {
-          if (!res.ok) {
-            throw new Error(`Failed to fetch ${path} (HTTP ${res.status})`);
-          }
-          return res.text();
-        });
+        const promise = fetch(rawBaseUrl + path)
+          .then((res) => {
+            if (!res.ok) {
+              throw new Error(`Failed to fetch ${path} (HTTP ${res.status})`);
+            }
+            return res.text();
+          })
+          .catch((err) => {
+            cache.delete(path);
+            throw err;
+          });
         cache.set(path, promise);
         return promise;
       },
@@ -118,7 +123,7 @@ export function Viewer({
       {/* Header */}
       <header style={headerStyle}>
         <div style={headerLeftStyle}>
-          <button onClick={onBack} style={backButtonStyle}>
+          <button aria-label="Back" onClick={onBack} style={backButtonStyle}>
             &larr;
           </button>
           <span style={treatmentNameStyle}>{treatment.name}</span>

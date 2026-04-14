@@ -48,27 +48,23 @@ function TimeScrubberInner({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const trackRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsedRef = useRef(elapsedTime);
+  elapsedRef.current = elapsedTime;
 
-  // Playback
+  // Playback — interval reads elapsed from ref to avoid teardown every tick
   useEffect(() => {
-    if (!playing) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
+    if (!playing) return;
     const tickMs = 50;
-    intervalRef.current = setInterval(() => {
-      onTimeChange(Math.min(duration, elapsedTime + (speed * tickMs) / 1000));
+    const id = setInterval(() => {
+      const next = Math.min(
+        duration,
+        elapsedRef.current + (speed * tickMs) / 1000,
+      );
+      onTimeChange(next);
+      if (next >= duration) setPlaying(false);
     }, tickMs);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [playing, speed, elapsedTime, duration, onTimeChange]);
-
-  // Pause at end
-  useEffect(() => {
-    if (elapsedTime >= duration) setPlaying(false);
-  }, [elapsedTime, duration]);
+    return () => clearInterval(id);
+  }, [playing, speed, duration, onTimeChange]);
 
   const breakpoints = extractTimeBreakpoints(elements);
 
@@ -124,7 +120,8 @@ function TimeScrubberInner({
         />
         {/* Breakpoint markers */}
         {breakpoints.map((t) => (
-          <div
+          <button
+            type="button"
             key={t}
             onClick={(e) => {
               e.stopPropagation();
@@ -134,7 +131,7 @@ function TimeScrubberInner({
               ...markerStyle,
               left: `${(t / duration) * 100}%`,
             }}
-            title={`${t}s`}
+            aria-label={`Jump to ${t} seconds`}
           />
         ))}
         {/* Thumb */}
