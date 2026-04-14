@@ -68,6 +68,4 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-export function deactivate(): void {
-  diagnosticCollection.dispose();
-}
+export function deactivate(): void {}
