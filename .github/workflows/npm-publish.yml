@@ -15,11 +15,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
+          registry-url: "https://registry.npmjs.org/"
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
       - run: npm run build
       - run: npm test
-      - run: npm publish -w stagebook --provenance --access public
+      - name: Publish to npm
+        working-directory: ./packages/stagebook
+        run: npm publish --provenance --access public
