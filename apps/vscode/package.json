@@ -39,6 +39,11 @@
         "language": "treatmentsYaml",
         "scopeName": "source.treatments-yaml",
         "path": "./syntaxes/treatmentsYaml.tmLanguage.json"
+      },
+      {
+        "language": "stagebookPrompt",
+        "scopeName": "text.html.markdown.prompt",
+        "path": "./syntaxes/stagebookPrompt.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
@@ -53,7 +58,7 @@
     "build:watch": "npm run build -- --watch",
     "package": "vsce package",
     "lint": "echo 'no linter configured yet'",
-    "test": "echo 'no tests configured yet'"
+    "test": "vitest run"
   },
   "dependencies": {
     "js-yaml": "^4.1.1",
@@ -61,10 +66,12 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@vscode/vsce": "^3.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.96.0",
     "esbuild": "^0.25.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.4"
   }
 }

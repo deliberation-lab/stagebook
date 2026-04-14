@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Stagebook Prompt",
+  "scopeName": "text.html.markdown.prompt",
+  "comment": "Extends standard markdown highlighting for *.prompt.md files.",
+  "patterns": [
+    { "include": "text.html.markdown" }
+  ]
+}
