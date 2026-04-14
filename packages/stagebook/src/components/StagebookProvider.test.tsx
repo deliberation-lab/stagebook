@@ -123,15 +123,20 @@ describe("StagebookProvider + useStagebookContext", () => {
 
 // Helper to render a hook inside a StagebookProvider
 function renderUseTextContent(
-  path: string,
+  initialPath: string,
   ctx: StagebookContext,
-): { result: { current: TextContentResult }; unmount: () => void } {
+): {
+  result: { current: TextContentResult };
+  rerender: (path: string) => void;
+  unmount: () => void;
+} {
   const result = { current: undefined as unknown as TextContentResult };
   const container = document.createElement("div");
   let root: Root;
+  let currentPath = initialPath;
 
   function Harness(): ReactNode {
-    result.current = useTextContent(path);
+    result.current = useTextContent(currentPath);
     return null;
   }
 
@@ -146,6 +151,16 @@ function renderUseTextContent(
 
   return {
     result,
+    rerender: (path: string) => {
+      currentPath = path;
+      act(() => {
+        root.render(
+          <StagebookProvider value={ctx}>
+            <Harness />
+          </StagebookProvider>,
+        );
+      });
+    },
     unmount: () => act(() => root.unmount()),
   };
 }
@@ -175,6 +190,30 @@ describe("useTextContent", () => {
     expect(getTextContent).toHaveBeenCalledWith("prompts/hello.md");
     expect(result.current.data).toBe("# Hello");
     expect(result.current.isLoading).toBe(false);
+    unmount();
+  });
+
+  test("resets data when path changes from non-empty to empty", async () => {
+    const getTextContent = vi.fn(() => Promise.resolve("# Hello"));
+    const ctx = createMockContext({ getTextContent });
+
+    const { result, rerender, unmount } = renderUseTextContent(
+      "prompts/hello.md",
+      ctx,
+    );
+
+    await act(() => Promise.resolve());
+
+    expect(result.current.data).toBe("# Hello");
+    expect(result.current.isLoading).toBe(false);
+
+    rerender("");
+    await act(() => Promise.resolve());
+
+    expect(getTextContent).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     unmount();
   });
 

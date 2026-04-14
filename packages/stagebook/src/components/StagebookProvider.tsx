@@ -102,11 +102,16 @@ export interface TextContentResult {
 export function useTextContent(path: string): TextContentResult {
   const { getTextContent } = useStagebookContext();
   const [data, setData] = useState<string | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(!path ? false : true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | undefined>(undefined);
 
   useEffect(() => {
-    if (!path) return;
+    if (!path) {
+      setData(undefined);
+      setError(undefined);
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
     setIsLoading(true);
