@@ -448,6 +448,7 @@ test("mediaPlayer: full config with all fields", () => {
     stepDuration: 0.033,
     syncToStageTime: false,
     submitOnComplete: true,
+    playback: "manual",
     controls: {
       playPause: true,
       seek: true,
@@ -555,6 +556,77 @@ test("mediaPlayer: startAt < stopAt is valid", () => {
     url: "shared/footage.mp4",
     startAt: 10,
     stopAt: 90,
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: playback 'once' is valid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "once",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: playback 'manual' is valid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "manual",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: playback rejects invalid value", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "loop",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: playback is optional (omitted in schema, component defaults to 'once')", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+  });
+  expect(result.success).toBe(true);
+  if (result.success) {
+    expect(result.data.playback).toBeUndefined();
+  }
+});
+
+test("mediaPlayer: playback 'once' with controls is invalid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "once",
+    controls: { playPause: true },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: playback 'once' with syncToStageTime is invalid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "once",
+    syncToStageTime: true,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: playback 'manual' with controls is valid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "manual",
+    controls: { playPause: true },
   });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);

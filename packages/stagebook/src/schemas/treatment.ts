@@ -820,6 +820,7 @@ export const mediaPlayerSchema = elementBaseSchema
     stepDuration: z.number().positive().optional(),
     syncToStageTime: z.boolean().optional(),
     submitOnComplete: z.boolean().optional(),
+    playback: z.enum(["once", "manual"]).optional(),
     controls: mediaPlayerControlsSchema,
   })
   .strict();
@@ -999,6 +1000,27 @@ export const elementSchema = altTemplateContext(
           message:
             "controls cannot be specified when syncToStageTime is true (playback is locked to stage time)",
           path: ["controls"],
+        });
+      }
+      const mpPlayback = data as {
+        playback?: string;
+        controls?: Record<string, boolean>;
+        syncToStageTime?: boolean;
+      };
+      if (mpPlayback.playback === "once" && mpPlayback.controls) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'controls cannot be specified when playback is "once" (participant controls are disabled)',
+          path: ["controls"],
+        });
+      }
+      if (mpPlayback.playback === "once" && mpPlayback.syncToStageTime) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'playback "once" cannot be combined with syncToStageTime (use syncToStageTime without playback instead)',
+          path: ["playback"],
         });
       }
     }

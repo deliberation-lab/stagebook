@@ -459,7 +459,11 @@ test("save is called with play event data when video plays", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test_vid" />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test_vid"
+      playback="manual"
+    />,
   );
 
   await component
@@ -492,7 +496,11 @@ test("save is called with pause event data when video pauses", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test_vid" />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test_vid"
+      playback="manual"
+    />,
   );
 
   await component
@@ -515,7 +523,11 @@ test("save is called with pause event data when video pauses", async ({
 
 test("save log accumulates multiple events", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test_vid" />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test_vid"
+      playback="manual"
+    />,
   );
 
   const video = component.locator('[data-testid="mediaPlayer-video"]');
@@ -635,7 +647,12 @@ test("save records stopAt event when timeupdate exceeds stopAt", async ({
   mount,
 }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" stopAt={5} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      stopAt={5}
+      playback="manual"
+    />,
   );
 
   await component
@@ -1225,7 +1242,7 @@ test("ArrowLeft seeks backward 1 second", async ({ mount }) => {
 
 test("L key seeks forward 10 seconds", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playback="manual" />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1249,7 +1266,7 @@ test("L key seeks forward 10 seconds", async ({ mount }) => {
 
 test("J key seeks backward 10 seconds", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playback="manual" />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1273,7 +1290,12 @@ test("J key seeks backward 10 seconds", async ({ mount }) => {
 
 test("Period key steps forward by stepDuration", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" stepDuration={0.5} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      stepDuration={0.5}
+      playback="manual"
+    />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1297,7 +1319,12 @@ test("Period key steps forward by stepDuration", async ({ mount }) => {
 
 test("Comma key steps backward by stepDuration", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" stepDuration={0.5} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      stepDuration={0.5}
+      playback="manual"
+    />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1322,7 +1349,12 @@ test("Comma key steps backward by stepDuration", async ({ mount }) => {
 test("ArrowLeft clamps to startAt boundary", async ({ mount }) => {
   // ct=10.5, startAt=10: seek(-1) → max(9.5, 10) = 10
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" startAt={10} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      startAt={10}
+      playback="manual"
+    />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -2010,4 +2042,139 @@ test("audio-only: no video viewport element", async ({ mount, page }) => {
   await expect(
     component.locator('[data-testid="mediaPlayer-viewport"]'),
   ).not.toBeAttached();
+});
+
+// -- playback: "once" --
+
+test("playback once: attempts autoplay on mount", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playback="once" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+
+  // Set up the mock so .play() resolves (autoplay succeeds)
+  await setupVideoMock(video);
+
+  // The component should have attempted to play
+  const saveLog = component.locator('[data-testid="save-log"]');
+  await expect
+    .poll(async () => {
+      const text = await saveLog.textContent();
+      return text ?? "";
+    })
+    .toMatch(/"type":"play"/);
+});
+
+test("playback once: shows play button when autoplay is blocked", async ({
+  mount,
+  page,
+}) => {
+  // Block the video from loading so no real loadedmetadata fires
+  await page.route("**/blocked.mp4", (route) => route.abort());
+
+  const component = await mount(
+    <MockMediaPlayer url="/blocked.mp4" name="test" playback="once" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+
+  // Override .play() to reject, set duration, fire loadedmetadata — all in one
+  // evaluate so the autoplay effect fires with the rejection in place.
+  await video.evaluate((el) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (el as any).play = () =>
+      Promise.reject(new DOMException("NotAllowedError"));
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event("loadedmetadata"));
+  });
+
+  // Fallback play button should appear
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playOnce"]'),
+  ).toBeVisible();
+});
+
+test("playback once: play button disappears after click", async ({
+  mount,
+  page,
+}) => {
+  await page.route("**/blocked.mp4", (route) => route.abort());
+
+  const component = await mount(
+    <MockMediaPlayer url="/blocked.mp4" name="test" playback="once" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+
+  // First .play() rejects (autoplay blocked), subsequent calls succeed
+  await video.evaluate((el) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const v = el as any;
+    v.__callCount = 0;
+    v.play = () => {
+      v.__callCount++;
+      if (v.__callCount === 1) {
+        return Promise.reject(new DOMException("NotAllowedError"));
+      }
+      el.dispatchEvent(new Event("play"));
+      return Promise.resolve();
+    };
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event("loadedmetadata"));
+  });
+
+  const playBtn = component.locator('[data-testid="mediaPlayer-playOnce"]');
+  await expect(playBtn).toBeVisible();
+
+  // Click the button — second .play() call succeeds
+  await playBtn.click();
+
+  // Button should disappear
+  await expect(playBtn).not.toBeAttached();
+});
+
+test("playback once: no VCR controls shown", async ({ mount }) => {
+  const component = await mount(
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playback="once" />,
+  );
+  await expect(
+    component.locator('[data-testid="mediaPlayer-controls"]'),
+  ).not.toBeAttached();
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).not.toBeAttached();
+});
+
+test("default playback is 'once' when no controls or syncToStageTime", async ({
+  mount,
+  page,
+}) => {
+  // No playback, no controls, no syncToStageTime — should behave like "once"
+  await page.route("**/blocked.mp4", (route) => route.abort());
+
+  const component = await mount(
+    <MockMediaPlayer url="/blocked.mp4" name="test" />,
+  );
+  const video = component.locator('[data-testid="mediaPlayer-video"]');
+
+  // Reject .play(), set duration, fire loadedmetadata — all in one evaluate
+  await video.evaluate((el) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (el as any).play = () =>
+      Promise.reject(new DOMException("NotAllowedError"));
+    Object.defineProperty(el, "duration", {
+      get: () => 60,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event("loadedmetadata"));
+  });
+
+  // Should show the play-once button (proving "once" is the default)
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playOnce"]'),
+  ).toBeVisible();
 });
