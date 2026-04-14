@@ -5,6 +5,7 @@ import { flattenSteps } from "../lib/steps";
 import { ViewerStateStore } from "../lib/store";
 import { createViewerContext } from "../lib/context";
 import { StageNav } from "./StageNav";
+import { StateInspector } from "./StateInspector";
 
 interface ViewerProps {
   treatmentFile: TreatmentFileType;
@@ -139,10 +140,14 @@ export function Viewer({
       </header>
 
       <div style={bodyStyle}>
-        {/* Sidebar placeholder — state inspector will go here in chunk 4 */}
         <aside style={sidebarStyle}>
-          <div style={sidebarHeaderStyle}>State Inspector</div>
-          <p style={sidebarPlaceholderStyle}>Coming in chunk 4</p>
+          <StateInspector
+            store={store}
+            currentStep={currentStep}
+            stageIndex={stageIndex}
+            position={position}
+            playerCount={treatment.playerCount}
+          />
         </aside>
 
         {/* Main content */}
@@ -244,20 +249,6 @@ const sidebarStyle: React.CSSProperties = {
   backgroundColor: "#fafafa",
   overflow: "auto",
   padding: "1rem",
-};
-
-const sidebarHeaderStyle: React.CSSProperties = {
-  fontSize: "0.75rem",
-  fontWeight: 600,
-  color: "#6b7280",
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.05em",
-};
-
-const sidebarPlaceholderStyle: React.CSSProperties = {
-  fontSize: "0.75rem",
-  color: "#9ca3af",
-  marginTop: "0.5rem",
 };
 
 const mainStyle: React.CSSProperties = {
