@@ -11,6 +11,7 @@ import {
   type StagebookContext,
 } from "../StagebookProvider.js";
 import { Stage, type StageConfig } from "../Stage.js";
+import { getReferenceKeyAndPath } from "../../utils/reference.js";
 
 export interface MockStageRendererProps {
   stage: StageConfig;
@@ -18,8 +19,33 @@ export interface MockStageRendererProps {
   playerCount?: number;
   isSubmitted?: boolean;
   elapsedTime?: number;
-  /** Key-value map of reference string → value for resolve() */
+  /** Key-value map of DSL reference string → extracted value (e.g., "prompt.answer" → "yes") */
   stateValues?: Record<string, unknown>;
+}
+
+/** Wrap a value at a nested path, e.g. wrapAtPath("yes", ["value"]) → { value: "yes" } */
+function wrapAtPath(value: unknown, path: string[]): unknown {
+  if (path.length === 0) return value;
+  const result: Record<string, unknown> = {};
+  let cursor = result;
+  for (let i = 0; i < path.length - 1; i++) {
+    cursor[path[i]] = {};
+    cursor = cursor[path[i]] as Record<string, unknown>;
+  }
+  cursor[path[path.length - 1]] = value;
+  return result;
+}
+
+/** Convert DSL-reference-keyed stateValues to flat-key → raw-record map */
+function buildFlatValues(
+  stateValues: Record<string, unknown>,
+): Map<string, unknown> {
+  const flat = new Map<string, unknown>();
+  for (const [ref, val] of Object.entries(stateValues)) {
+    const { referenceKey, path } = getReferenceKeyAndPath(ref);
+    flat.set(referenceKey, wrapAtPath(val, path));
+  }
+  return flat;
 }
 
 export function MockStageRenderer({
@@ -30,9 +56,11 @@ export function MockStageRenderer({
   elapsedTime = 0,
   stateValues = {},
 }: MockStageRendererProps) {
+  const flatValues = buildFlatValues(stateValues);
+
   const mockContext: StagebookContext = {
-    resolve: (reference: string) => {
-      const val = stateValues[reference];
+    get: (key: string) => {
+      const val = flatValues.get(key);
       return val !== undefined ? [val] : [];
     },
     save: () => {},

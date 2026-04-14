@@ -58,6 +58,12 @@ describe("getReferenceKeyAndPath", () => {
     expect(result.path).toEqual(["value"]);
   });
 
+  test("timeline reference", () => {
+    const result = getReferenceKeyAndPath("timeline.myAnnotations");
+    expect(result.referenceKey).toBe("timeline_myAnnotations");
+    expect(result.path).toEqual([]);
+  });
+
   test("discussion reference", () => {
     const result = getReferenceKeyAndPath("discussion.main.messageCount");
     expect(result.referenceKey).toBe("main");

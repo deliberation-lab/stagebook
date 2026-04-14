@@ -23,7 +23,7 @@ export function getReferenceKeyAndPath(reference: string): ReferenceKeyAndPath {
   let path: string[] = [];
   let referenceKey: string | undefined;
 
-  if (["survey", "submitButton", "qualtrics"].includes(type)) {
+  if (["survey", "submitButton", "qualtrics", "timeline"].includes(type)) {
     [name, ...path] = rest;
     referenceKey = `${type}_${name}`;
   } else if (type === "prompt") {
@@ -50,6 +50,7 @@ export function getReferenceKeyAndPath(reference: string): ReferenceKeyAndPath {
         "survey",
         "submitButton",
         "qualtrics",
+        "timeline",
         "prompt",
         "trackedLink",
         "participantInfo",

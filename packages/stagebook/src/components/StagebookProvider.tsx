@@ -70,7 +70,14 @@ export function StagebookProvider({
 }) {
   const resolve = React.useCallback(
     (reference: string, position?: string): unknown[] => {
-      const { referenceKey, path } = getReferenceKeyAndPath(reference);
+      let referenceKey: string;
+      let path: string[];
+      try {
+        ({ referenceKey, path } = getReferenceKeyAndPath(reference));
+      } catch {
+        console.error(`Invalid reference: "${reference}"`);
+        return [];
+      }
       const rawValues = value.get(referenceKey, position);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))
