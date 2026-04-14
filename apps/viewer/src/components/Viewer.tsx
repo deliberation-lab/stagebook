@@ -6,6 +6,7 @@ import { ViewerStateStore } from "../lib/store";
 import { createViewerContext } from "../lib/context";
 import { StageNav } from "./StageNav";
 import { StateInspector } from "./StateInspector";
+import { TimeScrubber } from "./TimeScrubber";
 
 interface ViewerProps {
   treatmentFile: TreatmentFileType;
@@ -52,6 +53,11 @@ export function Viewer({
       setStageIndex(stageIndex + 1);
     }
   }, [stageIndex, steps.length]);
+
+  const handleTimeChange = useCallback(
+    (seconds: number) => store.setElapsedTime(stageIndex, seconds),
+    [store, stageIndex],
+  );
 
   // getTextContent and getAssetURL only depend on rawBaseUrl, so keep
   // them stable across stage/position changes to avoid re-fetch loops
@@ -119,6 +125,11 @@ export function Viewer({
           steps={steps}
           currentIndex={stageIndex}
           onSelect={setStageIndex}
+        />
+        <TimeScrubber
+          currentStep={currentStep}
+          elapsedTime={store.getElapsedTime(stageIndex)}
+          onTimeChange={handleTimeChange}
         />
         <div style={positionSwitcherStyle}>
           <label htmlFor="position-select" style={positionLabelStyle}>

@@ -1,0 +1,241 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { extractTimeBreakpoints } from "../lib/timeBreakpoints";
+import type { ViewerStep } from "../lib/steps";
+
+interface TimeScrubberProps {
+  currentStep: ViewerStep;
+  elapsedTime: number;
+  onTimeChange: (seconds: number) => void;
+}
+
+const SPEEDS = [1, 2, 5, 10];
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export function TimeScrubber({
+  currentStep,
+  elapsedTime,
+  onTimeChange,
+}: TimeScrubberProps) {
+  const duration = currentStep.duration;
+  if (duration === undefined) return null;
+
+  return (
+    <TimeScrubberInner
+      duration={duration}
+      elements={currentStep.elements as Record<string, unknown>[]}
+      elapsedTime={elapsedTime}
+      onTimeChange={onTimeChange}
+    />
+  );
+}
+
+function TimeScrubberInner({
+  duration,
+  elements,
+  elapsedTime,
+  onTimeChange,
+}: {
+  duration: number;
+  elements: Record<string, unknown>[];
+  elapsedTime: number;
+  onTimeChange: (seconds: number) => void;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Playback
+  useEffect(() => {
+    if (!playing) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    const tickMs = 50;
+    intervalRef.current = setInterval(() => {
+      onTimeChange(Math.min(duration, elapsedTime + (speed * tickMs) / 1000));
+    }, tickMs);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [playing, speed, elapsedTime, duration, onTimeChange]);
+
+  // Pause at end
+  useEffect(() => {
+    if (elapsedTime >= duration) setPlaying(false);
+  }, [elapsedTime, duration]);
+
+  const breakpoints = extractTimeBreakpoints(elements);
+
+  const handleTrackClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const track = trackRef.current;
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      const fraction = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
+      onTimeChange(Math.round(fraction * duration));
+    },
+    [duration, onTimeChange],
+  );
+
+  const fraction = duration > 0 ? elapsedTime / duration : 0;
+
+  return (
+    <div style={containerStyle}>
+      <button
+        onClick={() => {
+          if (elapsedTime >= duration) onTimeChange(0);
+          setPlaying(!playing);
+        }}
+        style={playButtonStyle}
+        aria-label={playing ? "Pause" : "Play"}
+      >
+        {playing ? "⏸" : "▶"}
+      </button>
+
+      <button
+        onClick={() => {
+          const idx = SPEEDS.indexOf(speed);
+          setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
+        }}
+        style={speedButtonStyle}
+        title="Playback speed"
+      >
+        {speed}x
+      </button>
+
+      <span style={timeStyle}>{formatTime(elapsedTime)}</span>
+
+      <div ref={trackRef} onClick={handleTrackClick} style={trackStyle}>
+        {/* Progress fill */}
+        <div
+          style={{
+            ...fillStyle,
+            width: `${fraction * 100}%`,
+          }}
+        />
+        {/* Breakpoint markers */}
+        {breakpoints.map((t) => (
+          <div
+            key={t}
+            onClick={(e) => {
+              e.stopPropagation();
+              onTimeChange(t);
+            }}
+            style={{
+              ...markerStyle,
+              left: `${(t / duration) * 100}%`,
+            }}
+            title={`${t}s`}
+          />
+        ))}
+        {/* Thumb */}
+        <div
+          style={{
+            ...thumbStyle,
+            left: `${fraction * 100}%`,
+          }}
+        />
+      </div>
+
+      <span style={timeStyle}>{formatTime(duration)}</span>
+    </div>
+  );
+}
+
+// --- Styles ---
+
+const containerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.375rem",
+  minWidth: 0,
+  flex: 1,
+};
+
+const playButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "1px solid #d1d5db",
+  borderRadius: "0.25rem",
+  cursor: "pointer",
+  padding: "0.125rem 0.375rem",
+  fontSize: "0.75rem",
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+const speedButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "1px solid #d1d5db",
+  borderRadius: "0.25rem",
+  cursor: "pointer",
+  padding: "0.125rem 0.375rem",
+  fontSize: "0.625rem",
+  fontWeight: 600,
+  color: "#6b7280",
+  minWidth: "2rem",
+  textAlign: "center" as const,
+  flexShrink: 0,
+};
+
+const timeStyle: React.CSSProperties = {
+  fontSize: "0.6875rem",
+  color: "#6b7280",
+  fontVariantNumeric: "tabular-nums",
+  flexShrink: 0,
+  minWidth: "2.25rem",
+};
+
+const trackStyle: React.CSSProperties = {
+  position: "relative",
+  height: "1.25rem",
+  flex: 1,
+  minWidth: "4rem",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+};
+
+const fillStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0,
+  top: "50%",
+  transform: "translateY(-50%)",
+  height: "0.25rem",
+  backgroundColor: "#3b82f6",
+  borderRadius: "0.125rem",
+};
+
+const markerStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  width: "0.5rem",
+  height: "0.5rem",
+  borderRadius: "50%",
+  backgroundColor: "#d1d5db",
+  border: "1px solid #9ca3af",
+  cursor: "pointer",
+  zIndex: 1,
+};
+
+const thumbStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  width: "0.75rem",
+  height: "0.75rem",
+  borderRadius: "50%",
+  backgroundColor: "#3b82f6",
+  border: "2px solid white",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+  zIndex: 2,
+};

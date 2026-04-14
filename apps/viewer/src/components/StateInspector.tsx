@@ -25,7 +25,6 @@ export function StateInspector({
   );
 
   const isSubmitted = store.getSubmitted(stageIndex);
-  const elapsedTime = store.getElapsedTime(stageIndex);
 
   return (
     <div style={containerStyle}>
@@ -43,22 +42,6 @@ export function StateInspector({
           submitted
         </label>
       </div>
-
-      {currentStep.duration !== undefined && (
-        <div style={controlGroupStyle}>
-          <label style={controlLabelStyle}>elapsed (sec)</label>
-          <input
-            type="number"
-            value={elapsedTime}
-            min={0}
-            max={currentStep.duration}
-            onChange={(e) =>
-              store.setElapsedTime(stageIndex, Number(e.target.value))
-            }
-            style={numberInputStyle}
-          />
-        </div>
-      )}
 
       {/* References relevant to this stage */}
       {references.length > 0 && (
@@ -223,14 +206,6 @@ const controlLabelStyle: React.CSSProperties = {
 
 const checkboxStyle: React.CSSProperties = {
   cursor: "pointer",
-};
-
-const numberInputStyle: React.CSSProperties = {
-  width: "5rem",
-  padding: "0.125rem 0.375rem",
-  border: "1px solid #d1d5db",
-  borderRadius: "0.25rem",
-  fontSize: "0.8125rem",
 };
 
 const refGroupStyle: React.CSSProperties = {
