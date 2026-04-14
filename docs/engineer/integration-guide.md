@@ -118,11 +118,12 @@ To render Stagebook elements, your platform must implement the `StagebookContext
 import type { StagebookContext } from "stagebook/components";
 
 const context: StagebookContext = {
-  // Read experiment state by DSL reference string.
-  // Returns an array because some references resolve across multiple participants.
-  resolve(reference: string, position?: string): unknown[] {
-    // Parse the reference, look up the value in your state store.
-    // "position" controls whose data to return: "player", "shared", "all", "any", or index.
+  // Look up raw stored values by storage key.
+  // Returns an array of values — exactly what was passed to save().
+  // "scope" controls whose data to return: "player", "shared", "all", "any", or index.
+  // Stagebook handles DSL reference parsing internally — platforms don't need to.
+  get(key: string, scope?: string): unknown[] {
+    // Look up `key` in your state store for the given scope.
   },
 
   // Write participant data under a DSL-derived key.
@@ -185,7 +186,7 @@ function GameStage({ stageConfig, onSubmit }) {
   const context = useYourPlatformContext(); // your platform's hooks
 
   const scoreContext: StagebookContext = {
-    resolve: (ref, pos) => yourResolve(ref, pos, context),
+    get: (key, scope) => yourLookup(key, scope, context),
     save: (key, val, scope) => yourSave(key, val, scope, context),
     getElapsedTime: () => context.timer.elapsed,
     submit: onSubmit,
@@ -223,7 +224,7 @@ The same `StagebookContext` interface works across all three experiment phases. 
 |---|---|---|---|
 | `position` | `undefined` | `0`, `1`, `2`, ... | same as game |
 | `playerCount` | `undefined` | group size | group size |
-| `resolve` | single-player values only | multi-player values | multi-player values |
+| `get` | single-player values only | multi-player values | multi-player values |
 | `save(..., "shared")` | not available | writes to group state | writes to group state |
 | `getElapsedTime` | client-side `Date.now()` | server-synced timer | client-side `Date.now()` |
 | `submit` | advance to next step | signal readiness | advance to next step |

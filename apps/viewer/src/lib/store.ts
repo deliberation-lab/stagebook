@@ -1,5 +1,3 @@
-import { getReferenceKeyAndPath, getNestedValueByPath } from "stagebook";
-
 export type PositionKey = number | "shared";
 
 export interface StoreEntry {
@@ -67,46 +65,35 @@ export class ViewerStateStore {
   }
 
   /**
-   * Resolve a DSL reference (e.g. "prompt.q1") against the store.
+   * Look up raw stored values by storage key.
    * If position is a number, returns that position's value.
    * If position is "shared", returns the shared value.
    * If position is undefined, returns values from all player positions.
    */
-  resolve(reference: string, position?: number | "shared"): unknown[] {
-    const { referenceKey, path } = getReferenceKeyAndPath(reference);
-
+  lookup(key: string, position?: number | "shared"): unknown[] {
     if (position === "shared") {
-      return this.resolveOne("shared", referenceKey, path);
+      return this.lookupOne("shared", key);
     }
 
     if (position !== undefined) {
-      return this.resolveOne(position, referenceKey, path);
+      return this.lookupOne(position, key);
     }
 
     // No position specified — collect from all player positions
     const values: unknown[] = [];
     for (const [posKey, bucket] of this.data) {
       if (posKey === "shared") continue;
-      const entry = bucket.get(referenceKey);
+      const entry = bucket.get(key);
       if (entry !== undefined) {
-        const resolved = getNestedValueByPath(entry.value, path);
-        if (resolved !== undefined) {
-          values.push(resolved);
-        }
+        values.push(entry.value);
       }
     }
     return values;
   }
 
-  private resolveOne(
-    posKey: PositionKey,
-    referenceKey: string,
-    path: string[],
-  ): unknown[] {
-    const entry = this.data.get(posKey)?.get(referenceKey);
-    if (entry === undefined) return [];
-    const resolved = getNestedValueByPath(entry.value, path);
-    return resolved !== undefined ? [resolved] : [];
+  private lookupOne(posKey: PositionKey, key: string): unknown[] {
+    const entry = this.data.get(posKey)?.get(key);
+    return entry !== undefined ? [entry.value] : [];
   }
 
   // --- Submitted ---

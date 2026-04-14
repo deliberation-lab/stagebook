@@ -27,7 +27,7 @@ export function MockSaveTracker({
   const [saves, setSaves] = useState<SaveEntry[]>([]);
 
   const mockContext: StagebookContext = {
-    resolve: () => [],
+    get: () => [],
     save: (key: string, value: unknown, scope?: "player" | "shared") => {
       setSaves((prev) => [...prev, { key, value, scope }]);
     },

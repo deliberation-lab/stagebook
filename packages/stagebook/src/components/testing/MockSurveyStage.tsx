@@ -31,7 +31,7 @@ export function MockSurveyStage() {
   };
 
   const mockContext: StagebookContext = {
-    resolve: () => [],
+    get: () => [],
     save: (key: string, value: unknown) => {
       setSavedEntries((prev) => [...prev, { key, value }]);
     },
