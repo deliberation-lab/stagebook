@@ -448,7 +448,7 @@ test("mediaPlayer: full config with all fields", () => {
     stepDuration: 0.033,
     syncToStageTime: false,
     submitOnComplete: true,
-    playback: "once",
+    playback: "manual",
     controls: {
       playPause: true,
       seek: true,
@@ -590,7 +590,7 @@ test("mediaPlayer: playback rejects invalid value", () => {
   expect(result.success).toBe(false);
 });
 
-test("mediaPlayer: playback is optional (defaults to 'once')", () => {
+test("mediaPlayer: playback is optional (omitted in schema, component defaults to 'once')", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
     url: "shared/footage.mp4",
@@ -599,6 +599,37 @@ test("mediaPlayer: playback is optional (defaults to 'once')", () => {
   if (result.success) {
     expect(result.data.playback).toBeUndefined();
   }
+});
+
+test("mediaPlayer: playback 'once' with controls is invalid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "once",
+    controls: { playPause: true },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: playback 'once' with syncToStageTime is invalid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "once",
+    syncToStageTime: true,
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: playback 'manual' with controls is valid", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "manual",
+    controls: { playPause: true },
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
 });
 
 // ----------- introStepsSchema / exitStepsSchema: advancement element requirement ------------

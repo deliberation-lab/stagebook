@@ -1002,6 +1002,27 @@ export const elementSchema = altTemplateContext(
           path: ["controls"],
         });
       }
+      const mpPlayback = data as {
+        playback?: string;
+        controls?: Record<string, boolean>;
+        syncToStageTime?: boolean;
+      };
+      if (mpPlayback.playback === "once" && mpPlayback.controls) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'controls cannot be specified when playback is "once" (participant controls are disabled)',
+          path: ["controls"],
+        });
+      }
+      if (mpPlayback.playback === "once" && mpPlayback.syncToStageTime) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'playback "once" cannot be combined with syncToStageTime (use syncToStageTime without playback instead)',
+          path: ["playback"],
+        });
+      }
     }
   }),
 );

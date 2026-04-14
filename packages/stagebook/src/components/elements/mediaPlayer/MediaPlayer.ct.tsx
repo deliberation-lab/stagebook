@@ -1242,7 +1242,7 @@ test("ArrowLeft seeks backward 1 second", async ({ mount }) => {
 
 test("L key seeks forward 10 seconds", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playback="manual" />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1266,7 +1266,7 @@ test("L key seeks forward 10 seconds", async ({ mount }) => {
 
 test("J key seeks backward 10 seconds", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
+    <MockMediaPlayer url="/sample-video.mp4" name="test" playback="manual" />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1290,7 +1290,12 @@ test("J key seeks backward 10 seconds", async ({ mount }) => {
 
 test("Period key steps forward by stepDuration", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" stepDuration={0.5} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      stepDuration={0.5}
+      playback="manual"
+    />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1314,7 +1319,12 @@ test("Period key steps forward by stepDuration", async ({ mount }) => {
 
 test("Comma key steps backward by stepDuration", async ({ mount }) => {
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" stepDuration={0.5} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      stepDuration={0.5}
+      playback="manual"
+    />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -1339,7 +1349,12 @@ test("Comma key steps backward by stepDuration", async ({ mount }) => {
 test("ArrowLeft clamps to startAt boundary", async ({ mount }) => {
   // ct=10.5, startAt=10: seek(-1) → max(9.5, 10) = 10
   const component = await mount(
-    <MockMediaPlayer url="/sample-video.mp4" name="test" startAt={10} />,
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      startAt={10}
+      playback="manual"
+    />,
   );
   const video = component.locator('[data-testid="mediaPlayer-video"]');
   await video.evaluate((el) => {
@@ -2055,7 +2070,7 @@ test("playback once: shows play button when autoplay is blocked", async ({
   page,
 }) => {
   // Block the video from loading so no real loadedmetadata fires
-  await page.route("**/blocked.mp4", () => {});
+  await page.route("**/blocked.mp4", (route) => route.abort());
 
   const component = await mount(
     <MockMediaPlayer url="/blocked.mp4" name="test" playback="once" />,
@@ -2085,7 +2100,7 @@ test("playback once: play button disappears after click", async ({
   mount,
   page,
 }) => {
-  await page.route("**/blocked.mp4", () => {});
+  await page.route("**/blocked.mp4", (route) => route.abort());
 
   const component = await mount(
     <MockMediaPlayer url="/blocked.mp4" name="test" playback="once" />,
@@ -2139,7 +2154,7 @@ test("default playback is 'once' when no controls or syncToStageTime", async ({
   page,
 }) => {
   // No playback, no controls, no syncToStageTime — should behave like "once"
-  await page.route("**/blocked.mp4", () => {});
+  await page.route("**/blocked.mp4", (route) => route.abort());
 
   const component = await mount(
     <MockMediaPlayer url="/blocked.mp4" name="test" />,

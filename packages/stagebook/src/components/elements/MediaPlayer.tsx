@@ -122,6 +122,7 @@ export function MediaPlayer({
 
   const eventsRef = useRef<VideoEvent[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const autoplayAttemptedRef = useRef(false);
 
   const [isPaused, setIsPaused] = useState(true);
   const [showPlayOnce, setShowPlayOnce] = useState(false);
@@ -137,8 +138,11 @@ export function MediaPlayer({
   // Clear any prior error state when the source changes (e.g. parent
   // swaps to a different clip). Without this the player would stay
   // stuck in the error state forever after a single load failure.
+  // Also reset autoplay state so a new URL gets a fresh attempt.
   useEffect(() => {
     setLoadError(null);
+    autoplayAttemptedRef.current = false;
+    setShowPlayOnce(false);
   }, [url]);
 
   // YouTube-only: handle registered by YouTubePlayer once the IFrame API is ready
@@ -405,7 +409,6 @@ export function MediaPlayer({
 
   // Autoplay for "once" mode: attempt .play() once metadata is loaded.
   // If the browser blocks it (no prior user interaction), show a fallback button.
-  const autoplayAttemptedRef = useRef(false);
   useEffect(() => {
     if (effectivePlayback !== "once") return;
     if (autoplayAttemptedRef.current) return;
@@ -630,6 +633,9 @@ export function MediaPlayer({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // "once" mode: no keyboard controls
+      if (effectivePlayback === "once") return;
+
       // YouTube: only Space/K play-pause and J/L/Arrow seek work
       if (ytHandle) {
         switch (e.key) {
@@ -736,7 +742,13 @@ export function MediaPlayer({
           break;
       }
     },
-    [seek, stepDuration, playbackRate, enterFastScrubForward],
+    [
+      effectivePlayback,
+      seek,
+      stepDuration,
+      playbackRate,
+      enterFastScrubForward,
+    ],
   );
 
   const handleKeyUp = useCallback(
@@ -1192,12 +1204,19 @@ export function MediaPlayer({
 
           {showPlayOnce && (
             <button
+              type="button"
               data-testid="mediaPlayer-playOnce"
               aria-label="Play video"
               onClick={() => {
                 setShowPlayOnce(false);
                 const v = videoRef.current;
-                if (v) void v.play();
+                if (!v) {
+                  setShowPlayOnce(true);
+                  return;
+                }
+                void v.play().catch(() => {
+                  setShowPlayOnce(true);
+                });
               }}
               style={{
                 position: "absolute",
@@ -1233,12 +1252,19 @@ export function MediaPlayer({
       {/* Audio-only: play-once fallback button */}
       {!playVideo && showPlayOnce && (
         <button
+          type="button"
           data-testid="mediaPlayer-playOnce"
           aria-label="Play audio"
           onClick={() => {
             setShowPlayOnce(false);
             const v = videoRef.current;
-            if (v) void v.play();
+            if (!v) {
+              setShowPlayOnce(true);
+              return;
+            }
+            void v.play().catch(() => {
+              setShowPlayOnce(true);
+            });
           }}
           style={{
             background: "rgba(28,28,30,0.96)",
