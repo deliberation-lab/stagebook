@@ -22,7 +22,9 @@ export async function loadTreatmentFromUrl(
 ): Promise<LoadResult> {
   const { rawFileUrl, rawBaseUrl } = parseGitHubUrl(githubUrl);
 
-  const response = await fetchFn(rawFileUrl);
+  // Cache-bust: raw.githubusercontent.com has aggressive CDN caching
+  const bustUrl = `${rawFileUrl}?t=${Date.now()}`;
+  const response = await fetchFn(bustUrl);
   if (!response.ok) {
     throw new Error(
       `Failed to fetch treatment file (HTTP ${response.status}): ${rawFileUrl}`,

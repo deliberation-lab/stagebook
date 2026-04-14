@@ -49,6 +49,35 @@ describe("parseGitHubUrl", () => {
     });
   });
 
+  it("parses a raw.githubusercontent.com URL", () => {
+    const result = parseGitHubUrl(
+      "https://raw.githubusercontent.com/org/repo/main/treatments/study.yaml",
+    );
+    expect(result).toEqual({
+      owner: "org",
+      repo: "repo",
+      branch: "main",
+      filePath: "treatments/study.yaml",
+      rawFileUrl:
+        "https://raw.githubusercontent.com/org/repo/main/treatments/study.yaml",
+      rawBaseUrl: "https://raw.githubusercontent.com/org/repo/main/treatments/",
+    });
+  });
+
+  it("parses a raw.githubusercontent.com URL at repo root", () => {
+    const result = parseGitHubUrl(
+      "https://raw.githubusercontent.com/org/repo/main/file.yaml",
+    );
+    expect(result).toEqual({
+      owner: "org",
+      repo: "repo",
+      branch: "main",
+      filePath: "file.yaml",
+      rawFileUrl: "https://raw.githubusercontent.com/org/repo/main/file.yaml",
+      rawBaseUrl: "https://raw.githubusercontent.com/org/repo/main/",
+    });
+  });
+
   it("throws on a non-GitHub URL", () => {
     expect(() =>
       parseGitHubUrl("https://gitlab.com/org/repo/blob/main/file.yaml"),

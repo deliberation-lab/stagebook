@@ -36,7 +36,7 @@ export function Viewer({
   // Subscribe to store changes so the UI re-renders
   useSyncExternalStore(
     useCallback((cb: () => void) => store.onChange(cb), [store]),
-    useCallback(() => ({}), []),
+    useCallback(() => store.getVersion(), [store]),
   );
 
   const currentStep = steps[stageIndex];
@@ -52,6 +52,30 @@ export function Viewer({
     }
   }, [stageIndex, steps.length]);
 
+  // getTextContent and getAssetURL only depend on rawBaseUrl, so keep
+  // them stable across stage/position changes to avoid re-fetch loops
+  // in useTextContent (which has getTextContent as an effect dependency).
+  const stableContentFns = useMemo(() => {
+    const cache = new Map<string, Promise<string>>();
+    return {
+      getTextContent(path: string): Promise<string> {
+        const cached = cache.get(path);
+        if (cached) return cached;
+        const promise = fetch(rawBaseUrl + path).then((res) => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch ${path} (HTTP ${res.status})`);
+          }
+          return res.text();
+        });
+        cache.set(path, promise);
+        return promise;
+      },
+      getAssetURL(path: string): string {
+        return rawBaseUrl + path;
+      },
+    };
+  }, [rawBaseUrl]);
+
   const ctx = useMemo(
     () =>
       createViewerContext({
@@ -59,16 +83,16 @@ export function Viewer({
         position,
         stageIndex,
         playerCount: treatment.playerCount,
-        rawBaseUrl,
         onSubmit: handleSubmit,
+        ...stableContentFns,
       }),
     [
       store,
       position,
       stageIndex,
       treatment.playerCount,
-      rawBaseUrl,
       handleSubmit,
+      stableContentFns,
     ],
   );
 

@@ -8,9 +8,11 @@ export interface GitHubUrlParts {
 }
 
 /**
- * Parse a GitHub blob URL into its components and derive raw.githubusercontent.com URLs.
+ * Parse a GitHub URL into its components and derive raw.githubusercontent.com URLs.
  *
- * Expects: https://github.com/{owner}/{repo}/blob/{branch}/{path}
+ * Accepts:
+ *   https://github.com/{owner}/{repo}/blob/{branch}/{path}
+ *   https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
  */
 export function parseGitHubUrl(url: string): GitHubUrlParts {
   let parsed: URL;
@@ -20,26 +22,46 @@ export function parseGitHubUrl(url: string): GitHubUrlParts {
     throw new Error(`Invalid URL: ${url}`);
   }
 
-  if (parsed.hostname !== "github.com") {
-    throw new Error(`Not a GitHub URL: ${url}`);
-  }
-
-  // pathname: /{owner}/{repo}/blob/{branch}/{...filePath}
   const segments = parsed.pathname.split("/").filter(Boolean);
 
-  if (segments.length < 4 || segments[2] !== "blob") {
+  if (parsed.hostname === "raw.githubusercontent.com") {
+    // raw URL: /{owner}/{repo}/{branch}/{...filePath}
+    if (segments.length < 4) {
+      throw new Error(`No file path found in raw URL: ${url}`);
+    }
+    const owner = segments[0];
+    const repo = segments[1];
+    const branch = segments[2];
+    const filePath = segments.slice(3).join("/");
+    return buildResult(owner, repo, branch, filePath, url);
+  }
+
+  if (parsed.hostname === "github.com") {
+    // blob URL: /{owner}/{repo}/blob/{branch}/{...filePath}
+    if (segments.length >= 5 && segments[2] === "blob") {
+      const owner = segments[0];
+      const repo = segments[1];
+      const branch = segments[3];
+      const filePath = segments.slice(4).join("/");
+      return buildResult(owner, repo, branch, filePath, url);
+    }
     throw new Error(
       `Expected a GitHub blob URL (github.com/owner/repo/blob/branch/path): ${url}`,
     );
   }
 
-  const owner = segments[0];
-  const repo = segments[1];
-  const branch = segments[3];
-  const filePath = segments.slice(4).join("/");
+  throw new Error(`Not a GitHub URL: ${url}`);
+}
 
+function buildResult(
+  owner: string,
+  repo: string,
+  branch: string,
+  filePath: string,
+  originalUrl: string,
+): GitHubUrlParts {
   if (!filePath) {
-    throw new Error(`No file path found in URL: ${url}`);
+    throw new Error(`No file path found in URL: ${originalUrl}`);
   }
 
   const dirPath = filePath.includes("/")

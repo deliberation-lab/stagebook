@@ -2,11 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { createViewerContext } from "./context";
 import { ViewerStateStore } from "./store";
 
+const BASE_URL = "https://raw.githubusercontent.com/org/repo/main/treatments/";
+
 function makeContext(overrides?: {
   position?: number;
   stageIndex?: number;
   playerCount?: number;
-  rawBaseUrl?: string;
   onSubmit?: () => void;
 }) {
   const store = new ViewerStateStore();
@@ -15,10 +16,10 @@ function makeContext(overrides?: {
     position: overrides?.position ?? 0,
     stageIndex: overrides?.stageIndex ?? 0,
     playerCount: overrides?.playerCount ?? 2,
-    rawBaseUrl:
-      overrides?.rawBaseUrl ??
-      "https://raw.githubusercontent.com/org/repo/main/treatments/",
     onSubmit: overrides?.onSubmit ?? (() => {}),
+    getAssetURL: (path: string) => BASE_URL + path,
+    getTextContent: (path: string) =>
+      fetch(BASE_URL + path).then((r) => r.text()),
   });
   return { store, ctx };
 }
@@ -90,22 +91,21 @@ describe("createViewerContext", () => {
   });
 
   describe("getTextContent", () => {
-    it("fetches from the raw GitHub URL and caches", async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve("file contents"),
+    it("delegates to the provided getTextContent function", async () => {
+      const mockGetTextContent = vi.fn().mockResolvedValue("file contents");
+      const store = new ViewerStateStore();
+      const ctx = createViewerContext({
+        store,
+        position: 0,
+        stageIndex: 0,
+        playerCount: 2,
+        onSubmit: () => {},
+        getAssetURL: (path: string) => BASE_URL + path,
+        getTextContent: mockGetTextContent,
       });
-      vi.stubGlobal("fetch", mockFetch);
-
-      const { ctx } = makeContext();
-      const result1 = await ctx.getTextContent("prompts/q1.prompt.md");
-      const result2 = await ctx.getTextContent("prompts/q1.prompt.md");
-
-      expect(result1).toBe("file contents");
-      expect(result2).toBe("file contents");
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-
-      vi.unstubAllGlobals();
+      const result = await ctx.getTextContent("prompts/q1.prompt.md");
+      expect(result).toBe("file contents");
+      expect(mockGetTextContent).toHaveBeenCalledWith("prompts/q1.prompt.md");
     });
   });
 

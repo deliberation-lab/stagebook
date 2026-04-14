@@ -38,7 +38,9 @@ describe("loadTreatmentFromUrl", () => {
       fetch,
     );
     expect(fetch).toHaveBeenCalledWith(
-      "https://raw.githubusercontent.com/org/repo/main/treatment.yaml",
+      expect.stringContaining(
+        "https://raw.githubusercontent.com/org/repo/main/treatment.yaml",
+      ),
     );
     expect(result.treatmentFile.treatments).toHaveLength(1);
     expect(result.treatmentFile.treatments[0].name).toBe("treatment1");

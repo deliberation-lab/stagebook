@@ -20,6 +20,7 @@ export class ViewerStateStore {
   private submitted = new Map<number, boolean>();
   private elapsed = new Map<number, number>();
   private listeners = new Set<Listener>();
+  private version = 0;
 
   /** Write a value via the save() contract (position-scoped or shared). */
   save(
@@ -132,12 +133,18 @@ export class ViewerStateStore {
 
   // --- Change notification ---
 
+  /** Monotonic version counter — stable snapshot for useSyncExternalStore. */
+  getVersion(): number {
+    return this.version;
+  }
+
   onChange(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
   private notify(): void {
+    this.version++;
     for (const listener of this.listeners) {
       listener();
     }

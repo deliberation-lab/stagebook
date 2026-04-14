@@ -6,8 +6,9 @@ export interface ViewerContextOptions {
   position: number;
   stageIndex: number;
   playerCount: number;
-  rawBaseUrl: string;
   onSubmit: () => void;
+  getTextContent: (path: string) => Promise<string>;
+  getAssetURL: (path: string) => string;
 }
 
 /**
@@ -19,10 +20,15 @@ export interface ViewerContextOptions {
 export function createViewerContext(
   options: ViewerContextOptions,
 ): StagebookContext {
-  const { store, position, stageIndex, playerCount, rawBaseUrl, onSubmit } =
-    options;
-
-  const textContentCache = new Map<string, Promise<string>>();
+  const {
+    store,
+    position,
+    stageIndex,
+    playerCount,
+    onSubmit,
+    getTextContent,
+    getAssetURL,
+  } = options;
 
   return {
     resolve(reference: string, positionArg?: string): unknown[] {
@@ -46,24 +52,8 @@ export function createViewerContext(
       onSubmit();
     },
 
-    getAssetURL(path: string): string {
-      return rawBaseUrl + path;
-    },
-
-    getTextContent(path: string): Promise<string> {
-      const cached = textContentCache.get(path);
-      if (cached) return cached;
-
-      const promise = fetch(rawBaseUrl + path).then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch ${path} (HTTP ${res.status})`);
-        }
-        return res.text();
-      });
-
-      textContentCache.set(path, promise);
-      return promise;
-    },
+    getAssetURL,
+    getTextContent,
 
     progressLabel: `game_${stageIndex}`,
     playerId: "viewer",
