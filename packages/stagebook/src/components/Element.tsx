@@ -262,6 +262,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
             element.allowScrubOutsideBounds as boolean | undefined
           }
           stepDuration={element.stepDuration as number | undefined}
+          playback={element.playback as "once" | "manual" | undefined}
           controls={
             element.controls as
               | {

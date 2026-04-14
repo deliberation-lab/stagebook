@@ -55,6 +55,7 @@ export interface MediaPlayerProps {
   stopAt?: number;
   allowScrubOutsideBounds?: boolean;
   stepDuration?: number;
+  playback?: "once" | "manual";
   controls?: {
     playPause?: boolean;
     seek?: boolean;
@@ -93,10 +94,20 @@ export function MediaPlayer({
   stopAt,
   allowScrubOutsideBounds = false,
   stepDuration = 1,
+  playback,
   controls,
 }: MediaPlayerProps) {
   const youtubeVideoId = isYouTubeURL(url);
   const saveKey = `mediaPlayer_${name}`;
+
+  // Effective playback mode: explicit value wins; otherwise "once" when no
+  // controls or syncToStageTime are configured (avoids the frozen-frame state
+  // where the video has no way to start).
+  const hasAnyControls =
+    controls !== undefined &&
+    (controls.playPause || controls.seek || controls.step || controls.speed);
+  const effectivePlayback =
+    playback ?? (hasAnyControls || syncToStageTime ? "manual" : "once");
 
   // Defense-in-depth: reject dangerous URL protocols. Element.tsx already
   // resolves relative paths via getAssetURL(), so this guards against
@@ -113,6 +124,7 @@ export function MediaPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [isPaused, setIsPaused] = useState(true);
+  const [showPlayOnce, setShowPlayOnce] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState<number>(0);
@@ -390,6 +402,23 @@ export function MediaPlayer({
       videoRef.current.currentTime = startAt;
     }
   }, []); // mount-only: reads initial values of getElapsedTime/startAt
+
+  // Autoplay for "once" mode: attempt .play() once metadata is loaded.
+  // If the browser blocks it (no prior user interaction), show a fallback button.
+  const autoplayAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (effectivePlayback !== "once") return;
+    if (autoplayAttemptedRef.current) return;
+    const v = videoRef.current;
+    if (!v) return;
+    // Wait for metadata: duration is set in handleLoadedMetadata
+    if (duration === 0) return;
+
+    autoplayAttemptedRef.current = true;
+    void v.play().catch(() => {
+      setShowPlayOnce(true);
+    });
+  }, [effectivePlayback, duration]);
 
   const recordEvent = useCallback(
     (
@@ -1160,7 +1189,70 @@ export function MediaPlayer({
               <HTML5Controls {...html5ControlsProps} />
             </div>
           )}
+
+          {showPlayOnce && (
+            <button
+              data-testid="mediaPlayer-playOnce"
+              aria-label="Play video"
+              onClick={() => {
+                setShowPlayOnce(false);
+                const v = videoRef.current;
+                if (v) void v.play();
+              }}
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                background: "rgba(0,0,0,0.6)",
+                border: "none",
+                borderRadius: "50%",
+                width: 64,
+                height: 64,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+              }}
+            >
+              <svg
+                width={32}
+                height={32}
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <polygon points="6,3 20,12 6,21" />
+              </svg>
+            </button>
+          )}
         </div>
+      )}
+
+      {/* Audio-only: play-once fallback button */}
+      {!playVideo && showPlayOnce && (
+        <button
+          data-testid="mediaPlayer-playOnce"
+          aria-label="Play audio"
+          onClick={() => {
+            setShowPlayOnce(false);
+            const v = videoRef.current;
+            if (v) void v.play();
+          }}
+          style={{
+            background: "rgba(28,28,30,0.96)",
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: "0.5rem",
+            padding: "0.75rem 1.5rem",
+            cursor: "pointer",
+            color: "#fff",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+          }}
+        >
+          Play
+        </button>
       )}
 
       {/* Audio-only: flat controls bar (always visible — no hover needed) */}

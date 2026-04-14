@@ -448,6 +448,7 @@ test("mediaPlayer: full config with all fields", () => {
     stepDuration: 0.033,
     syncToStageTime: false,
     submitOnComplete: true,
+    playback: "once",
     controls: {
       playPause: true,
       seek: true,
@@ -558,6 +559,46 @@ test("mediaPlayer: startAt < stopAt is valid", () => {
   });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: playback 'once' is valid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "once",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: playback 'manual' is valid", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "manual",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: playback rejects invalid value", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+    playback: "loop",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: playback is optional (defaults to 'once')", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/footage.mp4",
+  });
+  expect(result.success).toBe(true);
+  if (result.success) {
+    expect(result.data.playback).toBeUndefined();
+  }
 });
 
 // ----------- introStepsSchema / exitStepsSchema: advancement element requirement ------------

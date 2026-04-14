@@ -108,9 +108,28 @@ Use a direct URL for any video/audio file, or a YouTube URL for embedded YouTube
   url: https://example.com/study/clip.mp4
 ```
 
-### Sync mode (default)
+### Play-once mode (default)
 
-By default each participant controls their own playback independently.
+By default the video autoplays once with no participant controls. If the browser blocks autoplay (no prior user interaction on the page), a one-time play button appears and disappears after the participant clicks it. This is the right mode when participants should watch a video exactly once without pausing or rewinding.
+
+```yaml
+- type: mediaPlayer
+  name: intro_video
+  url: https://example.com/study/clip.mp4
+```
+
+You can also set this explicitly:
+
+```yaml
+- type: mediaPlayer
+  name: intro_video
+  url: https://example.com/study/clip.mp4
+  playback: once
+```
+
+### Manual mode (with controls)
+
+When you add `controls`, the playback mode automatically switches to `manual` — the participant controls their own playback. You can also set `playback: manual` explicitly.
 
 ```yaml
 - type: mediaPlayer
@@ -143,6 +162,7 @@ Ties video time to stage elapsed time so all participants stay in sync. Hides al
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `url` | string | required | Direct media URL or YouTube URL |
+| `playback` | `"once"` or `"manual"` | `"once"` | `"once"`: autoplay with no controls; `"manual"`: participant uses controls. Defaults to `"once"` unless `controls` or `syncToStageTime` is set |
 | `playVideo` | boolean | `true` | Show the video track (set `false` for audio-only) |
 | `playAudio` | boolean | `true` | Unmute audio |
 | `captionsFile` | string | — | Path to a `.vtt` captions file |
