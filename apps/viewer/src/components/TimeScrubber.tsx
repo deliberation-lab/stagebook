@@ -202,6 +202,8 @@ const trackStyle: React.CSSProperties = {
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
+  background:
+    "linear-gradient(to right, #e5e7eb, #e5e7eb) no-repeat center / 100% 0.25rem",
 };
 
 const fillStyle: React.CSSProperties = {
