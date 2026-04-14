@@ -30,9 +30,10 @@ jobs:
       - run: npm ci
       - run: npm run build -w stagebook
       - run: npm run build -w stagebook-viewer
+      - run: mkdir -p _site/viewer && cp -r apps/viewer/dist/* _site/viewer/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/viewer/dist
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
