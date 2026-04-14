@@ -41,13 +41,13 @@ export function createViewerContext(
   } = options;
 
   return {
-    resolve(reference: string, positionArg?: string): unknown[] {
-      const mapped = mapPosition(positionArg, position);
+    get(key: string, scope?: string): unknown[] {
+      const mapped = mapPosition(scope, position);
       if (typeof mapped === "number" || mapped === "shared") {
-        return store.resolve(reference, mapped);
+        return store.lookup(key, mapped);
       }
       // "all", "any", "percentAgreement" → return from all player positions
-      return store.resolve(reference);
+      return store.lookup(key);
     },
 
     save(key: string, value: unknown, scope?: "player" | "shared"): void {

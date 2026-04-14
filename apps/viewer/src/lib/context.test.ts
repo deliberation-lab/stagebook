@@ -25,12 +25,12 @@ function makeContext(overrides?: {
 }
 
 describe("createViewerContext", () => {
-  describe("save and resolve", () => {
-    it("save writes to store and resolve reads back", () => {
+  describe("save and get", () => {
+    it("save writes to store and get reads back raw values", () => {
       const { ctx } = makeContext();
       ctx.save("prompt_q1", { value: "yes" });
-      const values = ctx.resolve("prompt.q1", "player");
-      expect(values).toEqual(["yes"]);
+      const values = ctx.get("prompt_q1", "player");
+      expect(values).toEqual([{ value: "yes" }]);
     });
 
     it("defaults to player scope", () => {
@@ -47,27 +47,27 @@ describe("createViewerContext", () => {
       expect(store.get("shared", "prompt_q1")).toBeDefined();
     });
 
-    it("resolve with numeric string position reads that position", () => {
+    it("get with numeric string scope reads that position", () => {
       const { store, ctx } = makeContext({ position: 0 });
       store.save("prompt_q1", { value: "from-pos-1" }, "player", 1, 0);
-      const values = ctx.resolve("prompt.q1", "1");
-      expect(values).toEqual(["from-pos-1"]);
+      const values = ctx.get("prompt_q1", "1");
+      expect(values).toEqual([{ value: "from-pos-1" }]);
     });
 
-    it("resolve with 'all' returns values from all positions", () => {
+    it("get with 'all' returns raw values from all positions", () => {
       const { store, ctx } = makeContext();
       store.save("prompt_q1", { value: "a" }, "player", 0, 0);
       store.save("prompt_q1", { value: "b" }, "player", 1, 0);
-      const values = ctx.resolve("prompt.q1", "all");
-      expect(values).toEqual(["a", "b"]);
+      const values = ctx.get("prompt_q1", "all");
+      expect(values).toEqual([{ value: "a" }, { value: "b" }]);
     });
 
-    it("resolve with 'any' returns values from all positions", () => {
+    it("get with 'any' returns raw values from all positions", () => {
       const { store, ctx } = makeContext();
       store.save("prompt_q1", { value: "a" }, "player", 0, 0);
       store.save("prompt_q1", { value: "b" }, "player", 1, 0);
-      const values = ctx.resolve("prompt.q1", "any");
-      expect(values).toEqual(["a", "b"]);
+      const values = ctx.get("prompt_q1", "any");
+      expect(values).toEqual([{ value: "a" }, { value: "b" }]);
     });
   });
 

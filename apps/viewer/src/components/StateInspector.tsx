@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getReferenceKeyAndPath } from "stagebook";
+import { getReferenceKeyAndPath, getNestedValueByPath } from "stagebook";
 import { ViewerStateStore } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
@@ -93,7 +93,11 @@ function ReferenceEditor({
   position: number;
   stageIndex: number;
 }) {
-  const values = store.resolve(reference, position);
+  const { referenceKey, path } = getReferenceKeyAndPath(reference);
+  const rawValues = store.lookup(referenceKey, position);
+  const values = rawValues
+    .map((v) => getNestedValueByPath(v, path))
+    .filter((v) => v !== undefined);
   const currentValue = values[0] !== undefined ? String(values[0]) : "";
 
   const handleChange = (newValue: string) => {

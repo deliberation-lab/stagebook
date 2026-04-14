@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import {
   type StagebookContext,
   StagebookProvider,
+  useResolve,
   useTextContent,
   type TextContentResult,
 } from "./StagebookProvider.js";
@@ -17,7 +18,7 @@ function createMockContext(
   overrides?: Partial<StagebookContext>,
 ): StagebookContext {
   return {
-    resolve: vi.fn(() => []),
+    get: vi.fn(() => []),
     save: vi.fn(),
     getElapsedTime: vi.fn(() => 0),
     submit: vi.fn(),
@@ -43,12 +44,12 @@ describe("StagebookContext interface", () => {
     expect(ctx.isSubmitted).toBe(false);
   });
 
-  test("resolve returns array", () => {
-    const resolve = vi.fn(() => ["value1", "value2"]);
-    const ctx = createMockContext({ resolve });
+  test("get returns array", () => {
+    const get = vi.fn(() => ["value1", "value2"]);
+    const ctx = createMockContext({ get });
 
-    const result = ctx.resolve("prompt.myPrompt", "all");
-    expect(resolve).toHaveBeenCalledWith("prompt.myPrompt", "all");
+    const result = ctx.get("prompt_myPrompt", "all");
+    expect(get).toHaveBeenCalledWith("prompt_myPrompt", "all");
     expect(result).toEqual(["value1", "value2"]);
   });
 
@@ -118,6 +119,102 @@ describe("StagebookProvider + useStagebookContext", () => {
       // Outside React entirely, it throws a different React error
       useStagebookContext();
     }).toThrow();
+  });
+});
+
+// Helper to render useResolve inside a StagebookProvider
+function renderUseResolve(
+  reference: string,
+  ctx: StagebookContext,
+  position?: string,
+): {
+  result: { current: unknown[] };
+  unmount: () => void;
+} {
+  const result = { current: [] as unknown[] };
+  const container = document.createElement("div");
+  let root: Root;
+
+  function Harness(): ReactNode {
+    result.current = useResolve(reference, position);
+    return null;
+  }
+
+  act(() => {
+    root = createRoot(container);
+    root.render(
+      <StagebookProvider value={ctx}>
+        <Harness />
+      </StagebookProvider>,
+    );
+  });
+
+  return {
+    result,
+    unmount: () => act(() => root.unmount()),
+  };
+}
+
+describe("Provider-level resolve (get → resolve pipeline)", () => {
+  test("extracts .value path for prompt references", () => {
+    const get = vi.fn(() => [
+      { type: "multipleChoice", value: "yes", step: "s0" },
+    ]);
+    const ctx = createMockContext({ get });
+
+    const { result, unmount } = renderUseResolve("prompt.q1", ctx);
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", undefined);
+    expect(result.current).toEqual(["yes"]);
+    unmount();
+  });
+
+  test("navigates nested paths for survey references", () => {
+    const get = vi.fn(() => [{ result: { score: 4.5 } }]);
+    const ctx = createMockContext({ get });
+
+    const { result, unmount } = renderUseResolve(
+      "survey.TIPI.result.score",
+      ctx,
+    );
+
+    expect(get).toHaveBeenCalledWith("survey_TIPI", undefined);
+    expect(result.current).toEqual([4.5]);
+    unmount();
+  });
+
+  test("passes scope through to get", () => {
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "all");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
+    unmount();
+  });
+
+  test("filters out undefined path results", () => {
+    // Record exists but doesn't have the nested .value path
+    const get = vi.fn(() => [{ name: "q1" }]);
+    const ctx = createMockContext({ get });
+
+    const { result, unmount } = renderUseResolve("prompt.q1", ctx);
+
+    expect(result.current).toEqual([]);
+    unmount();
+  });
+
+  test("resolves across multiple raw values", () => {
+    const get = vi.fn(() => [
+      { value: "a", step: "s0" },
+      { value: "b", step: "s1" },
+    ]);
+    const ctx = createMockContext({ get });
+
+    const { result, unmount } = renderUseResolve("prompt.q1", ctx, "all");
+
+    expect(result.current).toEqual(["a", "b"]);
+    unmount();
   });
 });
 

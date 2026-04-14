@@ -1,12 +1,18 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { DiscussionType } from "../schemas/treatment.js";
+import {
+  getReferenceKeyAndPath,
+  getNestedValueByPath,
+} from "../utils/reference.js";
 
 // --------------- StagebookContext Interface ---------------
 
 export interface StagebookContext {
-  // Read state via DSL reference strings
-  resolve(reference: string, position?: string): unknown[];
+  // Look up raw stored values by storage key.
+  // scope: "player" (default), "shared", "all", "any", "percentAgreement",
+  // or a numeric string for a specific position.
+  get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
   save(key: string, value: unknown, scope?: "player" | "shared"): void;
@@ -43,9 +49,15 @@ export interface StagebookContext {
   }) => React.ReactNode;
 }
 
-// --------------- Context ---------------
+// --------------- Internal context ---------------
 
-const StagebookReactContext = createContext<StagebookContext | null>(null);
+interface InternalStagebookContext extends StagebookContext {
+  resolve(reference: string, position?: string): unknown[];
+}
+
+const StagebookReactContext = createContext<InternalStagebookContext | null>(
+  null,
+);
 
 // --------------- Provider ---------------
 
@@ -56,8 +68,24 @@ export function StagebookProvider({
   value: StagebookContext;
   children: React.ReactNode;
 }) {
+  const resolve = React.useCallback(
+    (reference: string, position?: string): unknown[] => {
+      const { referenceKey, path } = getReferenceKeyAndPath(reference);
+      const rawValues = value.get(referenceKey, position);
+      return rawValues
+        .map((v) => getNestedValueByPath(v, path))
+        .filter((v) => v !== undefined);
+    },
+    [value],
+  );
+
+  const internal: InternalStagebookContext = React.useMemo(
+    () => ({ ...value, resolve }),
+    [value, resolve],
+  );
+
   return (
-    <StagebookReactContext.Provider value={value}>
+    <StagebookReactContext.Provider value={internal}>
       {children}
     </StagebookReactContext.Provider>
   );
@@ -65,7 +93,7 @@ export function StagebookProvider({
 
 // --------------- Hooks ---------------
 
-export function useStagebookContext(): StagebookContext {
+export function useStagebookContext(): InternalStagebookContext {
   const ctx = useContext(StagebookReactContext);
   if (!ctx) {
     throw new Error(
