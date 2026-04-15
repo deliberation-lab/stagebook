@@ -247,7 +247,8 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             isScalar(value) &&
             typeof value.value === "string" &&
             value.range &&
-            TEMPLATE_VAR_RE.test(value.value) &&
+            ((TEMPLATE_VAR_RE.lastIndex = 0),
+            TEMPLATE_VAR_RE.test(value.value)) &&
             k !== "file" // file paths already handled above
           ) {
             emitTemplateVarTokens(value.range[0], value.value);
