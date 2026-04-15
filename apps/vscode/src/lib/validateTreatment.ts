@@ -49,24 +49,9 @@ export function validateTreatmentSource(source: string): ValidationResult {
   const mapper = createPositionMapper(source);
   const parsedObj = mapper.toJSON();
 
-  if (
-    parsedObj === null ||
-    parsedObj === undefined ||
-    typeof parsedObj !== "object"
-  ) {
-    if (diagnostics.length === 0) {
-      diagnostics.push({
-        message: "Failed to parse YAML",
-        severity: "error",
-        range: null,
-      });
-    }
-    return { diagnostics, parsedObj: null };
-  }
-
   // Step 3: Validate with stagebook's treatmentFileSchema
-  // The schema accepts template contexts natively (via altTemplateContext),
-  // so we validate the original object without expanding templates.
+  // Pass whatever was parsed (even null/scalar) — Zod produces clear
+  // "Expected object, received ..." messages for non-object input.
   const result = treatmentFileSchema.safeParse(parsedObj);
 
   if (!result.success) {

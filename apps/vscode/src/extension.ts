@@ -137,7 +137,9 @@ function checkFileReferences(
 
   if (typeof record.file === "string" && record.file.length > 0) {
     const filePath = record.file;
-    const workspaceFolder = vscode.workspace.workspaceFolders![0];
+    const workspaceFolder =
+      vscode.workspace.getWorkspaceFolder(document.uri) ??
+      vscode.workspace.workspaceFolders![0];
     const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
 
     // Guard against path traversal (check before template placeholder skip)
@@ -164,20 +166,8 @@ function checkFileReferences(
     const uriKey = document.uri.toString();
     vscode.workspace.fs.stat(fileUri).then(
       () => {
-        // Discard if a newer validation has started
-        if (validationVersions.get(uriKey) !== version) return;
-
-        if (record.type === "prompt" && !filePath.endsWith(".prompt.md")) {
-          diagnostics.push(
-            makeFileDiagnostic(
-              source,
-              [...objPath, "file"],
-              `Prompt file should have .prompt.md extension: ${filePath}`,
-              vscode.DiagnosticSeverity.Warning,
-            ),
-          );
-          diagnosticCollection.set(document.uri, diagnostics);
-        }
+        // File exists — .prompt.md extension is enforced by the schema
+        // (promptFilePathSchema), so no redundant check needed here.
       },
       () => {
         if (validationVersions.get(uriKey) !== version) return;

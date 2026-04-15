@@ -177,22 +177,17 @@ treatments:
   });
 
   describe("edge cases", () => {
-    it("reports error for empty YAML source", () => {
+    it("reports schema error for empty YAML source", () => {
       const result = validateTreatmentSource("");
-      expect(result.diagnostics).toContainEqual(
-        expect.objectContaining({
-          message: "Failed to parse YAML",
-          severity: "error",
-          range: null,
-        }),
-      );
-      expect(result.parsedObj).toBeNull();
+      // Empty YAML parses to null — Zod produces a schema error
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+      expect(result.diagnostics[0].severity).toBe("error");
     });
 
-    it("reports error when YAML parses to a scalar", () => {
+    it("reports schema error when YAML parses to a scalar", () => {
       const result = validateTreatmentSource("hello world");
-      expect(result.parsedObj).toBeNull();
       expect(result.diagnostics.length).toBeGreaterThan(0);
+      expect(result.diagnostics[0].severity).toBe("error");
     });
 
     it("reports schema errors when YAML parses to an array", () => {
