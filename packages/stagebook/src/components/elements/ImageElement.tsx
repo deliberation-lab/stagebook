@@ -10,7 +10,15 @@ export function ImageElement({ src, width }: ImageElementProps) {
 
   return (
     <div style={{ display: "flex", justifyContent: "center" }}>
-      <img src={src} alt="" width={width ? `${width}%` : "100%"} />
+      <img
+        src={src}
+        alt=""
+        style={{
+          width: width ? `${width}%` : "100%",
+          maxWidth: "100%",
+          height: "auto",
+        }}
+      />
     </div>
   );
 }

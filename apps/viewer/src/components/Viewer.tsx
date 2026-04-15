@@ -11,7 +11,9 @@ import { createSkeletonRenderers } from "./SkeletonPlaceholder";
 
 export interface ViewerProps {
   treatmentFile: TreatmentFileType;
+  /** Must be referentially stable (memoized) to avoid re-fetch loops. */
   getTextContent: (path: string) => Promise<string>;
+  /** Must be referentially stable (memoized) to avoid re-fetch loops. */
   getAssetURL: (path: string) => string;
   selectedIntroIndex: number;
   selectedTreatmentIndex: number;

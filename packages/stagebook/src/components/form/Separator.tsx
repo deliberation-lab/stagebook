@@ -13,19 +13,19 @@ const baseStyle: React.CSSProperties = {
 const thinStyle: React.CSSProperties = {
   ...baseStyle,
   height: "1px",
-  backgroundColor: "#9ca3af",
+  backgroundColor: "var(--stagebook-text-faint, #9ca3af)",
 };
 
 const regularStyle: React.CSSProperties = {
   ...baseStyle,
   height: "3px",
-  backgroundColor: "#9ca3af",
+  backgroundColor: "var(--stagebook-text-faint, #9ca3af)",
 };
 
 const thickStyle: React.CSSProperties = {
   ...baseStyle,
   height: "5px",
-  backgroundColor: "#6b7280",
+  backgroundColor: "var(--stagebook-text-muted, #6b7280)",
 };
 
 export function Separator({ style = "" }: SeparatorProps) {
