@@ -119,6 +119,46 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
     });
   }
 
+  const TEMPLATE_VAR_RE = /\$\{[a-zA-Z0-9_]+\}/g;
+
+  /**
+   * Emit variable tokens for ${...} placeholders within a string.
+   * Only emits tokens for the placeholders, not the surrounding text.
+   */
+  function emitTemplateVarTokens(startOffset: number, text: string): void {
+    TEMPLATE_VAR_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = TEMPLATE_VAR_RE.exec(text)) !== null) {
+      addToken(startOffset + match.index, match[0], "variable");
+    }
+  }
+
+  /**
+   * Emit tokens for a file path, splitting around ${...} placeholders.
+   * Path segments get "string", placeholders get "variable".
+   */
+  function addFilePathTokens(startOffset: number, text: string): void {
+    let lastIndex = 0;
+    TEMPLATE_VAR_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = TEMPLATE_VAR_RE.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        addToken(
+          startOffset + lastIndex,
+          text.slice(lastIndex, match.index),
+          "string",
+        );
+      }
+      addToken(startOffset + match.index, match[0], "variable");
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      addToken(startOffset + lastIndex, text.slice(lastIndex), "string");
+    }
+  }
+
   function walkNode(node: unknown, keyName?: string): void {
     if (isMap(node)) {
       for (const pair of node.items) {
@@ -173,7 +213,7 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             typeof value.value === "string" &&
             value.range
           ) {
-            addToken(value.range[0], value.value, "string");
+            addFilePathTokens(value.range[0], value.value);
           } else if (
             k === "contentType" &&
             isScalar(value) &&
@@ -198,6 +238,19 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             enumValues.has(value.value)
           ) {
             addToken(value.range[0], value.value, "keyword");
+          }
+
+          // For any other scalar value containing ${...} placeholders,
+          // emit variable tokens so template fields are highlighted
+          // consistently everywhere they appear.
+          if (
+            isScalar(value) &&
+            typeof value.value === "string" &&
+            value.range &&
+            TEMPLATE_VAR_RE.test(value.value) &&
+            k !== "file" // file paths already handled above
+          ) {
+            emitTemplateVarTokens(value.range[0], value.value);
           }
 
           // Recurse into the value
