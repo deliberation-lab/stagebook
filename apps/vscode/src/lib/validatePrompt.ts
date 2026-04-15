@@ -64,21 +64,24 @@ function mapPromptErrorToRange(
         }
       }
     }
-    // Fall back to the metadata section start
+    // Fall back to the metadata section start (clamp for empty sections)
+    const metaFallbackLine = Math.min(metaStart + 1, metaEnd);
     return {
-      startLine: metaStart + 1,
+      startLine: metaFallbackLine,
       startCol: 0,
-      endLine: metaEnd - 1,
-      endCol: 0,
+      endLine: metaFallbackLine,
+      endCol: 1,
     };
   }
 
   if (section === "body") {
+    // Clamp for empty body (adjacent delimiters)
+    const bodyLine = Math.min(metaEnd + 1, responseStart);
     return {
-      startLine: metaEnd + 1,
+      startLine: bodyLine,
       startCol: 0,
-      endLine: responseStart - 1,
-      endCol: 0,
+      endLine: bodyLine,
+      endCol: 1,
     };
   }
 
