@@ -2,15 +2,66 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Treatments YAML",
   "scopeName": "source.treatments-yaml",
-  "comment": "Stub grammar — inherits base YAML highlighting. Full domain-specific highlighting is tracked in issue #77.",
+  "comment": "Extends base YAML with domain-specific highlighting for stagebook treatment files.",
   "patterns": [
     { "include": "#template-variable" },
+    { "include": "#comparators" },
+    { "include": "#element-type-value" },
+    { "include": "#reference-prefix" },
+    { "include": "#top-level-section-key" },
+    { "include": "#condition-key" },
+    { "include": "#separator-style" },
+    { "include": "#domain-enum-value" },
     { "include": "source.yaml" }
   ],
   "repository": {
     "template-variable": {
       "match": "\\$\\{[a-zA-Z0-9_]+\\}",
       "name": "variable.other.constant.treatments-yaml"
+    },
+
+    "comparators": {
+      "comment": "Condition comparator values — all 16 from conditionSchema",
+      "match": "(?<=:\\s)\\b(exists|doesNotExist|equals|doesNotEqual|isAbove|isBelow|isAtLeast|isAtMost|hasLengthAtLeast|hasLengthAtMost|includes|doesNotInclude|matches|doesNotMatch|isOneOf|isNotOneOf)\\b",
+      "name": "keyword.control.comparator.treatments-yaml"
+    },
+
+    "element-type-value": {
+      "comment": "Element type values — matched after 'type:' to avoid highlighting these words in other contexts",
+      "match": "(?<=type:\\s)\\b(audio|image|display|prompt|separator|sharedNotepad|submitButton|survey|talkMeter|timer|mediaPlayer|timeline|qualtrics|trackedLink)\\b",
+      "name": "entity.name.type.element.treatments-yaml"
+    },
+
+    "top-level-section-key": {
+      "comment": "Structural section keys in treatment files",
+      "match": "(?<=^\\s*)\\b(introSequences|introSteps|gameStages|elements|treatments|templates|exitSequence|groupComposition|templateName|templateContent|contentType|broadcast)\\b(?=\\s*:)",
+      "name": "support.class.section.treatments-yaml"
+    },
+
+    "condition-key": {
+      "comment": "Keys within condition blocks",
+      "match": "(?<=^\\s*)\\b(conditions|comparator|reference|position)\\b(?=\\s*:)",
+      "name": "keyword.operator.condition.treatments-yaml"
+    },
+
+    "reference-prefix": {
+      "comment": "Reference namespace prefixes in reference strings (e.g. 'prompt.elementName')",
+      "match": "\\b(prompt|survey|discussion|participantInfo|urlParams|submitButton|qualtrics|trackedLink|connectionInfo|browserInfo)\\.",
+      "captures": {
+        "1": { "name": "support.function.reference.treatments-yaml" }
+      }
+    },
+
+    "separator-style": {
+      "comment": "Separator style enum values",
+      "match": "(?<=style:\\s)\\b(thin|thick|regular)\\b",
+      "name": "constant.other.separator-style.treatments-yaml"
+    },
+
+    "domain-enum-value": {
+      "comment": "Domain-specific enum values: position selectors and chat types",
+      "match": "(?<=:\\s)\\b(shared|player|all|any|percentAgreement|text|audio|video)\\b",
+      "name": "constant.language.enum.treatments-yaml"
     }
   }
 }
