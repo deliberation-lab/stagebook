@@ -31,7 +31,7 @@ export function levenshtein(a: string, b: string): number {
 
 /**
  * Find the closest matching string from a list of candidates.
- * Returns null if no candidate is within the distance threshold.
+ * Returns null if no candidate has distance strictly less than maxDistance.
  */
 export function findClosestMatch(
   target: string,

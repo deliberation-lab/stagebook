@@ -311,12 +311,18 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
     const now = Date.now();
     if (now - this.cacheTimestamp > FilePathQuickFixProvider.CACHE_TTL_MS) {
       const allFiles = await vscode.workspace.findFiles(
-        "**/*.{prompt.md,md,yaml,jpg,jpeg,png,mp3,mp4}",
+        new vscode.RelativePattern(
+          workspaceFolder,
+          "**/*.{prompt.md,md,yaml,jpg,jpeg,png,mp3,mp4}",
+        ),
         "**/node_modules/**",
         5000,
       );
       this.cachedPaths = allFiles.map((f) =>
-        path.relative(workspaceFolder.uri.fsPath, f.fsPath),
+        path
+          .relative(workspaceFolder.uri.fsPath, f.fsPath)
+          .split(path.sep)
+          .join("/"),
       );
       this.cacheTimestamp = now;
     }
@@ -351,8 +357,8 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
     const line = document.lineAt(position).text;
     const prefix = line.substring(0, position.character);
 
-    // Only trigger after "file:" with optional whitespace
-    if (!/^\s*file:\s/.test(prefix)) return undefined;
+    // Trigger after "file:" anywhere in the line (handles "- file:", indented, etc.)
+    if (!/\bfile:\s/.test(prefix)) return undefined;
 
     if (!vscode.workspace.workspaceFolders?.length) return undefined;
 
@@ -361,7 +367,7 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
       vscode.workspace.workspaceFolders[0];
 
     // Get the partial path the user has typed so far
-    const fileValueMatch = prefix.match(/file:\s+(.*)/);
+    const fileValueMatch = prefix.match(/\bfile:\s+(.*)/);
     const partial = fileValueMatch?.[1] ?? "";
 
     // Sanitize glob metacharacters in user input
@@ -370,30 +376,36 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
       ? `**/${sanitized}*`
       : "**/*.{prompt.md,md,yaml}";
     const files = await vscode.workspace.findFiles(
-      globPattern,
+      new vscode.RelativePattern(workspaceFolder, globPattern),
       "**/node_modules/**",
       50,
     );
 
+    // Find the end of the value (stop at comment or end of line)
+    const valueEndMatch = line.substring(position.character).match(/\s+#/);
+    const valueEnd = valueEndMatch
+      ? position.character + valueEndMatch.index!
+      : line.length;
+
     return files.map((fileUri) => {
-      const relativePath = path.relative(
-        workspaceFolder.uri.fsPath,
-        fileUri.fsPath,
-      );
+      const relativePath = path
+        .relative(workspaceFolder.uri.fsPath, fileUri.fsPath)
+        .split(path.sep)
+        .join("/");
       const item = new vscode.CompletionItem(
         relativePath,
         vscode.CompletionItemKind.File,
       );
       item.insertText = relativePath;
-      // Replace the entire value after "file: "
-      const valueStart = prefix.indexOf("file:") + "file:".length;
+      // Replace only the value portion (not trailing comments)
+      const valueStart = prefix.lastIndexOf("file:") + "file:".length;
       const whitespaceAfterColon =
         prefix.substring(valueStart).match(/^\s*/)?.[0] ?? " ";
       item.range = new vscode.Range(
         position.line,
         valueStart + whitespaceAfterColon.length,
         position.line,
-        line.length,
+        valueEnd,
       );
       return item;
     });
