@@ -448,6 +448,83 @@ describe("remapErrorPath", () => {
   });
 });
 
+describe("remapErrorPath — array templateContent", () => {
+  it("accounts for array templateContent expanding into multiple siblings", () => {
+    const arrayTemplates = [
+      {
+        templateName: "twoElements",
+        templateContent: [
+          { type: "prompt", file: "q1.prompt.md" },
+          { type: "separator" },
+        ],
+      },
+    ];
+    const original = {
+      templates: arrayTemplates,
+      treatments: [
+        {
+          name: "t1",
+          gameStages: [
+            {
+              name: "s1",
+              elements: [{ template: "twoElements" }, { type: "submitButton" }],
+            },
+          ],
+        },
+      ],
+    };
+    // Template expands [0] into 2 items, so submitButton shifts to index 2
+    const result = remapErrorPath(
+      ["treatments", 0, "gameStages", 0, "elements", 2, "type"],
+      original,
+      arrayTemplates,
+    );
+    // Index 2 is the submitButton (non-template), not from the template
+    expect(result).toEqual([
+      "treatments",
+      0,
+      "gameStages",
+      0,
+      "elements",
+      2,
+      "type",
+    ]);
+  });
+
+  it("remaps errors within array-expanded template content", () => {
+    const arrayTemplates = [
+      {
+        templateName: "twoElements",
+        templateContent: [
+          { type: "prompt", file: "q1.prompt.md" },
+          { type: "separator" },
+        ],
+      },
+    ];
+    const original = {
+      templates: arrayTemplates,
+      treatments: [
+        {
+          name: "t1",
+          gameStages: [
+            {
+              name: "s1",
+              elements: [{ template: "twoElements" }, { type: "submitButton" }],
+            },
+          ],
+        },
+      ],
+    };
+    // Error at expanded index 1 — second item from the array template
+    const result = remapErrorPath(
+      ["treatments", 0, "gameStages", 0, "elements", 1, "type"],
+      original,
+      arrayTemplates,
+    );
+    expect(result).toEqual(["templates", 0, "templateContent", "type"]);
+  });
+});
+
 describe("pathToRange — type mismatches", () => {
   it("returns null for a string segment on a sequence node", () => {
     const src = `items:
