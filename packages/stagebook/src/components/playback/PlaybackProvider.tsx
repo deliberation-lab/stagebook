@@ -4,7 +4,6 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import type { PlaybackHandle } from "./PlaybackHandle.js";
@@ -15,8 +14,8 @@ import type { PlaybackHandle } from "./PlaybackHandle.js";
 
 interface PlaybackRegistry {
   handles: Map<string, PlaybackHandle>;
-  register(name: string, handle: PlaybackHandle): void;
-  unregister(name: string): void;
+  register: (name: string, handle: PlaybackHandle) => void;
+  unregister: (name: string) => void;
 }
 
 const PlaybackContext = createContext<PlaybackRegistry | null>(null);
@@ -31,11 +30,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback((name: string, handle: PlaybackHandle) => {
-    setHandles((prev) => new Map(prev).set(name, handle));
+    setHandles((prev) => {
+      if (prev.get(name) === handle) return prev;
+      return new Map(prev).set(name, handle);
+    });
   }, []);
 
   const unregister = useCallback((name: string) => {
     setHandles((prev) => {
+      if (!prev.has(name)) return prev;
       const next = new Map(prev);
       next.delete(name);
       return next;
@@ -67,15 +70,18 @@ export function useRegisterPlayback(
   handle: PlaybackHandle,
 ): void {
   const ctx = useContext(PlaybackContext);
-  // Keep a stable ref to the handle so we don't re-register on every render.
-  const handleRef = useRef(handle);
-  handleRef.current = handle;
+  // Extract the stable callbacks so the effect depends on them directly
+  // rather than on the full context object (which changes whenever handles
+  // state updates). register/unregister are useCallback([]) so they only
+  // change if a different PlaybackProvider instance is mounted.
+  const register = ctx?.register;
+  const unregister = ctx?.unregister;
 
   useEffect(() => {
-    if (!ctx) return; // no PlaybackProvider above — intentional no-op
-    ctx.register(name, handle);
-    return () => ctx.unregister(name);
-  }, [name, ctx, handle]);
+    if (!register || !unregister) return; // no PlaybackProvider — no-op
+    register(name, handle);
+    return () => unregister(name);
+  }, [name, handle, register, unregister]);
 }
 
 /**
