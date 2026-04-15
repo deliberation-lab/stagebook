@@ -73,6 +73,9 @@ export {
   type TreatmentFileType,
   type DiscussionType,
   type TimelineType,
+  validElementTypes,
+  validComparators,
+  validReferenceTypes,
 } from "./treatment.js";
 
 export {
