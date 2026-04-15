@@ -31,11 +31,15 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback((name: string, handle: PlaybackHandle) => {
-    setHandles((prev) => new Map(prev).set(name, handle));
+    setHandles((prev) => {
+      if (prev.get(name) === handle) return prev;
+      return new Map(prev).set(name, handle);
+    });
   }, []);
 
   const unregister = useCallback((name: string) => {
     setHandles((prev) => {
+      if (!prev.has(name)) return prev;
       const next = new Map(prev);
       next.delete(name);
       return next;
@@ -67,15 +71,18 @@ export function useRegisterPlayback(
   handle: PlaybackHandle,
 ): void {
   const ctx = useContext(PlaybackContext);
-  // Keep a stable ref to the handle so we don't re-register on every render.
-  const handleRef = useRef(handle);
-  handleRef.current = handle;
+  // Ref the context so the effect doesn't re-fire when handles state changes.
+  // register/unregister are stable (useCallback with []), so a stale ctx ref
+  // still reaches the same functions.
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
 
   useEffect(() => {
-    if (!ctx) return; // no PlaybackProvider above — intentional no-op
-    ctx.register(name, handle);
-    return () => ctx.unregister(name);
-  }, [name, ctx, handle]);
+    const c = ctxRef.current;
+    if (!c) return; // no PlaybackProvider above — intentional no-op
+    c.register(name, handle);
+    return () => c.unregister(name);
+  }, [name, handle]);
 }
 
 /**
