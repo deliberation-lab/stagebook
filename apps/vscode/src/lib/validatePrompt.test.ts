@@ -180,8 +180,112 @@ then a horizontal rule
       const warnings = result.diagnostics.filter(
         (d) => d.severity === "warning",
       );
-      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toMatch(/horizontal rule|\*\*\*|___/i);
+      expect(warnings[0].range).toEqual({
+        startLine: 7,
+        startCol: 0,
+        endLine: 7,
+        endCol: 3,
+      });
+    });
+  });
+
+  describe("slider type", () => {
+    it("returns no diagnostics for a valid slider prompt", () => {
+      const src = `---
+name: test/slider.prompt.md
+type: slider
+min: 0
+max: 100
+interval: 10
+---
+Rate your agreement.
+---
+> Low
+> High`;
+      const result = validatePromptSource(src);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    it("reports errors when slider is missing required fields", () => {
+      const src = `---
+name: test/slider.prompt.md
+type: slider
+---
+Rate something.
+---
+> Low`;
+      const result = validatePromptSource(src);
+      const messages = result.diagnostics.map((d) => d.message);
+      expect(messages).toContain("min is required for slider type");
+      expect(messages).toContain("max is required for slider type");
+      expect(messages).toContain("interval is required for slider type");
+    });
+  });
+
+  describe("listSorter type", () => {
+    it("returns no diagnostics for a valid listSorter prompt", () => {
+      const src = `---
+name: test/sort.prompt.md
+type: listSorter
+---
+Rank these items.
+---
+> Item A
+> Item B
+> Item C`;
+      const result = validatePromptSource(src);
+      expect(result.diagnostics).toEqual([]);
+    });
+  });
+
+  describe("metadata YAML parse failure", () => {
+    it("reports error for malformed YAML in metadata", () => {
+      const src = `---
+name: test/prompt.prompt.md
+type: [unclosed bracket
+---
+Body text
+---
+`;
+      const result = validatePromptSource(src);
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringContaining("parse metadata YAML"),
+          severity: "error",
+        }),
+      );
+    });
+  });
+
+  describe("CRLF line endings", () => {
+    it("handles CRLF line endings correctly", () => {
+      const src =
+        "---\r\nname: test/prompt.prompt.md\r\ntype: multipleChoice\r\n---\r\nPick one\r\n---\r\n- A\r\n- B";
+      const result = validatePromptSource(src);
+      expect(result.diagnostics).toEqual([]);
+    });
+  });
+
+  describe("metadata field position mapping", () => {
+    it("maps metadata field error to the specific YAML key line", () => {
+      const src = `---
+name: test/prompt.prompt.md
+type: multipleChoice
+rows: 3
+---
+Pick one
+---
+- A
+- B`;
+      const result = validatePromptSource(src);
+      const rowsError = result.diagnostics.find((d) =>
+        d.message.includes("rows"),
+      );
+      expect(rowsError).toBeDefined();
+      // "rows:" is on line 3 (0-indexed)
+      expect(rowsError!.range!.startLine).toBe(3);
     });
   });
 });

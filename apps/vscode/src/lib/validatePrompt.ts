@@ -1,11 +1,6 @@
 import { promptFileSchema } from "stagebook";
 import type { SourceRange } from "./yamlPositionMap";
-
-export interface Diagnostic {
-  message: string;
-  severity: "error" | "warning";
-  range: SourceRange | null;
-}
+import type { Diagnostic } from "./types";
 
 export interface PromptValidationResult {
   diagnostics: Diagnostic[];
@@ -18,7 +13,7 @@ function findDelimiterLines(source: string): number[] {
   const lines = source.split(/\r?\n/);
   const result: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (/^-{3,}$/.test(lines[i].trim())) {
+    if (/^-{3,}$/.test(lines[i])) {
       result.push(i);
     }
   }
