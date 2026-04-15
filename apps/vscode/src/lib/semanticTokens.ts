@@ -12,8 +12,7 @@ export type SemanticTokenType =
   | "keyword" // comparators (equals, isAbove) → purple
   | "variable" // reference strings (prompt.q1) → light blue
   | "string" // file paths → orange (distinct via modifier)
-  | "property" // section keys (elements, treatments) → blue
-  | "operator"; // unused but kept for type compatibility
+  | "property"; // section keys (elements, treatments) → blue
 
 export interface SemanticToken {
   line: number;
@@ -41,6 +40,19 @@ const contentTypeSet = new Set([
   "player",
   "introExitStep",
   "exitSteps",
+]);
+
+const separatorStyles = new Set(["thin", "thick", "regular"]);
+
+const enumValues = new Set([
+  "shared",
+  "player",
+  "all",
+  "any",
+  "percentAgreement",
+  "text",
+  "audio",
+  "video",
 ]);
 
 const sectionKeys = new Set([
@@ -170,6 +182,22 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             contentTypeSet.has(value.value)
           ) {
             addToken(value.range[0], value.value, "type");
+          } else if (
+            k === "style" &&
+            isScalar(value) &&
+            typeof value.value === "string" &&
+            value.range &&
+            separatorStyles.has(value.value)
+          ) {
+            addToken(value.range[0], value.value, "keyword");
+          } else if (
+            (k === "position" || k === "chatType") &&
+            isScalar(value) &&
+            typeof value.value === "string" &&
+            value.range &&
+            enumValues.has(value.value)
+          ) {
+            addToken(value.range[0], value.value, "keyword");
           }
 
           // Recurse into the value

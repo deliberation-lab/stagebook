@@ -129,6 +129,75 @@ duration: 300`;
     });
   });
 
+  describe("contentType values", () => {
+    it("highlights valid contentType values", () => {
+      const src = `contentType: elements`;
+      const tokens = computeSemanticTokens(src);
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ text: "elements", tokenType: "type" }),
+      );
+    });
+
+    it("does not highlight invalid contentType values", () => {
+      const src = `contentType: banana`;
+      const tokens = computeSemanticTokens(src);
+      const typeTokens = tokens.filter((t) => t.tokenType === "type");
+      expect(typeTokens).toHaveLength(0);
+    });
+  });
+
+  describe("separator styles", () => {
+    it("highlights separator style values", () => {
+      const src = `style: thin`;
+      const tokens = computeSemanticTokens(src);
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ text: "thin", tokenType: "keyword" }),
+      );
+    });
+  });
+
+  describe("enum values", () => {
+    it("highlights position enum values", () => {
+      const src = `position: shared`;
+      const tokens = computeSemanticTokens(src);
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ text: "shared", tokenType: "keyword" }),
+      );
+    });
+
+    it("highlights chatType enum values", () => {
+      const src = `chatType: video`;
+      const tokens = computeSemanticTokens(src);
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ text: "video", tokenType: "keyword" }),
+      );
+    });
+  });
+
+  describe("negative cases", () => {
+    it("does not highlight invalid comparator values", () => {
+      const src = `comparator: banana`;
+      const tokens = computeSemanticTokens(src);
+      expect(tokens.filter((t) => t.tokenType === "keyword")).toHaveLength(0);
+    });
+
+    it("does not highlight references with invalid type prefix", () => {
+      const src = `reference: invalidType.field`;
+      const tokens = computeSemanticTokens(src);
+      expect(tokens.filter((t) => t.tokenType === "variable")).toHaveLength(0);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("returns empty tokens for empty input", () => {
+      expect(computeSemanticTokens("")).toEqual([]);
+    });
+
+    it("returns empty tokens for comment-only YAML", () => {
+      expect(computeSemanticTokens("# just a comment")).toEqual([]);
+    });
+  });
+
   describe("mixed content", () => {
     it("handles a realistic treatment snippet", () => {
       const src = `treatments:
