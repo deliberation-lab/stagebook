@@ -175,4 +175,111 @@ treatments:
       expect(result.diagnostics.length).toBeGreaterThan(0);
     });
   });
+
+  describe("edge cases", () => {
+    it("reports error for empty YAML source", () => {
+      const result = validateTreatmentSource("");
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          message: "Failed to parse YAML",
+          severity: "error",
+          range: null,
+        }),
+      );
+      expect(result.parsedObj).toBeNull();
+    });
+
+    it("reports error when YAML parses to a scalar", () => {
+      const result = validateTreatmentSource("hello world");
+      expect(result.parsedObj).toBeNull();
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    });
+
+    it("reports schema errors when YAML parses to an array", () => {
+      const result = validateTreatmentSource("- item1\n- item2");
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+      expect(result.diagnostics[0].severity).toBe("error");
+    });
+
+    it("accepts file with only templates (introSequences and treatments are optional)", () => {
+      const src = `templates:
+  - templateName: myStage
+    contentType: stage
+    templateContent:
+      name: stage1
+      duration: 300
+      elements:
+        - type: submitButton`;
+      const result = validateTreatmentSource(src);
+      const errors = result.diagnostics.filter((d) => d.severity === "error");
+      expect(errors).toEqual([]);
+    });
+
+    it("reports error for empty templates array", () => {
+      const src = `templates: []
+introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: submitButton`;
+      const result = validateTreatmentSource(src);
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringContaining("Templates cannot be empty"),
+        }),
+      );
+    });
+  });
+
+  describe("diagnostic quality", () => {
+    it("missing required fields produce messages mentioning 'required'", () => {
+      const src = `treatments:
+  - name: study1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: submitButton`;
+      const result = validateTreatmentSource(src);
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          severity: "error",
+          message: expect.stringMatching(/required/i),
+        }),
+      );
+    });
+
+    it("classifies duplicate key diagnostics as warnings", () => {
+      const src = `introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    playerCount: 2
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: submitButton`;
+      const result = validateTreatmentSource(src);
+      const dupeWarnings = result.diagnostics.filter((d) =>
+        d.message.match(/unique|duplicate/i),
+      );
+      expect(dupeWarnings.length).toBeGreaterThan(0);
+      expect(dupeWarnings.every((d) => d.severity === "warning")).toBe(true);
+    });
+  });
 });

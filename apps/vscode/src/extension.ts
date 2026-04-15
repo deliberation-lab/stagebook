@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import {
   validateTreatmentSource,
@@ -10,6 +11,9 @@ const diagnosticCollection =
 
 const DEBOUNCE_MS = 300;
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Version counter per document URI — used to discard stale async results. */
+const validationVersions = new Map<string, number>();
 
 function isTreatmentsYaml(document: vscode.TextDocument): boolean {
   return (
@@ -70,6 +74,10 @@ function toVscodeRange(range: Diagnostic["range"]): vscode.Range {
 }
 
 function validateTreatmentFile(document: vscode.TextDocument): void {
+  const uriKey = document.uri.toString();
+  const version = (validationVersions.get(uriKey) ?? 0) + 1;
+  validationVersions.set(uriKey, version);
+
   const source = document.getText();
   const result = validateTreatmentSource(source);
 
@@ -91,7 +99,13 @@ function validateTreatmentFile(document: vscode.TextDocument): void {
     typeof result.parsedObj === "object" &&
     vscode.workspace.workspaceFolders?.length
   ) {
-    checkFileReferences(document, result.parsedObj, source, vscodeDiagnostics);
+    checkFileReferences(
+      document,
+      result.parsedObj,
+      source,
+      vscodeDiagnostics,
+      version,
+    );
   }
 }
 
@@ -104,11 +118,15 @@ function checkFileReferences(
   obj: unknown,
   source: string,
   diagnostics: vscode.Diagnostic[],
-  path: (string | number)[] = [],
+  version: number,
+  objPath: (string | number)[] = [],
 ): void {
   if (Array.isArray(obj)) {
     obj.forEach((item, i) =>
-      checkFileReferences(document, item, source, diagnostics, [...path, i]),
+      checkFileReferences(document, item, source, diagnostics, version, [
+        ...objPath,
+        i,
+      ]),
     );
     return;
   }
@@ -119,19 +137,19 @@ function checkFileReferences(
 
   if (typeof record.file === "string" && record.file.length > 0) {
     const filePath = record.file;
-
-    // Skip if the path contains template placeholders
-    if (/\$\{[a-zA-Z0-9_]+\}/.test(filePath)) return;
-
     const workspaceFolder = vscode.workspace.workspaceFolders![0];
     const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
 
-    // Guard against path traversal
-    if (!fileUri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
+    // Guard against path traversal (check before template placeholder skip)
+    const base = workspaceFolder.uri.fsPath + path.sep;
+    if (
+      fileUri.fsPath !== workspaceFolder.uri.fsPath &&
+      !fileUri.fsPath.startsWith(base)
+    ) {
       diagnostics.push(
         makeFileDiagnostic(
           source,
-          [...path, "file"],
+          [...objPath, "file"],
           `File path escapes workspace: ${filePath}`,
           vscode.DiagnosticSeverity.Error,
         ),
@@ -140,14 +158,20 @@ function checkFileReferences(
       return;
     }
 
+    // Skip file existence check if the path contains template placeholders
+    if (/\$\{[a-zA-Z0-9_]+\}/.test(filePath)) return;
+
+    const uriKey = document.uri.toString();
     vscode.workspace.fs.stat(fileUri).then(
       () => {
-        // File exists — check extension for prompt elements
+        // Discard if a newer validation has started
+        if (validationVersions.get(uriKey) !== version) return;
+
         if (record.type === "prompt" && !filePath.endsWith(".prompt.md")) {
           diagnostics.push(
             makeFileDiagnostic(
               source,
-              [...path, "file"],
+              [...objPath, "file"],
               `Prompt file should have .prompt.md extension: ${filePath}`,
               vscode.DiagnosticSeverity.Warning,
             ),
@@ -156,10 +180,12 @@ function checkFileReferences(
         }
       },
       () => {
+        if (validationVersions.get(uriKey) !== version) return;
+
         diagnostics.push(
           makeFileDiagnostic(
             source,
-            [...path, "file"],
+            [...objPath, "file"],
             `File not found: ${filePath}`,
             vscode.DiagnosticSeverity.Error,
           ),
@@ -171,17 +197,20 @@ function checkFileReferences(
 
   for (const [key, value] of Object.entries(record)) {
     if (key === "file") continue;
-    checkFileReferences(document, value, source, diagnostics, [...path, key]);
+    checkFileReferences(document, value, source, diagnostics, version, [
+      ...objPath,
+      key,
+    ]);
   }
 }
 
 function makeFileDiagnostic(
   source: string,
-  path: (string | number)[],
+  objPath: (string | number)[],
   message: string,
   severity: vscode.DiagnosticSeverity,
 ): vscode.Diagnostic {
-  const range = pathToRange(source, path);
+  const range = pathToRange(source, objPath);
   const vscodeRange = range
     ? new vscode.Range(
         range.startLine,
@@ -228,6 +257,18 @@ export function activate(context: vscode.ExtensionContext): void {
       if (editor) {
         validateDocument(editor.document);
       }
+    }),
+  );
+
+  // Clean up timers and diagnostics when documents close
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      const key = document.uri.toString();
+      const timer = debounceTimers.get(key);
+      if (timer) clearTimeout(timer);
+      debounceTimers.delete(key);
+      validationVersions.delete(key);
+      diagnosticCollection.delete(document.uri);
     }),
   );
 }
