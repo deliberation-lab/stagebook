@@ -12,12 +12,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.2.2",
     "js-yaml": "^4.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "stagebook": "*",
-    "tailwindcss": "^4.2.2"
+    "stagebook": "*"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

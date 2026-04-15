@@ -10,14 +10,20 @@ test("renders image with src", async ({ mount }) => {
   await expect(component.locator("img")).toBeVisible();
 });
 
-test("renders with custom width", async ({ mount }) => {
+test("renders with custom width via style", async ({ mount }) => {
   const component = await mount(<ImageElement src={testImage} width={50} />);
-  await expect(component.locator("img")).toHaveAttribute("width", "50%");
+  const img = component.locator("img");
+  await expect(img).toBeVisible();
+  const style = await img.getAttribute("style");
+  expect(style).toContain("50%");
 });
 
-test("defaults to 100% width", async ({ mount }) => {
+test("defaults to 100% width via style", async ({ mount }) => {
   const component = await mount(<ImageElement src={testImage} />);
-  await expect(component.locator("img")).toHaveAttribute("width", "100%");
+  const img = component.locator("img");
+  await expect(img).toBeVisible();
+  const style = await img.getAttribute("style");
+  expect(style).toContain("100%");
 });
 
 test("renders nothing when src is empty", async ({ mount }) => {

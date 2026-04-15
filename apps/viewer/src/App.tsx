@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
 import {
@@ -6,6 +6,7 @@ import {
   TreatmentValidationError,
   type ValidationIssue,
 } from "./lib/treatment";
+import { createUrlContentFns } from "./lib/contentFns";
 import { LandingPage } from "./components/LandingPage";
 import { TreatmentPicker } from "./components/TreatmentPicker";
 import { FieldForm } from "./components/FieldForm";
@@ -174,7 +175,7 @@ export function App() {
 
     case "viewing":
       return (
-        <Viewer
+        <ViewingPhase
           treatmentFile={state.treatmentFile}
           rawBaseUrl={state.rawBaseUrl}
           selectedIntroIndex={state.selectedIntroIndex}
@@ -183,6 +184,40 @@ export function App() {
         />
       );
   }
+}
+
+/**
+ * Wrapper component for the viewing phase — enables useMemo for
+ * stable content function references (can't use hooks in switch cases).
+ */
+function ViewingPhase({
+  treatmentFile,
+  rawBaseUrl,
+  selectedIntroIndex,
+  selectedTreatmentIndex,
+  onBack,
+}: {
+  treatmentFile: TreatmentFileType;
+  rawBaseUrl: string;
+  selectedIntroIndex: number;
+  selectedTreatmentIndex: number;
+  onBack: () => void;
+}) {
+  const contentFns = useMemo(
+    () => createUrlContentFns(rawBaseUrl),
+    [rawBaseUrl],
+  );
+
+  return (
+    <Viewer
+      treatmentFile={treatmentFile}
+      getTextContent={contentFns.getTextContent}
+      getAssetURL={contentFns.getAssetURL}
+      selectedIntroIndex={selectedIntroIndex}
+      selectedTreatmentIndex={selectedTreatmentIndex}
+      onBack={onBack}
+    />
+  );
 }
 
 function LoadingScreen({ url }: { url: string }) {
