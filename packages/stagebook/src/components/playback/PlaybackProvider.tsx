@@ -4,7 +4,6 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import type { PlaybackHandle } from "./PlaybackHandle.js";
@@ -15,8 +14,8 @@ import type { PlaybackHandle } from "./PlaybackHandle.js";
 
 interface PlaybackRegistry {
   handles: Map<string, PlaybackHandle>;
-  register(name: string, handle: PlaybackHandle): void;
-  unregister(name: string): void;
+  register: (name: string, handle: PlaybackHandle) => void;
+  unregister: (name: string) => void;
 }
 
 const PlaybackContext = createContext<PlaybackRegistry | null>(null);
@@ -71,18 +70,18 @@ export function useRegisterPlayback(
   handle: PlaybackHandle,
 ): void {
   const ctx = useContext(PlaybackContext);
-  // Ref the context so the effect doesn't re-fire when handles state changes.
-  // register/unregister are stable (useCallback with []), so a stale ctx ref
-  // still reaches the same functions.
-  const ctxRef = useRef(ctx);
-  ctxRef.current = ctx;
+  // Extract the stable callbacks so the effect depends on them directly
+  // rather than on the full context object (which changes whenever handles
+  // state updates). register/unregister are useCallback([]) so they only
+  // change if a different PlaybackProvider instance is mounted.
+  const register = ctx?.register;
+  const unregister = ctx?.unregister;
 
   useEffect(() => {
-    const c = ctxRef.current;
-    if (!c) return; // no PlaybackProvider above — intentional no-op
-    c.register(name, handle);
-    return () => c.unregister(name);
-  }, [name, handle]);
+    if (!register || !unregister) return; // no PlaybackProvider — no-op
+    register(name, handle);
+    return () => unregister(name);
+  }, [name, handle, register, unregister]);
 }
 
 /**
