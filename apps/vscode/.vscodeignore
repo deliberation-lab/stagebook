@@ -1,7 +1,6 @@
-src/**
-node_modules/**
-tsconfig.json
-.vscode/**
-**/*.ts
-!dist/**
-dist/**/*.map
+**
+!dist/extension.js
+!package.json
+!language-configuration.json
+!syntaxes/**
+
