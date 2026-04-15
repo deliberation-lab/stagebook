@@ -32,16 +32,15 @@ function offsetToLineCol(
 }
 
 /**
- * Given a YAML source string and a path (e.g. from a Zod issue),
- * return the source range of the value node at that path.
- *
- * Returns null if the path cannot be resolved.
+ * Resolve a path to a source range within a pre-parsed YAML document.
+ * This is the core AST-walking logic shared by pathToRange and
+ * createPositionMapper.
  */
-export function pathToRange(
+function resolvePathInDoc(
+  doc: ReturnType<typeof parseDocument>,
   source: string,
   path: (string | number)[],
 ): SourceRange | null {
-  const doc = parseDocument(source, { uniqueKeys: false });
   if (!doc.contents) return null;
 
   let node = doc.contents;
@@ -72,6 +71,49 @@ export function pathToRange(
     startCol: start.col,
     endLine: end.line,
     endCol: end.col,
+  };
+}
+
+/**
+ * Given a YAML source string and a path (e.g. from a Zod issue),
+ * return the source range of the value node at that path.
+ *
+ * Returns null if the path cannot be resolved.
+ *
+ * For resolving many paths against the same document, use
+ * createPositionMapper() instead to avoid re-parsing.
+ */
+export function pathToRange(
+  source: string,
+  path: (string | number)[],
+): SourceRange | null {
+  const doc = parseDocument(source, { uniqueKeys: false });
+  return resolvePathInDoc(doc, source, path);
+}
+
+export interface PositionMapper {
+  /** Resolve a path to a source range. Returns null if the path cannot be resolved. */
+  resolve(path: (string | number)[]): SourceRange | null;
+  /** Get the parsed JS object (for passing to Zod or remapErrorPath). */
+  toJSON(): unknown;
+}
+
+/**
+ * Parse a YAML source string once and return a mapper that can
+ * resolve many paths to source ranges without re-parsing.
+ *
+ * Use this in the validation pipeline where a single document
+ * may produce many Zod errors that each need position mapping.
+ */
+export function createPositionMapper(source: string): PositionMapper {
+  const doc = parseDocument(source, { uniqueKeys: false });
+  return {
+    resolve(path) {
+      return resolvePathInDoc(doc, source, path);
+    },
+    toJSON() {
+      return doc.toJSON();
+    },
   };
 }
 
@@ -121,7 +163,7 @@ function isTemplateContext(obj: unknown): obj is { template: string } {
   return (
     typeof obj === "object" &&
     obj !== null &&
-    "template" in obj &&
+    Object.hasOwn(obj, "template") &&
     typeof (obj as Record<string, unknown>).template === "string"
   );
 }
@@ -224,6 +266,7 @@ export function remapErrorPath(
       !Array.isArray(current) &&
       typeof segment === "string"
     ) {
+      if (!Object.hasOwn(current, segment)) return errorPath;
       current = (current as Record<string, unknown>)[segment];
       consumed.push(segment);
     } else {

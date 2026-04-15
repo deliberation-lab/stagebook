@@ -3,6 +3,7 @@ import {
   pathToRange,
   extractYamlErrors,
   remapErrorPath,
+  createPositionMapper,
 } from "./yamlPositionMap";
 
 describe("pathToRange", () => {
@@ -378,5 +379,146 @@ describe("remapErrorPath", () => {
       );
       expect(result).toEqual(["treatments", 0, "gameStages", 0, "duration"]);
     });
+  });
+
+  describe("multiple templates in one array", () => {
+    it("remaps to the correct template when multiple templates appear in sequence", () => {
+      const twoTemplates = [
+        {
+          templateName: "stageA",
+          templateContent: { name: "a", elements: [] },
+        },
+        {
+          templateName: "stageB",
+          templateContent: { name: "b", elements: [] },
+        },
+      ];
+      const original = {
+        templates: twoTemplates,
+        treatments: [
+          {
+            name: "t1",
+            gameStages: [{ template: "stageA" }, { template: "stageB" }],
+          },
+        ],
+      };
+      const result = remapErrorPath(
+        ["treatments", 0, "gameStages", 1, "name"],
+        original,
+        twoTemplates,
+      );
+      expect(result).toEqual(["templates", 1, "templateContent", "name"]);
+    });
+  });
+
+  describe("multi-dimension broadcast", () => {
+    it("remaps paths through a multi-dimension broadcast expansion", () => {
+      const original = {
+        templates,
+        treatments: [
+          {
+            name: "t1",
+            gameStages: [
+              {
+                template: "myStage",
+                broadcast: {
+                  d0: [{ topic: "a" }, { topic: "b" }],
+                  d1: [{ group: "x" }, { group: "y" }],
+                },
+              },
+            ],
+          },
+        ],
+      };
+      // 2 * 2 = 4 expanded items; index 3 is the last one
+      const result = remapErrorPath(
+        ["treatments", 0, "gameStages", 3, "elements", 0, "file"],
+        original,
+        templates,
+      );
+      expect(result).toEqual([
+        "templates",
+        0,
+        "templateContent",
+        "elements",
+        0,
+        "file",
+      ]);
+    });
+  });
+});
+
+describe("pathToRange — type mismatches", () => {
+  it("returns null for a string segment on a sequence node", () => {
+    const src = `items:
+  - first
+  - second`;
+    const range = pathToRange(src, ["items", "notANumber"]);
+    expect(range).toBeNull();
+  });
+
+  it("returns null for a numeric segment on a map node", () => {
+    const src = `name: study1`;
+    const range = pathToRange(src, [0]);
+    expect(range).toBeNull();
+  });
+});
+
+describe("pathToRange — multiline values", () => {
+  it("handles block scalar (pipe) spanning multiple lines", () => {
+    const src = `description: |
+  line one
+  line two
+name: next`;
+    const range = pathToRange(src, ["description"]);
+    expect(range).not.toBeNull();
+    expect(range!.endLine).toBeGreaterThan(range!.startLine);
+  });
+});
+
+describe("createPositionMapper", () => {
+  it("resolves multiple paths from a single parse", () => {
+    const src = `treatments:
+  - name: study1
+    playerCount: 3`;
+    const mapper = createPositionMapper(src);
+
+    const nameRange = mapper.resolve(["treatments", 0, "name"]);
+    const countRange = mapper.resolve(["treatments", 0, "playerCount"]);
+
+    expect(nameRange).toEqual({
+      startLine: 1,
+      startCol: 10,
+      endLine: 1,
+      endCol: 16,
+    });
+    expect(countRange).toEqual({
+      startLine: 2,
+      startCol: 17,
+      endLine: 2,
+      endCol: 18,
+    });
+  });
+
+  it("returns the same result as pathToRange", () => {
+    const src = `elements:
+  - type: prompt
+    file: prompts/q1.prompt.md`;
+    const mapper = createPositionMapper(src);
+
+    const fromMapper = mapper.resolve(["elements", 0, "file"]);
+    const fromDirect = pathToRange(src, ["elements", 0, "file"]);
+
+    expect(fromMapper).toEqual(fromDirect);
+  });
+
+  it("toJSON returns the parsed JS object", () => {
+    const src = `name: study1
+playerCount: 3`;
+    const mapper = createPositionMapper(src);
+    const obj = mapper.toJSON() as Record<string, unknown>;
+
+    expect(obj.name).toBe("study1");
+    expect(obj.playerCount).toBe(3);
   });
 });
