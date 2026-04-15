@@ -4,6 +4,7 @@ import {
   validateTreatmentSource,
   type Diagnostic,
 } from "./lib/validateTreatment";
+import { validatePromptSource } from "./lib/validatePrompt";
 import { pathToRange } from "./lib/yamlPositionMap";
 
 const diagnosticCollection =
@@ -215,8 +216,21 @@ function makeFileDiagnostic(
   return diag;
 }
 
-function validatePromptFile(_document: vscode.TextDocument): void {
-  // TODO (#76): validate with stagebook's promptFileSchema
+function validatePromptFile(document: vscode.TextDocument): void {
+  const source = document.getText();
+  const result = validatePromptSource(source);
+
+  const vscodeDiagnostics = result.diagnostics.map((d) => {
+    const diag = new vscode.Diagnostic(
+      toVscodeRange(d.range),
+      d.message,
+      toSeverity(d.severity),
+    );
+    diag.source = "stagebook";
+    return diag;
+  });
+
+  diagnosticCollection.set(document.uri, vscodeDiagnostics);
 }
 
 export function activate(context: vscode.ExtensionContext): void {

@@ -1,15 +1,8 @@
 import { treatmentFileSchema } from "stagebook";
-import {
-  createPositionMapper,
-  extractYamlErrors,
-  type SourceRange,
-} from "./yamlPositionMap";
+import { createPositionMapper, extractYamlErrors } from "./yamlPositionMap";
+import type { Diagnostic } from "./types";
 
-export interface Diagnostic {
-  message: string;
-  severity: "error" | "warning";
-  range: SourceRange | null;
-}
+export type { Diagnostic };
 
 export interface ValidationResult {
   diagnostics: Diagnostic[];
