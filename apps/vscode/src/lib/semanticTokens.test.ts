@@ -64,11 +64,44 @@ describe("computeSemanticTokens", () => {
       });
     });
 
-    it("highlights file paths containing template variables", () => {
+    it("splits file paths around template variables", () => {
       const src = `file: projects/${"\${topic}"}/q1.prompt.md`;
       const tokens = computeSemanticTokens(src);
       const fileTokens = tokens.filter((t) => t.tokenType === "string");
+      const varTokens = tokens.filter((t) => t.tokenType === "variable");
+      // "projects/" and "/q1.prompt.md" as string, "${topic}" as variable
+      expect(fileTokens).toHaveLength(2);
+      expect(fileTokens[0]).toMatchObject({ text: "projects/" });
+      expect(fileTokens[1]).toMatchObject({ text: "/q1.prompt.md" });
+      expect(varTokens).toHaveLength(1);
+      expect(varTokens[0]).toMatchObject({ text: "${topic}" });
+    });
+
+    it("highlights simple file paths as a single string token", () => {
+      const src = `file: prompts/q1.prompt.md`;
+      const tokens = computeSemanticTokens(src);
+      const fileTokens = tokens.filter((t) => t.tokenType === "string");
       expect(fileTokens).toHaveLength(1);
+      expect(fileTokens[0]).toMatchObject({ text: "prompts/q1.prompt.md" });
+    });
+  });
+
+  describe("template variables in values", () => {
+    it("highlights ${...} placeholders in non-file values", () => {
+      const src = `name: \${topicName}_presurvey`;
+      const tokens = computeSemanticTokens(src);
+      const varTokens = tokens.filter((t) => t.tokenType === "variable");
+      expect(varTokens).toHaveLength(1);
+      expect(varTokens[0]).toMatchObject({ text: "${topicName}" });
+    });
+
+    it("highlights multiple placeholders in one value", () => {
+      const src = `name: \${topic}_\${condition}_stage`;
+      const tokens = computeSemanticTokens(src);
+      const varTokens = tokens.filter((t) => t.tokenType === "variable");
+      expect(varTokens).toHaveLength(2);
+      expect(varTokens[0]).toMatchObject({ text: "${topic}" });
+      expect(varTokens[1]).toMatchObject({ text: "${condition}" });
     });
   });
 
