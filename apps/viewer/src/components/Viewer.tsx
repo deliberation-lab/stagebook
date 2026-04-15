@@ -9,9 +9,10 @@ import { StateInspector } from "./StateInspector";
 import { TimeScrubber } from "./TimeScrubber";
 import { createSkeletonRenderers } from "./SkeletonPlaceholder";
 
-interface ViewerProps {
+export interface ViewerProps {
   treatmentFile: TreatmentFileType;
-  rawBaseUrl: string;
+  getTextContent: (path: string) => Promise<string>;
+  getAssetURL: (path: string) => string;
   selectedIntroIndex: number;
   selectedTreatmentIndex: number;
   onBack: () => void;
@@ -19,7 +20,8 @@ interface ViewerProps {
 
 export function Viewer({
   treatmentFile,
-  rawBaseUrl,
+  getTextContent,
+  getAssetURL,
   selectedIntroIndex,
   selectedTreatmentIndex,
   onBack,
@@ -60,35 +62,6 @@ export function Viewer({
     [store, stageIndex],
   );
 
-  // getTextContent and getAssetURL only depend on rawBaseUrl, so keep
-  // them stable across stage/position changes to avoid re-fetch loops
-  // in useTextContent (which has getTextContent as an effect dependency).
-  const stableContentFns = useMemo(() => {
-    const cache = new Map<string, Promise<string>>();
-    return {
-      getTextContent(path: string): Promise<string> {
-        const cached = cache.get(path);
-        if (cached) return cached;
-        const promise = fetch(rawBaseUrl + path)
-          .then((res) => {
-            if (!res.ok) {
-              throw new Error(`Failed to fetch ${path} (HTTP ${res.status})`);
-            }
-            return res.text();
-          })
-          .catch((err) => {
-            cache.delete(path);
-            throw err;
-          });
-        cache.set(path, promise);
-        return promise;
-      },
-      getAssetURL(path: string): string {
-        return rawBaseUrl + path;
-      },
-    };
-  }, [rawBaseUrl]);
-
   const ctx = useMemo(
     () =>
       createViewerContext({
@@ -97,7 +70,8 @@ export function Viewer({
         stageIndex,
         playerCount: treatment.playerCount,
         onSubmit: handleSubmit,
-        ...stableContentFns,
+        getTextContent,
+        getAssetURL,
         renderers: createSkeletonRenderers(),
       }),
     [
@@ -106,7 +80,8 @@ export function Viewer({
       stageIndex,
       treatment.playerCount,
       handleSubmit,
-      stableContentFns,
+      getTextContent,
+      getAssetURL,
     ],
   );
 

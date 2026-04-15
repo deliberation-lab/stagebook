@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
 import {
@@ -6,6 +6,7 @@ import {
   TreatmentValidationError,
   type ValidationIssue,
 } from "./lib/treatment";
+import { createUrlContentFns } from "./lib/contentFns";
 import { LandingPage } from "./components/LandingPage";
 import { TreatmentPicker } from "./components/TreatmentPicker";
 import { FieldForm } from "./components/FieldForm";
@@ -172,16 +173,19 @@ export function App() {
       );
     }
 
-    case "viewing":
+    case "viewing": {
+      const contentFns = createUrlContentFns(state.rawBaseUrl);
       return (
         <Viewer
           treatmentFile={state.treatmentFile}
-          rawBaseUrl={state.rawBaseUrl}
+          getTextContent={contentFns.getTextContent}
+          getAssetURL={contentFns.getAssetURL}
           selectedIntroIndex={state.selectedIntroIndex}
           selectedTreatmentIndex={state.selectedTreatmentIndex}
           onBack={() => setState({ phase: "landing" })}
         />
       );
+    }
   }
 }
 
