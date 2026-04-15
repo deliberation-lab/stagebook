@@ -173,20 +173,51 @@ export function App() {
       );
     }
 
-    case "viewing": {
-      const contentFns = createUrlContentFns(state.rawBaseUrl);
+    case "viewing":
       return (
-        <Viewer
+        <ViewingPhase
           treatmentFile={state.treatmentFile}
-          getTextContent={contentFns.getTextContent}
-          getAssetURL={contentFns.getAssetURL}
+          rawBaseUrl={state.rawBaseUrl}
           selectedIntroIndex={state.selectedIntroIndex}
           selectedTreatmentIndex={state.selectedTreatmentIndex}
           onBack={() => setState({ phase: "landing" })}
         />
       );
-    }
   }
+}
+
+/**
+ * Wrapper component for the viewing phase — enables useMemo for
+ * stable content function references (can't use hooks in switch cases).
+ */
+function ViewingPhase({
+  treatmentFile,
+  rawBaseUrl,
+  selectedIntroIndex,
+  selectedTreatmentIndex,
+  onBack,
+}: {
+  treatmentFile: TreatmentFileType;
+  rawBaseUrl: string;
+  selectedIntroIndex: number;
+  selectedTreatmentIndex: number;
+  onBack: () => void;
+}) {
+  const contentFns = useMemo(
+    () => createUrlContentFns(rawBaseUrl),
+    [rawBaseUrl],
+  );
+
+  return (
+    <Viewer
+      treatmentFile={treatmentFile}
+      getTextContent={contentFns.getTextContent}
+      getAssetURL={contentFns.getAssetURL}
+      selectedIntroIndex={selectedIntroIndex}
+      selectedTreatmentIndex={selectedTreatmentIndex}
+      onBack={onBack}
+    />
+  );
 }
 
 function LoadingScreen({ url }: { url: string }) {
