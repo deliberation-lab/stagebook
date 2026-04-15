@@ -19,10 +19,6 @@
     "Linters"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [
-    "onLanguage:treatmentsYaml",
-    "onLanguage:stagebookPrompt"
-  ],
   "contributes": {
     "languages": [
       {
@@ -60,7 +56,17 @@
     "configurationDefaults": {
       "[treatmentsYaml]": {
         "editor.tabSize": 2,
-        "editor.insertSpaces": true
+        "editor.insertSpaces": true,
+        "editor.semanticHighlighting.enabled": true
+      },
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "type:treatmentsYaml": "#4EC9B0",
+          "keyword:treatmentsYaml": "#C586C0",
+          "variable:treatmentsYaml": "#9CDCFE",
+          "string:treatmentsYaml": "#DCDCAA",
+          "property:treatmentsYaml": "#569CD6"
+        }
       }
     }
   },
@@ -83,6 +89,7 @@
     "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "vscode-tmgrammar-test": "^0.1.3"
   }
 }

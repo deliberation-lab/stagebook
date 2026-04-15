@@ -6,6 +6,10 @@ import {
 } from "./lib/validateTreatment";
 import { validatePromptSource } from "./lib/validatePrompt";
 import { pathToRange } from "./lib/yamlPositionMap";
+import {
+  computeSemanticTokens,
+  type SemanticTokenType,
+} from "./lib/semanticTokens";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
@@ -233,8 +237,54 @@ function validatePromptFile(document: vscode.TextDocument): void {
   diagnosticCollection.set(document.uri, vscodeDiagnostics);
 }
 
+// Standard VS Code semantic token types — every theme colors these
+const semanticTokenTypes: SemanticTokenType[] = [
+  "type",
+  "keyword",
+  "variable",
+  "string",
+  "property",
+];
+
+const tokenLegend = new vscode.SemanticTokensLegend(semanticTokenTypes);
+
+class TreatmentSemanticTokenProvider
+  implements vscode.DocumentSemanticTokensProvider
+{
+  provideDocumentSemanticTokens(
+    document: vscode.TextDocument,
+  ): vscode.SemanticTokens {
+    const builder = new vscode.SemanticTokensBuilder(tokenLegend);
+    const source = document.getText();
+    const tokens = computeSemanticTokens(source);
+
+    for (const token of tokens) {
+      builder.push(
+        new vscode.Range(
+          token.line,
+          token.startCol,
+          token.line,
+          token.startCol + token.length,
+        ),
+        token.tokenType,
+      );
+    }
+
+    return builder.build();
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(diagnosticCollection);
+
+  // Register semantic token provider for treatment files
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      { language: "treatmentsYaml" },
+      new TreatmentSemanticTokenProvider(),
+      tokenLegend,
+    ),
+  );
 
   // Validate the active document on activation (no debounce)
   if (vscode.window.activeTextEditor) {
