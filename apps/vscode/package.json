@@ -24,12 +24,21 @@
       {
         "command": "stagebook.previewExpandedTemplates",
         "title": "Stagebook: Preview Expanded Templates"
+      },
+      {
+        "command": "stagebook.previewStage",
+        "title": "Stagebook: Preview Stage"
       }
     ],
     "menus": {
       "editor/context": [
         {
           "command": "stagebook.previewExpandedTemplates",
+          "when": "resourceLangId == treatmentsYaml",
+          "group": "navigation"
+        },
+        {
+          "command": "stagebook.previewStage",
           "when": "resourceLangId == treatmentsYaml",
           "group": "navigation"
         }
@@ -86,7 +95,9 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "build:webview": "esbuild src/webview/index.tsx --bundle --outfile=dist/webview.js --format=iife --platform=browser --sourcemap --loader:.css=text --define:process.env.NODE_ENV='\"production\"'",
     "build:watch": "npm run build -- --watch",
     "vscode:prepublish": "npm run build",
     "package": "vsce package --no-dependencies",
@@ -94,11 +105,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "stagebook": "*",
+    "stagebook-viewer": "*",
     "yaml": "^2.8.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@types/node": "^22.0.0",
     "@types/vscode": "1.115.0",
     "@vscode/vsce": "^3.0.0",
