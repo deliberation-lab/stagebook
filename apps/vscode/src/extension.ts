@@ -563,7 +563,12 @@ function getNonce(): string {
 }
 
 function parseTreatmentForPreview(source: string) {
-  const obj = parseYaml(source);
+  let obj: unknown;
+  try {
+    obj = parseYaml(source);
+  } catch {
+    return null;
+  }
   if (typeof obj !== "object" || obj === null) return null;
   const record = obj as Record<string, unknown>;
   const templates = (record.templates ?? []) as unknown[];
@@ -669,6 +674,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Register stage preview webview command
   let previewPanel: vscode.WebviewPanel | undefined;
+  // Mutable state updated on each command invocation — avoids stale closures
+  let currentTreatment: ReturnType<typeof parseTreatmentForPreview> = null;
+  let currentWorkspaceFolder: vscode.WorkspaceFolder | undefined;
 
   context.subscriptions.push(
     vscode.commands.registerCommand("stagebook.previewStage", () => {
@@ -679,17 +687,24 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const source = editor.document.getText();
-      const treatmentFile = parseTreatmentForPreview(source);
-      if (!treatmentFile) {
+      currentTreatment = parseTreatmentForPreview(source);
+      if (!currentTreatment) {
         vscode.window.showErrorMessage(
           "Could not parse treatment file for preview.",
         );
         return;
       }
 
-      const workspaceFolder =
+      currentWorkspaceFolder =
         vscode.workspace.getWorkspaceFolder(editor.document.uri) ??
         vscode.workspace.workspaceFolders?.[0];
+
+      if (!currentWorkspaceFolder) {
+        vscode.window.showErrorMessage(
+          "No workspace folder found. Open a folder first.",
+        );
+        return;
+      }
 
       if (previewPanel) {
         previewPanel.reveal(vscode.ViewColumn.Beside);
@@ -702,7 +717,7 @@ export function activate(context: vscode.ExtensionContext): void {
             enableScripts: true,
             localResourceRoots: [
               vscode.Uri.joinPath(context.extensionUri, "dist"),
-              ...(workspaceFolder ? [workspaceFolder.uri] : []),
+              ...(vscode.workspace.workspaceFolders?.map((f) => f.uri) ?? []),
             ],
           },
         );
@@ -712,25 +727,36 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Handle messages from the webview
         previewPanel.webview.onDidReceiveMessage(async (msg) => {
-          if (msg.type === "ready") {
-            // Webview JS loaded — send treatment data now
-            const baseUri = workspaceFolder
-              ? previewPanel!.webview
-                  .asWebviewUri(workspaceFolder.uri)
-                  .toString()
-              : "";
+          if (
+            msg.type === "ready" &&
+            currentTreatment &&
+            currentWorkspaceFolder
+          ) {
+            const baseUri = previewPanel!.webview
+              .asWebviewUri(currentWorkspaceFolder.uri)
+              .toString();
             previewPanel?.webview.postMessage({
               type: "treatment",
-              treatmentFile,
+              treatmentFile: currentTreatment,
               introIndex: 0,
               treatmentIndex: 0,
               webviewBaseUri: baseUri,
             });
-          } else if (msg.type === "readFile" && workspaceFolder) {
+          } else if (msg.type === "readFile" && currentWorkspaceFolder) {
+            // Guard against path traversal
+            const filePath = String(msg.path);
+            if (filePath.includes("..") || path.isAbsolute(filePath)) {
+              previewPanel?.webview.postMessage({
+                type: "fileContent",
+                requestId: msg.requestId,
+                error: `Invalid path: ${filePath}`,
+              });
+              return;
+            }
             try {
               const fileUri = vscode.Uri.joinPath(
-                workspaceFolder.uri,
-                msg.path,
+                currentWorkspaceFolder.uri,
+                filePath,
               );
               const content = await vscode.workspace.fs.readFile(fileUri);
               previewPanel?.webview.postMessage({
@@ -742,7 +768,7 @@ export function activate(context: vscode.ExtensionContext): void {
               previewPanel?.webview.postMessage({
                 type: "fileContent",
                 requestId: msg.requestId,
-                error: `Failed to read: ${msg.path}`,
+                error: `Failed to read: ${filePath}`,
               });
             }
           }

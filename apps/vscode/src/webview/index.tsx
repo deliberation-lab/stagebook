@@ -52,14 +52,20 @@ function createWebviewContentFns(webviewBaseUri: string) {
       const promise = new Promise<string>((resolve, reject) => {
         pendingRequests.set(id, { resolve, reject });
         vscode.postMessage({ type: "readFile", requestId: id, path });
-      });
+      }).catch((err) => {
+        cache.delete(path);
+        throw err;
+      }) as Promise<string>;
 
       cache.set(path, promise);
       return promise;
     },
 
-    getAssetURL(path: string): string {
-      return webviewBaseUri + "/" + path;
+    getAssetURL(assetPath: string): string {
+      const base = webviewBaseUri.endsWith("/")
+        ? webviewBaseUri
+        : webviewBaseUri + "/";
+      return base + assetPath.replace(/^\/+/, "");
     },
   };
 }

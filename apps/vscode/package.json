@@ -98,8 +98,10 @@
     "build": "npm run build:extension && npm run build:webview",
     "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
     "build:webview": "esbuild src/webview/index.tsx --bundle --outfile=dist/webview.js --format=iife --platform=browser --sourcemap --loader:.css=text --define:process.env.NODE_ENV='\"production\"'",
-    "build:watch": "npm run build -- --watch",
-    "vscode:prepublish": "npm run build",
+    "build:production": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify && esbuild src/webview/index.tsx --bundle --outfile=dist/webview.js --format=iife --platform=browser --minify --loader:.css=text --define:process.env.NODE_ENV='\"production\"'",
+    "build:watch:extension": "npm run build:extension -- --watch",
+    "build:watch:webview": "npm run build:webview -- --watch",
+    "vscode:prepublish": "npm run build:production",
     "package": "vsce package --no-dependencies",
     "lint": "echo 'no linter configured yet'",
     "test": "vitest run"
