@@ -284,8 +284,7 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
   readonly onDidChange = this._onDidChange.event;
 
   provideTextDocumentContent(uri: vscode.Uri): string {
-    // The source document URI is encoded in the query parameter
-    const sourceUri = vscode.Uri.parse(uri.query);
+    const sourceUri = vscode.Uri.parse(decodeURIComponent(uri.query));
     const sourceDoc = vscode.workspace.textDocuments.find(
       (d) => d.uri.toString() === sourceUri.toString(),
     );
@@ -295,14 +294,18 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
 
     const result = expandTreatmentSource(sourceDoc.getText());
     if (result.error) {
-      return `# Template expansion error:\n# ${result.error}`;
+      const commentedError = result.error
+        .split(/\r?\n/)
+        .map((line) => `# ${line}`)
+        .join("\n");
+      return `# Template expansion error:\n${commentedError}`;
     }
     return result.yaml;
   }
 
   refreshForSource(sourceUri: vscode.Uri): void {
     const expandedUri = vscode.Uri.parse(
-      `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${sourceUri.toString()}`,
+      `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
     );
     this._onDidChange.fire(expandedUri);
   }
@@ -344,7 +347,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const sourceUri = editor.document.uri;
         const expandedUri = vscode.Uri.parse(
-          `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${sourceUri.toString()}`,
+          `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
         );
 
         const doc = await vscode.workspace.openTextDocument(expandedUri);

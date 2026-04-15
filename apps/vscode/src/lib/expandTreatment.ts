@@ -34,7 +34,11 @@ function checkBroadcastSize(obj: unknown, limit: number): string | null {
     if (typeof node !== "object" || node === null) return;
     const record = node as Record<string, unknown>;
 
-    if (record.broadcast && typeof record.broadcast === "object") {
+    if (
+      typeof record.template === "string" &&
+      record.broadcast &&
+      typeof record.broadcast === "object"
+    ) {
       const dims = record.broadcast as Record<string, unknown>;
       let product = 1;
       for (const dim of Object.values(dims)) {
@@ -90,6 +94,15 @@ export function expandTreatmentSource(
   }
 
   const record = obj as Record<string, unknown>;
+
+  if (record.templates !== undefined && !Array.isArray(record.templates)) {
+    return {
+      yaml: "",
+      error: "The 'templates' key must be an array.",
+      truncated: false,
+    };
+  }
+
   const templates = (record.templates ?? []) as unknown[];
 
   // Guard against combinatorial explosion from large broadcast dimensions.

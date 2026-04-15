@@ -109,19 +109,13 @@ treatments:
       expect(result.error).not.toBeNull();
     });
 
-    it("returns an error when template expansion fails", () => {
-      const src = `templates:
-  - templateName: myStage
-    templateContent:
-      name: \${missing}_stage
+    it("returns an error when templates key is not an array", () => {
+      const src = `templates: notAnArray
 treatments:
-  - name: study1
-    playerCount: 1
-    gameStages:
-      - template: myStage`;
+  - name: study1`;
       const result = expandTreatmentSource(src);
-      // Should either expand with unresolved fields or report an error
-      expect(result.yaml.length > 0 || result.error !== null).toBe(true);
+      expect(result.error).toContain("must be an array");
+      expect(result.yaml).toBe("");
     });
   });
 
