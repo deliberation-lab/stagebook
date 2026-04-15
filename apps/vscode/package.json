@@ -67,7 +67,7 @@
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
     "build:watch": "npm run build -- --watch",
-    "package": "vsce package",
+    "package": "vsce package --no-dependencies",
     "lint": "echo 'no linter configured yet'",
     "test": "vitest run"
   },
