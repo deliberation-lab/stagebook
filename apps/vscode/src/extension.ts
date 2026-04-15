@@ -470,8 +470,79 @@ function getWebviewContent(
   <style>
     :root {
       --viewer-sidebar-width: 280px;
+      --stagebook-primary: #3b82f6;
+      --stagebook-primary-hover: #2563eb;
+      --stagebook-text: #1f2937;
+      --stagebook-text-secondary: #374151;
+      --stagebook-text-muted: #6b7280;
+      --stagebook-text-faint: #9ca3af;
+      --stagebook-border: #d1d5db;
+      --stagebook-bg-muted: #f9fafb;
+      --stagebook-bg-track: #e5e7eb;
+      --stagebook-prompt-max-width: 36rem;
+      --stagebook-prompt-text-size: 1rem;
+      --stagebook-prompt-line-height: 1.5;
+      --stagebook-prompt-h1-size: 1.875rem;
+      --stagebook-prompt-h2-size: 1.5rem;
+      --stagebook-prompt-h3-size: 1.25rem;
+      --stagebook-prompt-h1-weight: 700;
+      --stagebook-prompt-h2-weight: 600;
+      --stagebook-prompt-h3-weight: 600;
+      --stagebook-link: #2563eb;
+      --stagebook-code-bg: rgba(0, 0, 0, 0.06);
+      --stagebook-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --stagebook-blockquote-border: #d1d5db;
+      --stagebook-blockquote-bg: #f9fafb;
     }
-    body { margin: 0; padding: 0; }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #ffffff;
+      color: var(--stagebook-text);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    /* Reset VS Code webview defaults */
+    code, pre {
+      font-family: var(--stagebook-code-font);
+      background-color: var(--stagebook-code-bg);
+      color: var(--stagebook-text);
+    }
+    pre {
+      padding: 0.75rem 1rem;
+      border-radius: 0.375rem;
+      overflow-x: auto;
+    }
+    code {
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      font-size: 0.875em;
+    }
+    /* Form resets */
+    input[type="checkbox"], input[type="radio"] {
+      appearance: none;
+      width: 1rem; height: 1rem;
+      border: 1px solid var(--stagebook-border);
+      border-radius: 0.125rem;
+      background-color: #fff;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    input[type="radio"] { border-radius: 9999px; }
+    input[type="checkbox"]:checked, input[type="radio"]:checked {
+      background-color: var(--stagebook-primary);
+      border-color: var(--stagebook-primary);
+      background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+      background-size: 100% 100%; background-position: center; background-repeat: no-repeat;
+    }
+    input[type="radio"]:checked {
+      background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e");
+    }
+    table { border-collapse: collapse; margin: 1rem 0; width: 100%; max-width: var(--stagebook-prompt-max-width); }
+    th, td { border: 1px solid var(--stagebook-border); padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+    th { background-color: var(--stagebook-bg-muted); font-weight: 500; }
   </style>
 </head>
 <body>
@@ -641,7 +712,21 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Handle messages from the webview
         previewPanel.webview.onDidReceiveMessage(async (msg) => {
-          if (msg.type === "readFile" && workspaceFolder) {
+          if (msg.type === "ready") {
+            // Webview JS loaded — send treatment data now
+            const baseUri = workspaceFolder
+              ? previewPanel!.webview
+                  .asWebviewUri(workspaceFolder.uri)
+                  .toString()
+              : "";
+            previewPanel?.webview.postMessage({
+              type: "treatment",
+              treatmentFile,
+              introIndex: 0,
+              treatmentIndex: 0,
+              webviewBaseUri: baseUri,
+            });
+          } else if (msg.type === "readFile" && workspaceFolder) {
             try {
               const fileUri = vscode.Uri.joinPath(
                 workspaceFolder.uri,
@@ -668,18 +753,6 @@ export function activate(context: vscode.ExtensionContext): void {
         previewPanel.webview,
         context.extensionUri,
       );
-
-      const webviewBaseUri = workspaceFolder
-        ? previewPanel.webview.asWebviewUri(workspaceFolder.uri).toString()
-        : "";
-
-      previewPanel.webview.postMessage({
-        type: "treatment",
-        treatmentFile,
-        introIndex: 0,
-        treatmentIndex: 0,
-        webviewBaseUri,
-      });
     }),
   );
 

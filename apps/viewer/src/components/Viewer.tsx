@@ -40,8 +40,10 @@ export function Viewer({
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
 
-  // Subscribe to store changes so the UI re-renders
-  useSyncExternalStore(
+  // Subscribe to store changes so the UI re-renders.
+  // The version is included in ctx memo deps below so that
+  // StagebookProvider gets a new context value on store changes.
+  const storeVersion = useSyncExternalStore(
     useCallback((cb: () => void) => store.onChange(cb), [store]),
     useCallback(() => store.getVersion(), [store]),
   );
@@ -76,8 +78,10 @@ export function Viewer({
         getAssetURL,
         renderers: createSkeletonRenderers(),
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       store,
+      storeVersion,
       position,
       stageIndex,
       treatment.playerCount,
