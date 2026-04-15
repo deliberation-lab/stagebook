@@ -9,7 +9,7 @@ export function ImageElement({ src, width }: ImageElementProps) {
   if (!src) return null;
 
   return (
-    <div className="flex justify-center">
+    <div style={{ display: "flex", justifyContent: "center" }}>
       <img src={src} alt="" width={width ? `${width}%` : "100%"} />
     </div>
   );
