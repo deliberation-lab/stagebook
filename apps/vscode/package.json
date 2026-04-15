@@ -20,6 +20,21 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "stagebook.previewExpandedTemplates",
+        "title": "Stagebook: Preview Expanded Templates"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "stagebook.previewExpandedTemplates",
+          "when": "resourceLangId == treatmentsYaml",
+          "group": "navigation"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "treatmentsYaml",
