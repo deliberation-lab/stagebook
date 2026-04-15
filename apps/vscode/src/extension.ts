@@ -10,6 +10,7 @@ import {
   computeSemanticTokens,
   type SemanticTokenType,
 } from "./lib/semanticTokens";
+import { expandTreatmentSource } from "./lib/expandTreatment";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
@@ -274,6 +275,42 @@ class TreatmentSemanticTokenProvider
   }
 }
 
+// --- Expanded Templates Preview ---
+
+const EXPANDED_SCHEME = "stagebook-expanded";
+
+class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
+  private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
+  readonly onDidChange = this._onDidChange.event;
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    const sourceUri = vscode.Uri.parse(decodeURIComponent(uri.query));
+    const sourceDoc = vscode.workspace.textDocuments.find(
+      (d) => d.uri.toString() === sourceUri.toString(),
+    );
+    if (!sourceDoc) {
+      return "# Source document not found. Please reopen the preview.";
+    }
+
+    const result = expandTreatmentSource(sourceDoc.getText());
+    if (result.error) {
+      const commentedError = result.error
+        .split(/\r?\n/)
+        .map((line) => `# ${line}`)
+        .join("\n");
+      return `# Template expansion error:\n${commentedError}`;
+    }
+    return result.yaml;
+  }
+
+  refreshForSource(sourceUri: vscode.Uri): void {
+    const expandedUri = vscode.Uri.parse(
+      `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+    );
+    this._onDidChange.fire(expandedUri);
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(diagnosticCollection);
 
@@ -284,6 +321,54 @@ export function activate(context: vscode.ExtensionContext): void {
       new TreatmentSemanticTokenProvider(),
       tokenLegend,
     ),
+  );
+
+  // Register expanded templates content provider
+  const expandedProvider = new ExpandedTemplatesProvider();
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(
+      EXPANDED_SCHEME,
+      expandedProvider,
+    ),
+  );
+
+  // Register the expand command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "stagebook.previewExpandedTemplates",
+      async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || !isTreatmentsYaml(editor.document)) {
+          vscode.window.showWarningMessage(
+            "Open a .treatments.yaml file first.",
+          );
+          return;
+        }
+
+        const sourceUri = editor.document.uri;
+        const expandedUri = vscode.Uri.parse(
+          `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+        );
+
+        const doc = await vscode.workspace.openTextDocument(expandedUri);
+        await vscode.window.showTextDocument(doc, {
+          viewColumn: vscode.ViewColumn.Beside,
+          preview: true,
+          preserveFocus: true,
+        });
+        // Set language for syntax highlighting
+        await vscode.languages.setTextDocumentLanguage(doc, "yaml");
+      },
+    ),
+  );
+
+  // Auto-refresh the expanded preview when the source changes
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      if (isTreatmentsYaml(e.document)) {
+        expandedProvider.refreshForSource(e.document.uri);
+      }
+    }),
   );
 
   // Validate the active document on activation (no debounce)
