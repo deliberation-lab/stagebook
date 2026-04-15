@@ -14,7 +14,10 @@
   "engines": {
     "vscode": "^1.115.0"
   },
-  "categories": ["Programming Languages", "Linters"],
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
   "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguage:treatmentsYaml",
@@ -24,14 +27,22 @@
     "languages": [
       {
         "id": "treatmentsYaml",
-        "aliases": ["Treatments YAML"],
-        "extensions": [".treatments.yaml"],
+        "aliases": [
+          "Treatments YAML"
+        ],
+        "extensions": [
+          ".treatments.yaml"
+        ],
         "configuration": "./language-configuration.json"
       },
       {
         "id": "stagebookPrompt",
-        "aliases": ["Stagebook Prompt"],
-        "extensions": [".prompt.md"]
+        "aliases": [
+          "Stagebook Prompt"
+        ],
+        "extensions": [
+          ".prompt.md"
+        ]
       }
     ],
     "grammars": [
@@ -61,15 +72,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "js-yaml": "^4.1.1",
     "stagebook": "*",
+    "yaml": "^2.8.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.0.0",
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "@types/vscode": "1.115.0",
+    "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.5.0",
     "vitest": "^4.1.4"
