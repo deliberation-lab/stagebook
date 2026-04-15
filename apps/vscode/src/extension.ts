@@ -12,6 +12,8 @@ import {
 } from "./lib/semanticTokens";
 import { expandTreatmentSource } from "./lib/expandTreatment";
 import { findClosestMatch } from "./lib/levenshtein";
+import { fillTemplates, treatmentFileSchema } from "stagebook";
+import { parse as parseYaml } from "yaml";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
@@ -448,6 +450,148 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
   }
 }
 
+// --- Stage Preview Webview ---
+
+function getWebviewContent(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+): string {
+  const scriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "dist", "webview.js"),
+  );
+  const nonce = getNonce();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource};">
+  <style>
+    :root {
+      --viewer-sidebar-width: 280px;
+      --stagebook-primary: #3b82f6;
+      --stagebook-primary-hover: #2563eb;
+      --stagebook-text: #1f2937;
+      --stagebook-text-secondary: #374151;
+      --stagebook-text-muted: #6b7280;
+      --stagebook-text-faint: #9ca3af;
+      --stagebook-border: #d1d5db;
+      --stagebook-bg-muted: #f9fafb;
+      --stagebook-bg-track: #e5e7eb;
+      --stagebook-prompt-max-width: 36rem;
+      --stagebook-prompt-text-size: 1rem;
+      --stagebook-prompt-line-height: 1.5;
+      --stagebook-prompt-h1-size: 1.875rem;
+      --stagebook-prompt-h2-size: 1.5rem;
+      --stagebook-prompt-h3-size: 1.25rem;
+      --stagebook-prompt-h1-weight: 700;
+      --stagebook-prompt-h2-weight: 600;
+      --stagebook-prompt-h3-weight: 600;
+      --stagebook-link: #2563eb;
+      --stagebook-code-bg: rgba(0, 0, 0, 0.06);
+      --stagebook-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --stagebook-blockquote-border: #d1d5db;
+      --stagebook-blockquote-bg: #f9fafb;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #ffffff;
+      color: var(--stagebook-text);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    /* Reset VS Code webview defaults */
+    code, pre {
+      font-family: var(--stagebook-code-font);
+      background-color: var(--stagebook-code-bg);
+      color: var(--stagebook-text);
+    }
+    pre {
+      padding: 0.75rem 1rem;
+      border-radius: 0.375rem;
+      overflow-x: auto;
+    }
+    code {
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      font-size: 0.875em;
+    }
+    /* Form resets */
+    input[type="checkbox"], input[type="radio"] {
+      appearance: none;
+      width: 1rem; height: 1rem;
+      border: 1px solid var(--stagebook-border);
+      border-radius: 0.125rem;
+      background-color: #fff;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    input[type="radio"] { border-radius: 9999px; }
+    input[type="checkbox"]:checked, input[type="radio"]:checked {
+      background-color: var(--stagebook-primary);
+      border-color: var(--stagebook-primary);
+      background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+      background-size: 100% 100%; background-position: center; background-repeat: no-repeat;
+    }
+    input[type="radio"]:checked {
+      background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e");
+    }
+    table { border-collapse: collapse; margin: 1rem 0; width: 100%; max-width: var(--stagebook-prompt-max-width); }
+    th, td { border: 1px solid var(--stagebook-border); padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+    th { background-color: var(--stagebook-bg-muted); font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+}
+
+function getNonce(): string {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let nonce = "";
+  for (let i = 0; i < 32; i++) {
+    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return nonce;
+}
+
+function parseTreatmentForPreview(source: string) {
+  let obj: unknown;
+  try {
+    obj = parseYaml(source);
+  } catch {
+    return null;
+  }
+  if (typeof obj !== "object" || obj === null) return null;
+  const record = obj as Record<string, unknown>;
+  const templates = (record.templates ?? []) as unknown[];
+
+  let expanded = record;
+  if (templates.length > 0) {
+    try {
+      const { result } = fillTemplates({
+        obj: record,
+        templates,
+        allowUnresolved: true,
+      });
+      expanded = result as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  const parsed = treatmentFileSchema.safeParse(expanded);
+  if (!parsed.success) return null;
+  return parsed.data;
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(diagnosticCollection);
 
@@ -525,6 +669,116 @@ export function activate(context: vscode.ExtensionContext): void {
       if (isTreatmentsYaml(e.document)) {
         expandedProvider.refreshForSource(e.document.uri);
       }
+    }),
+  );
+
+  // Register stage preview webview command
+  let previewPanel: vscode.WebviewPanel | undefined;
+  // Mutable state updated on each command invocation — avoids stale closures
+  let currentTreatment: ReturnType<typeof parseTreatmentForPreview> = null;
+  let currentWorkspaceFolder: vscode.WorkspaceFolder | undefined;
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("stagebook.previewStage", () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || !isTreatmentsYaml(editor.document)) {
+        vscode.window.showWarningMessage("Open a .treatments.yaml file first.");
+        return;
+      }
+
+      const source = editor.document.getText();
+      currentTreatment = parseTreatmentForPreview(source);
+      if (!currentTreatment) {
+        vscode.window.showErrorMessage(
+          "Could not parse treatment file for preview.",
+        );
+        return;
+      }
+
+      currentWorkspaceFolder =
+        vscode.workspace.getWorkspaceFolder(editor.document.uri) ??
+        vscode.workspace.workspaceFolders?.[0];
+
+      if (!currentWorkspaceFolder) {
+        vscode.window.showErrorMessage(
+          "No workspace folder found. Open a folder first.",
+        );
+        return;
+      }
+
+      if (previewPanel) {
+        previewPanel.reveal(vscode.ViewColumn.Beside);
+      } else {
+        previewPanel = vscode.window.createWebviewPanel(
+          "stagebook.stagePreview",
+          "Stage Preview",
+          vscode.ViewColumn.Beside,
+          {
+            enableScripts: true,
+            localResourceRoots: [
+              vscode.Uri.joinPath(context.extensionUri, "dist"),
+              ...(vscode.workspace.workspaceFolders?.map((f) => f.uri) ?? []),
+            ],
+          },
+        );
+        previewPanel.onDidDispose(() => {
+          previewPanel = undefined;
+        });
+
+        // Handle messages from the webview
+        previewPanel.webview.onDidReceiveMessage(async (msg) => {
+          if (
+            msg.type === "ready" &&
+            currentTreatment &&
+            currentWorkspaceFolder
+          ) {
+            const baseUri = previewPanel!.webview
+              .asWebviewUri(currentWorkspaceFolder.uri)
+              .toString();
+            previewPanel?.webview.postMessage({
+              type: "treatment",
+              treatmentFile: currentTreatment,
+              introIndex: 0,
+              treatmentIndex: 0,
+              webviewBaseUri: baseUri,
+            });
+          } else if (msg.type === "readFile" && currentWorkspaceFolder) {
+            // Guard against path traversal
+            const filePath = String(msg.path);
+            if (filePath.includes("..") || path.isAbsolute(filePath)) {
+              previewPanel?.webview.postMessage({
+                type: "fileContent",
+                requestId: msg.requestId,
+                error: `Invalid path: ${filePath}`,
+              });
+              return;
+            }
+            try {
+              const fileUri = vscode.Uri.joinPath(
+                currentWorkspaceFolder.uri,
+                filePath,
+              );
+              const content = await vscode.workspace.fs.readFile(fileUri);
+              previewPanel?.webview.postMessage({
+                type: "fileContent",
+                requestId: msg.requestId,
+                content: new TextDecoder().decode(content),
+              });
+            } catch {
+              previewPanel?.webview.postMessage({
+                type: "fileContent",
+                requestId: msg.requestId,
+                error: `Failed to read: ${filePath}`,
+              });
+            }
+          }
+        });
+      }
+
+      previewPanel.webview.html = getWebviewContent(
+        previewPanel.webview,
+        context.extensionUri,
+      );
     }),
   );
 
