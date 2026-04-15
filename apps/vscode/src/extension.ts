@@ -11,6 +11,7 @@ import {
   type SemanticTokenType,
 } from "./lib/semanticTokens";
 import { expandTreatmentSource } from "./lib/expandTreatment";
+import { findClosestMatch } from "./lib/levenshtein";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
@@ -275,6 +276,130 @@ class TreatmentSemanticTokenProvider
   }
 }
 
+// --- File Path Quick-Fix ---
+
+class FilePathQuickFixProvider implements vscode.CodeActionProvider {
+  static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
+
+  // Cache workspace file paths to avoid re-globbing on every cursor move
+  private cachedPaths: string[] = [];
+  private cacheTimestamp = 0;
+  private static readonly CACHE_TTL_MS = 5000;
+
+  async provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+  ): Promise<vscode.CodeAction[]> {
+    const diagnostics = vscode.languages
+      .getDiagnostics(document.uri)
+      .filter(
+        (d) =>
+          d.source === "stagebook" &&
+          d.message.startsWith("File not found:") &&
+          d.range.intersection(range),
+      );
+
+    if (diagnostics.length === 0 || !vscode.workspace.workspaceFolders?.length)
+      return [];
+
+    const actions: vscode.CodeAction[] = [];
+    const workspaceFolder =
+      vscode.workspace.getWorkspaceFolder(document.uri) ??
+      vscode.workspace.workspaceFolders[0];
+
+    // Refresh the cached file list if stale
+    const now = Date.now();
+    if (now - this.cacheTimestamp > FilePathQuickFixProvider.CACHE_TTL_MS) {
+      const allFiles = await vscode.workspace.findFiles(
+        "**/*.{prompt.md,md,yaml,jpg,jpeg,png,mp3,mp4}",
+        "**/node_modules/**",
+        5000,
+      );
+      this.cachedPaths = allFiles.map((f) =>
+        path.relative(workspaceFolder.uri.fsPath, f.fsPath),
+      );
+      this.cacheTimestamp = now;
+    }
+
+    for (const diagnostic of diagnostics) {
+      const badPath = diagnostic.message.replace("File not found: ", "");
+      const suggestion = findClosestMatch(badPath, this.cachedPaths);
+      if (!suggestion) continue;
+
+      const action = new vscode.CodeAction(
+        `Did you mean: ${suggestion}?`,
+        vscode.CodeActionKind.QuickFix,
+      );
+      action.edit = new vscode.WorkspaceEdit();
+      action.edit.replace(document.uri, diagnostic.range, suggestion);
+      action.isPreferred = true;
+      action.diagnostics = [diagnostic];
+      actions.push(action);
+    }
+
+    return actions;
+  }
+}
+
+// --- File Path Autocomplete ---
+
+class FilePathCompletionProvider implements vscode.CompletionItemProvider {
+  async provideCompletionItems(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): Promise<vscode.CompletionItem[] | undefined> {
+    const line = document.lineAt(position).text;
+    const prefix = line.substring(0, position.character);
+
+    // Only trigger after "file:" with optional whitespace
+    if (!/^\s*file:\s/.test(prefix)) return undefined;
+
+    if (!vscode.workspace.workspaceFolders?.length) return undefined;
+
+    const workspaceFolder =
+      vscode.workspace.getWorkspaceFolder(document.uri) ??
+      vscode.workspace.workspaceFolders[0];
+
+    // Get the partial path the user has typed so far
+    const fileValueMatch = prefix.match(/file:\s+(.*)/);
+    const partial = fileValueMatch?.[1] ?? "";
+
+    // Sanitize glob metacharacters in user input
+    const sanitized = partial.replace(/[*?[\]{}]/g, "\\$&");
+    const globPattern = sanitized
+      ? `**/${sanitized}*`
+      : "**/*.{prompt.md,md,yaml}";
+    const files = await vscode.workspace.findFiles(
+      globPattern,
+      "**/node_modules/**",
+      50,
+    );
+
+    return files.map((fileUri) => {
+      const relativePath = path.relative(
+        workspaceFolder.uri.fsPath,
+        fileUri.fsPath,
+      );
+      const item = new vscode.CompletionItem(
+        relativePath,
+        vscode.CompletionItemKind.File,
+      );
+      item.insertText = relativePath;
+      // Replace the entire value after "file: "
+      const valueStart = prefix.indexOf("file:") + "file:".length;
+      const whitespaceAfterColon =
+        prefix.substring(valueStart).match(/^\s*/)?.[0] ?? " ";
+      item.range = new vscode.Range(
+        position.line,
+        valueStart + whitespaceAfterColon.length,
+        position.line,
+        line.length,
+      );
+      return item;
+    });
+  }
+}
+
 // --- Expanded Templates Preview ---
 
 const EXPANDED_SCHEME = "stagebook-expanded";
@@ -320,6 +445,26 @@ export function activate(context: vscode.ExtensionContext): void {
       { language: "treatmentsYaml" },
       new TreatmentSemanticTokenProvider(),
       tokenLegend,
+    ),
+  );
+
+  // Register file path quick-fix provider
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      "treatmentsYaml",
+      new FilePathQuickFixProvider(),
+      {
+        providedCodeActionKinds:
+          FilePathQuickFixProvider.providedCodeActionKinds,
+      },
+    ),
+  );
+
+  // Register file path autocomplete provider
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      "treatmentsYaml",
+      new FilePathCompletionProvider(),
     ),
   );
 
