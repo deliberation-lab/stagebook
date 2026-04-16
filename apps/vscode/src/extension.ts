@@ -12,6 +12,7 @@ import {
 } from "./lib/semanticTokens";
 import { expandTreatmentSource } from "./lib/expandTreatment";
 import { findClosestMatch } from "./lib/levenshtein";
+import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
 import { fillTemplates, treatmentFileSchema } from "stagebook";
 import { parse as parseYaml } from "yaml";
 
@@ -154,11 +155,7 @@ function checkFileReferences(
     const workspaceFolder =
       vscode.workspace.getWorkspaceFolder(document.uri) ??
       vscode.workspace.workspaceFolders![0];
-    const base = workspaceFolder.uri.fsPath + path.sep;
-    if (
-      fileUri.fsPath !== workspaceFolder.uri.fsPath &&
-      !fileUri.fsPath.startsWith(base)
-    ) {
+    if (!isWithinWorkspace(fileUri.fsPath, workspaceFolder.uri.fsPath)) {
       diagnostics.push(
         makeFileDiagnostic(
           source,
@@ -288,6 +285,7 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
   // Cache workspace file paths to avoid re-globbing on every cursor move
   private cachedPaths: string[] = [];
   private cacheTimestamp = 0;
+  private cachedTreatmentDir = "";
   private static readonly CACHE_TTL_MS = 5000;
 
   async provideCodeActions(
@@ -313,9 +311,12 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
     // Suggestions should be relative to the treatment file's directory
     const treatmentDirFsPath = vscode.Uri.joinPath(document.uri, "..").fsPath;
 
-    // Refresh the cached file list if stale
+    // Refresh the cached file list if stale or treatment dir changed
     const now = Date.now();
-    if (now - this.cacheTimestamp > FilePathQuickFixProvider.CACHE_TTL_MS) {
+    if (
+      now - this.cacheTimestamp > FilePathQuickFixProvider.CACHE_TTL_MS ||
+      this.cachedTreatmentDir !== treatmentDirFsPath
+    ) {
       const allFiles = await vscode.workspace.findFiles(
         new vscode.RelativePattern(
           workspaceFolder,
@@ -325,9 +326,10 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
         5000,
       );
       this.cachedPaths = allFiles.map((f) =>
-        path.relative(treatmentDirFsPath, f.fsPath).split(path.sep).join("/"),
+        relativizePath(treatmentDirFsPath, f.fsPath),
       );
       this.cacheTimestamp = now;
+      this.cachedTreatmentDir = treatmentDirFsPath;
     }
 
     for (const diagnostic of diagnostics) {
@@ -393,10 +395,7 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
       : line.length;
 
     return files.map((fileUri) => {
-      const relativePath = path
-        .relative(treatmentDirFsPath, fileUri.fsPath)
-        .split(path.sep)
-        .join("/");
+      const relativePath = relativizePath(treatmentDirFsPath, fileUri.fsPath);
       const item = new vscode.CompletionItem(
         relativePath,
         vscode.CompletionItemKind.File,
@@ -679,8 +678,8 @@ export function activate(context: vscode.ExtensionContext): void {
   let previewPanel: vscode.WebviewPanel | undefined;
   // Mutable state updated on each command invocation — avoids stale closures
   let currentTreatment: ReturnType<typeof parseTreatmentForPreview> = null;
-  let currentWorkspaceFolder: vscode.WorkspaceFolder | undefined;
   let currentTreatmentDir: vscode.Uri | undefined;
+  let currentWorkspaceRootFsPath: string | undefined;
 
   context.subscriptions.push(
     vscode.commands.registerCommand("stagebook.previewStage", () => {
@@ -699,17 +698,19 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      currentWorkspaceFolder =
+      const workspaceFolder =
         vscode.workspace.getWorkspaceFolder(editor.document.uri) ??
         vscode.workspace.workspaceFolders?.[0];
-      currentTreatmentDir = vscode.Uri.joinPath(editor.document.uri, "..");
 
-      if (!currentWorkspaceFolder) {
+      if (!workspaceFolder) {
         vscode.window.showErrorMessage(
           "No workspace folder found. Open a folder first.",
         );
         return;
       }
+
+      currentTreatmentDir = vscode.Uri.joinPath(editor.document.uri, "..");
+      currentWorkspaceRootFsPath = workspaceFolder.uri.fsPath;
 
       if (previewPanel) {
         previewPanel.reveal(vscode.ViewColumn.Beside);
@@ -759,6 +760,19 @@ export function activate(context: vscode.ExtensionContext): void {
                 currentTreatmentDir,
                 filePath,
               );
+              // Post-resolution workspace boundary check (defense in depth
+              // against symlinks and edge cases the substring check misses)
+              if (
+                currentWorkspaceRootFsPath &&
+                !isWithinWorkspace(fileUri.fsPath, currentWorkspaceRootFsPath)
+              ) {
+                previewPanel?.webview.postMessage({
+                  type: "fileContent",
+                  requestId: msg.requestId,
+                  error: `Path escapes workspace: ${filePath}`,
+                });
+                return;
+              }
               const content = await vscode.workspace.fs.readFile(fileUri);
               previewPanel?.webview.postMessage({
                 type: "fileContent",
