@@ -1,0 +1,7 @@
+**
+!dist/extension.js
+!dist/webview.js
+!package.json
+!language-configuration.json
+!syntaxes/**
+

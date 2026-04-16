@@ -1,15 +1,14 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
 import {
-  expandTreatmentFile,
   TreatmentValidationError,
   type ValidationIssue,
 } from "./lib/treatment";
+import { createUrlContentFns } from "./lib/contentFns";
 import { LandingPage } from "./components/LandingPage";
 import { TreatmentPicker } from "./components/TreatmentPicker";
-import { FieldForm } from "./components/FieldForm";
-import { Viewer } from "./components/Viewer";
+import { PreviewHost } from "./components/PreviewHost";
 
 type AppState =
   | { phase: "landing" }
@@ -18,15 +17,6 @@ type AppState =
       phase: "selecting";
       treatmentFile: TreatmentFileType;
       rawBaseUrl: string;
-      unresolvedFields: string[];
-    }
-  | {
-      phase: "fields";
-      treatmentFile: TreatmentFileType;
-      rawBaseUrl: string;
-      unresolvedFields: string[];
-      selectedIntroIndex: number;
-      selectedTreatmentIndex: number;
     }
   | {
       phase: "viewing";
@@ -48,29 +38,14 @@ export function App() {
   const handleLoad = useCallback(async (url: string) => {
     setState({ phase: "loading", url });
     try {
-      const { treatmentFile, unresolvedFields, rawBaseUrl } =
-        await loadTreatmentFromUrl(url);
+      const { treatmentFile, rawBaseUrl } = await loadTreatmentFromUrl(url);
 
       const needsPicker =
         treatmentFile.introSequences.length > 1 ||
         treatmentFile.treatments.length > 1;
 
       if (needsPicker) {
-        setState({
-          phase: "selecting",
-          treatmentFile,
-          rawBaseUrl,
-          unresolvedFields,
-        });
-      } else if (unresolvedFields.length > 0) {
-        setState({
-          phase: "fields",
-          treatmentFile,
-          rawBaseUrl,
-          unresolvedFields,
-          selectedIntroIndex: 0,
-          selectedTreatmentIndex: 0,
-        });
+        setState({ phase: "selecting", treatmentFile, rawBaseUrl });
       } else {
         setState({
           phase: "viewing",
@@ -119,53 +94,17 @@ export function App() {
       );
 
     case "selecting": {
-      const { treatmentFile, rawBaseUrl, unresolvedFields } = state;
+      const { treatmentFile, rawBaseUrl } = state;
       return (
         <TreatmentPicker
           treatmentFile={treatmentFile}
           onSelect={(introIndex, treatmentIndex) => {
-            if (unresolvedFields.length > 0) {
-              setState({
-                phase: "fields",
-                treatmentFile,
-                rawBaseUrl,
-                unresolvedFields,
-                selectedIntroIndex: introIndex,
-                selectedTreatmentIndex: treatmentIndex,
-              });
-            } else {
-              setState({
-                phase: "viewing",
-                treatmentFile,
-                rawBaseUrl,
-                selectedIntroIndex: introIndex,
-                selectedTreatmentIndex: treatmentIndex,
-              });
-            }
-          }}
-        />
-      );
-    }
-
-    case "fields": {
-      const {
-        treatmentFile,
-        rawBaseUrl,
-        unresolvedFields,
-        selectedIntroIndex,
-        selectedTreatmentIndex,
-      } = state;
-      return (
-        <FieldForm
-          unresolvedFields={unresolvedFields}
-          onSubmit={(values) => {
-            const { result } = expandTreatmentFile(treatmentFile, values);
             setState({
               phase: "viewing",
-              treatmentFile: result,
+              treatmentFile,
               rawBaseUrl,
-              selectedIntroIndex,
-              selectedTreatmentIndex,
+              selectedIntroIndex: introIndex,
+              selectedTreatmentIndex: treatmentIndex,
             });
           }}
         />
@@ -174,7 +113,7 @@ export function App() {
 
     case "viewing":
       return (
-        <Viewer
+        <ViewingPhase
           treatmentFile={state.treatmentFile}
           rawBaseUrl={state.rawBaseUrl}
           selectedIntroIndex={state.selectedIntroIndex}
@@ -183,6 +122,40 @@ export function App() {
         />
       );
   }
+}
+
+/**
+ * Wrapper component for the viewing phase — enables useMemo for
+ * stable content function references (can't use hooks in switch cases).
+ */
+function ViewingPhase({
+  treatmentFile,
+  rawBaseUrl,
+  selectedIntroIndex,
+  selectedTreatmentIndex,
+  onBack,
+}: {
+  treatmentFile: TreatmentFileType;
+  rawBaseUrl: string;
+  selectedIntroIndex: number;
+  selectedTreatmentIndex: number;
+  onBack: () => void;
+}) {
+  const contentFns = useMemo(
+    () => createUrlContentFns(rawBaseUrl),
+    [rawBaseUrl],
+  );
+
+  return (
+    <PreviewHost
+      treatmentFile={treatmentFile}
+      getTextContent={contentFns.getTextContent}
+      getAssetURL={contentFns.getAssetURL}
+      selectedIntroIndex={selectedIntroIndex}
+      selectedTreatmentIndex={selectedTreatmentIndex}
+      onBack={onBack}
+    />
+  );
 }
 
 function LoadingScreen({ url }: { url: string }) {

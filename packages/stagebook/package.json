@@ -1,6 +1,6 @@
 {
   "name": "stagebook",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Schemas, validators, utilities, and components for interactive social science experiments",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -66,7 +66,6 @@
   "devDependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "@playwright/experimental-ct-react": "^1.58.2",
-    "@tailwindcss/vite": "^4.2.2",
     "@types/js-yaml": "^4.0.9",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -79,7 +78,6 @@
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "tailwindcss": "^4.2.2",
     "tsup": "^8.0.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.0.0",

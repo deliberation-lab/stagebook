@@ -15,6 +15,8 @@ This repository provides supporting infrastructure for translating stagebook man
 
 Stagebook is platform-agnostic. Define your study protocol once, then run it on any compatible platform.
 
+**[Try the Viewer](https://deliberation-lab.github.io/stagebook/viewer/)** — walk through any study from the participant's perspective. Paste a GitHub URL to a treatment file, or explore the built-in examples.
+
 ## Installation
 
 From GitHub (builds automatically on install):

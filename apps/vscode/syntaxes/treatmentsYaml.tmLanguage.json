@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Treatments YAML",
+  "scopeName": "source.treatments-yaml",
+  "comment": "Inherits base YAML. Domain-specific highlighting is handled by the semantic token provider.",
+  "patterns": [
+    { "include": "source.yaml" }
+  ]
+}

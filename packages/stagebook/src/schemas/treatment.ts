@@ -898,8 +898,7 @@ const trackedLinkSchema = elementBaseSchema
   })
   .strict();
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const validElementTypes = [
+export const validElementTypes = [
   "audio",
   "display",
   "image",
@@ -914,7 +913,39 @@ const validElementTypes = [
   "mediaPlayer",
   "timeline",
   "trackedLink",
-];
+] as const;
+
+export const validComparators = [
+  "exists",
+  "doesNotExist",
+  "equals",
+  "doesNotEqual",
+  "isAbove",
+  "isBelow",
+  "isAtLeast",
+  "isAtMost",
+  "hasLengthAtLeast",
+  "hasLengthAtMost",
+  "includes",
+  "doesNotInclude",
+  "matches",
+  "doesNotMatch",
+  "isOneOf",
+  "isNotOneOf",
+] as const;
+
+export const validReferenceTypes = [
+  "survey",
+  "submitButton",
+  "qualtrics",
+  "prompt",
+  "trackedLink",
+  "urlParams",
+  "connectionInfo",
+  "browserInfo",
+  "participantInfo",
+  "discussion",
+] as const;
 
 export const elementSchema = altTemplateContext(
   z.any().superRefine((data, ctx) => {

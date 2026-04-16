@@ -1,4 +1,10 @@
-import { useState, useMemo, useCallback, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import type { TreatmentFileType } from "stagebook";
 import { StagebookProvider, Stage } from "stagebook/components";
 import { flattenSteps } from "../lib/steps";
@@ -9,20 +15,38 @@ import { StateInspector } from "./StateInspector";
 import { TimeScrubber } from "./TimeScrubber";
 import { createSkeletonRenderers } from "./SkeletonPlaceholder";
 
-interface ViewerProps {
+export interface ViewerProps {
   treatmentFile: TreatmentFileType;
-  rawBaseUrl: string;
+  /** Must be referentially stable (memoized) to avoid re-fetch loops. */
+  getTextContent: (path: string) => Promise<string>;
+  /** Must be referentially stable (memoized) to avoid re-fetch loops. */
+  getAssetURL: (path: string) => string;
   selectedIntroIndex: number;
   selectedTreatmentIndex: number;
-  onBack: () => void;
+  /**
+   * Optional back affordance. When provided, the header shows a back arrow
+   * that invokes this callback. Omit to hide the arrow (e.g. in an embedded
+   * preview where there is no prior screen to return to).
+   */
+  onBack?: () => void;
+  /**
+   * Optional refresh affordance. When provided, the header shows a reload
+   * icon that invokes this callback. The Viewer itself doesn't re-fetch —
+   * hosts are expected to supply an updated `treatmentFile` prop in response.
+   * Viewer state (stageIndex, position, saved responses) persists across the
+   * prop update since React doesn't unmount the component.
+   */
+  onRefresh?: () => void;
 }
 
 export function Viewer({
   treatmentFile,
-  rawBaseUrl,
+  getTextContent,
+  getAssetURL,
   selectedIntroIndex,
   selectedTreatmentIndex,
   onBack,
+  onRefresh,
 }: ViewerProps) {
   const treatment = treatmentFile.treatments[selectedTreatmentIndex];
   const introSequence = treatmentFile.introSequences[selectedIntroIndex];
@@ -36,8 +60,19 @@ export function Viewer({
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
 
-  // Subscribe to store changes so the UI re-renders
-  useSyncExternalStore(
+  // Clamp stageIndex if the treatment was edited to have fewer stages
+  // (e.g. researcher deleted a stage while the preview was open). Without
+  // this, steps[stageIndex] returns undefined and the viewer blanks.
+  useEffect(() => {
+    if (steps.length > 0 && stageIndex >= steps.length) {
+      setStageIndex(steps.length - 1);
+    }
+  }, [steps.length, stageIndex]);
+
+  // Subscribe to store changes so the UI re-renders.
+  // The version is included in ctx memo deps below so that
+  // StagebookProvider gets a new context value on store changes.
+  const storeVersion = useSyncExternalStore(
     useCallback((cb: () => void) => store.onChange(cb), [store]),
     useCallback(() => store.getVersion(), [store]),
   );
@@ -60,35 +95,6 @@ export function Viewer({
     [store, stageIndex],
   );
 
-  // getTextContent and getAssetURL only depend on rawBaseUrl, so keep
-  // them stable across stage/position changes to avoid re-fetch loops
-  // in useTextContent (which has getTextContent as an effect dependency).
-  const stableContentFns = useMemo(() => {
-    const cache = new Map<string, Promise<string>>();
-    return {
-      getTextContent(path: string): Promise<string> {
-        const cached = cache.get(path);
-        if (cached) return cached;
-        const promise = fetch(rawBaseUrl + path)
-          .then((res) => {
-            if (!res.ok) {
-              throw new Error(`Failed to fetch ${path} (HTTP ${res.status})`);
-            }
-            return res.text();
-          })
-          .catch((err) => {
-            cache.delete(path);
-            throw err;
-          });
-        cache.set(path, promise);
-        return promise;
-      },
-      getAssetURL(path: string): string {
-        return rawBaseUrl + path;
-      },
-    };
-  }, [rawBaseUrl]);
-
   const ctx = useMemo(
     () =>
       createViewerContext({
@@ -97,16 +103,20 @@ export function Viewer({
         stageIndex,
         playerCount: treatment.playerCount,
         onSubmit: handleSubmit,
-        ...stableContentFns,
+        getTextContent,
+        getAssetURL,
         renderers: createSkeletonRenderers(),
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       store,
+      storeVersion,
       position,
       stageIndex,
       treatment.playerCount,
       handleSubmit,
-      stableContentFns,
+      getTextContent,
+      getAssetURL,
     ],
   );
 
@@ -123,9 +133,21 @@ export function Viewer({
       {/* Header */}
       <header style={headerStyle}>
         <div style={headerLeftStyle}>
-          <button aria-label="Back" onClick={onBack} style={backButtonStyle}>
-            &larr;
-          </button>
+          {onBack && (
+            <button aria-label="Back" onClick={onBack} style={backButtonStyle}>
+              &larr;
+            </button>
+          )}
+          {onRefresh && (
+            <button
+              aria-label="Refresh preview"
+              title="Refresh preview"
+              onClick={onRefresh}
+              style={refreshButtonStyle}
+            >
+              &#x21bb;
+            </button>
+          )}
           <span style={treatmentNameStyle}>{treatment.name}</span>
         </div>
         <StageNav
@@ -228,6 +250,16 @@ const backButtonStyle: React.CSSProperties = {
   fontSize: "1.25rem",
   color: "#6b7280",
   padding: "0.25rem",
+};
+
+const refreshButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  fontSize: "1.1rem",
+  color: "#6b7280",
+  padding: "0.25rem",
+  lineHeight: 1,
 };
 
 const treatmentNameStyle: React.CSSProperties = {
