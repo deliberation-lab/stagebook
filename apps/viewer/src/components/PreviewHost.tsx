@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { fillTemplates, type TreatmentFileType } from "stagebook";
+import type { TreatmentFileType } from "stagebook";
+import { expandTreatmentFile } from "../lib/expandTreatmentFile";
 import { FieldForm } from "./FieldForm";
 import { Viewer } from "./Viewer";
 
@@ -57,19 +58,11 @@ export function PreviewHost({
       ...(additionalFields ?? {}),
       ...(userValues ?? {}),
     };
-    // Strip template definitions before expansion — their bodies contain
-    // placeholder syntax that would otherwise be flagged as unresolved.
-    const { templates, ...withoutTemplates } = treatmentFile;
-    const { result, unresolvedFields } = fillTemplates({
-      obj: withoutTemplates,
-      templates: templates ?? [],
-      additionalFields: Object.keys(merged).length > 0 ? merged : undefined,
-      allowUnresolved: true,
-    });
-    return {
-      resolved: result as TreatmentFileType,
-      unresolvedFields,
-    };
+    const { result, unresolvedFields } = expandTreatmentFile(
+      treatmentFile,
+      Object.keys(merged).length > 0 ? merged : undefined,
+    );
+    return { resolved: result, unresolvedFields };
   }, [treatmentFile, additionalFields, userValues]);
 
   if (unresolvedFields.length > 0) {

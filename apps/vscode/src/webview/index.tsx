@@ -107,10 +107,10 @@ function App() {
     return () => window.removeEventListener("message", handler);
   }, []);
 
+  // `contentVersion` is deliberately part of the deps so a refresh creates
+  // a fresh cache — forcing prompt files to re-fetch from disk.
   const contentFns = useMemo(
     () => createWebviewContentFns(webviewBaseUri),
-    // contentVersion is part of the deps so a refresh creates a fresh cache
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [webviewBaseUri, contentVersion],
   );
 

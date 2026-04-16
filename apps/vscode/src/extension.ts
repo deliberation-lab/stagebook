@@ -752,6 +752,12 @@ export function activate(context: vscode.ExtensionContext): void {
             // filled-in fields) persists across this prop update because the
             // webview's React tree doesn't unmount.
             if (!currentTreatmentUri || !currentTreatmentDir) return;
+            // Capture the panel before any awaits. If the user closes the
+            // preview mid-refresh, onDidDispose clears `previewPanel` and
+            // a non-null assertion on the outer ref would throw.
+            const panel = previewPanel;
+            const treatmentDir = currentTreatmentDir;
+            if (!panel) return;
             try {
               const doc =
                 await vscode.workspace.openTextDocument(currentTreatmentUri);
@@ -763,10 +769,12 @@ export function activate(context: vscode.ExtensionContext): void {
                 return;
               }
               currentTreatment = parsed;
-              const baseUri = previewPanel!.webview
-                .asWebviewUri(currentTreatmentDir)
+              // Panel may have been disposed while we were awaiting above.
+              if (!previewPanel) return;
+              const baseUri = panel.webview
+                .asWebviewUri(treatmentDir)
                 .toString();
-              previewPanel?.webview.postMessage({
+              panel.webview.postMessage({
                 type: "treatment",
                 treatmentFile: parsed,
                 introIndex: 0,
