@@ -1,9 +1,7 @@
 import { load as loadYaml } from "js-yaml";
-import {
-  fillTemplates,
-  treatmentFileSchema,
-  type TreatmentFileType,
-} from "stagebook";
+import { treatmentFileSchema, type TreatmentFileType } from "stagebook";
+
+export { expandTreatmentFile } from "./expandTreatmentFile";
 
 export interface ValidationIssue {
   path: string;
@@ -36,24 +34,4 @@ export function parseTreatmentYaml(yaml: string): TreatmentFileType {
     throw new TreatmentValidationError(issues);
   }
   return result.data;
-}
-
-/**
- * Expand templates in a parsed treatment file and detect unresolved fields.
- * Optionally provide additionalFields to resolve remaining placeholders.
- */
-export function expandTreatmentFile(
-  treatmentFile: TreatmentFileType,
-  additionalFields?: Record<string, unknown>,
-): { result: TreatmentFileType; unresolvedFields: string[] } {
-  // Strip template definitions before expansion — they contain
-  // placeholder syntax that would be falsely flagged as unresolved.
-  const { templates, ...withoutTemplates } = treatmentFile;
-  const { result, unresolvedFields } = fillTemplates({
-    obj: withoutTemplates,
-    templates: templates ?? [],
-    additionalFields,
-    allowUnresolved: true,
-  });
-  return { result: result as TreatmentFileType, unresolvedFields };
 }

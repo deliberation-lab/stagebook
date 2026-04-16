@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import type { TreatmentFileType } from "stagebook";
-import { Viewer } from "stagebook-viewer/preview";
+import { PreviewHost } from "stagebook-viewer/preview";
 
 // Declare the VS Code API injected by the webview
 declare function acquireVsCodeApi(): {
@@ -80,6 +80,9 @@ function App() {
   const [treatmentIndex, setTreatmentIndex] = useState(0);
   const [webviewBaseUri, setWebviewBaseUri] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Bumped on each treatment message so that `contentFns` is recreated
+  // with a fresh cache, forcing prompt files to re-fetch from disk.
+  const [contentVersion, setContentVersion] = useState(0);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -89,6 +92,7 @@ function App() {
         setIntroIndex(msg.introIndex ?? 0);
         setTreatmentIndex(msg.treatmentIndex ?? 0);
         setWebviewBaseUri(msg.webviewBaseUri ?? "");
+        setContentVersion((v) => v + 1);
         setError(null);
       } else if (msg.type === "error") {
         setError(msg.message);
@@ -103,9 +107,11 @@ function App() {
     return () => window.removeEventListener("message", handler);
   }, []);
 
+  // `contentVersion` is deliberately part of the deps so a refresh creates
+  // a fresh cache — forcing prompt files to re-fetch from disk.
   const contentFns = useMemo(
     () => createWebviewContentFns(webviewBaseUri),
-    [webviewBaseUri],
+    [webviewBaseUri, contentVersion],
   );
 
   if (error) {
@@ -126,15 +132,13 @@ function App() {
   }
 
   return (
-    <Viewer
+    <PreviewHost
       treatmentFile={treatmentFile}
       getTextContent={contentFns.getTextContent}
       getAssetURL={contentFns.getAssetURL}
       selectedIntroIndex={introIndex}
       selectedTreatmentIndex={treatmentIndex}
-      onBack={() => {
-        /* no-op in extension webview */
-      }}
+      onRefresh={() => vscode.postMessage({ type: "refresh" })}
     />
   );
 }

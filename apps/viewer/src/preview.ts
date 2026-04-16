@@ -15,6 +15,8 @@ export { createUrlContentFns } from "./lib/contentFns";
 // React components
 export { Viewer } from "./components/Viewer";
 export type { ViewerProps } from "./components/Viewer";
+export { PreviewHost } from "./components/PreviewHost";
+export type { PreviewHostProps } from "./components/PreviewHost";
 export { StageNav } from "./components/StageNav";
 export { StateInspector } from "./components/StateInspector";
 export { TimeScrubber } from "./components/TimeScrubber";

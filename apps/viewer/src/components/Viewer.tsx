@@ -1,4 +1,10 @@
-import { useState, useMemo, useCallback, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import type { TreatmentFileType } from "stagebook";
 import { StagebookProvider, Stage } from "stagebook/components";
 import { flattenSteps } from "../lib/steps";
@@ -17,7 +23,20 @@ export interface ViewerProps {
   getAssetURL: (path: string) => string;
   selectedIntroIndex: number;
   selectedTreatmentIndex: number;
-  onBack: () => void;
+  /**
+   * Optional back affordance. When provided, the header shows a back arrow
+   * that invokes this callback. Omit to hide the arrow (e.g. in an embedded
+   * preview where there is no prior screen to return to).
+   */
+  onBack?: () => void;
+  /**
+   * Optional refresh affordance. When provided, the header shows a reload
+   * icon that invokes this callback. The Viewer itself doesn't re-fetch —
+   * hosts are expected to supply an updated `treatmentFile` prop in response.
+   * Viewer state (stageIndex, position, saved responses) persists across the
+   * prop update since React doesn't unmount the component.
+   */
+  onRefresh?: () => void;
 }
 
 export function Viewer({
@@ -27,6 +46,7 @@ export function Viewer({
   selectedIntroIndex,
   selectedTreatmentIndex,
   onBack,
+  onRefresh,
 }: ViewerProps) {
   const treatment = treatmentFile.treatments[selectedTreatmentIndex];
   const introSequence = treatmentFile.introSequences[selectedIntroIndex];
@@ -39,6 +59,15 @@ export function Viewer({
   const [stageIndex, setStageIndex] = useState(0);
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
+
+  // Clamp stageIndex if the treatment was edited to have fewer stages
+  // (e.g. researcher deleted a stage while the preview was open). Without
+  // this, steps[stageIndex] returns undefined and the viewer blanks.
+  useEffect(() => {
+    if (steps.length > 0 && stageIndex >= steps.length) {
+      setStageIndex(steps.length - 1);
+    }
+  }, [steps.length, stageIndex]);
 
   // Subscribe to store changes so the UI re-renders.
   // The version is included in ctx memo deps below so that
@@ -104,9 +133,21 @@ export function Viewer({
       {/* Header */}
       <header style={headerStyle}>
         <div style={headerLeftStyle}>
-          <button aria-label="Back" onClick={onBack} style={backButtonStyle}>
-            &larr;
-          </button>
+          {onBack && (
+            <button aria-label="Back" onClick={onBack} style={backButtonStyle}>
+              &larr;
+            </button>
+          )}
+          {onRefresh && (
+            <button
+              aria-label="Refresh preview"
+              title="Refresh preview"
+              onClick={onRefresh}
+              style={refreshButtonStyle}
+            >
+              &#x21bb;
+            </button>
+          )}
           <span style={treatmentNameStyle}>{treatment.name}</span>
         </div>
         <StageNav
@@ -209,6 +250,16 @@ const backButtonStyle: React.CSSProperties = {
   fontSize: "1.25rem",
   color: "#6b7280",
   padding: "0.25rem",
+};
+
+const refreshButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  fontSize: "1.1rem",
+  color: "#6b7280",
+  padding: "0.25rem",
+  lineHeight: 1,
 };
 
 const treatmentNameStyle: React.CSSProperties = {
