@@ -761,7 +761,10 @@ export function activate(context: vscode.ExtensionContext): void {
                 filePath,
               );
               // Post-resolution workspace boundary check (defense in depth
-              // against symlinks and edge cases the substring check misses)
+              // against path traversal and shared-prefix edge cases that the
+              // substring check on `..` doesn't catch). Does not resolve
+              // symlinks — a symlink inside the workspace pointing out will
+              // still be followed by fs.readFile.
               if (
                 currentWorkspaceRootFsPath &&
                 !isWithinWorkspace(fileUri.fsPath, currentWorkspaceRootFsPath)
