@@ -146,12 +146,14 @@ function checkFileReferences(
 
   if (typeof record.file === "string" && record.file.length > 0) {
     const filePath = record.file;
+    // Resolve relative to the treatment file's directory, not workspace root
+    const treatmentDir = vscode.Uri.joinPath(document.uri, "..");
+    const fileUri = vscode.Uri.joinPath(treatmentDir, filePath);
+
+    // Guard against path traversal (check before template placeholder skip)
     const workspaceFolder =
       vscode.workspace.getWorkspaceFolder(document.uri) ??
       vscode.workspace.workspaceFolders![0];
-    const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
-
-    // Guard against path traversal (check before template placeholder skip)
     const base = workspaceFolder.uri.fsPath + path.sep;
     if (
       fileUri.fsPath !== workspaceFolder.uri.fsPath &&
@@ -308,6 +310,8 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
     const workspaceFolder =
       vscode.workspace.getWorkspaceFolder(document.uri) ??
       vscode.workspace.workspaceFolders[0];
+    // Suggestions should be relative to the treatment file's directory
+    const treatmentDirFsPath = vscode.Uri.joinPath(document.uri, "..").fsPath;
 
     // Refresh the cached file list if stale
     const now = Date.now();
@@ -321,10 +325,7 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
         5000,
       );
       this.cachedPaths = allFiles.map((f) =>
-        path
-          .relative(workspaceFolder.uri.fsPath, f.fsPath)
-          .split(path.sep)
-          .join("/"),
+        path.relative(treatmentDirFsPath, f.fsPath).split(path.sep).join("/"),
       );
       this.cacheTimestamp = now;
     }
@@ -367,6 +368,8 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
     const workspaceFolder =
       vscode.workspace.getWorkspaceFolder(document.uri) ??
       vscode.workspace.workspaceFolders[0];
+    // Completions should be relative to the treatment file's directory
+    const treatmentDirFsPath = vscode.Uri.joinPath(document.uri, "..").fsPath;
 
     // Get the partial path the user has typed so far
     const fileValueMatch = prefix.match(/\bfile:\s+(.*)/);
@@ -391,7 +394,7 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
 
     return files.map((fileUri) => {
       const relativePath = path
-        .relative(workspaceFolder.uri.fsPath, fileUri.fsPath)
+        .relative(treatmentDirFsPath, fileUri.fsPath)
         .split(path.sep)
         .join("/");
       const item = new vscode.CompletionItem(
@@ -677,6 +680,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Mutable state updated on each command invocation — avoids stale closures
   let currentTreatment: ReturnType<typeof parseTreatmentForPreview> = null;
   let currentWorkspaceFolder: vscode.WorkspaceFolder | undefined;
+  let currentTreatmentDir: vscode.Uri | undefined;
 
   context.subscriptions.push(
     vscode.commands.registerCommand("stagebook.previewStage", () => {
@@ -698,6 +702,7 @@ export function activate(context: vscode.ExtensionContext): void {
       currentWorkspaceFolder =
         vscode.workspace.getWorkspaceFolder(editor.document.uri) ??
         vscode.workspace.workspaceFolders?.[0];
+      currentTreatmentDir = vscode.Uri.joinPath(editor.document.uri, "..");
 
       if (!currentWorkspaceFolder) {
         vscode.window.showErrorMessage(
@@ -727,13 +732,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Handle messages from the webview
         previewPanel.webview.onDidReceiveMessage(async (msg) => {
-          if (
-            msg.type === "ready" &&
-            currentTreatment &&
-            currentWorkspaceFolder
-          ) {
+          if (msg.type === "ready" && currentTreatment && currentTreatmentDir) {
             const baseUri = previewPanel!.webview
-              .asWebviewUri(currentWorkspaceFolder.uri)
+              .asWebviewUri(currentTreatmentDir)
               .toString();
             previewPanel?.webview.postMessage({
               type: "treatment",
@@ -742,7 +743,7 @@ export function activate(context: vscode.ExtensionContext): void {
               treatmentIndex: 0,
               webviewBaseUri: baseUri,
             });
-          } else if (msg.type === "readFile" && currentWorkspaceFolder) {
+          } else if (msg.type === "readFile" && currentTreatmentDir) {
             // Guard against path traversal
             const filePath = String(msg.path);
             if (filePath.includes("..") || path.isAbsolute(filePath)) {
@@ -755,7 +756,7 @@ export function activate(context: vscode.ExtensionContext): void {
             }
             try {
               const fileUri = vscode.Uri.joinPath(
-                currentWorkspaceFolder.uri,
+                currentTreatmentDir,
                 filePath,
               );
               const content = await vscode.workspace.fs.readFile(fileUri);
