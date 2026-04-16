@@ -49,10 +49,29 @@ export function validateTreatmentSource(source: string): ValidationResult {
 
   if (!result.success) {
     for (const issue of result.error.issues) {
-      const range = mapper.resolve(issue.path);
+      // Try to resolve the exact path; if it doesn't exist in the source
+      // (e.g., "Required" errors on missing fields), walk up to the nearest
+      // ancestor that does exist so the squiggly lands somewhere meaningful.
+      let range = mapper.resolve(issue.path);
+      let ancestorPath = issue.path;
+      while (!range && ancestorPath.length > 0) {
+        ancestorPath = ancestorPath.slice(0, -1);
+        range = mapper.resolve(ancestorPath);
+      }
+
+      // Append the field path to every diagnostic so the user always knows
+      // which field the error refers to. Zod messages often omit the field
+      // name (e.g., "Required", "Expected number, received string"), and
+      // even when they include it, the full path gives hierarchical context.
+      // Skipped only when the path is already present verbatim in the message.
+      const pathStr = formatPath(issue.path);
+      const message =
+        pathStr && !issue.message.toLowerCase().includes(pathStr.toLowerCase())
+          ? `${issue.message} (${pathStr})`
+          : issue.message;
 
       diagnostics.push({
-        message: issue.message,
+        message,
         severity: "error",
         range,
       });
@@ -60,4 +79,21 @@ export function validateTreatmentSource(source: string): ValidationResult {
   }
 
   return { diagnostics, parsedObj };
+}
+
+/**
+ * Format a Zod issue path as a readable dotted string.
+ * Array indices are shown in brackets: ["treatments", 0, "gameStages", 1] → "treatments[0].gameStages[1]"
+ */
+function formatPath(path: (string | number)[]): string {
+  if (path.length === 0) return "";
+  let result = "";
+  for (const segment of path) {
+    if (typeof segment === "number") {
+      result += `[${segment}]`;
+    } else {
+      result += result ? `.${segment}` : segment;
+    }
+  }
+  return result;
 }

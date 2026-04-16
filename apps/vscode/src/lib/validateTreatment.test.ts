@@ -253,6 +253,61 @@ treatments:
       );
     });
 
+    it("includes the formatted field path in missing-field messages", () => {
+      // A survey element is missing its required surveyName field.
+      const src = `introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: survey`;
+      const result = validateTreatmentSource(src);
+      // The diagnostic message should include the full formatted path
+      // (dotted segments + bracketed array indices) so the user can locate
+      // the missing field in the schema hierarchy.
+      const pathedError = result.diagnostics.find((d) =>
+        d.message.includes(
+          "treatments[0].gameStages[0].elements[0].surveyName",
+        ),
+      );
+      expect(pathedError).toBeDefined();
+    });
+
+    it("places missing-field errors on the missing-field's parent element, not (0,0)", () => {
+      const src = `introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: prompt`;
+      // The prompt element is missing its required "file" field.
+      // The diagnostic for that specific missing field should be attached
+      // to the prompt element (the nearest existing ancestor), not (0,0).
+      const result = validateTreatmentSource(src);
+      const fileError = result.diagnostics.find((d) =>
+        d.message.includes("treatments[0].gameStages[0].elements[0].file"),
+      );
+      expect(fileError).toBeDefined();
+      expect(fileError!.range).not.toBeNull();
+      expect(fileError!.range!.startLine).toBeGreaterThan(0);
+    });
+
     it("classifies duplicate key diagnostics as warnings", () => {
       const src = `introSequences:
   - name: intro1
