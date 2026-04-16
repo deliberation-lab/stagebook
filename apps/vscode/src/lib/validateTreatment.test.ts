@@ -253,6 +253,55 @@ treatments:
       );
     });
 
+    it("includes the field path in missing-field messages", () => {
+      // A survey element is missing its required surveyName field.
+      const src = `introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: survey`;
+      const result = validateTreatmentSource(src);
+      // The path should be mentioned so the user knows which field is missing
+      const pathedError = result.diagnostics.find((d) =>
+        d.message.includes("surveyName"),
+      );
+      expect(pathedError).toBeDefined();
+    });
+
+    it("places missing-field errors on the nearest existing ancestor, not (0,0)", () => {
+      const src = `introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: prompt`;
+      // The prompt element is missing required "file" field.
+      // The error should land on the element itself (line 13 area),
+      // not at position (0, 0).
+      const result = validateTreatmentSource(src);
+      const errors = result.diagnostics.filter((d) => d.severity === "error");
+      expect(errors.length).toBeGreaterThan(0);
+      // At least one error should have a non-zero line
+      expect(errors.some((d) => d.range && d.range.startLine > 0)).toBe(true);
+    });
+
     it("classifies duplicate key diagnostics as warnings", () => {
       const src = `introSequences:
   - name: intro1
