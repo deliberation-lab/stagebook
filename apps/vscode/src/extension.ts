@@ -678,6 +678,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let previewPanel: vscode.WebviewPanel | undefined;
   // Mutable state updated on each command invocation — avoids stale closures
   let currentTreatment: ReturnType<typeof parseTreatmentForPreview> = null;
+  let currentTreatmentUri: vscode.Uri | undefined;
   let currentTreatmentDir: vscode.Uri | undefined;
   let currentWorkspaceRootFsPath: string | undefined;
 
@@ -709,6 +710,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      currentTreatmentUri = editor.document.uri;
       currentTreatmentDir = vscode.Uri.joinPath(editor.document.uri, "..");
       currentWorkspaceRootFsPath = workspaceFolder.uri.fsPath;
 
@@ -744,6 +746,38 @@ export function activate(context: vscode.ExtensionContext): void {
               treatmentIndex: 0,
               webviewBaseUri: baseUri,
             });
+          } else if (msg.type === "refresh") {
+            // Re-read the source file, re-parse, and push the updated
+            // treatment. Viewer state (stageIndex, position, saved responses,
+            // filled-in fields) persists across this prop update because the
+            // webview's React tree doesn't unmount.
+            if (!currentTreatmentUri || !currentTreatmentDir) return;
+            try {
+              const doc =
+                await vscode.workspace.openTextDocument(currentTreatmentUri);
+              const parsed = parseTreatmentForPreview(doc.getText());
+              if (!parsed) {
+                vscode.window.showErrorMessage(
+                  "Refresh failed: could not parse treatment file.",
+                );
+                return;
+              }
+              currentTreatment = parsed;
+              const baseUri = previewPanel!.webview
+                .asWebviewUri(currentTreatmentDir)
+                .toString();
+              previewPanel?.webview.postMessage({
+                type: "treatment",
+                treatmentFile: parsed,
+                introIndex: 0,
+                treatmentIndex: 0,
+                webviewBaseUri: baseUri,
+              });
+            } catch (err) {
+              vscode.window.showErrorMessage(
+                `Refresh failed: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
           } else if (msg.type === "readFile" && currentTreatmentDir) {
             // Guard against path traversal
             const filePath = String(msg.path);
