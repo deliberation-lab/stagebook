@@ -47,40 +47,33 @@ describe("ViewerStateStore", () => {
     });
   });
 
-  describe("resolve", () => {
-    it("resolves a prompt reference for a specific position", () => {
+  describe("lookup", () => {
+    it("looks up a value for a specific position", () => {
       const store = new ViewerStateStore();
       store.save("prompt_q1", { value: "yes" }, "player", 0, 0);
-      const values = store.resolve("prompt.q1", 0);
-      expect(values).toEqual(["yes"]);
+      const values = store.lookup("prompt_q1", 0);
+      expect(values).toEqual([{ value: "yes" }]);
     });
 
-    it("resolves a prompt reference across all positions", () => {
+    it("looks up values across all positions", () => {
       const store = new ViewerStateStore();
       store.save("prompt_q1", { value: "yes" }, "player", 0, 0);
       store.save("prompt_q1", { value: "no" }, "player", 1, 0);
-      const values = store.resolve("prompt.q1");
-      expect(values).toEqual(["yes", "no"]);
+      const values = store.lookup("prompt_q1");
+      expect(values).toEqual([{ value: "yes" }, { value: "no" }]);
     });
 
-    it("resolves a shared reference", () => {
+    it("looks up a shared value", () => {
       const store = new ViewerStateStore();
       store.save("prompt_q1", { value: "shared-val" }, "shared", 0, 0);
-      const values = store.resolve("prompt.q1", "shared");
-      expect(values).toEqual(["shared-val"]);
+      const values = store.lookup("prompt_q1", "shared");
+      expect(values).toEqual([{ value: "shared-val" }]);
     });
 
-    it("returns empty array for missing references", () => {
+    it("returns empty array for missing keys", () => {
       const store = new ViewerStateStore();
-      const values = store.resolve("prompt.missing", 0);
+      const values = store.lookup("prompt_missing", 0);
       expect(values).toEqual([]);
-    });
-
-    it("navigates nested paths for non-prompt types", () => {
-      const store = new ViewerStateStore();
-      store.save("survey_TIPI", { result: { score: 4.5 } }, "player", 0, 0);
-      const values = store.resolve("survey.TIPI.result.score", 0);
-      expect(values).toEqual([4.5]);
     });
   });
 

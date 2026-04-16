@@ -8,7 +8,7 @@ Not every platform needs every capability. A VS Code preview tool only needs con
 
 ## 1. State Management (required)
 
-Stagebook components read and write experiment state through the `resolve()` and `save()` methods on the StagebookProvider. The platform must implement a state store that supports these operations.
+Stagebook components read and write experiment state through the `get()` and `save()` methods on the StagebookProvider. The platform must implement a state store that supports these operations.
 
 ### State Scopes
 
@@ -31,20 +31,20 @@ Stagebook components write state under predictable keys:
 
 ### Read Patterns
 
-`resolve(reference, position)` must:
+`get(key, scope)` must:
 
-1. Parse the reference string (use `getReferenceKeyAndPath()` from Stagebook)
-2. Look up the key in the appropriate state scope
-3. Navigate the nested path to the requested value
-4. Return an **array** of values, because some positions (`"all"`, `"any"`) return one value per participant
+1. Look up the key in the appropriate state scope
+2. Return an **array** of raw stored values (exactly what was passed to `save()`)
 
-The `position` parameter determines whose state to read:
+Stagebook handles DSL reference parsing and nested path extraction internally — the platform does not need to import `getReferenceKeyAndPath()` or understand the reference syntax. The platform's `get()` is a flat key-value lookup.
 
-| Position | Behavior |
-|----------|----------|
+The `scope` parameter determines whose state to read:
+
+| Scope | Behavior |
+|-------|----------|
 | `"player"` or omitted | Current participant's player state |
 | `"shared"` | Shared/game state |
-| `0`, `1`, `2`, ... | Specific participant by position index |
+| `"0"`, `"1"`, `"2"`, ... | Specific participant by position index (as string) |
 | `"all"` | Array with one value per participant |
 | `"any"` | Array with one value per participant (conditions check if any satisfy) |
 | `"percentAgreement"` | Array with one value per participant (conditions compute consensus %) |
@@ -71,7 +71,7 @@ Some reference namespaces require the platform to collect and store data that St
 - `connectionInfo.timezone` — IP-based timezone
 - `connectionInfo.isKnownVpn` — whether the IP is on a known VPN list
 
-The platform stores this under the key `connectionInfo` in player state. Stagebook's `resolve("connectionInfo.country")` looks up `connectionInfo` and traverses `.country`.
+The platform stores this under the key `connectionInfo` in player state. Internally, Stagebook's `resolve("connectionInfo.country")` calls `get("connectionInfo")` and traverses `.country`.
 
 **`browserInfo.*`** — Client-side browser information:
 - `browserInfo.screenWidth`, `browserInfo.screenHeight` — screen resolution
@@ -395,4 +395,4 @@ For pre-registered studies, the platform should:
 | Data export | Simple JSON | N/A | JSONL + GitHub push |
 | Pre-registration | N/A | N/A | Recommended |
 
-A minimal Stagebook integration (solo, no video, local content) requires only: React state for `resolve`/`save`, step sequencing for `submit`, `Date.now()` for `getElapsedTime`, and local file reading for `getTextContent`. Everything else is additive.
+A minimal Stagebook integration (solo, no video, local content) requires only: React state for `get`/`save`, step sequencing for `submit`, `Date.now()` for `getElapsedTime`, and local file reading for `getTextContent`. Everything else is additive.

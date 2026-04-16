@@ -70,7 +70,7 @@ compare("hello", "matches", "\\d+");    // false
 
 ### `getReferenceKeyAndPath(reference)`
 
-Parse a DSL reference string into a storage key and nested path.
+Parse a DSL reference string into a storage key and nested path. The `StagebookProvider` uses this internally to convert DSL references into flat key lookups — **platforms don't need to call this for basic integration**. It remains exported for advanced tooling (e.g., state inspectors, debugging tools).
 
 ```typescript
 import { getReferenceKeyAndPath } from "stagebook";

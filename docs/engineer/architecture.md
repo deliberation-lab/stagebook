@@ -6,8 +6,10 @@ Stagebook display components need to do four things: read experiment state, writ
 
 ```typescript
 interface StagebookContext {
-  // Read state via DSL reference strings
-  resolve(reference: string, position?: string): unknown[];
+  // Look up raw stored values by storage key.
+  // scope: "player" (default), "shared", "all", "any", "percentAgreement",
+  // or a numeric string for a specific position.
+  get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
   save(key: string, value: unknown, scope?: "player" | "shared"): void;
@@ -54,7 +56,9 @@ The platform provides the StagebookProvider context. Stagebook handles everythin
 
 ## How reading works
 
-Every element that reads experiment state does so through a **reference string** — a DSL concept like `prompt.myQuestion`, `survey.bigFive.result.score`, or `urlParams.condition`. The `resolve()` function returns an array because some references resolve across multiple participants (e.g., `position: "all"` returns one value per player). In a solo intro step the array has one element; in a group game stage it may have several. The component doesn't need to know which case it's in.
+Every element that reads experiment state does so through a **reference string** — a DSL concept like `prompt.myQuestion`, `survey.bigFive.result.score`, or `urlParams.condition`. Internally, the `StagebookProvider` converts these reference strings into flat storage keys and navigated paths (e.g., `prompt.myQuestion` → key `prompt_myQuestion`, path `["value"]`), calls the platform's `get()` to fetch raw stored values, then extracts the requested path from each result. The result is an array because some scopes (`"all"`, `"any"`) return one value per participant. Components don't need to know the details — they call `resolve()` (via `useResolve`) and get extracted values back.
+
+The platform's `get()` is a simple key-value lookup — it doesn't need to understand the DSL reference syntax or the internal record structure. It returns exactly what was passed to `save()`.
 
 ## How writing works
 

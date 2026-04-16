@@ -814,10 +814,10 @@ export const mediaPlayerSchema = elementBaseSchema
     playVideo: z.boolean().optional(),
     playAudio: z.boolean().optional(),
     captionsFile: z.string().optional(),
-    startAt: z.number().nonnegative().optional(),
-    stopAt: z.number().positive().optional(),
+    startAt: z.number().nonnegative().or(fieldPlaceholderSchema).optional(),
+    stopAt: z.number().positive().or(fieldPlaceholderSchema).optional(),
     allowScrubOutsideBounds: z.boolean().optional(),
-    stepDuration: z.number().positive().optional(),
+    stepDuration: z.number().positive().or(fieldPlaceholderSchema).optional(),
     syncToStageTime: z.boolean().optional(),
     submitOnComplete: z.boolean().optional(),
     playback: z.enum(["once", "manual"]).optional(),
@@ -1009,10 +1009,15 @@ export const elementSchema = altTemplateContext(
       (data as { type?: unknown }).type === "mediaPlayer" &&
       result.success
     ) {
-      const mp = data as { startAt?: number; stopAt?: number };
+      const mp = data as {
+        startAt?: number | string;
+        stopAt?: number | string;
+      };
+      // Only compare when both are concrete numbers — skip when either is
+      // an unresolved ${field} placeholder
       if (
-        mp.startAt !== undefined &&
-        mp.stopAt !== undefined &&
+        typeof mp.startAt === "number" &&
+        typeof mp.stopAt === "number" &&
         mp.stopAt <= mp.startAt
       ) {
         ctx.addIssue({
