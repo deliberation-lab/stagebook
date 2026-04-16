@@ -474,13 +474,32 @@ test("mediaPlayer: startAt/stopAt/stepDuration accept ${field} placeholders", ()
 test("mediaPlayer: stopAt <= startAt check skipped when either is a placeholder", () => {
   // With concrete numbers, stopAt <= startAt would fail. With a placeholder,
   // the cross-field check should be skipped.
-  const result = mediaPlayerSchema.safeParse({
+  // This check lives in elementSchema.superRefine (not mediaPlayerSchema),
+  // so we must parse through elementSchema to exercise it.
+  const result = elementSchema.safeParse({
     type: "mediaPlayer",
     url: "shared/interview.mp4",
     startAt: 100,
     stopAt: "${clipEnd}",
   });
   expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: stopAt <= startAt IS rejected when both are concrete numbers", () => {
+  // Sanity check: the cross-field check still fires when both values are numbers.
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/interview.mp4",
+    startAt: 100,
+    stopAt: 50,
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find((i) =>
+      i.message.includes("stopAt must be greater than startAt"),
+    );
+    expect(issue).toBeDefined();
+  }
 });
 
 test("mediaPlayer: missing url is invalid", () => {
