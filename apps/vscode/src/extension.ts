@@ -468,7 +468,7 @@ function getWebviewContent(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource};">
+    content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource}; media-src ${webview.cspSource} data:;">
   <style>
     :root {
       --viewer-sidebar-width: 280px;
@@ -618,11 +618,18 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // Register file path autocomplete provider
+  // Register file path autocomplete provider. Trigger characters limit
+  // VS Code to invoking the provider only at likely path-completion
+  // points rather than on every keystroke — meaningful because the
+  // provider can hit `workspace.findFiles`.
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
       "treatmentsYaml",
       new FilePathCompletionProvider(),
+      ":",
+      "/",
+      ".",
+      " ",
     ),
   );
 
