@@ -460,6 +460,29 @@ test("mediaPlayer: full config with all fields", () => {
   expect(result.success).toBe(true);
 });
 
+test("mediaPlayer: startAt/stopAt/stepDuration accept ${field} placeholders", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/interview.mp4",
+    startAt: "${clipStart}",
+    stopAt: "${clipEnd}",
+    stepDuration: "${stepSize}",
+  });
+  expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: stopAt <= startAt check skipped when either is a placeholder", () => {
+  // With concrete numbers, stopAt <= startAt would fail. With a placeholder,
+  // the cross-field check should be skipped.
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "shared/interview.mp4",
+    startAt: 100,
+    stopAt: "${clipEnd}",
+  });
+  expect(result.success).toBe(true);
+});
+
 test("mediaPlayer: missing url is invalid", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
