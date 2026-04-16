@@ -32,13 +32,17 @@ describe("evaluateCondition", () => {
       ).toBe(true);
     });
 
-    test("empty values array satisfies (vacuous truth)", () => {
+    test("empty values array fails for value comparators", () => {
+      // Empty array means no data to compare against — the condition
+      // cannot be satisfied. (Previously returned true via vacuous truth
+      // of [].every(), which caused conditional submit buttons gated on
+      // "exists" to appear before any prompt was answered.)
       expect(
         evaluateCondition(
           { reference: "prompt.q1", comparator: "equals", value: "yes" },
           [],
         ),
-      ).toBe(true);
+      ).toBe(false);
     });
 
     test("exists comparator", () => {
@@ -55,6 +59,21 @@ describe("evaluateCondition", () => {
           undefined,
         ]),
       ).toBe(false);
+    });
+
+    test("exists fails for empty array (nothing exists)", () => {
+      expect(
+        evaluateCondition({ reference: "prompt.q1", comparator: "exists" }, []),
+      ).toBe(false);
+    });
+
+    test("doesNotExist passes for empty array", () => {
+      expect(
+        evaluateCondition(
+          { reference: "prompt.q1", comparator: "doesNotExist" },
+          [],
+        ),
+      ).toBe(true);
     });
   });
 
@@ -99,6 +118,20 @@ describe("evaluateCondition", () => {
           [10, 20, 75],
         ),
       ).toBe(true);
+    });
+
+    test("fails on empty array (no value to satisfy)", () => {
+      expect(
+        evaluateCondition(
+          {
+            reference: "prompt.q1",
+            position: "any",
+            comparator: "equals",
+            value: "yes",
+          },
+          [],
+        ),
+      ).toBe(false);
     });
   });
 
@@ -283,11 +316,32 @@ describe("evaluateConditions", () => {
     ).toBe(false);
   });
 
-  test("condition with missing reference resolves to empty array", () => {
-    // Empty array → every() returns true (vacuous truth)
+  test("condition with missing reference (empty array) fails", () => {
+    // Missing references resolve to [] — the condition cannot be satisfied
+    // without data. (Regression test: previously returned true via the
+    // vacuous truth of [].every(), which caused conditional submit buttons
+    // gated on "exists" to appear before any prompt was answered.)
     expect(
       evaluateConditions(
         [{ reference: "prompt.missing", comparator: "equals", value: "yes" }],
+        mockResolve({}),
+      ),
+    ).toBe(false);
+  });
+
+  test("exists on missing reference fails", () => {
+    expect(
+      evaluateConditions(
+        [{ reference: "prompt.missing", comparator: "exists" }],
+        mockResolve({}),
+      ),
+    ).toBe(false);
+  });
+
+  test("doesNotExist on missing reference passes", () => {
+    expect(
+      evaluateConditions(
+        [{ reference: "prompt.missing", comparator: "doesNotExist" }],
         mockResolve({}),
       ),
     ).toBe(true);

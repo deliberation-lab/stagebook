@@ -17,6 +17,15 @@ export function evaluateCondition(
 ): boolean {
   const { position, comparator, value } = condition;
 
+  // No data to compare against — the condition cannot be satisfied
+  // except for doesNotExist, which explicitly asserts absence.
+  // Without this guard, [].every() returns true vacuously and conditional
+  // gates (e.g. submit buttons with `comparator: exists`) appear before
+  // any data has been saved.
+  if (referenceValues.length === 0) {
+    return comparator === "doesNotExist";
+  }
+
   if (position === "percentAgreement") {
     const counts: Record<string, number> = {};
     const definedValues = referenceValues.filter((val) => val !== undefined);
