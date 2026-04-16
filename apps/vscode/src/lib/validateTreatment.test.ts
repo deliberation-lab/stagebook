@@ -253,7 +253,7 @@ treatments:
       );
     });
 
-    it("includes the field path in missing-field messages", () => {
+    it("includes the formatted field path in missing-field messages", () => {
       // A survey element is missing its required surveyName field.
       const src = `introSequences:
   - name: intro1
@@ -270,14 +270,18 @@ treatments:
         elements:
           - type: survey`;
       const result = validateTreatmentSource(src);
-      // The path should be mentioned so the user knows which field is missing
+      // The diagnostic message should include the full formatted path
+      // (dotted segments + bracketed array indices) so the user can locate
+      // the missing field in the schema hierarchy.
       const pathedError = result.diagnostics.find((d) =>
-        d.message.includes("surveyName"),
+        d.message.includes(
+          "treatments[0].gameStages[0].elements[0].surveyName",
+        ),
       );
       expect(pathedError).toBeDefined();
     });
 
-    it("places missing-field errors on the nearest existing ancestor, not (0,0)", () => {
+    it("places missing-field errors on the missing-field's parent element, not (0,0)", () => {
       const src = `introSequences:
   - name: intro1
     introSteps:
@@ -292,14 +296,16 @@ treatments:
         duration: 300
         elements:
           - type: prompt`;
-      // The prompt element is missing required "file" field.
-      // The error should land on the element itself (line 13 area),
-      // not at position (0, 0).
+      // The prompt element is missing its required "file" field.
+      // The diagnostic for that specific missing field should be attached
+      // to the prompt element (the nearest existing ancestor), not (0,0).
       const result = validateTreatmentSource(src);
-      const errors = result.diagnostics.filter((d) => d.severity === "error");
-      expect(errors.length).toBeGreaterThan(0);
-      // At least one error should have a non-zero line
-      expect(errors.some((d) => d.range && d.range.startLine > 0)).toBe(true);
+      const fileError = result.diagnostics.find((d) =>
+        d.message.includes("treatments[0].gameStages[0].elements[0].file"),
+      );
+      expect(fileError).toBeDefined();
+      expect(fileError!.range).not.toBeNull();
+      expect(fileError!.range!.startLine).toBeGreaterThan(0);
     });
 
     it("classifies duplicate key diagnostics as warnings", () => {

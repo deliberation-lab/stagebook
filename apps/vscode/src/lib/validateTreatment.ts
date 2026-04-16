@@ -59,8 +59,11 @@ export function validateTreatmentSource(source: string): ValidationResult {
         range = mapper.resolve(ancestorPath);
       }
 
-      // Augment terse Zod messages (like "Required") with the path so the
-      // user knows which field the error refers to.
+      // Append the field path to every diagnostic so the user always knows
+      // which field the error refers to. Zod messages often omit the field
+      // name (e.g., "Required", "Expected number, received string"), and
+      // even when they include it, the full path gives hierarchical context.
+      // Skipped only when the path is already present verbatim in the message.
       const pathStr = formatPath(issue.path);
       const message =
         pathStr && !issue.message.toLowerCase().includes(pathStr.toLowerCase())
