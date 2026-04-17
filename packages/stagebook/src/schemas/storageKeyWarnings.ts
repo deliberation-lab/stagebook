@@ -11,19 +11,19 @@
  *   - within a single game stage's elements (cross-stage reuse is allowed)
  *   - across all steps of a single intro sequence (one solo phase)
  *   - across all steps of a single treatment's exitSequence (one solo phase)
+ *
+ * Key derivation mirrors the save() calls in src/components/elements/:
+ *   audio        → `audio_${name ?? file}`
+ *   prompt       → `prompt_${name}` (runtime fallback uses progressLabel +
+ *                   metadata, which isn't derivable from the YAML alone, so
+ *                   we only check explicitly-named prompts)
+ *   survey       → `survey_${name ?? surveyName}`
+ *   submitButton → `submitButton_${name}` (runtime fallback is progressLabel;
+ *                   only checked when `name` is set)
+ *   mediaPlayer  → `mediaPlayer_${name ?? url}`
+ *   timeline     → `timeline_${name}` (name is required by the schema)
+ *   trackedLink  → `trackedLink_${name}` (name is required by the schema)
  */
-
-// Element types that write participant data keyed by `{type}_{name}`.
-// Keep in sync with the save() calls in src/components/elements/.
-const SAVING_ELEMENT_TYPES = new Set([
-  "audio",
-  "prompt",
-  "survey",
-  "submitButton",
-  "mediaPlayer",
-  "timeline",
-  "trackedLink",
-]);
 
 export interface StorageKeyWarning {
   /** The duplicated storage key, e.g. "prompt_q1". */
@@ -34,13 +34,37 @@ export interface StorageKeyWarning {
   paths: (string | number)[][];
 }
 
+function strField(obj: Record<string, unknown>, field: string): string | null {
+  const val = obj[field];
+  return typeof val === "string" && val.length > 0 ? val : null;
+}
+
 function storageKeyFor(element: unknown): string | null {
   if (!element || typeof element !== "object") return null;
-  const el = element as { type?: unknown; name?: unknown };
+  const el = element as Record<string, unknown>;
   if (typeof el.type !== "string") return null;
-  if (!SAVING_ELEMENT_TYPES.has(el.type)) return null;
-  if (typeof el.name !== "string" || el.name.length === 0) return null;
-  return `${el.type}_${el.name}`;
+  const name = strField(el, "name");
+  let suffix: string | null = name;
+  switch (el.type) {
+    case "audio":
+      suffix = name ?? strField(el, "file");
+      break;
+    case "survey":
+      suffix = name ?? strField(el, "surveyName");
+      break;
+    case "mediaPlayer":
+      suffix = name ?? strField(el, "url");
+      break;
+    case "prompt":
+    case "submitButton":
+    case "timeline":
+    case "trackedLink":
+      suffix = name;
+      break;
+    default:
+      return null;
+  }
+  return suffix ? `${el.type}_${suffix}` : null;
 }
 
 type Path = (string | number)[];

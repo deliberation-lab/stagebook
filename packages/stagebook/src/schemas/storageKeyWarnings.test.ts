@@ -297,6 +297,106 @@ test("emits a warning for duplicate survey names in the same stage", () => {
   expect(warnings[0].key).toBe("survey_big5");
 });
 
+// --- fallback-name derivation (when element.name is omitted) ---
+
+test("emits a warning for two unnamed surveys with the same surveyName", () => {
+  const data = {
+    treatments: [
+      {
+        name: "t1",
+        playerCount: 1,
+        gameStages: [
+          {
+            name: "s1",
+            duration: 60,
+            elements: [
+              { type: "survey", surveyName: "TIPI" },
+              { type: "survey", surveyName: "TIPI" },
+            ],
+          },
+        ],
+      },
+    ],
+    introSequences: [],
+  };
+  const warnings = collectStorageKeyWarnings(data);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0].key).toBe("survey_TIPI");
+});
+
+test("emits a warning for two unnamed mediaPlayers with the same url", () => {
+  const data = {
+    treatments: [
+      {
+        name: "t1",
+        playerCount: 1,
+        gameStages: [
+          {
+            name: "s1",
+            duration: 60,
+            elements: [
+              { type: "mediaPlayer", url: "https://example.com/clip.mp4" },
+              { type: "mediaPlayer", url: "https://example.com/clip.mp4" },
+            ],
+          },
+        ],
+      },
+    ],
+    introSequences: [],
+  };
+  const warnings = collectStorageKeyWarnings(data);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0].key).toBe("mediaPlayer_https://example.com/clip.mp4");
+});
+
+test("emits a warning for two unnamed audio elements with the same file", () => {
+  const data = {
+    treatments: [
+      {
+        name: "t1",
+        playerCount: 1,
+        gameStages: [
+          {
+            name: "s1",
+            duration: 60,
+            elements: [
+              { type: "audio", file: "beep.mp3" },
+              { type: "audio", file: "beep.mp3" },
+            ],
+          },
+        ],
+      },
+    ],
+    introSequences: [],
+  };
+  const warnings = collectStorageKeyWarnings(data);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0].key).toBe("audio_beep.mp3");
+});
+
+test("explicit name wins over fallback (no warning when names differ)", () => {
+  const data = {
+    treatments: [
+      {
+        name: "t1",
+        playerCount: 1,
+        gameStages: [
+          {
+            name: "s1",
+            duration: 60,
+            elements: [
+              { type: "survey", name: "pre", surveyName: "TIPI" },
+              { type: "survey", name: "post", surveyName: "TIPI" },
+            ],
+          },
+        ],
+      },
+    ],
+    introSequences: [],
+  };
+  expect(collectStorageKeyWarnings(data)).toEqual([]);
+});
+
 // --- malformed input ---
 
 test("returns no warnings for malformed input", () => {
