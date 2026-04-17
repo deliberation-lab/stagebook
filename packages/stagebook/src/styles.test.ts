@@ -17,11 +17,16 @@ function collectFiles(dir: string, out: string[] = []): string[] {
 }
 
 function extractDefined(css: string): Set<string> {
+  // Strip block comments first so documented override examples like
+  // `--stagebook-foo: ...` inside `/* ... */` aren't mistaken for real
+  // declarations.
+  const cssWithoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
   // Matches `--stagebook-foo:` (only declarations on the left-hand side).
   const defined = new Set<string>();
   const re = /(--stagebook-[\w-]+)\s*:/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(css)) !== null) defined.add(m[1]);
+  while ((m = re.exec(cssWithoutComments)) !== null) defined.add(m[1]);
   return defined;
 }
 
