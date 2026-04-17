@@ -88,6 +88,23 @@ describe("getReferenceKeyAndPath", () => {
   test("throws on missing name segment", () => {
     expect(() => getReferenceKeyAndPath("survey")).toThrow();
   });
+
+  test("throws on missing path segment for nested namespaces", () => {
+    // Keeps runtime parsing consistent with referenceSchema, which requires
+    // at least one path segment for these flat-namespace references.
+    expect(() => getReferenceKeyAndPath("participantInfo")).toThrow(
+      "missing a path segment",
+    );
+    expect(() => getReferenceKeyAndPath("connectionInfo")).toThrow(
+      "missing a path segment",
+    );
+    expect(() => getReferenceKeyAndPath("browserInfo")).toThrow(
+      "missing a path segment",
+    );
+    expect(() => getReferenceKeyAndPath("urlParams")).toThrow(
+      "missing a path segment",
+    );
+  });
 });
 
 // ----------- getNestedValueByPath ------------

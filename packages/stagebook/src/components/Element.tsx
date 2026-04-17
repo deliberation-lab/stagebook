@@ -15,7 +15,7 @@ import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
 
-// Resolve URL params for TrackedLink using the StagebookProvider's resolve.
+// Resolve element URL params using the StagebookProvider's resolve.
 // Plain function — no hooks — so it's safe to call conditionally (e.g. in
 // a switch case) without violating the Rules of Hooks.
 function resolveParams(

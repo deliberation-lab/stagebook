@@ -46,6 +46,9 @@ export function getReferenceKeyAndPath(reference: string): ReferenceKeyAndPath {
       type,
     )
   ) {
+    if (rest.length === 0) {
+      throw new Error(`Reference ${reference} is missing a path segment.`);
+    }
     path = rest;
     referenceKey = type;
   } else if (type === "discussion") {

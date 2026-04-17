@@ -489,7 +489,7 @@ export const referenceSchema = z
         if (path.length < 1) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `A path must be provided, e.g. '${givenType}.object.selectors.here.`,
+            message: `A path must be provided, e.g. '${givenType}.object.selectors.here'.`,
             path: [],
           });
         }
