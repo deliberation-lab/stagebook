@@ -18,29 +18,41 @@ jobs:
       lint: ${{ steps.filter.outputs.lint }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Needed so dorny/paths-filter can diff base vs HEAD reliably on push events.
+          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
             stagebook:
               - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
               - '.github/workflows/ci.yml'
             viewer:
               - 'apps/viewer/**'
               - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
               - '.github/workflows/ci.yml'
             vscode:
               - 'apps/vscode/**'
               - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
               - '.github/workflows/ci.yml'
             ct:
               - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
               - '.github/workflows/ci.yml'
             lint:
               - '**/*.ts'
               - '**/*.tsx'
               - '**/*.js'
               - '**/*.json'
+              - '.prettierrc'
               - '.github/workflows/ci.yml'
 
   lint:
