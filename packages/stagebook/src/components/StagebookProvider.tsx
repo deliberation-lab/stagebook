@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import type { DiscussionType } from "../schemas/treatment.js";
 import {
   getReferenceKeyAndPath,
@@ -140,6 +146,12 @@ export function useTextContent(path: string): TextContentResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | undefined>(undefined);
 
+  // Ref `getTextContent` so a rebuilt StagebookContext (fresh function
+  // identity each render) doesn't cause the fetch effect to re-fire and
+  // refetch content on every parent re-render (#105).
+  const getTextContentRef = useRef(getTextContent);
+  getTextContentRef.current = getTextContent;
+
   useEffect(() => {
     if (!path) {
       setData(undefined);
@@ -152,7 +164,8 @@ export function useTextContent(path: string): TextContentResult {
     setIsLoading(true);
     setError(undefined);
 
-    getTextContent(path)
+    getTextContentRef
+      .current(path)
       .then((text) => {
         if (!cancelled) {
           setData(text);
@@ -169,7 +182,7 @@ export function useTextContent(path: string): TextContentResult {
     return () => {
       cancelled = true;
     };
-  }, [path, getTextContent]);
+  }, [path]);
 
   return { data, isLoading, error };
 }
