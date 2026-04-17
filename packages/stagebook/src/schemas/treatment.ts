@@ -470,7 +470,6 @@ export const referenceSchema = z
         }
         break;
       case "discussion":
-      case "participantInfo":
       case "prompt":
       case "trackedLink":
         [, name] = arr;
@@ -485,11 +484,12 @@ export const referenceSchema = z
       case "urlParams":
       case "connectionInfo":
       case "browserInfo":
+      case "participantInfo":
         [, ...path] = arr;
         if (path.length < 1) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `A path must be provided, e.g. '${givenType}.object.selectors.here.`,
+            message: `A path must be provided, e.g. '${givenType}.object.selectors.here'.`,
             path: [],
           });
         }

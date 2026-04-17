@@ -223,6 +223,22 @@ describe("evaluateCondition", () => {
         ),
       ).toBe(true);
     });
+
+    test("response values matching Object.prototype keys count correctly", () => {
+      // Regression: the counts map must not inherit from Object.prototype,
+      // or responses like "constructor" produce NaN counts.
+      expect(
+        evaluateCondition(
+          {
+            reference: "prompt.q1",
+            position: "percentAgreement",
+            comparator: "equals",
+            value: 100,
+          },
+          ["constructor", "constructor", "constructor"],
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("comparator edge cases", () => {

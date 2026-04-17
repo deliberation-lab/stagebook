@@ -27,7 +27,10 @@ export function evaluateCondition(
   }
 
   if (position === "percentAgreement") {
-    const counts: Record<string, number> = {};
+    // Use a null-prototype object so response values like "constructor"
+    // or "toString" don't collide with inherited properties and produce
+    // NaN counts.
+    const counts = Object.create(null) as Record<string, number>;
     const definedValues = referenceValues.filter((val) => val !== undefined);
 
     if (definedValues.length === 0) return false;
