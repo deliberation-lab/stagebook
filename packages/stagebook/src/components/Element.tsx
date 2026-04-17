@@ -15,8 +15,10 @@ import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
 
-// Resolve URL params for TrackedLink using the StagebookProvider's resolve
-function useResolvedParams(
+// Resolve URL params for TrackedLink using the StagebookProvider's resolve.
+// Plain function — no hooks — so it's safe to call conditionally (e.g. in
+// a switch case) without violating the Rules of Hooks.
+function resolveParams(
   urlParams:
     | Array<{
         key: string;
@@ -122,7 +124,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     error: promptError,
   } = useTextContent(promptFile ?? "");
 
-  const resolvedParams = useResolvedParams(
+  const resolvedParams = resolveParams(
     element.type === "trackedLink" ? element.urlParams : undefined,
     resolve,
   );
@@ -326,7 +328,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       );
 
     case "qualtrics": {
-      const qualtricsParams = useResolvedParams(element.urlParams, resolve);
+      const qualtricsParams = resolveParams(element.urlParams, resolve);
       return (
         <Qualtrics
           url={element.url ?? ""}

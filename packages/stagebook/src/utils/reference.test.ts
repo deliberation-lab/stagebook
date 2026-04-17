@@ -53,9 +53,18 @@ describe("getReferenceKeyAndPath", () => {
   });
 
   test("participantInfo reference", () => {
-    const result = getReferenceKeyAndPath("participantInfo.nickname.value");
-    expect(result.referenceKey).toBe("nickname");
-    expect(result.path).toEqual(["value"]);
+    // participantInfo uses the same flat-namespace pattern as connectionInfo
+    // and browserInfo — stored under a single `participantInfo` key with
+    // the field addressed via the nested path.
+    const result = getReferenceKeyAndPath("participantInfo.name");
+    expect(result.referenceKey).toBe("participantInfo");
+    expect(result.path).toEqual(["name"]);
+  });
+
+  test("participantInfo reference with deep path", () => {
+    const result = getReferenceKeyAndPath("participantInfo.sampleId.raw");
+    expect(result.referenceKey).toBe("participantInfo");
+    expect(result.path).toEqual(["sampleId", "raw"]);
   });
 
   test("timeline reference", () => {
@@ -102,5 +111,17 @@ describe("getNestedValueByPath", () => {
   test("default path is empty array", () => {
     const obj = { a: 1 };
     expect(getNestedValueByPath(obj)).toEqual({ a: 1 });
+  });
+
+  test("rejects prototype-polluting path segments", () => {
+    // Arbitrary reference paths must not be able to traverse into
+    // Object.prototype — these segments are denied even if present.
+    const obj = {};
+    expect(getNestedValueByPath(obj, ["__proto__"])).toBeUndefined();
+    expect(getNestedValueByPath(obj, ["constructor"])).toBeUndefined();
+    expect(getNestedValueByPath(obj, ["prototype"])).toBeUndefined();
+    expect(
+      getNestedValueByPath(obj, ["__proto__", "polluted"]),
+    ).toBeUndefined();
   });
 });
