@@ -41,6 +41,7 @@ function makeRefBackedHandle(refs: {
   captureCallCount: { current: number };
   peaks: { current: Float32Array[] };
   peaksVersion: { current: number };
+  muted: { current: boolean[] };
 }): PlaybackHandle {
   return {
     play() {
@@ -67,6 +68,16 @@ function makeRefBackedHandle(refs: {
     },
     requestWaveformCapture() {
       refs.captureCallCount.current += 1;
+    },
+    setChannelMuted(channel: number, muted: boolean) {
+      if (channel < 0) return;
+      const arr = refs.muted.current.slice();
+      while (arr.length <= channel) arr.push(false);
+      arr[channel] = muted;
+      refs.muted.current = arr;
+    },
+    isChannelMuted(channel: number) {
+      return refs.muted.current[channel] ?? false;
     },
   };
 }
@@ -124,6 +135,9 @@ export function MockTimeline({
   const captureCallCountRef = useRef(0);
   const peaksRef = useRef<Float32Array[]>([]);
   const peaksVersionRef = useRef(0);
+  // Channel mute state the handle reports. Tests read this through the
+  // <div data-testid="mute-state"> below.
+  const mutedRef = useRef<boolean[]>([]);
   // Sync refs to props on every render (cheap, idempotent)
   durationRef.current = mockDuration ?? 60;
   currentTimeRef.current = mockCurrentTime ?? 0;
@@ -160,6 +174,7 @@ export function MockTimeline({
         captureCallCount: captureCallCountRef,
         peaks: peaksRef,
         peaksVersion: peaksVersionRef,
+        muted: mutedRef,
       }),
     // Refs only — handle is stable for the lifetime of the mock.
     [],
@@ -180,6 +195,23 @@ export function MockTimeline({
     return () => clearInterval(id);
   }, [captureCallCount]);
 
+  // Expose the handle's per-channel mute state to tests via the DOM. Poll
+  // the ref (same pattern as captureCallCount above) so CT tests can assert
+  // on handle.isChannelMuted via a data-testid.
+  const [muteSnapshot, setMuteSnapshot] = useState<boolean[]>([]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const current = mutedRef.current;
+      if (
+        current.length !== muteSnapshot.length ||
+        current.some((v, i) => v !== muteSnapshot[i])
+      ) {
+        setMuteSnapshot(current.slice());
+      }
+    }, 30);
+    return () => clearInterval(id);
+  }, [muteSnapshot]);
+
   return (
     <PlaybackProvider>
       {playerName && <MockPlayer name={playerName} handle={handle} />}
@@ -195,6 +227,9 @@ export function MockTimeline({
       </div>
       <div data-testid="capture-call-count" style={{ display: "none" }}>
         {String(captureCallCount)}
+      </div>
+      <div data-testid="mute-state" style={{ display: "none" }}>
+        {JSON.stringify(muteSnapshot)}
       </div>
     </PlaybackProvider>
   );
