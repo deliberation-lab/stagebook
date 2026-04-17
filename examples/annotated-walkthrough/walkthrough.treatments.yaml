@@ -39,8 +39,19 @@ templates:
       # `${topic}` and `${topicLabel}` come from the broadcast axis
       # below. After expansion `${topic}` becomes e.g. "remote_work"
       # and `${topicLabel}` becomes "remote work policies".
-      name: ${topic}_2p
-      desc: Two-person text discussion of ${topicLabel}
+      name: Annotated walkthrough - ${topicLabel}
+      # `notes` carries free-text, Markdown documentation for the
+      # researcher (rationale, citations, design notes). The viewer
+      # surfaces it — here it powers the treatment card on the
+      # landing page.
+      notes: |
+        A two-person text discussion about ${topicLabel}, annotated as
+        a syntax tour. Demonstrates templates (with broadcast), timed
+        stages, position-based visibility, group composition by
+        condition, display elements, conditional rendering, and the
+        platform-coupled elements (`survey`, `discussion`,
+        `sharedNotepad`, `qualtrics`) that surface as skeleton
+        placeholders in the viewer.
       playerCount: 2
 
       # `groupComposition` matches participants to numbered positions
