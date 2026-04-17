@@ -39,6 +39,8 @@ function makeRefBackedHandle(refs: {
   paused: { current: boolean };
   channelCount: { current: number };
   captureCallCount: { current: number };
+  peaks: { current: Float32Array[] };
+  peaksVersion: { current: number };
 }): PlaybackHandle {
   return {
     play() {
@@ -57,8 +59,12 @@ function makeRefBackedHandle(refs: {
     get channelCount() {
       return refs.channelCount.current;
     },
-    peaks: [],
-    peaksVersion: 0,
+    get peaks() {
+      return refs.peaks.current;
+    },
+    get peaksVersion() {
+      return refs.peaksVersion.current;
+    },
     requestWaveformCapture() {
       refs.captureCallCount.current += 1;
     },
@@ -85,6 +91,12 @@ export interface MockTimelineProps extends Omit<TimelineProps, "save"> {
   mockCurrentTime?: number;
   mockPaused?: boolean;
   mockChannelCount?: number;
+  /**
+   * Per-channel interleaved min/max peaks. Accepts plain number[][] so
+   * Playwright CT can serialize it across the worker boundary; converted to
+   * Float32Array[] internally.
+   */
+  mockPeaks?: number[][];
 }
 
 export function MockTimeline({
@@ -93,6 +105,7 @@ export function MockTimeline({
   mockCurrentTime,
   mockPaused,
   mockChannelCount,
+  mockPeaks,
   ...props
 }: MockTimelineProps) {
   const [saves, setSaves] = useState<Array<{ key: string; value: unknown }>>(
@@ -109,11 +122,26 @@ export function MockTimeline({
   // Counts how many times Timeline called requestWaveformCapture, so tests
   // can verify that showWaveform=false suppresses it.
   const captureCallCountRef = useRef(0);
+  const peaksRef = useRef<Float32Array[]>([]);
+  const peaksVersionRef = useRef(0);
   // Sync refs to props on every render (cheap, idempotent)
   durationRef.current = mockDuration ?? 60;
   currentTimeRef.current = mockCurrentTime ?? 0;
   pausedRef.current = mockPaused ?? true;
   channelCountRef.current = mockChannelCount ?? 0;
+  // Convert plain number arrays to Float32Array[] once per render; bump the
+  // version so WaveformRenderer's redraw effect sees the new data.
+  const peaksSignature = mockPeaks
+    ? mockPeaks.map((ch) => ch.length).join(",")
+    : "";
+  const lastPeaksSigRef = useRef<string | null>(null);
+  if (lastPeaksSigRef.current !== peaksSignature) {
+    lastPeaksSigRef.current = peaksSignature;
+    peaksRef.current = mockPeaks
+      ? mockPeaks.map((ch) => Float32Array.from(ch))
+      : [];
+    peaksVersionRef.current += 1;
+  }
 
   // Memoize the handle once — its methods close over the refs above, so
   // updates flow through without recreating.
@@ -125,6 +153,8 @@ export function MockTimeline({
         paused: pausedRef,
         channelCount: channelCountRef,
         captureCallCount: captureCallCountRef,
+        peaks: peaksRef,
+        peaksVersion: peaksVersionRef,
       }),
     // Refs only — handle is stable for the lifetime of the mock.
     [],
