@@ -1,10 +1,17 @@
 import { useState } from "react";
+import type { ExampleEntry } from "../lib/exampleCatalog";
 
 interface LandingPageProps {
   onLoad: (url: string) => void;
+  examples: ExampleEntry[];
+  onLoadExample: (entry: ExampleEntry) => void;
 }
 
-export function LandingPage({ onLoad }: LandingPageProps) {
+export function LandingPage({
+  onLoad,
+  examples,
+  onLoadExample,
+}: LandingPageProps) {
   const [url, setUrl] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -43,6 +50,28 @@ export function LandingPage({ onLoad }: LandingPageProps) {
           Paste a link to any treatment YAML file hosted on GitHub. The viewer
           fetches it directly — no backend needed.
         </p>
+
+        {examples.length > 0 && (
+          <section aria-label="Examples" style={examplesSectionStyle}>
+            <h2 style={examplesHeadingStyle}>Or try an example</h2>
+            <ul style={examplesListStyle}>
+              {examples.map((example) => (
+                <li key={example.id}>
+                  <button
+                    type="button"
+                    onClick={() => onLoadExample(example)}
+                    style={exampleCardStyle}
+                  >
+                    <span style={exampleTitleStyle}>{example.title}</span>
+                    {example.notes && (
+                      <span style={exampleNotesStyle}>{example.notes}</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -112,4 +141,53 @@ const hintStyle: React.CSSProperties = {
   color: "#9ca3af",
   marginTop: "1.5rem",
   lineHeight: 1.5,
+};
+
+const examplesSectionStyle: React.CSSProperties = {
+  marginTop: "2rem",
+  paddingTop: "1.5rem",
+  borderTop: "1px solid #e5e7eb",
+};
+
+const examplesHeadingStyle: React.CSSProperties = {
+  fontSize: "0.875rem",
+  fontWeight: 600,
+  color: "#374151",
+  margin: "0 0 0.75rem 0",
+};
+
+const examplesListStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.5rem",
+};
+
+const exampleCardStyle: React.CSSProperties = {
+  width: "100%",
+  textAlign: "left",
+  padding: "0.75rem 1rem",
+  borderRadius: "0.375rem",
+  border: "1px solid #d1d5db",
+  backgroundColor: "white",
+  cursor: "pointer",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.25rem",
+  font: "inherit",
+};
+
+const exampleTitleStyle: React.CSSProperties = {
+  fontSize: "0.875rem",
+  fontWeight: 500,
+  color: "#1f2937",
+};
+
+const exampleNotesStyle: React.CSSProperties = {
+  fontSize: "0.75rem",
+  color: "#6b7280",
+  lineHeight: 1.5,
+  whiteSpace: "pre-wrap",
 };
