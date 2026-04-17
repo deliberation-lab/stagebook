@@ -14,9 +14,9 @@ cloud sessions) working issues in this repo.
 ## Workflow
 
 1. **Check for an existing claim.** Read the issue comments
-   (`gh issue view <number> --json comments`). If any comment contains
+   (`gh issue view <number> --comments`). If any comment contains
    the marker `🔧 Working on this`, check whether there is also an
-   open PR referencing this issue (`gh pr list --search "issue-<number>"`).
+   open PR for this issue (`gh pr list --state open --search "<number>"`).
    - If there is an open PR: another agent is actively handling this.
      **Stop immediately** — do not duplicate the work.
    - If there is NO open PR: the previous agent likely stalled. Proceed
