@@ -152,9 +152,10 @@ export function Timeline({
   const [helpOpen, setHelpOpen] = useState(false);
 
   // Per-track mute state. Ephemeral (not persisted, not saved) — a
-  // listening aid only. Default: all tracks unmuted. Sized to the actual
-  // channel count the first time we know it; grows if channelCount grows.
-  const [muteState, setMuteState] = useState<boolean[]>([]);
+  // listening aid only. Default: all tracks unmuted. Starts empty and
+  // grows lazily as tracks are toggled. Kept as local state solely to
+  // trigger re-renders; the source of truth for `muted` is the handle.
+  const [, setMuteTick] = useState(0);
 
   // Track whether the playhead changes are "natural playback" (RAF tick)
   // versus "external seek" (someone called handle.seekTo() out of band).
@@ -476,12 +477,8 @@ export function Timeline({
   // from a ref to avoid re-creating when the handle identity changes.
   const onToggleMute = useCallback((trackIndex: number, nextMuted: boolean) => {
     handleRef.current?.setChannelMuted(trackIndex, nextMuted);
-    setMuteState((prev) => {
-      const next = prev.slice();
-      while (next.length <= trackIndex) next.push(false);
-      next[trackIndex] = nextMuted;
-      return next;
-    });
+    // Bump a tick so this Timeline re-reads handle.isChannelMuted().
+    setMuteTick((t) => t + 1);
   }, []);
 
   if (!handle) {
@@ -583,7 +580,7 @@ export function Timeline({
             height={TRACK_HEIGHT}
             startBucket={startBucket}
             endBucket={endBucket}
-            muted={muteState[i] ?? false}
+            muted={handle.isChannelMuted(i)}
             onToggleMute={(nextMuted) => onToggleMute(i, nextMuted)}
           />
         ))}

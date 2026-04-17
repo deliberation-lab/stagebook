@@ -198,10 +198,12 @@ export function MediaPlayer({
       const gainNodes: GainNode[] = [];
       const merger = ctx.createChannelMerger(numChannels);
 
-      // splitter → analyser (dry signal, for waveform reads)
-      // splitter → gainNode → merger → destination (audible signal, mutable)
-      // Reading the waveform from the pre-gain tap means the displayed
-      // waveform always reflects the recorded audio, not the mute state.
+      // splitter → analyser → gainNode → merger → destination.
+      // AnalyserNode is a pass-through tap, so reading peaks from the
+      // analyser gives the pre-gain (dry) signal — the displayed waveform
+      // reflects the recorded audio, not the mute state. Keeping the
+      // analyser inline (not dead-ended) also ensures the Web Audio graph
+      // pulls it, so getByteTimeDomainData() returns live samples.
       for (let ch = 0; ch < numChannels; ch++) {
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 2048;
@@ -209,7 +211,7 @@ export function MediaPlayer({
 
         const gainNode = ctx.createGain();
         gainNode.gain.value = 1;
-        splitter.connect(gainNode, ch);
+        analyser.connect(gainNode);
         gainNode.connect(merger, 0, ch);
 
         analysers.push(analyser);
