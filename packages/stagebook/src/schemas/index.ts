@@ -79,6 +79,11 @@ export {
 } from "./treatment.js";
 
 export {
+  collectStorageKeyWarnings,
+  type StorageKeyWarning,
+} from "./storageKeyWarnings.js";
+
+export {
   resolvedElementSchema,
   resolvedStageSchema,
   resolvedIntroExitStepSchema,

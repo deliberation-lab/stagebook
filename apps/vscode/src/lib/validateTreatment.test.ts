@@ -308,6 +308,37 @@ treatments:
       expect(fileError!.range!.startLine).toBeGreaterThan(0);
     });
 
+    it("surfaces duplicate storage-key collisions as warnings without erroring", () => {
+      const src = `introSequences:
+  - name: intro1
+    introSteps:
+      - name: welcome
+        elements:
+          - type: submitButton
+treatments:
+  - name: study1
+    playerCount: 1
+    gameStages:
+      - name: stage1
+        duration: 300
+        elements:
+          - type: prompt
+            name: q1
+            file: a.prompt.md
+          - type: prompt
+            name: q1
+            file: b.prompt.md
+          - type: submitButton`;
+      const result = validateTreatmentSource(src);
+      const errors = result.diagnostics.filter((d) => d.severity === "error");
+      expect(errors).toEqual([]);
+      const storageKeyWarning = result.diagnostics.find(
+        (d) => d.severity === "warning" && d.message.includes('"prompt_q1"'),
+      );
+      expect(storageKeyWarning).toBeDefined();
+      expect(storageKeyWarning!.range).not.toBeNull();
+    });
+
     it("classifies duplicate key diagnostics as warnings", () => {
       const src = `introSequences:
   - name: intro1
