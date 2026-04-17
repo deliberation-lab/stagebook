@@ -45,8 +45,11 @@ templates:
 
       # `groupComposition` matches participants to numbered positions
       # using conditions on data captured during the intro. Here we
-      # use the familiarity slider to put the more-familiar participant
-      # in position 0 and the less-familiar one in position 1.
+      # use an absolute cutoff on the familiarity slider: scores >= 50
+      # are eligible for position 0 ("Familiar"), scores < 50 are
+      # eligible for position 1 ("Newcomer"). A group only forms when
+      # one participant matches each side of the cutoff — this is the
+      # intentional cost of threshold-based composition.
       groupComposition:
         - position: 0
           title: Familiar
@@ -141,12 +144,20 @@ templates:
               file: prompts/post_changed.prompt.md
 
             # Conditional element: only appears once *both* players
-            # have answered the "changed mind" question.
+            # have answered the "changed mind" question. We check each
+            # position explicitly because the resolver filters out
+            # undefined values before comparison — `position: all`
+            # with `exists` would fire as soon as a single player
+            # responded. Conditions AND together, so this prompt only
+            # becomes visible when both references are defined.
             - type: prompt
               file: prompts/post_consensus.prompt.md
               conditions:
                 - reference: prompt.${topic}_changed
-                  position: all
+                  position: 0
+                  comparator: exists
+                - reference: prompt.${topic}_changed
+                  position: 1
                   comparator: exists
 
             - type: submitButton
