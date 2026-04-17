@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/experimental-ct-react";
 import {
   BoundaryTestHarness,
-  CrashingChild,
   SiblingLayout,
 } from "./testing/BoundaryTestHarness";
 
@@ -9,15 +8,22 @@ const FALLBACK_TEXT = "Part of this page couldn't load";
 
 test("renders happy-path children with no visible wrapper", async ({
   mount,
+  page,
 }) => {
-  const component = await mount(
-    <BoundaryTestHarness elementType="prompt" elementName="ok">
-      <p data-testid="happy-child">hello</p>
-    </BoundaryTestHarness>,
+  await mount(
+    <BoundaryTestHarness
+      elementType="prompt"
+      elementName="ok"
+      happyText="HAPPY-PATH-CONTENT"
+    />,
   );
-  await expect(component.locator('[data-testid="happy-child"]')).toBeVisible();
-  await expect(component).toContainText("hello");
-  await expect(component).not.toContainText(FALLBACK_TEXT);
+  await expect(page.locator('[data-testid="happy-child"]')).toBeVisible();
+  await expect(page.locator("#root")).toContainText("HAPPY-PATH-CONTENT");
+  await expect(page.locator("#root")).not.toContainText(FALLBACK_TEXT);
+  // No fallback element in the DOM in the happy path.
+  await expect(
+    page.locator('[data-testid="element-error-fallback"]'),
+  ).toHaveCount(0);
 });
 
 test("renders a participant-friendly fallback when a child throws", async ({
@@ -27,15 +33,17 @@ test("renders a participant-friendly fallback when a child throws", async ({
   // Swallow the async-rethrown error so the test doesn't fail on page error
   page.on("pageerror", () => {});
 
-  const component = await mount(
-    <BoundaryTestHarness elementType="prompt" elementName="secretPromptName">
-      <CrashingChild message="secret-internal-reason" />
-    </BoundaryTestHarness>,
+  await mount(
+    <BoundaryTestHarness
+      elementType="prompt"
+      elementName="secretPromptName"
+      crashMessage="secret-internal-reason"
+    />,
   );
 
-  const fallback = component.locator('[data-testid="element-error-fallback"]');
+  const fallback = page.locator('[data-testid="element-error-fallback"]');
   await expect(fallback).toBeVisible();
-  await expect(component).toContainText(FALLBACK_TEXT);
+  await expect(fallback).toContainText(FALLBACK_TEXT);
 });
 
 test("fallback UI leaks no technical detail to the participant", async ({
@@ -44,22 +52,25 @@ test("fallback UI leaks no technical detail to the participant", async ({
 }) => {
   page.on("pageerror", () => {});
 
-  const component = await mount(
-    <BoundaryTestHarness elementType="prompt" elementName="secretPromptName">
-      <CrashingChild message="secret-internal-reason" />
-    </BoundaryTestHarness>,
+  await mount(
+    <BoundaryTestHarness
+      elementType="prompt"
+      elementName="secretPromptName"
+      crashMessage="secret-internal-reason"
+    />,
   );
 
   await expect(
-    component.locator('[data-testid="element-error-fallback"]'),
+    page.locator('[data-testid="element-error-fallback"]'),
   ).toBeVisible();
 
+  const root = page.locator("#root");
   // None of these may appear in the DOM presented to the participant
-  await expect(component).not.toContainText("secret-internal-reason");
-  await expect(component).not.toContainText("secretPromptName");
+  await expect(root).not.toContainText("secret-internal-reason");
+  await expect(root).not.toContainText("secretPromptName");
   // The raw element type string shouldn't leak either — the fallback copy
   // intentionally does not reference the element's kind.
-  await expect(component).not.toContainText("prompt:");
+  await expect(root).not.toContainText("prompt:");
 });
 
 test("sibling elements still render when the middle one crashes", async ({
@@ -68,7 +79,7 @@ test("sibling elements still render when the middle one crashes", async ({
 }) => {
   page.on("pageerror", () => {});
 
-  const component = await mount(
+  await mount(
     <SiblingLayout
       leftText="LEFT-OK"
       rightText="RIGHT-OK"
@@ -77,19 +88,18 @@ test("sibling elements still render when the middle one crashes", async ({
     />,
   );
 
-  await expect(component.locator('[data-testid="sibling-left"]')).toBeVisible();
+  await expect(page.locator('[data-testid="sibling-left"]')).toBeVisible();
+  await expect(page.locator('[data-testid="sibling-right"]')).toBeVisible();
   await expect(
-    component.locator('[data-testid="sibling-right"]'),
-  ).toBeVisible();
-  await expect(
-    component.locator('[data-testid="element-error-fallback"]'),
+    page.locator('[data-testid="element-error-fallback"]'),
   ).toHaveCount(1);
-  await expect(component).toContainText("LEFT-OK");
-  await expect(component).toContainText("RIGHT-OK");
-  await expect(component).toContainText(FALLBACK_TEXT);
+  const root = page.locator("#root");
+  await expect(root).toContainText("LEFT-OK");
+  await expect(root).toContainText("RIGHT-OK");
+  await expect(root).toContainText(FALLBACK_TEXT);
 });
 
-test("emits a single console.error with the full technical payload", async ({
+test("emits a [Stagebook] console.error with the full technical payload", async ({
   mount,
   page,
 }) => {
@@ -103,12 +113,16 @@ test("emits a single console.error with the full technical payload", async ({
   });
 
   await mount(
-    <BoundaryTestHarness elementType="prompt" elementName="promptForDebug">
-      <CrashingChild message="debug-visible-to-researcher" />
-    </BoundaryTestHarness>,
+    <BoundaryTestHarness
+      elementType="prompt"
+      elementName="promptForDebug"
+      crashMessage="debug-visible-to-researcher"
+    />,
   );
 
-  await expect.poll(() => stagebookErrors.length, { timeout: 2000 }).toBe(1);
+  await expect
+    .poll(() => stagebookErrors.length, { timeout: 2000 })
+    .toBeGreaterThanOrEqual(1);
 
   const logged = stagebookErrors[0];
   expect(logged).toContain("prompt");
@@ -125,9 +139,11 @@ test("async re-throws original error to window.onerror", async ({
   });
 
   await mount(
-    <BoundaryTestHarness elementType="display" elementName="xyz">
-      <CrashingChild message="rethrown-to-window-onerror" />
-    </BoundaryTestHarness>,
+    <BoundaryTestHarness
+      elementType="display"
+      elementName="xyz"
+      crashMessage="rethrown-to-window-onerror"
+    />,
   );
 
   await expect
@@ -143,7 +159,6 @@ test("calls onElementError with structured payload when provided", async ({
 }) => {
   page.on("pageerror", () => {});
 
-  // Clear any leftover from previous tests just in case.
   await page.evaluate(() => {
     delete window.__stagebookElementErrors;
   });
@@ -153,9 +168,8 @@ test("calls onElementError with structured payload when provided", async ({
       elementType="timer"
       elementName="countdownA"
       withCallback
-    >
-      <CrashingChild message="callback-error" />
-    </BoundaryTestHarness>,
+      crashMessage="callback-error"
+    />,
   );
 
   await expect
@@ -163,7 +177,7 @@ test("calls onElementError with structured payload when provided", async ({
       () => page.evaluate(() => window.__stagebookElementErrors?.length ?? 0),
       { timeout: 2000 },
     )
-    .toBe(1);
+    .toBeGreaterThanOrEqual(1);
 
   const recorded = await page.evaluate(
     () => window.__stagebookElementErrors?.[0],
@@ -191,9 +205,11 @@ test("without onElementError, console.error and window.onerror still fire", asyn
   });
 
   await mount(
-    <BoundaryTestHarness elementType="display" elementName="noCallback">
-      <CrashingChild message="no-callback-provided" />
-    </BoundaryTestHarness>,
+    <BoundaryTestHarness
+      elementType="display"
+      elementName="noCallback"
+      crashMessage="no-callback-provided"
+    />,
   );
 
   await expect

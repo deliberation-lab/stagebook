@@ -68,7 +68,7 @@ class ElementErrorBoundaryInner extends React.Component<
             fontSize: "0.875rem",
           }}
         >
-          Part of this page couldn&rsquo;t load. The rest is still usable.
+          Part of this page couldn&apos;t load. The rest is still usable.
         </div>
       );
     }

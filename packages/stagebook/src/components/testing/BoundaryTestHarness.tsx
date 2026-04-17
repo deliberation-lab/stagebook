@@ -1,10 +1,9 @@
 /**
  * Test harness for ElementErrorBoundary CT tests.
  *
- * Wraps children in a StagebookProvider with a minimal mock context so the
- * boundary's `useStagebookContext()` call succeeds, and optionally wires an
- * `onElementError` callback that records structured error payloads to
- * `window.__stagebookElementErrors` for the test to inspect.
+ * Constructs the full tree (StagebookProvider + ElementErrorBoundary + a
+ * controlled child) from simple serializable props so Playwright CT's JSX
+ * children transform doesn't affect the DOM under test.
  */
 import React from "react";
 import {
@@ -41,20 +40,8 @@ function recordElementError(info: ElementErrorInfo): void {
   });
 }
 
-export interface BoundaryTestHarnessProps {
-  elementType: string;
-  elementName?: string;
-  withCallback?: boolean;
-  children: React.ReactNode;
-}
-
-export function BoundaryTestHarness({
-  elementType,
-  elementName,
-  withCallback = false,
-  children,
-}: BoundaryTestHarnessProps) {
-  const ctx: StagebookContext = {
+function buildMockContext(withCallback: boolean): StagebookContext {
+  return {
     get: () => [],
     save: () => {},
     getElapsedTime: () => 0,
@@ -68,18 +55,46 @@ export function BoundaryTestHarness({
     isSubmitted: false,
     onElementError: withCallback ? recordElementError : undefined,
   };
+}
 
+function CrashingChild({ message }: { message: string }): React.ReactElement {
+  throw new Error(message);
+}
+
+export interface BoundaryTestHarnessProps {
+  elementType: string;
+  elementName?: string;
+  withCallback?: boolean;
+  /** If provided, the child throws with this message. Otherwise renders a happy child. */
+  crashMessage?: string;
+  happyText?: string;
+}
+
+export function BoundaryTestHarness({
+  elementType,
+  elementName,
+  withCallback = false,
+  crashMessage,
+  happyText = "happy-path-content",
+}: BoundaryTestHarnessProps) {
   return (
-    <StagebookProvider value={ctx}>
+    <StagebookProvider value={buildMockContext(withCallback)}>
       <ElementErrorBoundary elementType={elementType} elementName={elementName}>
-        {children}
+        {crashMessage !== undefined ? (
+          <CrashingChild message={crashMessage} />
+        ) : (
+          <p data-testid="happy-child">{happyText}</p>
+        )}
       </ElementErrorBoundary>
     </StagebookProvider>
   );
 }
 
-export function CrashingChild({ message }: { message: string }) {
-  throw new Error(message);
+export interface SiblingLayoutProps {
+  leftText: string;
+  rightText: string;
+  crashMessage: string;
+  elementNames: [string, string, string];
 }
 
 export function SiblingLayout({
@@ -87,27 +102,9 @@ export function SiblingLayout({
   rightText,
   crashMessage,
   elementNames,
-}: {
-  leftText: string;
-  rightText: string;
-  crashMessage: string;
-  elementNames: [string, string, string];
-}) {
-  const ctx: StagebookContext = {
-    get: () => [],
-    save: () => {},
-    getElapsedTime: () => 0,
-    submit: () => {},
-    getAssetURL: (p: string) => p,
-    getTextContent: () => Promise.resolve(""),
-    progressLabel: "test",
-    playerId: "p1",
-    position: 0,
-    playerCount: 1,
-    isSubmitted: false,
-  };
+}: SiblingLayoutProps) {
   return (
-    <StagebookProvider value={ctx}>
+    <StagebookProvider value={buildMockContext(false)}>
       <ElementErrorBoundary
         elementType="markdown"
         elementName={elementNames[0]}
