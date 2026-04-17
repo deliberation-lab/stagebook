@@ -1537,6 +1537,60 @@ test("minimap appears when zoomed in", async ({ mount }) => {
   ).toBeAttached();
 });
 
+test("minimap renders compressed waveform canvas when peaks are non-empty", async ({
+  mount,
+}) => {
+  // Build interleaved min/max peaks for 600 buckets (60s at 10 bps).
+  // Single channel — minimap draws channel 0 as a summary stand-in.
+  const bucketCount = 600;
+  const channel: number[] = [];
+  for (let i = 0; i < bucketCount; i++) {
+    channel.push(-0.5, 0.5);
+  }
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={1}
+      mockPeaks={[channel]}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(
+    component.locator('[data-testid="timeline-minimap"]'),
+  ).toBeAttached();
+  // A canvas element should be present inside the minimap
+  const minimapCanvas = component.locator(
+    '[data-testid="timeline-minimap"] canvas',
+  );
+  await expect(minimapCanvas).toBeAttached();
+});
+
+test("minimap does not render waveform canvas when peaks are empty", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(
+    component.locator('[data-testid="timeline-minimap"]'),
+  ).toBeAttached();
+  const minimapCanvas = component.locator(
+    '[data-testid="timeline-minimap"] canvas',
+  );
+  await expect(minimapCanvas).toHaveCount(0);
+});
+
 test("clicking minimap pans viewport", async ({ mount }) => {
   const component = await mount(
     <MockTimeline

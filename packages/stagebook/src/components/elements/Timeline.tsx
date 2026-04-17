@@ -533,6 +533,9 @@ export function Timeline({
             viewportStart={viewportStart}
             currentTime={currentTime}
             selections={state.selections}
+            peaks={peaks}
+            peaksVersion={peaksVersion}
+            totalBuckets={totalBuckets}
             onViewportChange={onMinimapPan}
           />
         </div>
