@@ -19,9 +19,14 @@ export interface TimelineTrackProps {
   startBucket: number;
   /** Last visible bucket index (exclusive). */
   endBucket: number;
+  /** Whether this track is muted (drives button visual state). */
+  muted: boolean;
+  /** Toggle mute — called with the new muted state. */
+  onToggleMute: (nextMuted: boolean) => void;
 }
 
 const GUTTER_WIDTH = 72;
+const MUTE_BUTTON_WIDTH = 22;
 
 /**
  * One row in the timeline: a fixed-width gutter label + a WaveformRenderer.
@@ -34,6 +39,8 @@ export function TimelineTrack({
   height,
   startBucket,
   endBucket,
+  muted,
+  onToggleMute,
 }: TimelineTrackProps) {
   return (
     <div
@@ -45,24 +52,61 @@ export function TimelineTrack({
       }}
     >
       <div
-        data-testid="track-label"
+        data-testid="track-gutter"
         style={{
           width: `${String(GUTTER_WIDTH)}px`,
           minWidth: `${String(GUTTER_WIDTH)}px`,
           display: "flex",
           alignItems: "center",
-          justifyContent: "flex-end",
           paddingRight: "0.5rem",
-          fontSize: "0.6875rem",
-          color: "var(--stagebook-muted, #9ca3af)",
-          userSelect: "none",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
           borderRight: "1px solid var(--stagebook-border, #e5e7eb)",
         }}
       >
-        {label}
+        <button
+          type="button"
+          data-testid="track-mute"
+          data-muted={muted}
+          aria-label={muted ? `Unmute ${label}` : `Mute ${label}`}
+          aria-pressed={muted}
+          onClick={() => onToggleMute(!muted)}
+          style={{
+            width: `${String(MUTE_BUTTON_WIDTH)}px`,
+            minWidth: `${String(MUTE_BUTTON_WIDTH)}px`,
+            height: `${String(MUTE_BUTTON_WIDTH)}px`,
+            marginLeft: "0.25rem",
+            marginRight: "0.25rem",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "transparent",
+            border: "none",
+            borderRadius: "0.25rem",
+            cursor: "pointer",
+            color: muted
+              ? "var(--stagebook-danger, #dc2626)"
+              : "var(--stagebook-text-faint, #9ca3af)",
+          }}
+        >
+          {muted ? <SpeakerMutedIcon /> : <SpeakerIcon />}
+        </button>
+        <div
+          data-testid="track-label"
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            fontSize: "0.6875rem",
+            color: "var(--stagebook-text-faint, #9ca3af)",
+            userSelect: "none",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </div>
       </div>
       <WaveformRenderer
         peaks={peaks}
@@ -73,6 +117,46 @@ export function TimelineTrack({
         endBucket={endBucket}
       />
     </div>
+  );
+}
+
+function SpeakerIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  );
+}
+
+function SpeakerMutedIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" />
+      <line x1="23" y1="9" x2="17" y2="15" />
+      <line x1="17" y1="9" x2="23" y2="15" />
+    </svg>
   );
 }
 

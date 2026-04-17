@@ -53,39 +53,74 @@ export function WaveformRenderer({
     if (!peaks || endBucket <= startBucket) return;
 
     const visibleBuckets = endBucket - startBucket;
-    const barWidth = width / visibleBuckets;
     const midY = height / 2;
 
     ctx.fillStyle =
       getComputedStyle(canvas).getPropertyValue("--stagebook-waveform-color") ||
       "#6b7280";
 
-    for (let i = 0; i < visibleBuckets; i++) {
-      const bucketIdx = startBucket + i;
-      const minIdx = bucketIdx * 2;
-      const maxIdx = bucketIdx * 2 + 1;
+    // Two render paths:
+    //   buckets <= width  → one bar per bucket (existing behavior, faithful
+    //                       to source resolution)
+    //   buckets >  width  → one bar per canvas pixel, aggregating min/max
+    //                       across the buckets that map to that pixel. This
+    //                       is what the minimap exercises: a 1h recording at
+    //                       10 buckets/s = 36k buckets compressed into ~700
+    //                       canvas pixels — drawing 36k overlapping 1px bars
+    //                       per redraw is wasteful (cost is O(buckets), up to
+    //                       MAX_BUCKETS = 1M) and overdraws every pixel many
+    //                       times. The aggregation path caps cost at O(width).
+    if (visibleBuckets <= width) {
+      const barWidth = width / visibleBuckets;
+      for (let i = 0; i < visibleBuckets; i++) {
+        const bucketIdx = startBucket + i;
+        const minVal = peaks[bucketIdx * 2];
+        const maxVal = peaks[bucketIdx * 2 + 1];
 
-      const minVal = peaks[minIdx];
-      const maxVal = peaks[maxIdx];
+        // Skip unfilled buckets (sentinel: min=1, max=-1)
+        if (minVal === undefined || maxVal === undefined || minVal > maxVal)
+          continue;
 
-      // Skip unfilled buckets (sentinel: min=1, max=-1)
-      if (minVal === undefined || maxVal === undefined || minVal > maxVal)
-        continue;
+        const topOffset = maxVal * midY;
+        const bottomOffset = minVal * midY;
 
-      // Map [-1, 1] amplitude to pixel offset from midline
-      const topOffset = maxVal * midY;
-      const bottomOffset = minVal * midY;
+        const x = i * barWidth;
+        const barTop = midY - topOffset;
+        const barHeight = topOffset - bottomOffset;
 
-      const x = i * barWidth;
-      const barTop = midY - topOffset;
-      const barHeight = topOffset - bottomOffset;
+        ctx.fillRect(
+          x,
+          barTop,
+          Math.max(barWidth - 0.5, 1),
+          Math.max(barHeight, 1),
+        );
+      }
+    } else {
+      const bucketsPerPixel = visibleBuckets / width;
+      const pixelWidth = Math.floor(width);
+      for (let px = 0; px < pixelWidth; px++) {
+        const startB = startBucket + Math.floor(px * bucketsPerPixel);
+        const endB = startBucket + Math.floor((px + 1) * bucketsPerPixel);
 
-      ctx.fillRect(
-        x,
-        barTop,
-        Math.max(barWidth - 0.5, 1),
-        Math.max(barHeight, 1),
-      );
+        let minVal = 1;
+        let maxVal = -1;
+        for (let b = startB; b < endB; b++) {
+          const m = peaks[b * 2];
+          const M = peaks[b * 2 + 1];
+          if (m === undefined || M === undefined || m > M) continue;
+          if (m < minVal) minVal = m;
+          if (M > maxVal) maxVal = M;
+        }
+        // No filled buckets in this pixel range
+        if (minVal > maxVal) continue;
+
+        const topOffset = maxVal * midY;
+        const bottomOffset = minVal * midY;
+        const barTop = midY - topOffset;
+        const barHeight = topOffset - bottomOffset;
+
+        ctx.fillRect(px, barTop, 1, Math.max(barHeight, 1));
+      }
     }
   }, [peaks, peaksVersion, width, height, startBucket, endBucket]);
 

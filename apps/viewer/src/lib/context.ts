@@ -46,7 +46,7 @@ export function createViewerContext(
       if (typeof mapped === "number" || mapped === "shared") {
         return store.lookup(key, mapped);
       }
-      // "all", "any", "percentAgreement" → return from all player positions
+      // "all" → return from all player positions
       return store.lookup(key);
     },
 
@@ -88,15 +88,11 @@ function mapPosition(
   if (positionArg === "shared") {
     return "shared";
   }
-  if (
-    positionArg === "all" ||
-    positionArg === "any" ||
-    positionArg === "percentAgreement"
-  ) {
+  if (positionArg === "all") {
     return "all";
   }
   const num = Number(positionArg);
-  if (!Number.isNaN(num)) {
+  if (Number.isFinite(num) && Number.isInteger(num) && num >= 0) {
     return num;
   }
   return currentPosition;
