@@ -54,7 +54,7 @@ export function TimelineTrack({
           justifyContent: "flex-end",
           paddingRight: "0.5rem",
           fontSize: "0.6875rem",
-          color: "var(--stagebook-muted, #9ca3af)",
+          color: "var(--stagebook-text-faint, #9ca3af)",
           userSelect: "none",
           overflow: "hidden",
           textOverflow: "ellipsis",
