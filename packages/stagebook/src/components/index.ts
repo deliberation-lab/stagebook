@@ -16,6 +16,11 @@ export {
 // Stage and element rendering (requires StagebookProvider)
 export { Stage, type StageConfig, type StageProps } from "./Stage.js";
 export { Element, type ElementConfig, type ElementProps } from "./Element.js";
+export {
+  ElementErrorBoundary,
+  type ElementErrorBoundaryProps,
+  type ElementErrorInfo,
+} from "./ElementErrorBoundary.js";
 
 // Standalone form components — no StagebookProvider required
 export {
