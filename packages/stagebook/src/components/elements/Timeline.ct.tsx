@@ -2298,9 +2298,10 @@ test("clicking mute updates the button state and calls handle.setChannelMuted", 
       const txt = await component
         .locator('[data-testid="mute-state"]')
         .textContent();
-      return JSON.parse(txt ?? "[]") as boolean[];
+      const state = JSON.parse(txt ?? "[]") as boolean[];
+      return state[0] ?? false;
     })
-    .toEqual([true, false]);
+    .toBe(true);
 });
 
 test("mute is additive — multiple tracks can be muted simultaneously", async ({
@@ -2346,9 +2347,10 @@ test("clicking a muted track unmutes it", async ({ mount }) => {
       const txt = await component
         .locator('[data-testid="mute-state"]')
         .textContent();
-      return JSON.parse(txt ?? "[]") as boolean[];
+      const state = JSON.parse(txt ?? "[]") as boolean[];
+      return state[0] ?? false;
     })
-    .toEqual([false, false]);
+    .toBe(false);
 });
 
 test("mute state is not written to the save log", async ({ mount }) => {

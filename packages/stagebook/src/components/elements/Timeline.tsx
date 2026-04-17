@@ -469,6 +469,21 @@ export function Timeline({
     }
   };
 
+  // Toggle mute for a single channel. Updates local UI state and calls
+  // through to the shared PlaybackHandle so the underlying GainNode is
+  // silenced in the audio output. Not saved. Declared before any early
+  // return so hook order stays stable across renders; reads the handle
+  // from a ref to avoid re-creating when the handle identity changes.
+  const onToggleMute = useCallback((trackIndex: number, nextMuted: boolean) => {
+    handleRef.current?.setChannelMuted(trackIndex, nextMuted);
+    setMuteState((prev) => {
+      const next = prev.slice();
+      while (next.length <= trackIndex) next.push(false);
+      next[trackIndex] = nextMuted;
+      return next;
+    });
+  }, []);
+
   if (!handle) {
     return (
       <p
@@ -486,22 +501,6 @@ export function Timeline({
   const duration = handle.getDuration();
   const channelCount = handle.channelCount || 1;
   const peaks = handle.peaks;
-
-  // Toggle mute for a single channel. Updates local UI state and calls
-  // through to the shared PlaybackHandle so the underlying GainNode is
-  // silenced in the audio output. Not saved.
-  const onToggleMute = useCallback(
-    (trackIndex: number, nextMuted: boolean) => {
-      handle.setChannelMuted(trackIndex, nextMuted);
-      setMuteState((prev) => {
-        const next = prev.slice();
-        while (next.length <= trackIndex) next.push(false);
-        next[trackIndex] = nextMuted;
-        return next;
-      });
-    },
-    [handle],
-  );
   const waveformWidth = Math.max(containerWidth - GUTTER_WIDTH, 0);
   const totalBuckets = computeBucketCount(duration, BUCKETS_PER_SECOND);
 
