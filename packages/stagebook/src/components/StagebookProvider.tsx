@@ -16,8 +16,8 @@ import {
 
 export interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", "all", "any", "percentAgreement",
-  // or a numeric string for a specific position.
+  // scope: "player" (default), "shared", "all", or a numeric string
+  // for a specific position.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
@@ -47,7 +47,11 @@ export interface StagebookContext {
 
   // Platform-provided renderers for service-coupled elements
   renderDiscussion?: (config: DiscussionType) => React.ReactNode;
-  renderSharedNotepad?: (config: { padName: string }) => React.ReactNode;
+  renderSharedNotepad?: (config: {
+    padName: string;
+    defaultText?: string;
+    rows?: number;
+  }) => React.ReactNode;
   renderTalkMeter?: () => React.ReactNode;
   renderSurvey?: (config: {
     surveyName: string;
@@ -95,7 +99,14 @@ export function StagebookProvider({
         console.error(`Invalid reference: "${reference}"`);
         return [];
       }
-      const rawValues = value.get(referenceKey, position);
+      // "any" and "percentAgreement" are evaluation semantics applied
+      // downstream in evaluateCondition. The platform's get() only needs
+      // to know the storage scope, so we normalize both to "all" here.
+      const storageScope =
+        position === "any" || position === "percentAgreement"
+          ? "all"
+          : position;
+      const rawValues = value.get(referenceKey, storageScope);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))
         .filter((v) => v !== undefined);

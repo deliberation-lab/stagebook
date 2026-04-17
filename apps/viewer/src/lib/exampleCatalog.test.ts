@@ -1,0 +1,115 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildCatalog,
+  createExampleContentFns,
+  exampleCatalog,
+} from "./exampleCatalog";
+
+const SAMPLE_YAML = `
+introSequences:
+  - name: intro
+    introSteps:
+      - name: step1
+        elements:
+          - type: submitButton
+
+treatments:
+  - name: Sample treatment title
+    notes: |
+      A **Markdown** note describing the treatment.
+    playerCount: 1
+    gameStages:
+      - name: only
+        duration: 10
+        elements:
+          - type: prompt
+            file: prompts/x.prompt.md
+`;
+
+describe("buildCatalog", () => {
+  it("returns one entry per treatment YAML, sorted by id", () => {
+    const catalog = buildCatalog(
+      {
+        "/root/examples/b-example/foo.treatments.yaml": SAMPLE_YAML,
+        "/root/examples/a-example/foo.treatments.yaml": SAMPLE_YAML,
+      },
+      {},
+    );
+    expect(catalog.map((e) => e.id)).toEqual(["a-example", "b-example"]);
+  });
+
+  it("uses the first treatment's name as the title and notes as description", () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {},
+    );
+    expect(entry.title).toBe("Sample treatment title");
+    expect(entry.notes).toContain("**Markdown**");
+  });
+
+  it("collects prompts under the example directory, keyed by relative path", () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {
+        "/root/examples/demo/prompts/x.prompt.md":
+          "---\ntype: noResponse\n---\nbody\n---\n",
+        "/root/examples/other/prompts/y.prompt.md": "ignored",
+      },
+    );
+    expect(Object.keys(entry.prompts)).toEqual(["prompts/x.prompt.md"]);
+    expect(entry.prompts["prompts/x.prompt.md"]).toContain("noResponse");
+  });
+
+  it("falls back to the id when the treatment has no notes", () => {
+    const yaml = SAMPLE_YAML.replace(
+      "    notes: |\n      A **Markdown** note describing the treatment.\n",
+      "",
+    );
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": yaml },
+      {},
+    );
+    expect(entry.notes).toBeUndefined();
+  });
+});
+
+describe("createExampleContentFns", () => {
+  it("resolves getTextContent from bundled prompts", async () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {
+        "/root/examples/demo/prompts/x.prompt.md": "hello",
+      },
+    );
+    const fns = createExampleContentFns(entry);
+    await expect(fns.getTextContent("prompts/x.prompt.md")).resolves.toBe(
+      "hello",
+    );
+  });
+
+  it("rejects getTextContent for paths not in the example", async () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {},
+    );
+    const fns = createExampleContentFns(entry);
+    await expect(fns.getTextContent("prompts/missing.md")).rejects.toThrow(
+      /No bundled content/,
+    );
+  });
+});
+
+describe("exampleCatalog (discovered via import.meta.glob)", () => {
+  it("includes the annotated-walkthrough example", () => {
+    const walkthrough = exampleCatalog.find(
+      (e) => e.id === "annotated-walkthrough",
+    );
+    expect(walkthrough).toBeDefined();
+    expect(walkthrough?.title).toContain("Annotated walkthrough");
+    expect(walkthrough?.notes).toBeTruthy();
+    // Every referenced prompt is bundled.
+    expect(walkthrough?.prompts["prompts/consent.prompt.md"]).toContain(
+      "noResponse",
+    );
+  });
+});

@@ -157,6 +157,12 @@ export function Timeline({
   const [viewportStart, setViewportStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
 
+  // Per-track mute state. Ephemeral (not persisted, not saved) — a
+  // listening aid only. Default: all tracks unmuted. Starts empty and
+  // grows lazily as tracks are toggled. Kept as local state solely to
+  // trigger re-renders; the source of truth for `muted` is the handle.
+  const [, setMuteTick] = useState(0);
+
   // Track whether the playhead changes are "natural playback" (RAF tick)
   // versus "external seek" (someone called handle.seekTo() out of band).
   // Auto-scroll uses the former; snap-on-seek uses the latter.
@@ -470,6 +476,17 @@ export function Timeline({
     }
   };
 
+  // Toggle mute for a single channel. Updates local UI state and calls
+  // through to the shared PlaybackHandle so the underlying GainNode is
+  // silenced in the audio output. Not saved. Declared before any early
+  // return so hook order stays stable across renders; reads the handle
+  // from a ref to avoid re-creating when the handle identity changes.
+  const onToggleMute = useCallback((trackIndex: number, nextMuted: boolean) => {
+    handleRef.current?.setChannelMuted(trackIndex, nextMuted);
+    // Bump a tick so this Timeline re-reads handle.isChannelMuted().
+    setMuteTick((t) => t + 1);
+  }, []);
+
   if (!handle) {
     return (
       <p
@@ -539,6 +556,9 @@ export function Timeline({
             viewportStart={viewportStart}
             currentTime={currentTime}
             selections={state.selections}
+            peaks={peaks}
+            peaksVersion={peaksVersion}
+            totalBuckets={totalBuckets}
             onViewportChange={onMinimapPan}
           />
         </div>
@@ -566,6 +586,8 @@ export function Timeline({
             height={TRACK_HEIGHT}
             startBucket={startBucket}
             endBucket={endBucket}
+            muted={handle.isChannelMuted(i)}
+            onToggleMute={(nextMuted) => onToggleMute(i, nextMuted)}
           />
         ))}
 

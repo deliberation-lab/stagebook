@@ -62,12 +62,15 @@ describe("createViewerContext", () => {
       expect(values).toEqual([{ value: "a" }, { value: "b" }]);
     });
 
-    it("get with 'any' returns raw values from all positions", () => {
-      const { store, ctx } = makeContext();
-      store.save("prompt_q1", { value: "a" }, "player", 0, 0);
-      store.save("prompt_q1", { value: "b" }, "player", 1, 0);
-      const values = ctx.get("prompt_q1", "any");
-      expect(values).toEqual([{ value: "a" }, { value: "b" }]);
+    it("get with non-finite numeric scope falls back to current position", () => {
+      // Number("Infinity"), Number("-Infinity"), and negative numbers
+      // must not be accepted as position indices.
+      const { store, ctx } = makeContext({ position: 0 });
+      store.save("prompt_q1", { value: "own" }, "player", 0, 0);
+      expect(ctx.get("prompt_q1", "Infinity")).toEqual([{ value: "own" }]);
+      expect(ctx.get("prompt_q1", "-Infinity")).toEqual([{ value: "own" }]);
+      expect(ctx.get("prompt_q1", "-1")).toEqual([{ value: "own" }]);
+      expect(ctx.get("prompt_q1", "1.5")).toEqual([{ value: "own" }]);
     });
   });
 

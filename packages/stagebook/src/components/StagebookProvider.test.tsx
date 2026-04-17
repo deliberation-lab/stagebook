@@ -193,6 +193,28 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     unmount();
   });
 
+  test("normalizes 'any' scope to 'all' before calling get", () => {
+    // The platform's get() shouldn't need to understand condition
+    // evaluation semantics — "any" is a downstream concern.
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "any");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
+    unmount();
+  });
+
+  test("normalizes 'percentAgreement' scope to 'all' before calling get", () => {
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "percentAgreement");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
+    unmount();
+  });
+
   test("filters out undefined path results", () => {
     // Record exists but doesn't have the nested .value path
     const get = vi.fn(() => [{ name: "q1" }]);

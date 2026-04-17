@@ -115,7 +115,7 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
               </td>
               <td
                 style={{
-                  color: "var(--stagebook-muted, #6b7280)",
+                  color: "var(--stagebook-text-muted, #6b7280)",
                   verticalAlign: "top",
                 }}
               >

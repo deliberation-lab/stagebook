@@ -124,6 +124,8 @@ export function buildYouTubeHandle(player: YTPlayer): PlaybackHandle {
     peaks: [],
     peaksVersion: 0,
     requestWaveformCapture() {}, // no-op for YouTube
+    setChannelMuted() {}, // no-op for YouTube
+    isChannelMuted: () => false,
   };
 }
 
