@@ -15,8 +15,12 @@ cloud sessions) working issues in this repo.
 
 1. **Check for an existing claim.** Read the issue comments
    (`gh issue view <number> --json comments`). If any comment contains
-   the marker `🔧 Working on this`, another agent is already handling it.
-   **Stop immediately** — do not duplicate the work.
+   the marker `🔧 Working on this`, check whether there is also an
+   open PR referencing this issue (`gh pr list --search "issue-<number>"`).
+   - If there is an open PR: another agent is actively handling this.
+     **Stop immediately** — do not duplicate the work.
+   - If there is NO open PR: the previous agent likely stalled. Proceed
+     and post your own claim (it's safe to pick up where they left off).
 2. **Claim the issue.** Post a comment on the issue:
    `🔧 Working on this — started <current UTC timestamp>`
    This prevents other agents from picking up the same issue.
