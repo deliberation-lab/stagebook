@@ -187,3 +187,20 @@ test("matches fillTemplates output length", () => {
   const { result } = fillTemplates({ obj, templates });
   expect(size).toBe((result as unknown[]).length);
 });
+
+test("throws when broadcast dimension resolves to non-array", () => {
+  const templates = [
+    { templateName: "t", templateContent: { val: "${v}" } },
+    { templateName: "notAnArray", templateContent: { v: "oops" } },
+  ];
+
+  expect(() =>
+    computeBroadcastSize({
+      obj: {
+        template: "t",
+        broadcast: { d0: { template: "notAnArray" } },
+      },
+      templates,
+    }),
+  ).toThrow('Broadcast dimension "d0" resolved to object, expected an array');
+});

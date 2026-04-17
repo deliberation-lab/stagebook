@@ -352,9 +352,12 @@ export function computeBroadcastSize({
     let size = 1;
     for (const key of Object.keys(resolvedBroadcast)) {
       const dimension = resolvedBroadcast[key];
-      if (Array.isArray(dimension)) {
-        size *= dimension.length;
+      if (!Array.isArray(dimension)) {
+        throw new Error(
+          `Broadcast dimension "${key}" resolved to ${typeof dimension}, expected an array`,
+        );
       }
+      size *= dimension.length;
     }
     return size;
   }
