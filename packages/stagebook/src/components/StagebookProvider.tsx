@@ -47,6 +47,17 @@ export interface StagebookContext {
     surveyName: string;
     onComplete: (results: unknown) => void;
   }) => React.ReactNode;
+
+  // Optional crash-reporting hook — called once per element render crash
+  // caught by ElementErrorBoundary, with a structured payload. This is a
+  // notification only; console.error and window.onerror still fire
+  // regardless of whether this is provided.
+  onElementError?: (info: {
+    elementType: string;
+    elementName?: string;
+    error: Error;
+    errorInfo: React.ErrorInfo;
+  }) => void;
 }
 
 // --------------- Internal context ---------------
