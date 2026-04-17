@@ -23,6 +23,8 @@ function makeHandle(overrides: Partial<PlaybackHandle> = {}): PlaybackHandle {
     peaks: [],
     peaksVersion: 0,
     requestWaveformCapture() {},
+    setChannelMuted() {},
+    isChannelMuted: () => false,
     ...overrides,
   };
 }

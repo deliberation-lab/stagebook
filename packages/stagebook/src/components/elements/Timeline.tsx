@@ -151,6 +151,11 @@ export function Timeline({
   const [viewportStart, setViewportStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
 
+  // Per-track mute state. Ephemeral (not persisted, not saved) — a
+  // listening aid only. Default: all tracks unmuted. Sized to the actual
+  // channel count the first time we know it; grows if channelCount grows.
+  const [muteState, setMuteState] = useState<boolean[]>([]);
+
   // Track whether the playhead changes are "natural playback" (RAF tick)
   // versus "external seek" (someone called handle.seekTo() out of band).
   // Auto-scroll uses the former; snap-on-seek uses the latter.
@@ -481,6 +486,22 @@ export function Timeline({
   const duration = handle.getDuration();
   const channelCount = handle.channelCount || 1;
   const peaks = handle.peaks;
+
+  // Toggle mute for a single channel. Updates local UI state and calls
+  // through to the shared PlaybackHandle so the underlying GainNode is
+  // silenced in the audio output. Not saved.
+  const onToggleMute = useCallback(
+    (trackIndex: number, nextMuted: boolean) => {
+      handle.setChannelMuted(trackIndex, nextMuted);
+      setMuteState((prev) => {
+        const next = prev.slice();
+        while (next.length <= trackIndex) next.push(false);
+        next[trackIndex] = nextMuted;
+        return next;
+      });
+    },
+    [handle],
+  );
   const waveformWidth = Math.max(containerWidth - GUTTER_WIDTH, 0);
   const totalBuckets = computeBucketCount(duration, BUCKETS_PER_SECOND);
 
@@ -563,6 +584,8 @@ export function Timeline({
             height={TRACK_HEIGHT}
             startBucket={startBucket}
             endBucket={endBucket}
+            muted={muteState[i] ?? false}
+            onToggleMute={(nextMuted) => onToggleMute(i, nextMuted)}
           />
         ))}
 
