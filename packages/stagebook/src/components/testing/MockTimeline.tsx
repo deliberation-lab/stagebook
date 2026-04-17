@@ -129,17 +129,22 @@ export function MockTimeline({
   currentTimeRef.current = mockCurrentTime ?? 0;
   pausedRef.current = mockPaused ?? true;
   channelCountRef.current = mockChannelCount ?? 0;
-  // Convert plain number arrays to Float32Array[] once per render; bump the
-  // version so WaveformRenderer's redraw effect sees the new data.
-  const peaksSignature = mockPeaks
-    ? mockPeaks.map((ch) => ch.length).join(",")
-    : "";
-  const lastPeaksSigRef = useRef<string | null>(null);
-  if (lastPeaksSigRef.current !== peaksSignature) {
-    lastPeaksSigRef.current = peaksSignature;
-    peaksRef.current = mockPeaks
-      ? mockPeaks.map((ch) => Float32Array.from(ch))
-      : [];
+  // Convert plain number arrays to Float32Array[] when the top-level
+  // mockPeaks array OR any per-channel array reference changes; bump the
+  // version so WaveformRenderer's redraw effect sees the new data. Comparing
+  // by reference (rather than length) lets a test pass freshly-constructed
+  // arrays of the same length to push updated values through the refs.
+  const lastMockPeaksRef = useRef<typeof mockPeaks>(undefined);
+  const lastChannelRefsRef = useRef<readonly number[][]>([]);
+  const channels: readonly number[][] = mockPeaks ?? [];
+  const peaksChanged =
+    lastMockPeaksRef.current !== mockPeaks ||
+    lastChannelRefsRef.current.length !== channels.length ||
+    channels.some((ch, i) => lastChannelRefsRef.current[i] !== ch);
+  if (peaksChanged) {
+    lastMockPeaksRef.current = mockPeaks;
+    lastChannelRefsRef.current = channels.slice();
+    peaksRef.current = channels.map((ch) => Float32Array.from(ch));
     peaksVersionRef.current += 1;
   }
 
