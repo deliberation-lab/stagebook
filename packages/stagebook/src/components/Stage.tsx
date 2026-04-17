@@ -9,6 +9,7 @@ import { SubmissionConditionalRender } from "./conditions/SubmissionConditionalR
 import { ScrollIndicator } from "./scroll/ScrollIndicator.js";
 import { useScrollAwareness } from "./scroll/useScrollAwareness.js";
 import { PlaybackProvider } from "./playback/PlaybackProvider.js";
+import { ElementErrorBoundary } from "./ElementErrorBoundary.js";
 import type { DiscussionType } from "../schemas/treatment.js";
 import type { Condition } from "./conditions/ConditionsConditionalRender.js";
 
@@ -73,11 +74,16 @@ function WrappedElement({
               padding: "0.5rem 1rem",
             }}
           >
-            <Element
-              element={element}
-              onSubmit={onSubmit}
-              stageDuration={stageDuration}
-            />
+            <ElementErrorBoundary
+              elementType={element.type}
+              elementName={element.name}
+            >
+              <Element
+                element={element}
+                onSubmit={onSubmit}
+                stageDuration={stageDuration}
+              />
+            </ElementErrorBoundary>
           </div>
         </ConditionsConditionalRender>
       </PositionConditionalRender>
