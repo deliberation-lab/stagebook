@@ -59,6 +59,7 @@
   /* Status colors */
   --stagebook-success: #16a34a;
   --stagebook-danger: #ef4444;
+  --stagebook-danger-bg: #fef2f2;
   --stagebook-warning: #dc2626;
 
   /* Timer */
