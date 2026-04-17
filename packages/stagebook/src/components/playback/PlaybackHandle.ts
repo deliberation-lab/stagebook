@@ -37,4 +37,17 @@ export interface PlaybackHandle {
    * No-op on subsequent calls. No-op for YouTube sources.
    */
   requestWaveformCapture(): void;
+
+  /**
+   * Mute or unmute a single audio channel in the output. Ephemeral — not
+   * persisted, a listening aid only. Silences the channel at the GainNode
+   * placed between splitter and merger, so the waveform (which taps the
+   * pre-gain signal) is unaffected. Out-of-range channel indices are
+   * ignored. No-op before waveform capture has been started, and for
+   * YouTube sources.
+   */
+  setChannelMuted(channel: number, muted: boolean): void;
+
+  /** Returns true when the given channel is currently muted. */
+  isChannelMuted(channel: number): boolean;
 }
