@@ -42,7 +42,19 @@ class ElementErrorBoundaryInner extends React.Component<
       errorInfo,
     });
 
-    onElementError?.({ elementType, elementName, error, errorInfo });
+    // Host-provided; isolate so a buggy crash reporter can't break
+    // Stagebook's containment guarantees (or prevent the async re-throw
+    // below from firing).
+    if (onElementError) {
+      try {
+        onElementError({ elementType, elementName, error, errorInfo });
+      } catch (callbackError) {
+        console.error(
+          "[Stagebook] onElementError callback threw; ignoring",
+          callbackError,
+        );
+      }
+    }
 
     // Async re-throw so `window.onerror` / sentry / any global handler sees
     // the original error. Scheduling it via setTimeout means React's error

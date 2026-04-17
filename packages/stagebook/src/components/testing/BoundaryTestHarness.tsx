@@ -40,7 +40,19 @@ function recordElementError(info: ElementErrorInfo): void {
   });
 }
 
-function buildMockContext(withCallback: boolean): StagebookContext {
+function throwingCallback(): never {
+  throw new Error("callback-intentionally-throws");
+}
+
+function buildMockContext(
+  callbackMode: "none" | "record" | "throw",
+): StagebookContext {
+  const onElementError =
+    callbackMode === "record"
+      ? recordElementError
+      : callbackMode === "throw"
+        ? throwingCallback
+        : undefined;
   return {
     get: () => [],
     save: () => {},
@@ -53,7 +65,7 @@ function buildMockContext(withCallback: boolean): StagebookContext {
     position: 0,
     playerCount: 1,
     isSubmitted: false,
-    onElementError: withCallback ? recordElementError : undefined,
+    onElementError,
   };
 }
 
@@ -64,7 +76,7 @@ function CrashingChild({ message }: { message: string }): React.ReactElement {
 export interface BoundaryTestHarnessProps {
   elementType: string;
   elementName?: string;
-  withCallback?: boolean;
+  callbackMode?: "none" | "record" | "throw";
   /** If provided, the child throws with this message. Otherwise renders a happy child. */
   crashMessage?: string;
   happyText?: string;
@@ -73,12 +85,12 @@ export interface BoundaryTestHarnessProps {
 export function BoundaryTestHarness({
   elementType,
   elementName,
-  withCallback = false,
+  callbackMode = "none",
   crashMessage,
   happyText = "happy-path-content",
 }: BoundaryTestHarnessProps) {
   return (
-    <StagebookProvider value={buildMockContext(withCallback)}>
+    <StagebookProvider value={buildMockContext(callbackMode)}>
       <ElementErrorBoundary elementType={elementType} elementName={elementName}>
         {crashMessage !== undefined ? (
           <CrashingChild message={crashMessage} />
@@ -104,7 +116,7 @@ export function SiblingLayout({
   elementNames,
 }: SiblingLayoutProps) {
   return (
-    <StagebookProvider value={buildMockContext(false)}>
+    <StagebookProvider value={buildMockContext("none")}>
       <ElementErrorBoundary
         elementType="markdown"
         elementName={elementNames[0]}

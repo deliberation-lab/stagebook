@@ -167,7 +167,7 @@ test("calls onElementError with structured payload when provided", async ({
     <BoundaryTestHarness
       elementType="timer"
       elementName="countdownA"
-      withCallback
+      callbackMode="record"
       crashMessage="callback-error"
     />,
   );
@@ -189,6 +189,36 @@ test("calls onElementError with structured payload when provided", async ({
     errorName: "Error",
     hasErrorInfo: true,
   });
+});
+
+test("throwing onElementError does not break containment or async re-throw", async ({
+  mount,
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await mount(
+    <BoundaryTestHarness
+      elementType="prompt"
+      elementName="buggyHost"
+      callbackMode="throw"
+      crashMessage="original-crash-message"
+    />,
+  );
+
+  // Fallback still renders — a buggy host callback must not compromise
+  // the boundary's participant-facing UI.
+  await expect(
+    page.locator('[data-testid="element-error-fallback"]'),
+  ).toBeVisible();
+
+  // The original error still reaches window.onerror — not the callback's
+  // error — so crash reporters see the real crash.
+  await expect
+    .poll(() => pageErrors.length, { timeout: 2000 })
+    .toBeGreaterThanOrEqual(1);
+  expect(pageErrors).toContain("original-crash-message");
 });
 
 test("without onElementError, console.error and window.onerror still fire", async ({
