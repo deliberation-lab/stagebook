@@ -3,5 +3,6 @@ export {
   expandTemplate,
   recursivelyFillTemplates,
   fillTemplates,
+  computeBroadcastSize,
   getUnresolvedFields,
 } from "./fillTemplates.js";

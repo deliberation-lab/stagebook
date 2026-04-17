@@ -301,6 +301,71 @@ export function fillTemplates({
 }
 
 /**
+ * Calculate the number of treatments that {@link fillTemplates} would produce
+ * from the given object, without actually performing the expansion.
+ *
+ * For a template context with broadcast dimensions, this returns the cartesian
+ * product of the dimension sizes. For an array of template contexts, it sums
+ * the sizes. For anything else it returns 1.
+ *
+ * Broadcast dimensions that are themselves template references are resolved
+ * (cheaply — only the dimension arrays, not the full template content) so
+ * their lengths can be counted.
+ *
+ * @example
+ * const size = computeBroadcastSize({
+ *   obj: {
+ *     template: "rating",
+ *     broadcast: {
+ *       d0: [{ A: "A0" }, { A: "A1" }],
+ *       d1: [{ B: "B0" }, { B: "B1" }, { B: "B2" }],
+ *     },
+ *   },
+ *   templates,
+ * });
+ * // size === 6
+ */
+export function computeBroadcastSize({
+  obj,
+  templates,
+}: {
+  obj: any;
+  templates: any[];
+}): number {
+  if (Array.isArray(obj)) {
+    let total = 0;
+    for (const item of obj) {
+      total += computeBroadcastSize({ obj: item, templates });
+    }
+    return total;
+  }
+
+  if (obj && typeof obj === "object" && "template" in obj) {
+    if (!obj.broadcast) return 1;
+
+    // Resolve any template references inside broadcast dimensions
+    const resolvedBroadcast = recursivelyFillTemplates({
+      obj: obj.broadcast,
+      templates,
+    });
+
+    let size = 1;
+    for (const key of Object.keys(resolvedBroadcast)) {
+      const dimension = resolvedBroadcast[key];
+      if (!Array.isArray(dimension)) {
+        throw new Error(
+          `Broadcast dimension "${key}" resolved to ${typeof dimension}, expected an array`,
+        );
+      }
+      size *= dimension.length;
+    }
+    return size;
+  }
+
+  return 1;
+}
+
+/**
  * Expand researcher-defined templates and return the set of placeholder
  * names that remain unresolved. Useful for platforms to discover which
  * additionalFields a treatment file expects.
