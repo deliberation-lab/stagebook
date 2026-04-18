@@ -140,3 +140,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  ci-gate:
+    name: CI Gate
+    if: always()
+    needs: [changes, lint, test-stagebook, test-viewer, test-vscode, test-ct, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for failures
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more CI jobs failed"
+            exit 1
+          fi
