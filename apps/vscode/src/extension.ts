@@ -13,7 +13,11 @@ import {
 import { expandAndValidate } from "./lib/expandAndValidate";
 import { findClosestMatch } from "./lib/levenshtein";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
-import { fillTemplates, treatmentFileSchema } from "stagebook";
+import {
+  fillTemplates,
+  getReferencedAssets,
+  treatmentFileSchema,
+} from "stagebook";
 import { parse as parseYaml } from "yaml";
 
 const diagnosticCollection =
@@ -127,8 +131,11 @@ function validateTreatmentFile(document: vscode.TextDocument): void {
 }
 
 /**
- * Walk the parsed treatment object looking for `file:` fields.
- * Check that referenced files exist and have the right extension.
+ * Walk the parsed treatment object and check that every local-asset path
+ * referenced by an element exists. `getReferencedAssets` owns the per-element-
+ * type allowlist of file-like fields (prompt.file, image.file, audio.file,
+ * mediaPlayer.url, mediaPlayer.captionsFile) and filters out template
+ * placeholders and full URLs; we still apply a path-traversal guard here.
  */
 function checkFileReferences(
   document: vscode.TextDocument,
@@ -136,53 +143,37 @@ function checkFileReferences(
   source: string,
   diagnostics: vscode.Diagnostic[],
   version: number,
-  objPath: (string | number)[] = [],
 ): void {
-  if (Array.isArray(obj)) {
-    obj.forEach((item, i) =>
-      checkFileReferences(document, item, source, diagnostics, version, [
-        ...objPath,
-        i,
-      ]),
-    );
-    return;
-  }
+  const assets = getReferencedAssets(obj);
+  if (assets.length === 0) return;
 
-  if (typeof obj !== "object" || obj === null) return;
+  const treatmentDir = vscode.Uri.joinPath(document.uri, "..");
+  const workspaceFolder =
+    vscode.workspace.getWorkspaceFolder(document.uri) ??
+    vscode.workspace.workspaceFolders![0];
+  const uriKey = document.uri.toString();
 
-  const record = obj as Record<string, unknown>;
+  for (const asset of assets) {
+    const fileUri = vscode.Uri.joinPath(treatmentDir, asset.path);
+    const diagPath = [...asset.pathInTree, asset.field];
 
-  if (typeof record.file === "string" && record.file.length > 0) {
-    const filePath = record.file;
-    // Resolve relative to the treatment file's directory, not workspace root
-    const treatmentDir = vscode.Uri.joinPath(document.uri, "..");
-    const fileUri = vscode.Uri.joinPath(treatmentDir, filePath);
-
-    // Guard against path traversal (check before template placeholder skip)
-    const workspaceFolder =
-      vscode.workspace.getWorkspaceFolder(document.uri) ??
-      vscode.workspace.workspaceFolders![0];
     if (!isWithinWorkspace(fileUri.fsPath, workspaceFolder.uri.fsPath)) {
       diagnostics.push(
         makeFileDiagnostic(
           source,
-          [...objPath, "file"],
-          `File path escapes workspace: ${filePath}`,
+          diagPath,
+          `File path escapes workspace: ${asset.path}`,
           vscode.DiagnosticSeverity.Error,
         ),
       );
       diagnosticCollection.set(document.uri, diagnostics);
-      return;
+      continue;
     }
 
-    // Skip file existence check if the path contains template placeholders
-    if (/\$\{[a-zA-Z0-9_]+\}/.test(filePath)) return;
-
-    const uriKey = document.uri.toString();
     vscode.workspace.fs.stat(fileUri).then(
       () => {
-        // File exists — .prompt.md extension is enforced by the schema
-        // (promptFilePathSchema), so no redundant check needed here.
+        // File exists — extension validity (e.g. .prompt.md for prompts) is
+        // enforced by schema (promptFilePathSchema), so no redundant check.
       },
       () => {
         if (validationVersions.get(uriKey) !== version) return;
@@ -190,22 +181,14 @@ function checkFileReferences(
         diagnostics.push(
           makeFileDiagnostic(
             source,
-            [...objPath, "file"],
-            `File not found: ${filePath}`,
+            diagPath,
+            `File not found: ${asset.path}`,
             vscode.DiagnosticSeverity.Error,
           ),
         );
         diagnosticCollection.set(document.uri, diagnostics);
       },
     );
-  }
-
-  for (const [key, value] of Object.entries(record)) {
-    if (key === "file") continue;
-    checkFileReferences(document, value, source, diagnostics, version, [
-      ...objPath,
-      key,
-    ]);
   }
 }
 
