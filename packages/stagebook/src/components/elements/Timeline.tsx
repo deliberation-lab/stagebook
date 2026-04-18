@@ -116,6 +116,12 @@ export function Timeline({
   const [containerWidth, setContainerWidth] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
+  // Ref `save` so the save-on-change effect below doesn't re-run (and
+  // potentially double-save) whenever the parent passes a fresh callback
+  // identity (#105).
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
   // Callback ref: measures the container immediately on attach. Works
   // regardless of mount order — unlike useEffect, a callback ref fires when
   // React attaches the DOM element, even if the component re-renders later
@@ -150,6 +156,12 @@ export function Timeline({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [viewportStart, setViewportStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+
+  // Per-track mute state. Ephemeral (not persisted, not saved) — a
+  // listening aid only. Default: all tracks unmuted. Starts empty and
+  // grows lazily as tracks are toggled. Kept as local state solely to
+  // trigger re-renders; the source of truth for `muted` is the handle.
+  const [, setMuteTick] = useState(0);
 
   // Track whether the playhead changes are "natural playback" (RAF tick)
   // versus "external seek" (someone called handle.seekTo() out of band).
@@ -201,12 +213,12 @@ export function Timeline({
       debounceNextSaveRef.current = false;
       saveTimerRef.current = setTimeout(() => {
         lastSavedRef.current = serialized;
-        save(`timeline_${name}`, state.selections);
+        saveRef.current(`timeline_${name}`, state.selections);
         saveTimerRef.current = null;
       }, 500);
     } else {
       lastSavedRef.current = serialized;
-      save(`timeline_${name}`, state.selections);
+      saveRef.current(`timeline_${name}`, state.selections);
     }
 
     return () => {
@@ -215,7 +227,7 @@ export function Timeline({
         saveTimerRef.current = null;
       }
     };
-  }, [state.selections, isDragging, name, save]);
+  }, [state.selections, isDragging, name]);
 
   // Measure container width. Read from getBoundingClientRect on every render
   // via a callback ref, and observe with ResizeObserver for ongoing updates.
@@ -464,6 +476,17 @@ export function Timeline({
     }
   };
 
+  // Toggle mute for a single channel. Updates local UI state and calls
+  // through to the shared PlaybackHandle so the underlying GainNode is
+  // silenced in the audio output. Not saved. Declared before any early
+  // return so hook order stays stable across renders; reads the handle
+  // from a ref to avoid re-creating when the handle identity changes.
+  const onToggleMute = useCallback((trackIndex: number, nextMuted: boolean) => {
+    handleRef.current?.setChannelMuted(trackIndex, nextMuted);
+    // Bump a tick so this Timeline re-reads handle.isChannelMuted().
+    setMuteTick((t) => t + 1);
+  }, []);
+
   if (!handle) {
     return (
       <p
@@ -533,6 +556,9 @@ export function Timeline({
             viewportStart={viewportStart}
             currentTime={currentTime}
             selections={state.selections}
+            peaks={peaks}
+            peaksVersion={peaksVersion}
+            totalBuckets={totalBuckets}
             onViewportChange={onMinimapPan}
           />
         </div>
@@ -560,6 +586,8 @@ export function Timeline({
             height={TRACK_HEIGHT}
             startBucket={startBucket}
             endBucket={endBucket}
+            muted={handle.isChannelMuted(i)}
+            onToggleMute={(nextMuted) => onToggleMute(i, nextMuted)}
           />
         ))}
 

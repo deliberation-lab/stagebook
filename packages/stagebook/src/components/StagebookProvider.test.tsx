@@ -193,6 +193,28 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     unmount();
   });
 
+  test("normalizes 'any' scope to 'all' before calling get", () => {
+    // The platform's get() shouldn't need to understand condition
+    // evaluation semantics — "any" is a downstream concern.
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "any");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
+    unmount();
+  });
+
+  test("normalizes 'percentAgreement' scope to 'all' before calling get", () => {
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "percentAgreement");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
+    unmount();
+  });
+
   test("filters out undefined path results", () => {
     // Record exists but doesn't have the nested .value path
     const get = vi.fn(() => [{ name: "q1" }]);
@@ -325,5 +347,61 @@ describe("useTextContent", () => {
     expect(result.current.data).toBeUndefined();
     expect(result.current.error).toBeUndefined();
     unmount();
+  });
+
+  // Regression for #105: useTextContent previously listed `getTextContent`
+  // in its effect deps. If the platform rebuilds its StagebookContext each
+  // render (very common) and does not wrap `getTextContent` in `useCallback`,
+  // the effect re-fires every render — refetching content on every parent
+  // state change. The ref pattern fixes this.
+  test("does not refetch when getTextContent identity changes but path is stable", async () => {
+    const container = document.createElement("div");
+    let root: Root;
+    const result = { current: undefined as unknown as TextContentResult };
+    const getTextContent = vi.fn(() => Promise.resolve("# Hello"));
+    // Rebuild the context object each render — same underlying function,
+    // different outer identity. Because `get` is wrapped but `getTextContent`
+    // is not, the resolved context returns a new getTextContent ref each render.
+    function makeCtx(): StagebookContext {
+      return createMockContext({
+        // fresh identity per invocation
+        getTextContent: (p: string) => getTextContent(p),
+      });
+    }
+
+    function Harness(): ReactNode {
+      result.current = useTextContent("prompts/hello.md");
+      return null;
+    }
+
+    act(() => {
+      root = createRoot(container);
+      root.render(
+        <StagebookProvider value={makeCtx()}>
+          <Harness />
+        </StagebookProvider>,
+      );
+    });
+    await act(() => Promise.resolve());
+
+    expect(getTextContent).toHaveBeenCalledTimes(1);
+
+    // Force re-renders with fresh getTextContent identities
+    for (let i = 0; i < 5; i++) {
+      act(() => {
+        root.render(
+          <StagebookProvider value={makeCtx()}>
+            <Harness />
+          </StagebookProvider>,
+        );
+      });
+      await act(() => Promise.resolve());
+    }
+
+    // Path never changed — effect must not refetch just because
+    // getTextContent changed identity
+    expect(getTextContent).toHaveBeenCalledTimes(1);
+
+    act(() => root.unmount());
   });
 });

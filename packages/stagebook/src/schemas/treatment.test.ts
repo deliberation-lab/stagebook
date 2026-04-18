@@ -330,6 +330,50 @@ test("validate entire file", () => {
   expect(result.success).toBe(true);
 });
 
+test("treatment accepts an optional notes field with Markdown", () => {
+  const fileJson = {
+    introSequences: [
+      {
+        name: "introSequence1",
+        introSteps: [
+          {
+            name: "introStep1",
+            elements: [{ type: "submitButton", buttonText: "Continue" }],
+          },
+        ],
+      },
+    ],
+    treatments: [
+      {
+        name: "treatment1",
+        notes: "A **markdown** description of what this treatment does.",
+        playerCount: 1,
+        gameStages: [
+          {
+            name: "stage1",
+            duration: 10,
+            elements: [
+              {
+                type: "prompt",
+                file: "x.prompt.md",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const result = treatmentFileSchema.safeParse(fileJson);
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+  if (result.success) {
+    const treatments = result.data.treatments as { notes?: string }[];
+    expect(treatments[0].notes).toBe(
+      "A **markdown** description of what this treatment does.",
+    );
+  }
+});
+
 // ----------- Discussion Schema with conditions ------------
 
 test("discussion with conditions is valid", () => {

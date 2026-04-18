@@ -1537,6 +1537,60 @@ test("minimap appears when zoomed in", async ({ mount }) => {
   ).toBeAttached();
 });
 
+test("minimap renders compressed waveform canvas when peaks are non-empty", async ({
+  mount,
+}) => {
+  // Build interleaved min/max peaks for 600 buckets (60s at 10 bps).
+  // Single channel — minimap draws channel 0 as a summary stand-in.
+  const bucketCount = 600;
+  const channel: number[] = [];
+  for (let i = 0; i < bucketCount; i++) {
+    channel.push(-0.5, 0.5);
+  }
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={1}
+      mockPeaks={[channel]}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(
+    component.locator('[data-testid="timeline-minimap"]'),
+  ).toBeAttached();
+  // A canvas element should be present inside the minimap
+  const minimapCanvas = component.locator(
+    '[data-testid="timeline-minimap"] canvas',
+  );
+  await expect(minimapCanvas).toBeAttached();
+});
+
+test("minimap does not render waveform canvas when peaks are empty", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(
+    component.locator('[data-testid="timeline-minimap"]'),
+  ).toBeAttached();
+  const minimapCanvas = component.locator(
+    '[data-testid="timeline-minimap"] canvas',
+  );
+  await expect(minimapCanvas).toHaveCount(0);
+});
+
 test("clicking minimap pans viewport", async ({ mount }) => {
   const component = await mount(
     <MockTimeline
@@ -2192,4 +2246,137 @@ test("showWaveform=false does NOT call requestWaveformCapture", async ({
     .locator('[data-testid="capture-call-count"]')
     .textContent();
   expect(parseInt(txt ?? "0", 10)).toBe(0);
+});
+
+// -- Per-track mute controls (#52) --
+
+test("renders a mute button per track, defaulting to unmuted", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={3}
+    />,
+  );
+  const buttons = component.locator('[data-testid="track-mute"]');
+  await expect(buttons).toHaveCount(3);
+  for (let i = 0; i < 3; i++) {
+    await expect(buttons.nth(i)).toHaveAttribute("data-muted", "false");
+    await expect(buttons.nth(i)).toHaveAttribute("aria-pressed", "false");
+  }
+});
+
+test("clicking mute updates the button state and calls handle.setChannelMuted", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={2}
+    />,
+  );
+  const buttons = component.locator('[data-testid="track-mute"]');
+  await buttons.nth(0).click();
+
+  // Button visual state flips
+  await expect(buttons.nth(0)).toHaveAttribute("data-muted", "true");
+  await expect(buttons.nth(0)).toHaveAttribute("aria-pressed", "true");
+  await expect(buttons.nth(1)).toHaveAttribute("data-muted", "false");
+
+  // handle.setChannelMuted was called → isChannelMuted(0) reports true
+  await expect
+    .poll(async () => {
+      const txt = await component
+        .locator('[data-testid="mute-state"]')
+        .textContent();
+      const state = JSON.parse(txt ?? "[]") as boolean[];
+      return state[0] ?? false;
+    })
+    .toBe(true);
+});
+
+test("mute is additive — multiple tracks can be muted simultaneously", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={3}
+    />,
+  );
+  const buttons = component.locator('[data-testid="track-mute"]');
+  await buttons.nth(0).click();
+  await buttons.nth(2).click();
+
+  await expect(buttons.nth(0)).toHaveAttribute("data-muted", "true");
+  await expect(buttons.nth(1)).toHaveAttribute("data-muted", "false");
+  await expect(buttons.nth(2)).toHaveAttribute("data-muted", "true");
+});
+
+test("clicking a muted track unmutes it", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={2}
+    />,
+  );
+  const button = component.locator('[data-testid="track-mute"]').nth(0);
+  await button.click();
+  await expect(button).toHaveAttribute("data-muted", "true");
+  await button.click();
+  await expect(button).toHaveAttribute("data-muted", "false");
+  await expect
+    .poll(async () => {
+      const txt = await component
+        .locator('[data-testid="mute-state"]')
+        .textContent();
+      const state = JSON.parse(txt ?? "[]") as boolean[];
+      return state[0] ?? false;
+    })
+    .toBe(false);
+});
+
+test("mute state is not written to the save log", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vis"
+      selectionType="range"
+      mockDuration={60}
+      mockChannelCount={2}
+    />,
+  );
+  await component.locator('[data-testid="track-mute"]').nth(0).click();
+  // Allow any pending save timers to flush
+  await component.evaluate(() => new Promise((r) => setTimeout(r, 100)));
+  const saveLogText = await component
+    .locator('[data-testid="save-log"]')
+    .textContent();
+  const saves = JSON.parse(saveLogText ?? "[]") as {
+    key: string;
+    value: unknown;
+  }[];
+  // No save entry should mention mute in any key or value payload
+  for (const entry of saves) {
+    expect(entry.key).not.toContain("mute");
+    expect(JSON.stringify(entry.value)).not.toContain("mute");
+  }
 });

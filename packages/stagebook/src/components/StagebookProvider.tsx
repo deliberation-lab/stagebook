@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import type { DiscussionType } from "../schemas/treatment.js";
 import {
   getReferenceKeyAndPath,
@@ -10,8 +16,8 @@ import {
 
 export interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", "all", "any", "percentAgreement",
-  // or a numeric string for a specific position.
+  // scope: "player" (default), "shared", "all", or a numeric string
+  // for a specific position.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
@@ -41,7 +47,11 @@ export interface StagebookContext {
 
   // Platform-provided renderers for service-coupled elements
   renderDiscussion?: (config: DiscussionType) => React.ReactNode;
-  renderSharedNotepad?: (config: { padName: string }) => React.ReactNode;
+  renderSharedNotepad?: (config: {
+    padName: string;
+    defaultText?: string;
+    rows?: number;
+  }) => React.ReactNode;
   renderTalkMeter?: () => React.ReactNode;
   renderSurvey?: (config: {
     surveyName: string;
@@ -89,7 +99,14 @@ export function StagebookProvider({
         console.error(`Invalid reference: "${reference}"`);
         return [];
       }
-      const rawValues = value.get(referenceKey, position);
+      // "any" and "percentAgreement" are evaluation semantics applied
+      // downstream in evaluateCondition. The platform's get() only needs
+      // to know the storage scope, so we normalize both to "all" here.
+      const storageScope =
+        position === "any" || position === "percentAgreement"
+          ? "all"
+          : position;
+      const rawValues = value.get(referenceKey, storageScope);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))
         .filter((v) => v !== undefined);
@@ -151,6 +168,12 @@ export function useTextContent(path: string): TextContentResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | undefined>(undefined);
 
+  // Ref `getTextContent` so a rebuilt StagebookContext (fresh function
+  // identity each render) doesn't cause the fetch effect to re-fire and
+  // refetch content on every parent re-render (#105).
+  const getTextContentRef = useRef(getTextContent);
+  getTextContentRef.current = getTextContent;
+
   useEffect(() => {
     if (!path) {
       setData(undefined);
@@ -163,7 +186,8 @@ export function useTextContent(path: string): TextContentResult {
     setIsLoading(true);
     setError(undefined);
 
-    getTextContent(path)
+    getTextContentRef
+      .current(path)
       .then((text) => {
         if (!cancelled) {
           setData(text);
@@ -180,7 +204,7 @@ export function useTextContent(path: string): TextContentResult {
     return () => {
       cancelled = true;
     };
-  }, [path, getTextContent]);
+  }, [path]);
 
   return { data, isLoading, error };
 }

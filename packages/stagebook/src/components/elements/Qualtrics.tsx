@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 export interface ResolvedParam {
   key: string;
@@ -22,6 +22,15 @@ export function Qualtrics({
   save,
   onComplete,
 }: QualtricsProps) {
+  // Ref unstable callbacks so the listener-registration effect below
+  // doesn't tear down and re-add on every parent re-render (#105).
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const urlRef = useRef(url);
+  urlRef.current = url;
+
   // Listen for Qualtrics end-of-survey message.
   // Validates origin to prevent spoofed messages from non-Qualtrics sources.
   // Checks *.qualtrics.com to handle datacenter redirects.
@@ -38,18 +47,18 @@ export function Qualtrics({
       const data: unknown = event.data;
       if (typeof data === "string" && data.startsWith("QualtricsEOS")) {
         const [, surveyId, sessionId] = data.split("|");
-        save("qualtricsDataReady", {
-          surveyURL: url,
+        saveRef.current("qualtricsDataReady", {
+          surveyURL: urlRef.current,
           surveyId,
           sessionId,
         });
-        onComplete();
+        onCompleteRef.current();
       }
     };
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [url, save, onComplete]);
+  }, []);
 
   // Build the full URL with resolved params + standard identifiers
   const fullURL = useMemo(() => {

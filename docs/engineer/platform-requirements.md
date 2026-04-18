@@ -84,7 +84,7 @@ The platform stores this under the key `browserInfo` in player state.
 - `participantInfo.name` — nickname entered during onboarding
 - `participantInfo.sampleId` — identifier from recruiting platform
 
-The platform stores individual fields directly in player state (e.g., key `name` with the nickname value).
+The platform stores this under the key `participantInfo` in player state as a nested object (e.g., `{ name: "alice", sampleId: "P123" }`). Internally, Stagebook's `resolve("participantInfo.name")` calls `get("participantInfo")` and traverses `.name`.
 
 If these namespaces are not populated, conditions referencing them will evaluate to `undefined`, which causes the condition to return "can't determine yet" (not a hard failure).
 
@@ -98,6 +98,33 @@ Stagebook components are tested against modern browsers. The platform should ver
 - Opera >= 75
 
 Mobile devices are not supported for interactive experiments with video/audio. The platform should detect and block mobile browsers during onboarding.
+
+### Callback Stability (recommended)
+
+The methods the platform provides on `StagebookContext` — `get`, `save`, `getTextContent`, `getAssetURL`, `getElapsedTime`, `submit`, and the optional `render*` slots — are safest when their identities are stable across renders.
+
+Stagebook internally protects against unstable callback identities (it stores these references in refs so effects and event listeners aren't torn down and re-registered each render). But stable callbacks still help in a few ways:
+
+- Prompt components that read state via `get()` re-run resolution whenever the context identity changes. A stable context object (same `get` identity across renders) lets React skip work.
+- Platform-side React devtools and profiling are easier to read when the context value isn't churning.
+- If a future Stagebook component is written without the defensive ref pattern, stable callbacks are what keeps it correct.
+
+The simplest way to get stable references is to wrap each method in `useCallback` (or define it outside the render, or on a class) and memoize the final context object with `useMemo`:
+
+```tsx
+const save = useCallback((key, value, scope) => { /* ... */ }, [/* store deps */]);
+const get = useCallback((key, scope) => { /* ... */ }, [/* store deps */]);
+const getTextContent = useCallback((path) => fetch(resolve(path)), []);
+
+const ctx = useMemo<StagebookContext>(() => ({
+  get, save, getTextContent, getAssetURL, getElapsedTime, submit,
+  progressLabel, playerId, position, playerCount, isSubmitted,
+}), [get, save, getTextContent, /* ... */]);
+
+return <StagebookProvider value={ctx}>{children}</StagebookProvider>;
+```
+
+This is a recommendation, not a hard requirement — Stagebook will behave correctly either way.
 
 ---
 
@@ -114,6 +141,20 @@ The platform must:
 - Provide a `submit()` function that advances to the next step
 - Track the start time of each step (for `getElapsedTime()` — use `Date.now()`)
 - Set `progressLabel` to a unique identifier (e.g., `"intro_0_consent"`)
+
+### `progressLabel` Uniqueness (required)
+
+`progressLabel` must be **unique across every step of the experiment** (intro steps, every game stage, exit steps). Two distinct responsibilities rely on it:
+
+1. **Saved-record metadata.** Stagebook stamps `step: progressLabel` onto every value written via `save()`, so downstream analysis can attribute a response to the step where it was produced.
+2. **Auto-generated storage keys.** When a `prompt` element has no explicit `name`, Stagebook derives a storage key of the form `prompt_<progressLabel>_<file-metadata-name>`. Two steps sharing the same `progressLabel` will therefore derive the same storage key for a given prompt file — the second participant response silently overwrites the first with no error surfaced to the participant.
+
+Recommended schemes:
+- `"intro_<index>_<slug>"` for intro steps
+- `"game_<stageIndex>_<slug>"` for game stages
+- `"exit_<index>_<slug>"` for exit steps
+
+Collisions are difficult to detect after the fact because the saved-record metadata also gets overwritten, so treat `progressLabel` uniqueness as a hard invariant in the platform.
 
 ### Game Stages (synchronous, group)
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useRef } from "react";
 import type { TimelineValue } from "./selections.js";
 import { clampViewportStart } from "./viewport.js";
+import { WaveformRenderer } from "./WaveformRenderer.js";
 
 export interface MinimapProps {
   /** Total media duration in seconds. */
@@ -15,6 +16,20 @@ export interface MinimapProps {
   currentTime: number;
   /** All current selections — drawn as small marks on the minimap. */
   selections: TimelineValue;
+  /**
+   * Per-channel interleaved min/max peaks. The minimap draws channel 0 as a
+   * single-channel summary stand-in; the minimap is too small for per-channel
+   * separation. Shared reference with the main tracks, so redraws when peaks
+   * fill in are driven by peaksVersion.
+   */
+  peaks: Float32Array[];
+  /**
+   * Render token: bumps when peaks are mutated in place. Forces the
+   * waveform canvas to redraw despite a stable array reference.
+   */
+  peaksVersion: number;
+  /** Total number of buckets covering the full duration. */
+  totalBuckets: number;
   /** Called with new viewport start (seconds) when the user pans. */
   onViewportChange: (newStart: number) => void;
 }
@@ -41,6 +56,9 @@ export function Minimap({
   viewportStart,
   currentTime,
   selections,
+  peaks,
+  peaksVersion,
+  totalBuckets,
   onViewportChange,
 }: MinimapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -201,6 +219,33 @@ export function Minimap({
         touchAction: "none",
       }}
     >
+      {/* Compressed full-duration waveform — drawn behind selection marks,
+          viewport rect, and playhead. Channel 0 is used as a single-channel
+          summary stand-in (the minimap is too small for per-channel bars).
+          Passing the full bucket range [0, totalBuckets] makes
+          WaveformRenderer naturally compress many source buckets into each
+          canvas pixel. */}
+      {peaks.length > 0 && totalBuckets > 0 && (
+        <div
+          data-testid="minimap-waveform"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            opacity: 0.5,
+            pointerEvents: "none",
+          }}
+        >
+          <WaveformRenderer
+            peaks={peaks[0] ?? null}
+            peaksVersion={peaksVersion}
+            width={width}
+            height={HEIGHT}
+            startBucket={0}
+            endBucket={totalBuckets}
+          />
+        </div>
+      )}
       {selectionMarks}
       {/* Playhead line */}
       {currentTime >= 0 && currentTime <= duration && (
