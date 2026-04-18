@@ -10,14 +10,20 @@ import {
   computeSemanticTokens,
   type SemanticTokenType,
 } from "./lib/semanticTokens";
-import { expandTreatmentSource } from "./lib/expandTreatment";
+import { expandAndValidate } from "./lib/expandAndValidate";
 import { findClosestMatch } from "./lib/levenshtein";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
-import { fillTemplates, treatmentFileSchema } from "stagebook";
+import {
+  fillTemplates,
+  getReferencedAssets,
+  treatmentFileSchema,
+} from "stagebook";
 import { parse as parseYaml } from "yaml";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
+
+const EXPANDED_SCHEME = "stagebook-expanded";
 
 const DEBOUNCE_MS = 300;
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -40,6 +46,11 @@ function isStagebookPrompt(document: vscode.TextDocument): boolean {
 }
 
 function validateDocument(document: vscode.TextDocument): void {
+  // The expanded-preview virtual documents also carry the treatmentsYaml
+  // language (for syntax highlighting), but their diagnostics are owned by
+  // ExpandedTemplatesProvider. Skip them here to avoid clobbering.
+  if (document.uri.scheme === EXPANDED_SCHEME) return;
+
   if (isTreatmentsYaml(document)) {
     validateTreatmentFile(document);
   } else if (isStagebookPrompt(document)) {
@@ -120,8 +131,11 @@ function validateTreatmentFile(document: vscode.TextDocument): void {
 }
 
 /**
- * Walk the parsed treatment object looking for `file:` fields.
- * Check that referenced files exist and have the right extension.
+ * Walk the parsed treatment object and check that every local-asset path
+ * referenced by an element exists. `getReferencedAssets` owns the per-element-
+ * type allowlist of file-like fields (prompt.file, image.file, audio.file,
+ * mediaPlayer.url, mediaPlayer.captionsFile) and filters out template
+ * placeholders and full URLs; we still apply a path-traversal guard here.
  */
 function checkFileReferences(
   document: vscode.TextDocument,
@@ -129,53 +143,36 @@ function checkFileReferences(
   source: string,
   diagnostics: vscode.Diagnostic[],
   version: number,
-  objPath: (string | number)[] = [],
 ): void {
-  if (Array.isArray(obj)) {
-    obj.forEach((item, i) =>
-      checkFileReferences(document, item, source, diagnostics, version, [
-        ...objPath,
-        i,
-      ]),
-    );
-    return;
-  }
+  const assets = getReferencedAssets(obj);
+  if (assets.length === 0) return;
 
-  if (typeof obj !== "object" || obj === null) return;
+  const treatmentDir = vscode.Uri.joinPath(document.uri, "..");
+  const workspaceFolder =
+    vscode.workspace.getWorkspaceFolder(document.uri) ??
+    vscode.workspace.workspaceFolders![0];
+  const uriKey = document.uri.toString();
 
-  const record = obj as Record<string, unknown>;
+  for (const asset of assets) {
+    const fileUri = vscode.Uri.joinPath(treatmentDir, asset.path);
 
-  if (typeof record.file === "string" && record.file.length > 0) {
-    const filePath = record.file;
-    // Resolve relative to the treatment file's directory, not workspace root
-    const treatmentDir = vscode.Uri.joinPath(document.uri, "..");
-    const fileUri = vscode.Uri.joinPath(treatmentDir, filePath);
-
-    // Guard against path traversal (check before template placeholder skip)
-    const workspaceFolder =
-      vscode.workspace.getWorkspaceFolder(document.uri) ??
-      vscode.workspace.workspaceFolders![0];
     if (!isWithinWorkspace(fileUri.fsPath, workspaceFolder.uri.fsPath)) {
       diagnostics.push(
         makeFileDiagnostic(
           source,
-          [...objPath, "file"],
-          `File path escapes workspace: ${filePath}`,
+          asset.pathInTree,
+          `File path escapes workspace: ${asset.path}`,
           vscode.DiagnosticSeverity.Error,
         ),
       );
       diagnosticCollection.set(document.uri, diagnostics);
-      return;
+      continue;
     }
 
-    // Skip file existence check if the path contains template placeholders
-    if (/\$\{[a-zA-Z0-9_]+\}/.test(filePath)) return;
-
-    const uriKey = document.uri.toString();
     vscode.workspace.fs.stat(fileUri).then(
       () => {
-        // File exists — .prompt.md extension is enforced by the schema
-        // (promptFilePathSchema), so no redundant check needed here.
+        // File exists — extension validity (e.g. .prompt.md for prompts) is
+        // enforced by schema (promptFilePathSchema), so no redundant check.
       },
       () => {
         if (validationVersions.get(uriKey) !== version) return;
@@ -183,22 +180,14 @@ function checkFileReferences(
         diagnostics.push(
           makeFileDiagnostic(
             source,
-            [...objPath, "file"],
-            `File not found: ${filePath}`,
+            asset.pathInTree,
+            `File not found: ${asset.path}`,
             vscode.DiagnosticSeverity.Error,
           ),
         );
         diagnosticCollection.set(document.uri, diagnostics);
       },
     );
-  }
-
-  for (const [key, value] of Object.entries(record)) {
-    if (key === "file") continue;
-    checkFileReferences(document, value, source, diagnostics, version, [
-      ...objPath,
-      key,
-    ]);
   }
 }
 
@@ -418,11 +407,11 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
 
 // --- Expanded Templates Preview ---
 
-const EXPANDED_SCHEME = "stagebook-expanded";
-
 class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
   private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChange = this._onDidChange.event;
+
+  constructor(private readonly diagnostics: vscode.DiagnosticCollection) {}
 
   provideTextDocumentContent(uri: vscode.Uri): string {
     const sourceUri = vscode.Uri.parse(decodeURIComponent(uri.query));
@@ -430,26 +419,68 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       (d) => d.uri.toString() === sourceUri.toString(),
     );
     if (!sourceDoc) {
+      this.diagnostics.delete(uri);
       return "# Source document not found. Please reopen the preview.";
     }
 
-    const result = expandTreatmentSource(sourceDoc.getText());
-    if (result.error) {
-      const commentedError = result.error
+    const result = expandAndValidate(sourceDoc.getText());
+    if (result.expandError) {
+      this.diagnostics.delete(uri);
+      const commentedError = result.expandError
         .split(/\r?\n/)
         .map((line) => `# ${line}`)
         .join("\n");
       return `# Template expansion error:\n${commentedError}`;
     }
+
+    // Attach schema-validation diagnostics to the expanded preview URI.
+    // Positions reference the full expanded YAML; diagnostics past the
+    // truncation line still appear in the Problems panel.
+    const vscodeDiagnostics = result.diagnostics.map((d) => {
+      const diag = new vscode.Diagnostic(
+        toVscodeRange(d.range),
+        d.message,
+        toSeverity(d.severity),
+      );
+      diag.source = "stagebook";
+      return diag;
+    });
+    this.diagnostics.set(uri, vscodeDiagnostics);
+
     return result.yaml;
   }
 
+  /**
+   * Request a re-render of the expanded preview for `sourceUri`. Debounced
+   * per-source so that rapid keystrokes don't each trigger full expand +
+   * schema-validation work in `provideTextDocumentContent`.
+   */
   refreshForSource(sourceUri: vscode.Uri): void {
-    const expandedUri = vscode.Uri.parse(
-      `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+    const key = sourceUri.toString();
+    const existing = this.refreshTimers.get(key);
+    if (existing) clearTimeout(existing);
+
+    this.refreshTimers.set(
+      key,
+      setTimeout(() => {
+        this.refreshTimers.delete(key);
+        const expandedUri = vscode.Uri.parse(
+          `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+        );
+        this._onDidChange.fire(expandedUri);
+      }, DEBOUNCE_MS),
     );
-    this._onDidChange.fire(expandedUri);
   }
+
+  dispose(): void {
+    for (const timer of this.refreshTimers.values()) clearTimeout(timer);
+    this.refreshTimers.clear();
+  }
+
+  private readonly refreshTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
 }
 
 // --- Stage Preview Webview ---
@@ -634,7 +665,8 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Register expanded templates content provider
-  const expandedProvider = new ExpandedTemplatesProvider();
+  const expandedProvider = new ExpandedTemplatesProvider(diagnosticCollection);
+  context.subscriptions.push(expandedProvider);
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(
       EXPANDED_SCHEME,
@@ -666,16 +698,25 @@ export function activate(context: vscode.ExtensionContext): void {
           preview: true,
           preserveFocus: true,
         });
-        // Set language for syntax highlighting
-        await vscode.languages.setTextDocumentLanguage(doc, "yaml");
+        // Set language for syntax highlighting. Using treatmentsYaml (rather
+        // than plain yaml) wires up the TextMate grammar and semantic-tokens
+        // provider, so the expanded preview gets the same colorization as
+        // source treatment files (element types, comparators, template
+        // variables, schema keywords).
+        await vscode.languages.setTextDocumentLanguage(doc, "treatmentsYaml");
       },
     ),
   );
 
-  // Auto-refresh the expanded preview when the source changes
+  // Auto-refresh the expanded preview when the source changes. The preview
+  // document itself also has languageId "treatmentsYaml"; skip it by scheme
+  // so we don't feed its (read-only, virtual) text back as a "source".
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {
-      if (isTreatmentsYaml(e.document)) {
+      if (
+        e.document.uri.scheme !== EXPANDED_SCHEME &&
+        isTreatmentsYaml(e.document)
+      ) {
         expandedProvider.refreshForSource(e.document.uri);
       }
     }),
