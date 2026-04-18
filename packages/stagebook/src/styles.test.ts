@@ -66,3 +66,90 @@ describe("styles.css custom property coverage", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// Issue #116: form resets, focus rings, and table styles previously
+// hardcoded values instead of referencing the --stagebook-* tokens declared
+// at :root. These tests pin the migration so hardcoded values can't sneak
+// back in and drift from the themeable surface.
+describe("styles.css uses theme variables for hardcoded values (#116)", () => {
+  const css = readFileSync(stylesPath, "utf8");
+
+  // Strip the :root declaration block so we only look at rule bodies —
+  // otherwise the token declarations themselves would always match.
+  const cssWithoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rootOpenIdx = cssWithoutComments.indexOf(
+    "{",
+    cssWithoutComments.indexOf(":root"),
+  );
+  const rootCloseIdx = cssWithoutComments.indexOf("}", rootOpenIdx);
+  const outsideRoot =
+    cssWithoutComments.slice(0, rootOpenIdx) +
+    cssWithoutComments.slice(rootCloseIdx + 1);
+
+  it("declares a --stagebook-surface token for form control backgrounds", () => {
+    expect(css).toMatch(/--stagebook-surface\s*:/);
+  });
+
+  it.each([
+    ["var(--stagebook-border, #d1d5db)", "form/table border"],
+    ["var(--stagebook-text, #1f2937)", "form text color"],
+    ["var(--stagebook-surface, #fff)", "form control background"],
+    ["var(--stagebook-prompt-max-width, 36rem)", "table max-width"],
+    ["var(--stagebook-bg-muted, #f9fafb)", "table header background"],
+  ])("references %s (%s)", (needle) => {
+    expect(css).toContain(needle);
+  });
+
+  it("derives focus ring border-color from --stagebook-primary", () => {
+    // focus blocks appear after :root — they must reference the primary token
+    // rather than the literal #3b82f6.
+    expect(outsideRoot).toMatch(
+      /border-color:\s*var\(--stagebook-primary[^)]*\)/,
+    );
+  });
+
+  it("derives focus ring box-shadow from --stagebook-primary", () => {
+    // Either direct reference to --stagebook-primary, or to the derived
+    // --stagebook-focus-ring token (which is defined at :root as a
+    // color-mix of --stagebook-primary).
+    const focusRingToken =
+      /--stagebook-focus-ring\s*:\s*color-mix\([^)]*var\(--stagebook-primary/;
+    expect(css).toMatch(focusRingToken);
+    expect(outsideRoot).toMatch(
+      /box-shadow:[^;]*var\(--stagebook-(?:primary|focus-ring)/,
+    );
+  });
+
+  it("uses --stagebook-primary for checkbox/radio checked fill", () => {
+    // Find the :checked rule and assert it references the primary token for
+    // both background-color and border-color.
+    const checkedBlock =
+      /input\[type="checkbox"\]:checked,\s*input\[type="radio"\]:checked\s*\{([\s\S]+?)\}/.exec(
+        outsideRoot,
+      );
+    expect(checkedBlock?.[1]).toBeDefined();
+    expect(checkedBlock?.[1]).toMatch(
+      /background-color:\s*var\(--stagebook-primary/,
+    );
+    expect(checkedBlock?.[1]).toMatch(
+      /border-color:\s*var\(--stagebook-primary/,
+    );
+  });
+
+  // The literal-value checks strip `var(--token, fallback)` calls first: the
+  // fallback is the *documented* fallback and only resolves when the variable
+  // is missing, so hosts that override --stagebook-primary get their value.
+  // What we want to catch is bare literal uses that bypass the variable
+  // entirely.
+  const stripVarCalls = (s: string) => s.replace(/var\([^)]*\)/g, "");
+
+  it("has no bare literal #3b82f6 references outside :root and var() fallbacks", () => {
+    expect(stripVarCalls(outsideRoot)).not.toMatch(/#3b82f6\b/i);
+  });
+
+  it("has no bare literal rgba(59, 130, 246, ...) references outside :root and var() fallbacks", () => {
+    expect(stripVarCalls(outsideRoot)).not.toMatch(
+      /rgba\(\s*59\s*,\s*130\s*,\s*246/,
+    );
+  });
+});
