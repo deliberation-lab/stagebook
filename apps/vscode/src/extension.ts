@@ -468,12 +468,37 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
     return result.yaml;
   }
 
+  /**
+   * Request a re-render of the expanded preview for `sourceUri`. Debounced
+   * per-source so that rapid keystrokes don't each trigger full expand +
+   * schema-validation work in `provideTextDocumentContent`.
+   */
   refreshForSource(sourceUri: vscode.Uri): void {
-    const expandedUri = vscode.Uri.parse(
-      `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+    const key = sourceUri.toString();
+    const existing = this.refreshTimers.get(key);
+    if (existing) clearTimeout(existing);
+
+    this.refreshTimers.set(
+      key,
+      setTimeout(() => {
+        this.refreshTimers.delete(key);
+        const expandedUri = vscode.Uri.parse(
+          `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+        );
+        this._onDidChange.fire(expandedUri);
+      }, DEBOUNCE_MS),
     );
-    this._onDidChange.fire(expandedUri);
   }
+
+  dispose(): void {
+    for (const timer of this.refreshTimers.values()) clearTimeout(timer);
+    this.refreshTimers.clear();
+  }
+
+  private readonly refreshTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
 }
 
 // --- Stage Preview Webview ---
@@ -659,6 +684,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Register expanded templates content provider
   const expandedProvider = new ExpandedTemplatesProvider(diagnosticCollection);
+  context.subscriptions.push(expandedProvider);
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(
       EXPANDED_SCHEME,

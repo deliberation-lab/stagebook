@@ -34,14 +34,16 @@ treatments:
 
   describe("invalid expanded output from valid-looking source", () => {
     it("surfaces schema errors that only appear after template expansion", () => {
-      // The source looks fine on its own (templateContent uses altTemplateContext),
-      // but after expansion the resulting treatment has duration: -1 which is
+      // Source validates: the template is typed (contentType: stage) and the
+      // duration is a ${placeholder}, which the stage schema allows. After
+      // field substitution the expanded stage has duration: -1, which is
       // invalid per durationSchema.
       const src = `templates:
   - templateName: badStage
+    contentType: stage
     templateContent:
       name: stage1
-      duration: -1
+      duration: \${duration}
       elements:
         - type: submitButton
 introSequences:
@@ -54,7 +56,9 @@ treatments:
   - name: study1
     playerCount: 1
     gameStages:
-      - template: badStage`;
+      - template: badStage
+        fields:
+          duration: -1`;
       const result = expandAndValidate(src);
       expect(result.expandError).toBeNull();
       const errors = result.diagnostics.filter((d) => d.severity === "error");
@@ -62,14 +66,16 @@ treatments:
     });
 
     it("positions diagnostics within the expanded YAML (not the source)", () => {
-      // The expanded YAML has a different shape than the source — the template
-      // reference at gameStages[0] gets replaced with the expanded stage object.
-      // Diagnostics should point at lines in the expanded YAML output.
+      // Same pattern: source is valid (duration uses a placeholder), but the
+      // field value ("notANumber") makes the expanded duration a string where
+      // a number is required. The diagnostic should land on the expanded
+      // duration: line in result.yaml.
       const src = `templates:
   - templateName: badStage
+    contentType: stage
     templateContent:
       name: stage1
-      duration: notANumber
+      duration: \${duration}
       elements:
         - type: submitButton
 introSequences:
@@ -82,7 +88,9 @@ treatments:
   - name: study1
     playerCount: 1
     gameStages:
-      - template: badStage`;
+      - template: badStage
+        fields:
+          duration: notANumber`;
       const result = expandAndValidate(src);
       const errors = result.diagnostics.filter(
         (d) => d.severity === "error" && d.range !== null,
@@ -143,6 +151,7 @@ treatments:
         .join("\n");
       const src = `templates:
   - templateName: manyStage
+    contentType: stage
     templateContent:
       name: \${topic}_stage
       duration: \${duration}
