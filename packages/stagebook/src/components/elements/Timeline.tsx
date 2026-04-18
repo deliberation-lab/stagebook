@@ -116,6 +116,12 @@ export function Timeline({
   const [containerWidth, setContainerWidth] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
+  // Ref `save` so the save-on-change effect below doesn't re-run (and
+  // potentially double-save) whenever the parent passes a fresh callback
+  // identity (#105).
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
   // Callback ref: measures the container immediately on attach. Works
   // regardless of mount order — unlike useEffect, a callback ref fires when
   // React attaches the DOM element, even if the component re-renders later
@@ -207,12 +213,12 @@ export function Timeline({
       debounceNextSaveRef.current = false;
       saveTimerRef.current = setTimeout(() => {
         lastSavedRef.current = serialized;
-        save(`timeline_${name}`, state.selections);
+        saveRef.current(`timeline_${name}`, state.selections);
         saveTimerRef.current = null;
       }, 500);
     } else {
       lastSavedRef.current = serialized;
-      save(`timeline_${name}`, state.selections);
+      saveRef.current(`timeline_${name}`, state.selections);
     }
 
     return () => {
@@ -221,7 +227,7 @@ export function Timeline({
         saveTimerRef.current = null;
       }
     };
-  }, [state.selections, isDragging, name, save]);
+  }, [state.selections, isDragging, name]);
 
   // Measure container width. Read from getBoundingClientRect on every render
   // via a callback ref, and observe with ResizeObserver for ongoing updates.

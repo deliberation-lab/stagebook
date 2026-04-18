@@ -99,6 +99,33 @@ Stagebook components are tested against modern browsers. The platform should ver
 
 Mobile devices are not supported for interactive experiments with video/audio. The platform should detect and block mobile browsers during onboarding.
 
+### Callback Stability (recommended)
+
+The methods the platform provides on `StagebookContext` — `get`, `save`, `getTextContent`, `getAssetURL`, `getElapsedTime`, `submit`, and the optional `render*` slots — are safest when their identities are stable across renders.
+
+Stagebook internally protects against unstable callback identities (it stores these references in refs so effects and event listeners aren't torn down and re-registered each render). But stable callbacks still help in a few ways:
+
+- Prompt components that read state via `get()` re-run resolution whenever the context identity changes. A stable context object (same `get` identity across renders) lets React skip work.
+- Platform-side React devtools and profiling are easier to read when the context value isn't churning.
+- If a future Stagebook component is written without the defensive ref pattern, stable callbacks are what keeps it correct.
+
+The simplest way to get stable references is to wrap each method in `useCallback` (or define it outside the render, or on a class) and memoize the final context object with `useMemo`:
+
+```tsx
+const save = useCallback((key, value, scope) => { /* ... */ }, [/* store deps */]);
+const get = useCallback((key, scope) => { /* ... */ }, [/* store deps */]);
+const getTextContent = useCallback((path) => fetch(resolve(path)), []);
+
+const ctx = useMemo<StagebookContext>(() => ({
+  get, save, getTextContent, getAssetURL, getElapsedTime, submit,
+  progressLabel, playerId, position, playerCount, isSubmitted,
+}), [get, save, getTextContent, /* ... */]);
+
+return <StagebookProvider value={ctx}>{children}</StagebookProvider>;
+```
+
+This is a recommendation, not a hard requirement — Stagebook will behave correctly either way.
+
 ---
 
 ## 2. Stage Orchestration (required)

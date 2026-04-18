@@ -33,12 +33,17 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const shortcuts = selectionType === "range" ? rangeShortcuts : pointShortcuts;
 
+  // Ref `onClose` so the listener effect doesn't re-register document
+  // listeners when the parent passes a fresh callback identity (#105).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   // Close on Escape and click-outside
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     }
     function onClick(e: MouseEvent) {
@@ -46,7 +51,7 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
         popoverRef.current &&
         !popoverRef.current.contains(e.target as Node)
       ) {
-        onClose();
+        onCloseRef.current();
       }
     }
     document.addEventListener("keydown", onKey, true);
@@ -57,7 +62,7 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
       document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("mousedown", onClick, true);
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div

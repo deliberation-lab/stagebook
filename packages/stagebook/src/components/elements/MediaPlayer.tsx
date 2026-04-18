@@ -125,6 +125,19 @@ export function MediaPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const autoplayAttemptedRef = useRef(false);
 
+  // Ref unstable callbacks so `recordEvent`, `handleEnded`, and
+  // `handleTimeUpdate` stay identity-stable even when the parent passes
+  // fresh `save` / `onComplete` / `getElapsedTime` references (#105).
+  // `handleTimeUpdate` in particular fires every animation frame during
+  // playback — re-creating its closure on every render cascades through
+  // every JSX handler tied to the <video> element.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const getElapsedTimeRef = useRef(getElapsedTime);
+  getElapsedTimeRef.current = getElapsedTime;
+
   const [isPaused, setIsPaused] = useState(true);
   const [showPlayOnce, setShowPlayOnce] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -432,7 +445,8 @@ export function MediaPlayer({
   useEffect(() => {
     if (!videoRef.current) return;
     if (syncToStageTime) {
-      videoRef.current.currentTime = getElapsedTime() + (startAt ?? 0);
+      videoRef.current.currentTime =
+        getElapsedTimeRef.current() + (startAt ?? 0);
     } else if (startAt !== undefined) {
       videoRef.current.currentTime = startAt;
     }
@@ -463,7 +477,7 @@ export function MediaPlayer({
       const event: VideoEvent = {
         type,
         videoTime,
-        stageTimeElapsed: getElapsedTime(),
+        stageTimeElapsed: getElapsedTimeRef.current(),
         ...extra,
       };
       eventsRef.current = [...eventsRef.current, event];
@@ -476,9 +490,9 @@ export function MediaPlayer({
         lastVideoTime: videoTime,
         watchedRanges: computeWatchedRanges(eventsRef.current),
       };
-      save(saveKey, record);
+      saveRef.current(saveKey, record);
     },
-    [getElapsedTime, name, url, startAt, stopAt, save, saveKey],
+    [name, url, startAt, stopAt, saveKey],
   );
 
   const handlePlay = useCallback(
@@ -509,10 +523,10 @@ export function MediaPlayer({
       setIsPaused(true);
       recordEvent("ended", e.currentTarget.currentTime);
       if (submitOnComplete) {
-        onComplete?.();
+        onCompleteRef.current?.();
       }
     },
-    [recordEvent, submitOnComplete, onComplete],
+    [recordEvent, submitOnComplete],
   );
 
   const handleLoadedMetadata = useCallback(
@@ -590,7 +604,7 @@ export function MediaPlayer({
         stopAtReachedRef.current = true;
         e.currentTarget.pause(); // fires "pause" event; handlePause suppresses it
         recordEvent("stopAt", ct);
-        if (submitOnComplete) onComplete?.();
+        if (submitOnComplete) onCompleteRef.current?.();
         return;
       }
 
@@ -600,7 +614,7 @@ export function MediaPlayer({
         setCaptionText(active?.text ?? null);
       }
     },
-    [stopAt, cues, recordEvent, submitOnComplete, onComplete],
+    [stopAt, cues, recordEvent, submitOnComplete],
   );
 
   // Clamp seek target to allowed range — works for both HTML5 and YouTube
@@ -1035,7 +1049,7 @@ export function MediaPlayer({
               if (stopAtReachedRef.current) {
                 stopAtReachedRef.current = false;
                 recordEvent("stopAt", t);
-                if (submitOnComplete) onComplete?.();
+                if (submitOnComplete) onCompleteRef.current?.();
                 return;
               }
               recordEvent("pause", t);
@@ -1044,7 +1058,7 @@ export function MediaPlayer({
               setIsPaused(true);
               setCurrentTime(t);
               recordEvent("ended", t);
-              if (submitOnComplete) onComplete?.();
+              if (submitOnComplete) onCompleteRef.current?.();
             }}
           />
           {ytControlsVisible && (

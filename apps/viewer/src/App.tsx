@@ -1,14 +1,22 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
 import {
   TreatmentValidationError,
+  parseTreatmentYaml,
   type ValidationIssue,
 } from "./lib/treatment";
 import { createUrlContentFns } from "./lib/contentFns";
+import {
+  exampleCatalog,
+  createExampleContentFns,
+  type ExampleEntry,
+} from "./lib/exampleCatalog";
 import { LandingPage } from "./components/LandingPage";
 import { TreatmentPicker } from "./components/TreatmentPicker";
 import { PreviewHost } from "./components/PreviewHost";
+
+type ContentFns = ReturnType<typeof createUrlContentFns>;
 
 type AppState =
   | { phase: "landing" }
@@ -16,12 +24,12 @@ type AppState =
   | {
       phase: "selecting";
       treatmentFile: TreatmentFileType;
-      rawBaseUrl: string;
+      contentFns: ContentFns;
     }
   | {
       phase: "viewing";
       treatmentFile: TreatmentFileType;
-      rawBaseUrl: string;
+      contentFns: ContentFns;
       selectedIntroIndex: number;
       selectedTreatmentIndex: number;
     }
@@ -35,37 +43,64 @@ type AppState =
 export function App() {
   const [state, setState] = useState<AppState>({ phase: "landing" });
 
-  const handleLoad = useCallback(async (url: string) => {
-    setState({ phase: "loading", url });
-    try {
-      const { treatmentFile, rawBaseUrl } = await loadTreatmentFromUrl(url);
-
+  const enterTreatment = useCallback(
+    (treatmentFile: TreatmentFileType, contentFns: ContentFns) => {
       const needsPicker =
         treatmentFile.introSequences.length > 1 ||
         treatmentFile.treatments.length > 1;
 
       if (needsPicker) {
-        setState({ phase: "selecting", treatmentFile, rawBaseUrl });
+        setState({ phase: "selecting", treatmentFile, contentFns });
       } else {
         setState({
           phase: "viewing",
           treatmentFile,
-          rawBaseUrl,
+          contentFns,
           selectedIntroIndex: 0,
           selectedTreatmentIndex: 0,
         });
       }
-    } catch (err) {
-      const validationIssues =
-        err instanceof TreatmentValidationError ? err.issues : undefined;
-      setState({
-        phase: "error",
-        message: err instanceof Error ? err.message : String(err),
-        url,
-        validationIssues,
-      });
-    }
-  }, []);
+    },
+    [],
+  );
+
+  const handleLoad = useCallback(
+    async (url: string) => {
+      setState({ phase: "loading", url });
+      try {
+        const { treatmentFile, rawBaseUrl } = await loadTreatmentFromUrl(url);
+        enterTreatment(treatmentFile, createUrlContentFns(rawBaseUrl));
+      } catch (err) {
+        const validationIssues =
+          err instanceof TreatmentValidationError ? err.issues : undefined;
+        setState({
+          phase: "error",
+          message: err instanceof Error ? err.message : String(err),
+          url,
+          validationIssues,
+        });
+      }
+    },
+    [enterTreatment],
+  );
+
+  const handleLoadExample = useCallback(
+    (entry: ExampleEntry) => {
+      try {
+        const treatmentFile = parseTreatmentYaml(entry.yaml);
+        enterTreatment(treatmentFile, createExampleContentFns(entry));
+      } catch (err) {
+        const validationIssues =
+          err instanceof TreatmentValidationError ? err.issues : undefined;
+        setState({
+          phase: "error",
+          message: err instanceof Error ? err.message : String(err),
+          validationIssues,
+        });
+      }
+    },
+    [enterTreatment],
+  );
 
   // Auto-load from ?url= parameter
   useEffect(() => {
@@ -78,7 +113,13 @@ export function App() {
 
   switch (state.phase) {
     case "landing":
-      return <LandingPage onLoad={handleLoad} />;
+      return (
+        <LandingPage
+          onLoad={handleLoad}
+          examples={exampleCatalog}
+          onLoadExample={handleLoadExample}
+        />
+      );
 
     case "loading":
       return <LoadingScreen url={state.url} />;
@@ -94,7 +135,7 @@ export function App() {
       );
 
     case "selecting": {
-      const { treatmentFile, rawBaseUrl } = state;
+      const { treatmentFile, contentFns } = state;
       return (
         <TreatmentPicker
           treatmentFile={treatmentFile}
@@ -102,7 +143,7 @@ export function App() {
             setState({
               phase: "viewing",
               treatmentFile,
-              rawBaseUrl,
+              contentFns,
               selectedIntroIndex: introIndex,
               selectedTreatmentIndex: treatmentIndex,
             });
@@ -115,7 +156,7 @@ export function App() {
       return (
         <ViewingPhase
           treatmentFile={state.treatmentFile}
-          rawBaseUrl={state.rawBaseUrl}
+          contentFns={state.contentFns}
           selectedIntroIndex={state.selectedIntroIndex}
           selectedTreatmentIndex={state.selectedTreatmentIndex}
           onBack={() => setState({ phase: "landing" })}
@@ -130,22 +171,17 @@ export function App() {
  */
 function ViewingPhase({
   treatmentFile,
-  rawBaseUrl,
+  contentFns,
   selectedIntroIndex,
   selectedTreatmentIndex,
   onBack,
 }: {
   treatmentFile: TreatmentFileType;
-  rawBaseUrl: string;
+  contentFns: ContentFns;
   selectedIntroIndex: number;
   selectedTreatmentIndex: number;
   onBack: () => void;
 }) {
-  const contentFns = useMemo(
-    () => createUrlContentFns(rawBaseUrl),
-    [rawBaseUrl],
-  );
-
   return (
     <PreviewHost
       treatmentFile={treatmentFile}

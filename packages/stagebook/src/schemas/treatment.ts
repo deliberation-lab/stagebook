@@ -1302,6 +1302,7 @@ export const baseTreatmentSchema = z
   .object({
     name: nameSchema,
     desc: descriptionSchema.optional(),
+    notes: z.string().optional(),
     playerCount: z.number(),
     groupComposition: z
       .array(playerSchema, {
