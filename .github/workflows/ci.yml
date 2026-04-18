@@ -2,13 +2,63 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, vscode-extension]
+    branches: [main]
   push:
-    branches: [main, vscode-extension]
+    branches: [main]
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      stagebook: ${{ steps.filter.outputs.stagebook }}
+      viewer: ${{ steps.filter.outputs.viewer }}
+      vscode: ${{ steps.filter.outputs.vscode }}
+      ct: ${{ steps.filter.outputs.ct }}
+      lint: ${{ steps.filter.outputs.lint }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Needed so dorny/paths-filter can diff base vs HEAD reliably on push events.
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            stagebook:
+              - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+            viewer:
+              - 'apps/viewer/**'
+              - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+            vscode:
+              - 'apps/vscode/**'
+              - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+            ct:
+              - 'packages/stagebook/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+            lint:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.json'
+              - '.prettierrc'
+              - '.github/workflows/ci.yml'
+
   lint:
     name: Lint & Format
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +70,24 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
 
-  test:
-    name: Unit Tests (vitest)
+  test-stagebook:
+    name: Unit Tests (stagebook)
+    needs: changes
+    if: needs.changes.outputs.stagebook == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test -w stagebook
+
+  test-viewer:
+    name: Unit Tests (viewer)
+    needs: changes
+    if: needs.changes.outputs.viewer == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,10 +97,27 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w stagebook
-      - run: npm test
+      - run: npm test -w stagebook-viewer
+
+  test-vscode:
+    name: Unit Tests (vscode)
+    needs: changes
+    if: needs.changes.outputs.vscode == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w stagebook
+      - run: npm test -w stagebook-vscode
 
   test-ct:
     name: Component Tests (Playwright)
+    needs: changes
+    if: needs.changes.outputs.ct == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
