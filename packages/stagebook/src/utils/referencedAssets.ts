@@ -15,6 +15,12 @@ const FILE_FIELDS_BY_ELEMENT_TYPE: Record<string, readonly string[]> = {
   timeline: [],
 };
 
+// Keys whose array values hold elements. Strings inside these arrays are
+// recognised as the prompt-shorthand form (see promptShorthandSchema): a bare
+// `*.prompt.md` path stands in for `{ type: "prompt", file: <path> }`.
+const ELEMENTS_ARRAY_KEYS = new Set(["elements"]);
+const PROMPT_SHORTHAND_SUFFIX = ".prompt.md";
+
 const PLACEHOLDER_PATTERN = /\$\{[^}]*\}/;
 const FULL_URL_PATTERN = /^(?:https?:)?\/\//i;
 
@@ -27,7 +33,9 @@ export interface ReferencedAsset {
   elementType: string;
   /** Element name if the element has one. */
   elementName?: string;
-  /** Location of the element in the parsed object, useful for source mapping. */
+  /** Location of the scalar value in the parsed object, useful for source
+   *  mapping. For object elements this is `[…element path, fieldName]`; for
+   *  prompt-shorthand strings this is the scalar's own path. */
   pathInTree: (string | number)[];
 }
 
@@ -41,7 +49,8 @@ function isCollectableLocalPath(value: unknown): value is string {
 
 /**
  * Walk a parsed treatment file and return every local-asset path it
- * references, per the per-element-type allowlist above.
+ * references, per the per-element-type allowlist above (plus prompt
+ * shorthand — bare `*.prompt.md` strings inside `elements` arrays).
  *
  * Accepts `unknown` because callers typically pass the raw result of
  * parsing YAML — before schema validation — so that the asset list is
@@ -55,18 +64,38 @@ function isCollectableLocalPath(value: unknown): value is string {
  */
 export function getReferencedAssets(treatmentFile: unknown): ReferencedAsset[] {
   const results: ReferencedAsset[] = [];
-  walk(treatmentFile, [], results);
+  walk(treatmentFile, [], false, results);
   return results;
 }
 
 function walk(
   node: unknown,
   path: (string | number)[],
+  insideElementsArray: boolean,
   acc: ReferencedAsset[],
 ): void {
   if (Array.isArray(node)) {
     node.forEach((item, i) => {
-      walk(item, [...path, i], acc);
+      walk(item, [...path, i], insideElementsArray, acc);
+    });
+    return;
+  }
+
+  // Prompt shorthand: a bare ".prompt.md" string within an `elements` array
+  // stands in for `{ type: "prompt", file: <string> }`. We emit it as such so
+  // consumers (file-existence checks, asset manifests) don't silently miss it.
+  if (
+    insideElementsArray &&
+    typeof node === "string" &&
+    node.endsWith(PROMPT_SHORTHAND_SUFFIX) &&
+    isCollectableLocalPath(node)
+  ) {
+    acc.push({
+      path: node,
+      field: "file",
+      elementType: "prompt",
+      elementName: node,
+      pathInTree: [...path],
     });
     return;
   }
@@ -76,7 +105,12 @@ function walk(
   const record = node as Record<string, unknown>;
   const type = record.type;
 
-  if (typeof type === "string" && type in FILE_FIELDS_BY_ELEMENT_TYPE) {
+  // `Object.hasOwn` rather than `in` so prototype-chain keys
+  // (e.g. type: "toString") can't turn `fields` into a non-array.
+  if (
+    typeof type === "string" &&
+    Object.hasOwn(FILE_FIELDS_BY_ELEMENT_TYPE, type)
+  ) {
     const fields = FILE_FIELDS_BY_ELEMENT_TYPE[type];
     for (const field of fields) {
       const value = record[field];
@@ -85,7 +119,7 @@ function walk(
           path: value,
           field,
           elementType: type,
-          pathInTree: [...path],
+          pathInTree: [...path, field],
         };
         if (typeof record.name === "string") {
           asset.elementName = record.name;
@@ -96,6 +130,6 @@ function walk(
   }
 
   for (const [key, value] of Object.entries(record)) {
-    walk(value, [...path, key], acc);
+    walk(value, [...path, key], ELEMENTS_ARRAY_KEYS.has(key), acc);
   }
 }

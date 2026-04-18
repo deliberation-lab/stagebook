@@ -71,7 +71,7 @@ describe("getReferencedAssets — element type allowlist", () => {
         field: "file",
         elementType: "image",
         elementName: "diagram",
-        pathInTree: ["treatments", 0, "gameStages", 0, "elements", 0],
+        pathInTree: ["treatments", 0, "gameStages", 0, "elements", 0, "file"],
       },
     ]);
   });
@@ -252,7 +252,7 @@ describe("getReferencedAssets — structural walk", () => {
       field: "file",
       elementType: "image",
       elementName: "target",
-      pathInTree: ["treatments", 0, "gameStages", 1, "elements", 1],
+      pathInTree: ["treatments", 0, "gameStages", 1, "elements", 1, "file"],
     });
   });
 
@@ -311,5 +311,124 @@ describe("getReferencedAssets — structural walk", () => {
     const assets = getReferencedAssets(tree);
     expect(assets).toHaveLength(1);
     expect(assets[0].elementName).toBeUndefined();
+  });
+
+  test("pathInTree for mediaPlayer points at the specific field, not the element", () => {
+    // Regression guard: pathInTree must include the field name so that
+    // consumers can do source mapping directly without appending `field`.
+    const tree = treatmentWithElements([
+      {
+        type: "mediaPlayer",
+        url: "videos/x.mp4",
+        captionsFile: "videos/x.vtt",
+      },
+    ]);
+    const assets = getReferencedAssets(tree);
+    expect(assets[0].pathInTree).toEqual([
+      "treatments",
+      0,
+      "gameStages",
+      0,
+      "elements",
+      0,
+      "url",
+    ]);
+    expect(assets[1].pathInTree).toEqual([
+      "treatments",
+      0,
+      "gameStages",
+      0,
+      "elements",
+      0,
+      "captionsFile",
+    ]);
+  });
+});
+
+describe("getReferencedAssets — prompt shorthand", () => {
+  test("bare .prompt.md string inside elements is collected as prompt.file", () => {
+    const tree = treatmentWithElements(["intro.prompt.md"]);
+    const assets = getReferencedAssets(tree);
+    expect(assets).toEqual<ReferencedAsset[]>([
+      {
+        path: "intro.prompt.md",
+        field: "file",
+        elementType: "prompt",
+        elementName: "intro.prompt.md",
+        pathInTree: ["treatments", 0, "gameStages", 0, "elements", 0],
+      },
+    ]);
+  });
+
+  test("shorthand works in intro and exit steps too", () => {
+    const tree = {
+      introSequences: [
+        {
+          name: "seq",
+          introSteps: [{ name: "s", elements: ["intro.prompt.md"] }],
+        },
+      ],
+      treatments: [
+        {
+          name: "t",
+          playerCount: 1,
+          gameStages: [
+            { name: "g", duration: 1, elements: [{ type: "submitButton" }] },
+          ],
+          exitSequence: [{ name: "e", elements: ["exit.prompt.md"] }],
+        },
+      ],
+    };
+    const paths = getReferencedAssets(tree).map((a) => a.path);
+    expect(paths).toEqual(["intro.prompt.md", "exit.prompt.md"]);
+  });
+
+  test("non-.prompt.md strings inside elements are not collected", () => {
+    const tree = treatmentWithElements(["not-a-prompt.txt", 42, null]);
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+
+  test("shorthand with template placeholder is excluded", () => {
+    const tree = treatmentWithElements(["${variant}.prompt.md"]);
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+
+  test("bare .prompt.md strings outside an elements array are ignored", () => {
+    // Safety: only recognise shorthand where the schema actually allows it.
+    const tree = {
+      introSequences: [],
+      treatments: [
+        {
+          name: "t",
+          playerCount: 1,
+          notes: "see intro.prompt.md",
+          gameStages: [
+            {
+              name: "g",
+              duration: 1,
+              elements: [{ type: "submitButton" }],
+              // Some unrelated field that happens to hold a .prompt.md string
+              foo: "bar.prompt.md",
+            },
+          ],
+        },
+      ],
+    };
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+});
+
+describe("getReferencedAssets — malformed input safety", () => {
+  test("element with a prototype-chain `type` value doesn't crash the walker", () => {
+    // `type in FILE_FIELDS_BY_ELEMENT_TYPE` would match built-in
+    // Object.prototype keys like `toString`; using Object.hasOwn keeps the
+    // walker safe from untrusted YAML that sets `type: "toString"`.
+    const tree = treatmentWithElements([
+      { type: "toString", file: "whatever" },
+      { type: "constructor", file: "whatever" },
+      { type: "__proto__", file: "whatever" },
+    ]);
+    expect(() => getReferencedAssets(tree)).not.toThrow();
+    expect(getReferencedAssets(tree)).toEqual([]);
   });
 });

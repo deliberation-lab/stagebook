@@ -155,13 +155,12 @@ function checkFileReferences(
 
   for (const asset of assets) {
     const fileUri = vscode.Uri.joinPath(treatmentDir, asset.path);
-    const diagPath = [...asset.pathInTree, asset.field];
 
     if (!isWithinWorkspace(fileUri.fsPath, workspaceFolder.uri.fsPath)) {
       diagnostics.push(
         makeFileDiagnostic(
           source,
-          diagPath,
+          asset.pathInTree,
           `File path escapes workspace: ${asset.path}`,
           vscode.DiagnosticSeverity.Error,
         ),
@@ -181,7 +180,7 @@ function checkFileReferences(
         diagnostics.push(
           makeFileDiagnostic(
             source,
-            diagPath,
+            asset.pathInTree,
             `File not found: ${asset.path}`,
             vscode.DiagnosticSeverity.Error,
           ),
