@@ -10,3 +10,7 @@ export {
   evaluateConditions,
   type Condition,
 } from "./evaluateConditions.js";
+export {
+  getReferencedAssets,
+  type ReferencedAsset,
+} from "./referencedAssets.js";
