@@ -84,17 +84,19 @@
    * from the page background (e.g., darker cards on a white page). */
   --stagebook-surface: #fff;
 
-  /* Focus ring (derived from the primary color). Defaults to a 25% alpha
-   * version of the primary via color-mix; hosts that override
-   * --stagebook-primary get a matched focus ring automatically. Hosts can
-   * also override this token directly for a custom ring color. Browsers
-   * that don't support color-mix fall through to the var() fallback at the
-   * usage site. */
-  --stagebook-focus-ring: color-mix(
-    in srgb,
-    var(--stagebook-primary) 25%,
-    transparent
-  );
+  /* Focus ring. Default is a static rgba tint of the primary color so
+   * browsers without color-mix support still get a visible focus ring.
+   * In browsers that support color-mix, the @supports block below upgrades
+   * the token to a live 25% mix of --stagebook-primary, so overriding the
+   * primary token automatically retunes the focus ring. Hosts can always
+   * override this token directly for a fully custom ring color.
+   *
+   * Why not define it as color-mix() unconditionally: custom-property
+   * substitution is validated at computed-value time, so if color-mix()
+   * isn't supported the whole box-shadow declaration becomes invalid and
+   * the var() fallback at the usage site does NOT apply — the focus ring
+   * would just disappear. */
+  --stagebook-focus-ring: rgba(59, 130, 246, 0.25);
 
   /* Timeline waveform bars */
   --stagebook-waveform-color: #6b7280;
@@ -123,6 +125,19 @@
   /* Blockquote (used by Display element and markdown blockquotes) */
   --stagebook-blockquote-border: #d1d5db;
   --stagebook-blockquote-bg: #f9fafb;
+}
+
+/* Upgrade the focus ring to a live mix of --stagebook-primary only on
+ * browsers that support color-mix; otherwise the static rgba default
+ * above continues to apply. Feature-queried on the exact syntax used. */
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root {
+    --stagebook-focus-ring: color-mix(
+      in srgb,
+      var(--stagebook-primary) 25%,
+      transparent
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ */
