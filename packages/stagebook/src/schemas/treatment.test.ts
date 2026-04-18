@@ -79,6 +79,9 @@ test("reference timeline with no name", () => {
   if (!result.success)
     console.log(result.error.message, "\npath:", result.error.path);
   expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(result.error.issues[0].message).toContain("A name must be provided");
+  }
 });
 
 // ----------- Condition Schema ------------
