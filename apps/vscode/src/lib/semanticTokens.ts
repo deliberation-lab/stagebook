@@ -4,6 +4,7 @@ import {
   validComparators,
   validReferenceTypes,
 } from "stagebook";
+import { offsetToLineCol } from "./offsetToLineCol";
 
 // Map domain concepts to VS Code's built-in semantic token types.
 // These are standard types that all themes already color distinctly.
@@ -71,24 +72,6 @@ const sectionKeys = new Set([
   "discussion",
   "conditions",
 ]);
-
-/**
- * Convert a character offset to a 0-based line and column.
- */
-function offsetToLineCol(
-  source: string,
-  offset: number,
-): { line: number; col: number } {
-  let line = 0;
-  let lastNewline = -1;
-  for (let i = 0; i < offset && i < source.length; i++) {
-    if (source[i] === "\n") {
-      line++;
-      lastNewline = i;
-    }
-  }
-  return { line, col: offset - lastNewline - 1 };
-}
 
 /**
  * Compute semantic tokens for a treatment YAML source string.
