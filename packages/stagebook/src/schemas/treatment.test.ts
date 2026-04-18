@@ -59,6 +59,28 @@ test("reference tracked link with name", () => {
   expect(result.success).toBe(true);
 });
 
+test("reference timeline with name", () => {
+  const reference = "timeline.storySegment";
+  const result = referenceSchema.safeParse(reference);
+  if (!result.success) console.log(result.error);
+  expect(result.success).toBe(true);
+});
+
+test("reference timeline with nested path", () => {
+  const reference = "timeline.storySegment.0.start";
+  const result = referenceSchema.safeParse(reference);
+  if (!result.success) console.log(result.error);
+  expect(result.success).toBe(true);
+});
+
+test("reference timeline with no name", () => {
+  const reference = "timeline";
+  const result = referenceSchema.safeParse(reference);
+  if (!result.success)
+    console.log(result.error.message, "\npath:", result.error.path);
+  expect(result.success).toBe(false);
+});
+
 // ----------- Condition Schema ------------
 
 test("validCondition", () => {

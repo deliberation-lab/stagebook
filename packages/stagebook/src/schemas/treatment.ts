@@ -471,6 +471,7 @@ export const referenceSchema = z
         break;
       case "discussion":
       case "prompt":
+      case "timeline":
       case "trackedLink":
         [, name] = arr;
         if (name === undefined || name.length < 1) {
@@ -497,7 +498,7 @@ export const referenceSchema = z
       default:
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Invalid reference type "${givenType}", need to be in form of a valid reference type such as 'survey', 'submitButton', 'qualtrics', 'discussion', 'participantInfo', 'prompt', 'urlParams', 'connectionInfo', or 'browserInfo' followed by a . and name or path.`,
+          message: `Invalid reference type "${givenType}", need to be in form of a valid reference type such as 'survey', 'submitButton', 'qualtrics', 'discussion', 'participantInfo', 'prompt', 'timeline', 'trackedLink', 'urlParams', 'connectionInfo', or 'browserInfo' followed by a . and name or path.`,
           path: [],
         });
     }
