@@ -231,6 +231,118 @@ duration: 300`;
     });
   });
 
+  describe("quoted YAML scalars", () => {
+    it("aligns token for double-quoted element type", () => {
+      const src = `type: "prompt"`;
+      const tokens = computeSemanticTokens(src);
+      const typeTokens = tokens.filter((t) => t.tokenType === "type");
+      expect(typeTokens).toHaveLength(1);
+      expect(typeTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 7,
+        length: 6,
+        text: "prompt",
+      });
+    });
+
+    it("aligns token for single-quoted element type", () => {
+      const src = `type: 'prompt'`;
+      const tokens = computeSemanticTokens(src);
+      const typeTokens = tokens.filter((t) => t.tokenType === "type");
+      expect(typeTokens).toHaveLength(1);
+      expect(typeTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 7,
+        length: 6,
+        text: "prompt",
+      });
+    });
+
+    it("aligns token for double-quoted file path", () => {
+      const src = `file: "prompts/q1.prompt.md"`;
+      const tokens = computeSemanticTokens(src);
+      const fileTokens = tokens.filter((t) => t.tokenType === "string");
+      expect(fileTokens).toHaveLength(1);
+      expect(fileTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 7,
+        length: 20,
+        text: "prompts/q1.prompt.md",
+      });
+    });
+
+    it("aligns token for single-quoted file path", () => {
+      const src = `file: 'prompts/q1.prompt.md'`;
+      const tokens = computeSemanticTokens(src);
+      const fileTokens = tokens.filter((t) => t.tokenType === "string");
+      expect(fileTokens).toHaveLength(1);
+      expect(fileTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 7,
+        length: 20,
+        text: "prompts/q1.prompt.md",
+      });
+    });
+
+    it("aligns token for double-quoted reference", () => {
+      const src = `reference: "prompt.q1"`;
+      const tokens = computeSemanticTokens(src);
+      const refTokens = tokens.filter((t) => t.tokenType === "variable");
+      expect(refTokens).toHaveLength(1);
+      expect(refTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 12,
+        length: 9,
+        text: "prompt.q1",
+      });
+    });
+
+    it("aligns token for double-quoted comparator", () => {
+      const src = `comparator: "equals"`;
+      const tokens = computeSemanticTokens(src);
+      const compTokens = tokens.filter((t) => t.tokenType === "keyword");
+      expect(compTokens).toHaveLength(1);
+      expect(compTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 13,
+        length: 6,
+        text: "equals",
+      });
+    });
+
+    it("aligns template-var tokens inside a double-quoted file path", () => {
+      const src = `file: "projects/\${topic}/q1.prompt.md"`;
+      const tokens = computeSemanticTokens(src);
+      const fileTokens = tokens.filter((t) => t.tokenType === "string");
+      const varTokens = tokens.filter((t) => t.tokenType === "variable");
+      expect(fileTokens).toHaveLength(2);
+      expect(fileTokens[0]).toMatchObject({
+        startCol: 7,
+        text: "projects/",
+      });
+      expect(varTokens).toHaveLength(1);
+      expect(varTokens[0]).toMatchObject({
+        startCol: 16,
+        length: 8,
+        text: "${topic}",
+      });
+      expect(fileTokens[1]).toMatchObject({ text: "/q1.prompt.md" });
+    });
+
+    it("aligns template-var tokens inside a double-quoted non-file value", () => {
+      const src = `name: "\${topic}_suffix"`;
+      const tokens = computeSemanticTokens(src);
+      const varTokens = tokens.filter((t) => t.tokenType === "variable");
+      expect(varTokens).toHaveLength(1);
+      expect(varTokens[0]).toMatchObject({
+        line: 0,
+        startCol: 7,
+        length: 8,
+        text: "${topic}",
+      });
+    });
+  });
+
   describe("mixed content", () => {
     it("handles a realistic treatment snippet", () => {
       const src = `treatments:
