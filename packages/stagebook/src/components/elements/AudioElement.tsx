@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export interface AudioElementProps {
   src: string;
@@ -7,6 +7,11 @@ export interface AudioElementProps {
 }
 
 export function AudioElement({ src, save, name }: AudioElementProps) {
+  // Ref `save` so the effect below isn't torn down and re-set up whenever
+  // the parent passes a fresh save callback (#105).
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
   useEffect(() => {
     if (!src) return undefined;
 
@@ -18,11 +23,15 @@ export function AudioElement({ src, save, name }: AudioElementProps) {
         .play()
         .then(() => {
           console.log(`[AudioElement] Playing: ${src}`);
-          save?.(key, { event: "play", src });
+          saveRef.current?.(key, { event: "play", src });
         })
         .catch((err: Error) => {
           console.warn(`[AudioElement] Play failed: ${src}`, err.message);
-          save?.(key, { event: "playFailed", src, error: err.message });
+          saveRef.current?.(key, {
+            event: "playFailed",
+            src,
+            error: err.message,
+          });
         });
     };
 
@@ -33,7 +42,7 @@ export function AudioElement({ src, save, name }: AudioElementProps) {
       sound.pause();
       sound.src = "";
     };
-  }, [src, save, name]);
+  }, [src, name]);
 
   return null;
 }
