@@ -3,13 +3,16 @@
  *
  * Uses a precomputed array of line-start offsets and binary search,
  * so each lookup is O(log lines) instead of O(offset). The line-start
- * table is memoized via a single-entry cache keyed by source string
- * identity, so repeated lookups against the same source pay the linear
+ * table is memoized via a single-entry cache keyed by the source string
+ * value, so repeated lookups against the same source pay the linear
  * scan only once.
  *
  * Single-entry cache is sufficient because callers typically resolve
  * many offsets against one source (semantic tokens, diagnostic ranges)
- * before moving to the next document.
+ * before moving to the next document. The cache retains a reference to
+ * at most one source string at a time — processing any subsequent
+ * document releases the previous one, so memory usage is bounded by the
+ * largest single document rather than by the number of documents seen.
  */
 
 let cachedSource: string | null = null;
