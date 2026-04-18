@@ -5,8 +5,14 @@ const DEFAULT_MAX_LINES = 5000;
 const DEFAULT_MAX_BROADCAST = 10000;
 
 export interface ExpandResult {
-  /** The expanded YAML string, or "" on error. */
+  /** The expanded YAML string as displayed (possibly truncated), or "" on error. */
   yaml: string;
+  /**
+   * The full, untruncated expanded YAML. Equal to `yaml` when no truncation
+   * was needed. Consumers that need to validate the complete expansion
+   * (rather than its truncated display form) should use this.
+   */
+  fullYaml: string;
   /** Error message if expansion failed, null on success. */
   error: string | null;
   /** Whether the output was truncated due to line limit. */
@@ -79,6 +85,7 @@ export function expandTreatmentSource(
   } catch (e) {
     return {
       yaml: "",
+      fullYaml: "",
       error: `YAML parse error: ${e instanceof Error ? e.message : String(e)}`,
       truncated: false,
     };
@@ -87,6 +94,7 @@ export function expandTreatmentSource(
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
     return {
       yaml: "",
+      fullYaml: "",
       error:
         "Treatment file must be a YAML mapping (object), not a scalar or array.",
       truncated: false,
@@ -98,6 +106,7 @@ export function expandTreatmentSource(
   if (record.templates !== undefined && !Array.isArray(record.templates)) {
     return {
       yaml: "",
+      fullYaml: "",
       error: "The 'templates' key must be an array.",
       truncated: false,
     };
@@ -110,7 +119,7 @@ export function expandTreatmentSource(
   const broadcastLimit = options?.maxBroadcastProduct ?? DEFAULT_MAX_BROADCAST;
   const sizeError = checkBroadcastSize(record, broadcastLimit);
   if (sizeError) {
-    return { yaml: "", error: sizeError, truncated: false };
+    return { yaml: "", fullYaml: "", error: sizeError, truncated: false };
   }
 
   // Expand templates
@@ -129,6 +138,7 @@ export function expandTreatmentSource(
   } catch (e) {
     return {
       yaml: "",
+      fullYaml: "",
       error: `Template expansion failed: ${e instanceof Error ? e.message : String(e)}`,
       truncated: false,
     };
@@ -144,6 +154,7 @@ export function expandTreatmentSource(
   } catch (e) {
     return {
       yaml: "",
+      fullYaml: "",
       error: `YAML serialization failed: ${e instanceof Error ? e.message : String(e)}`,
       truncated: false,
     };
@@ -157,10 +168,11 @@ export function expandTreatmentSource(
       yaml:
         truncatedYaml +
         `\n\n# --- Output truncated at ${maxLines} lines (${lines.length} total) ---`,
+      fullYaml: yaml,
       error: null,
       truncated: true,
     };
   }
 
-  return { yaml, error: null, truncated: false };
+  return { yaml, fullYaml: yaml, error: null, truncated: false };
 }

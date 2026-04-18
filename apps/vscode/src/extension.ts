@@ -10,7 +10,7 @@ import {
   computeSemanticTokens,
   type SemanticTokenType,
 } from "./lib/semanticTokens";
-import { expandTreatmentSource } from "./lib/expandTreatment";
+import { expandAndValidate } from "./lib/expandAndValidate";
 import { findClosestMatch } from "./lib/levenshtein";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
 import { fillTemplates, treatmentFileSchema } from "stagebook";
@@ -18,6 +18,8 @@ import { parse as parseYaml } from "yaml";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
+
+const EXPANDED_SCHEME = "stagebook-expanded";
 
 const DEBOUNCE_MS = 300;
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -40,6 +42,11 @@ function isStagebookPrompt(document: vscode.TextDocument): boolean {
 }
 
 function validateDocument(document: vscode.TextDocument): void {
+  // The expanded-preview virtual documents also carry the treatmentsYaml
+  // language (for syntax highlighting), but their diagnostics are owned by
+  // ExpandedTemplatesProvider. Skip them here to avoid clobbering.
+  if (document.uri.scheme === EXPANDED_SCHEME) return;
+
   if (isTreatmentsYaml(document)) {
     validateTreatmentFile(document);
   } else if (isStagebookPrompt(document)) {
@@ -418,11 +425,11 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
 
 // --- Expanded Templates Preview ---
 
-const EXPANDED_SCHEME = "stagebook-expanded";
-
 class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
   private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChange = this._onDidChange.event;
+
+  constructor(private readonly diagnostics: vscode.DiagnosticCollection) {}
 
   provideTextDocumentContent(uri: vscode.Uri): string {
     const sourceUri = vscode.Uri.parse(decodeURIComponent(uri.query));
@@ -430,17 +437,34 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       (d) => d.uri.toString() === sourceUri.toString(),
     );
     if (!sourceDoc) {
+      this.diagnostics.delete(uri);
       return "# Source document not found. Please reopen the preview.";
     }
 
-    const result = expandTreatmentSource(sourceDoc.getText());
-    if (result.error) {
-      const commentedError = result.error
+    const result = expandAndValidate(sourceDoc.getText());
+    if (result.expandError) {
+      this.diagnostics.delete(uri);
+      const commentedError = result.expandError
         .split(/\r?\n/)
         .map((line) => `# ${line}`)
         .join("\n");
       return `# Template expansion error:\n${commentedError}`;
     }
+
+    // Attach schema-validation diagnostics to the expanded preview URI.
+    // Positions reference the full expanded YAML; diagnostics past the
+    // truncation line still appear in the Problems panel.
+    const vscodeDiagnostics = result.diagnostics.map((d) => {
+      const diag = new vscode.Diagnostic(
+        toVscodeRange(d.range),
+        d.message,
+        toSeverity(d.severity),
+      );
+      diag.source = "stagebook";
+      return diag;
+    });
+    this.diagnostics.set(uri, vscodeDiagnostics);
+
     return result.yaml;
   }
 
@@ -634,7 +658,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Register expanded templates content provider
-  const expandedProvider = new ExpandedTemplatesProvider();
+  const expandedProvider = new ExpandedTemplatesProvider(diagnosticCollection);
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(
       EXPANDED_SCHEME,
@@ -666,16 +690,25 @@ export function activate(context: vscode.ExtensionContext): void {
           preview: true,
           preserveFocus: true,
         });
-        // Set language for syntax highlighting
-        await vscode.languages.setTextDocumentLanguage(doc, "yaml");
+        // Set language for syntax highlighting. Using treatmentsYaml (rather
+        // than plain yaml) wires up the TextMate grammar and semantic-tokens
+        // provider, so the expanded preview gets the same colorization as
+        // source treatment files (element types, comparators, template
+        // variables, schema keywords).
+        await vscode.languages.setTextDocumentLanguage(doc, "treatmentsYaml");
       },
     ),
   );
 
-  // Auto-refresh the expanded preview when the source changes
+  // Auto-refresh the expanded preview when the source changes. The preview
+  // document itself also has languageId "treatmentsYaml"; skip it by scheme
+  // so we don't feed its (read-only, virtual) text back as a "source".
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {
-      if (isTreatmentsYaml(e.document)) {
+      if (
+        e.document.uri.scheme !== EXPANDED_SCHEME &&
+        isTreatmentsYaml(e.document)
+      ) {
         expandedProvider.refreshForSource(e.document.uri);
       }
     }),
