@@ -20,7 +20,7 @@ export function normalizeSelections<T extends RangeSelection | PointSelection>(
       return { ...s, start: roundMs(s.start), end: roundMs(s.end) } as T;
     }
     if ("time" in s) {
-      return { ...s, time: roundMs((s).time) } as T;
+      return { ...s, time: roundMs(s.time) } as T;
     }
     return s;
   });
