@@ -1,6 +1,31 @@
 // Selection data model for Timeline component.
 // Pure TypeScript — no React/DOM dependencies.
 
+/** Round to millisecond precision (3 decimal places). */
+export function roundMs(t: number): number {
+  return Math.round(t * 1000) / 1000;
+}
+
+/**
+ * Normalize all time values in a selections array to millisecond precision.
+ * Applied before clamping operations so that rounding after clamping can't
+ * violate neighbor boundaries established against full-precision values
+ * (e.g. from restored saved state with pre-rounding data).
+ */
+export function normalizeSelections<T extends RangeSelection | PointSelection>(
+  selections: T[],
+): T[] {
+  return selections.map((s) => {
+    if ("start" in s && "end" in s) {
+      return { ...s, start: roundMs(s.start), end: roundMs(s.end) } as T;
+    }
+    if ("time" in s) {
+      return { ...s, time: roundMs(s.time) } as T;
+    }
+    return s;
+  });
+}
+
 export interface RangeSelection {
   track?: number;
   start: number;
@@ -110,12 +135,20 @@ export function createRange(
   track: number | undefined,
   existing: RangeSelection[],
 ): RangeSelection | null {
-  const clamped = clampToFreeGap(start, end, track, existing);
+  // Normalize existing selections to ms precision before clamping so that
+  // rounding the result can't violate boundaries established against
+  // full-precision neighbor values (e.g. from pre-rounding saved state).
+  const clamped = clampToFreeGap(
+    start,
+    end,
+    track,
+    normalizeSelections(existing),
+  );
   if (!clamped) return null;
 
   const range: RangeSelection = {
-    start: clamped.start,
-    end: clamped.end,
+    start: roundMs(clamped.start),
+    end: roundMs(clamped.end),
   };
   if (track !== undefined) range.track = track;
   return range;
@@ -131,7 +164,9 @@ export function adjustHandle(
   handle: "start" | "end",
   newTime: number,
 ): RangeSelection[] {
-  const result = selections.map((s) => ({ ...s }));
+  // Normalize all selections to ms precision before computing neighbor
+  // boundaries, so rounding the result can't create overlaps.
+  const result = normalizeSelections(selections).map((s) => ({ ...s }));
   const target = result[index];
   if (!target) return result;
 
@@ -159,7 +194,7 @@ export function adjustHandle(
       }
     }
 
-    target.start = clampedTime;
+    target.start = roundMs(clampedTime);
   } else {
     let clampedTime = newTime;
 
@@ -174,7 +209,7 @@ export function adjustHandle(
       }
     }
 
-    target.end = clampedTime;
+    target.end = roundMs(clampedTime);
   }
 
   return result;
@@ -188,7 +223,7 @@ export function createPoint(
   time: number,
   track: number | undefined,
 ): PointSelection {
-  const point: PointSelection = { time };
+  const point: PointSelection = { time: roundMs(time) };
   if (track !== undefined) point.track = track;
   return point;
 }
@@ -198,7 +233,9 @@ export function repositionPoint(
   index: number,
   newTime: number,
 ): PointSelection[] {
-  return selections.map((s, i) => (i === index ? { ...s, time: newTime } : s));
+  return selections.map((s, i) =>
+    i === index ? { ...s, time: roundMs(newTime) } : s,
+  );
 }
 
 // ---------------------------------------------------------------------------

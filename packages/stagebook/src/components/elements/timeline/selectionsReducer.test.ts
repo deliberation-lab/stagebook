@@ -531,4 +531,34 @@ describe("selectionsReducer", () => {
       expect(result.undoStack).toHaveLength(0);
     });
   });
+
+  describe("millisecond rounding", () => {
+    it("single-select CREATE_RANGE rounds to ms precision", () => {
+      const state = initialSelectionState();
+      const result = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 8.158326452250607,
+        end: 13.313919717533455,
+        track: undefined,
+        multiSelect: false,
+      });
+      const range = result.selections[0] as { start: number; end: number };
+      expect(range.start).toBe(8.158);
+      expect(range.end).toBe(13.314);
+    });
+
+    it("single-select CREATE_RANGE rejects hi<=lo after rounding", () => {
+      const state = initialSelectionState();
+      // These round to the same value (10.000)
+      const result = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 10.0001,
+        end: 10.0004,
+        track: undefined,
+        multiSelect: false,
+      });
+      // Should be rejected — no change to state
+      expect(result.selections).toEqual([]);
+    });
+  });
 });

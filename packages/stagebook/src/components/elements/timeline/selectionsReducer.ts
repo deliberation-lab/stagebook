@@ -16,6 +16,7 @@ import {
   sortPoints,
   pushUndo,
   popUndo,
+  roundMs,
 } from "./selections.js";
 
 export interface SelectionState {
@@ -100,8 +101,8 @@ export function selectionsReducer(
       // clamp against ranges that are about to be discarded, and don't try
       // to "keep the last in time order" (that would keep the wrong one).
       if (!action.multiSelect) {
-        const lo = Math.min(action.start, action.end);
-        const hi = Math.max(action.start, action.end);
+        const lo = roundMs(Math.min(action.start, action.end));
+        const hi = roundMs(Math.max(action.start, action.end));
         if (hi <= lo) return state;
         const range: RangeSelection = { start: lo, end: hi };
         if (action.track !== undefined) range.track = action.track;
