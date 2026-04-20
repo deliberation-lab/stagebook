@@ -36,8 +36,11 @@ export interface PlaybackHandle {
    * becomes known (loadedmetadata). Consumers that render based on duration
    * (e.g., Timeline selection positioning) should read this to trigger a
    * re-render once the duration is available.
+   *
+   * Optional for backward compatibility — external PlaybackHandle
+   * implementations that predate this field treat undefined as 0.
    */
-  readonly durationVersion: number;
+  readonly durationVersion?: number;
 
   /**
    * Request the MediaPlayer to start capturing waveform data.

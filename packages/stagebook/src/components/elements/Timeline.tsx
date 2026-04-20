@@ -261,7 +261,7 @@ export function Timeline({
   // re-run when new data arrives.
   const [isPaused, setIsPaused] = useState(true);
   const [peaksVersion, setPeaksVersion] = useState(0);
-  const [durationVersion, setDurationVersion] = useState(0);
+  const [, setDurationVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     let lastValue = -1;
@@ -289,7 +289,7 @@ export function Timeline({
           lastPeaksVersion = v;
           setPeaksVersion(v);
         }
-        const dv = h.durationVersion;
+        const dv = h.durationVersion ?? 0;
         if (dv !== lastDurationVersion) {
           lastDurationVersion = dv;
           setDurationVersion(dv);
@@ -509,10 +509,10 @@ export function Timeline({
     );
   }
 
-  // durationVersion triggers a re-render when loadedmetadata fires, so
-  // getDuration() returns the real value instead of 0. Without this,
-  // saved selections render at x=0 until the first timeupdate event.
-  void durationVersion;
+  // durationVersion (polled in the RAF loop above) triggers a re-render
+  // when loadedmetadata fires, so getDuration() returns the real value
+  // instead of 0. Without this, saved selections render at x=0 until
+  // the first timeupdate event.
   const duration = handle.getDuration();
   const channelCount = handle.channelCount || 1;
   const peaks = handle.peaks;
