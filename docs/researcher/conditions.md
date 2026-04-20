@@ -94,6 +94,42 @@ participantInfo.name           # nickname
 participantInfo.sampleId       # recruiting platform ID
 ```
 
+### Timeline Selections
+
+```
+timeline.<name>                  # the full selections array
+timeline.<name>.length           # number of selections
+timeline.<name>.0.start          # start time of the first range selection (seconds)
+timeline.<name>.0.end            # end time of the first range selection (seconds)
+timeline.<name>.0.time           # time of the first point selection (seconds)
+timeline.<name>.0.track          # track index of the first selection (if track-scoped)
+```
+
+Array indices (0, 1, 2, ...) access individual selections in chronological order. Use this to validate that selections fall within expected time ranges:
+
+```yaml
+# Only show the submit button when the first selected range starts
+# between 15 and 19 seconds (validating annotation accuracy)
+- type: submitButton
+  conditions:
+    - reference: timeline.storySegment.0.start
+      comparator: isAtLeast
+      value: 15
+    - reference: timeline.storySegment.0.start
+      comparator: isAtMost
+      value: 19
+```
+
+You can also check that a minimum number of selections have been made:
+
+```yaml
+- type: submitButton
+  conditions:
+    - reference: timeline.storySegment.length
+      comparator: isAtLeast
+      value: 3
+```
+
 ### Discussion Metrics
 
 ```
