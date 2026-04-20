@@ -1,4 +1,4 @@
-import { treatmentFileSchema } from "stagebook";
+import { collectStorageKeyWarnings, treatmentFileSchema } from "stagebook";
 import { createPositionMapper, extractYamlErrors } from "./yamlPositionMap";
 import type { Diagnostic } from "./types";
 
@@ -76,6 +76,24 @@ export function validateTreatmentSource(source: string): ValidationResult {
         range,
       });
     }
+  }
+
+  // Step 4: Non-fatal warnings (e.g., duplicate storage keys within a stage).
+  // These don't block parsing — callers and the researcher may have legitimate
+  // reasons to ignore them.
+  for (const warning of collectStorageKeyWarnings(parsedObj)) {
+    const primaryPath = warning.paths[0] ?? [];
+    let range = mapper.resolve(primaryPath);
+    let ancestorPath = primaryPath;
+    while (!range && ancestorPath.length > 0) {
+      ancestorPath = ancestorPath.slice(0, -1);
+      range = mapper.resolve(ancestorPath);
+    }
+    diagnostics.push({
+      message: warning.message,
+      severity: "warning",
+      range,
+    });
   }
 
   return { diagnostics, parsedObj };
