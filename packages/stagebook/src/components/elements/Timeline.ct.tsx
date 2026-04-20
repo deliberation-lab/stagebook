@@ -173,7 +173,7 @@ test("renders at least one track", async ({ mount }) => {
   await expect(tracks.first()).toBeAttached();
 });
 
-test("renders default track label as Position N", async ({ mount }) => {
+test("renders default track label as Track N", async ({ mount }) => {
   const component = await mount(
     <MockTimeline
       source="player"
@@ -185,8 +185,8 @@ test("renders default track label as Position N", async ({ mount }) => {
     />,
   );
   const labels = component.locator('[data-testid="track-label"]');
-  await expect(labels.nth(0)).toContainText("Position 0");
-  await expect(labels.nth(1)).toContainText("Position 1");
+  await expect(labels.nth(0)).toContainText("Track 0");
+  await expect(labels.nth(1)).toContainText("Track 1");
 });
 
 test("renders custom track labels", async ({ mount }) => {
@@ -206,7 +206,7 @@ test("renders custom track labels", async ({ mount }) => {
   await expect(labels.nth(1)).toContainText("Participant");
 });
 
-test("falls back to Position N for extra channels beyond trackLabels", async ({
+test("falls back to Track N for extra channels beyond trackLabels", async ({
   mount,
 }) => {
   const component = await mount(
@@ -222,8 +222,8 @@ test("falls back to Position N for extra channels beyond trackLabels", async ({
   );
   const labels = component.locator('[data-testid="track-label"]');
   await expect(labels.nth(0)).toContainText("Speaker A");
-  await expect(labels.nth(1)).toContainText("Position 1");
-  await expect(labels.nth(2)).toContainText("Position 2");
+  await expect(labels.nth(1)).toContainText("Track 1");
+  await expect(labels.nth(2)).toContainText("Track 2");
 });
 
 test("renders canvas for waveform", async ({ mount }) => {

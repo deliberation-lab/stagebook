@@ -264,7 +264,8 @@ export function SelectionOverlay({
       const drag = dragRef.current;
       if (!drag) return;
 
-      const time = eventToTime(e.clientX);
+      const rawTime = eventToTime(e.clientX);
+      const time = Math.max(0, Math.min(duration, rawTime));
       const track = drag.track;
 
       if (!drag.isDragging) {

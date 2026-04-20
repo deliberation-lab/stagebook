@@ -12,7 +12,7 @@ import type React from "react";
  * @param zoomLevel - Current zoom level (1 = full duration visible).
  * @returns Number of fractional digits: 1 or 2.
  */
-export function zoomDecimals(zoomLevel: number): 0 | 1 | 2 {
+export function zoomDecimals(zoomLevel: number): 1 | 2 {
   if (zoomLevel >= 2) return 2;
   return 1;
 }

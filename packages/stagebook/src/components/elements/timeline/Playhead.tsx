@@ -97,6 +97,10 @@ export function Playhead({
     }
   }, []);
 
+  const handlePointerCancel = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
   // Early returns after all hooks
   if (!Number.isFinite(duration) || duration <= 0) return null;
 
@@ -114,7 +118,6 @@ export function Playhead({
         width: 0,
         height: `${String(height + rulerHeight)}px`,
         zIndex: 20,
-        transform: "translateX(-1px)",
         pointerEvents: "none",
       }}
     >
@@ -127,6 +130,8 @@ export function Playhead({
         }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handlePointerCancel}
         style={{
           ...tooltipBaseStyle,
           position: "absolute",
