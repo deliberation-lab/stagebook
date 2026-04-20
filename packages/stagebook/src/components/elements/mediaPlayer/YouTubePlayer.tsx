@@ -123,6 +123,7 @@ export function buildYouTubeHandle(player: YTPlayer): PlaybackHandle {
     channelCount: 0,
     peaks: [],
     peaksVersion: 0,
+    durationVersion: 1, // YouTube duration is available immediately from the API
     requestWaveformCapture() {}, // no-op for YouTube
     setChannelMuted() {}, // no-op for YouTube
     isChannelMuted: () => false,

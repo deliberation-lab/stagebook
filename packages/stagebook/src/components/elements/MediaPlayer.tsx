@@ -199,6 +199,7 @@ export function MediaPlayer({
   // Render token: bumps every time peaks are mutated, so consumers can
   // re-run effects despite the array reference being stable.
   const peaksVersionRef = useRef(0);
+  const durationVersionRef = useRef(0);
   const [channelCount, setChannelCount] = useState(0);
   const waveformRafRef = useRef<number>(0);
   // Promote waveformActive to state so React effects (e.g., the RAF loop)
@@ -407,6 +408,9 @@ export function MediaPlayer({
       get peaksVersion() {
         return peaksVersionRef.current;
       },
+      get durationVersion() {
+        return durationVersionRef.current;
+      },
       requestWaveformCapture: startWaveformCapture,
       setChannelMuted: (channel: number, muted: boolean) => {
         setChannelGain(gainNodesRef.current, channel, muted);
@@ -544,6 +548,7 @@ export function MediaPlayer({
     (e: React.SyntheticEvent<HTMLVideoElement>) => {
       const v = e.currentTarget;
       setDuration(v.duration);
+      durationVersionRef.current += 1;
 
       // Detect likely server-side range-request misconfiguration for
       // finite-duration media. Skip the check entirely for live streams or
