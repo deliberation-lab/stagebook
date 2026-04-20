@@ -269,7 +269,11 @@ export function SelectionOverlay({
       const track = drag.track;
 
       if (!drag.isDragging) {
-        if (selectionType === "point") {
+        if (drag.mode === "adjust-handle") {
+          // Clicked a handle without dragging — keep it selected so
+          // arrow keys adjust the handle rather than scrubbing the playhead.
+          onRequestFocus();
+        } else if (selectionType === "point") {
           onCreatePoint(time, track);
           onSeek(time);
           onRequestFocus();
