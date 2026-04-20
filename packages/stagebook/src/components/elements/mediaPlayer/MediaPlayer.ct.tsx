@@ -1755,7 +1755,7 @@ test("buffered range width updates on progress event", async ({ mount }) => {
 
 // -- Hold-to-scrub (arrow keys) --
 
-test("holding ArrowRight enters fast-forward (playbackRate=2)", async ({
+test("holding ArrowRight does rapid forward seeks after repeat threshold", async ({
   mount,
 }) => {
   const component = await mount(
@@ -1786,7 +1786,9 @@ test("holding ArrowRight enters fast-forward (playbackRate=2)", async ({
     });
   });
 
-  // Simulate 15 repeated keydown events (browser auto-repeat)
+  // Simulate 15 repeated keydown events (browser auto-repeat). Once the
+  // repeat count hits HOLD_REPEAT_THRESHOLD (10), subsequent events perform
+  // seek(+0.5). Playback rate is unchanged (no fast-forward mode).
   await component.locator('[data-testid="mediaPlayer"]').evaluate((el) => {
     for (let i = 0; i < 15; i++) {
       el.dispatchEvent(
@@ -1800,69 +1802,15 @@ test("holding ArrowRight enters fast-forward (playbackRate=2)", async ({
   });
 
   const rate = await video.evaluate((el) => el.playbackRate);
-  expect(rate).toBe(2);
-});
-
-test("releasing ArrowRight after fast-forward restores playback rate", async ({
-  mount,
-}) => {
-  const component = await mount(
-    <MockMediaPlayer
-      url="/sample-video.mp4"
-      name="test"
-      controls={{ seek: true }}
-    />,
-  );
-
-  const video = component.locator('[data-testid="mediaPlayer-video"]');
-  await video.evaluate((el) => {
-    el.play = () => {
-      el.dispatchEvent(new Event("play"));
-      return Promise.resolve();
-    };
-    let ct = 10;
-    Object.defineProperty(el, "currentTime", {
-      get: () => ct,
-      set: (v: number) => {
-        ct = v;
-      },
-      configurable: true,
-    });
-    Object.defineProperty(el, "duration", {
-      get: () => 60,
-      configurable: true,
-    });
-  });
-
-  const player = component.locator('[data-testid="mediaPlayer"]');
-
-  // Enter fast-forward
-  await player.evaluate((el) => {
-    for (let i = 0; i < 15; i++) {
-      el.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "ArrowRight",
-          repeat: true,
-          bubbles: true,
-        }),
-      );
-    }
-  });
-
-  // Release
-  await player.evaluate((el) => {
-    el.dispatchEvent(
-      new KeyboardEvent("keyup", { key: "ArrowRight", bubbles: true }),
-    );
-  });
-
-  const rate = await video.evaluate((el) => el.playbackRate);
   expect(rate).toBe(1);
+  const ct = await video.evaluate((el) => el.currentTime);
+  // 6 seeks × 0.5s starting from ct=10 → 13
+  expect(ct).toBeCloseTo(13, 5);
 });
 
 // -- Hold-to-scrub (seekForward button) --
 
-test("holding seekForward button enters fast-forward after threshold", async ({
+test("holding seekForward button performs rapid seeks after threshold", async ({
   mount,
   page,
 }) => {
@@ -1900,14 +1848,17 @@ test("holding seekForward button enters fast-forward after threshold", async ({
     el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
   );
 
-  // Hold mousedown without releasing
+  // Hold mousedown without releasing. After 500ms threshold the interval
+  // starts firing seek(+0.5) every 100ms.
   await component
     .locator('[data-testid="mediaPlayer-seekForward"]')
     .dispatchEvent("mousedown");
-  await page.waitForTimeout(600); // past 500ms threshold
+  await page.waitForTimeout(800); // threshold 500ms + ~3 ticks
 
   const rate = await video.evaluate((el) => el.playbackRate);
-  expect(rate).toBe(2);
+  expect(rate).toBe(1);
+  const ct = await video.evaluate((el) => el.currentTime);
+  expect(ct).toBeGreaterThan(10);
 
   // Cleanup: release
   await component

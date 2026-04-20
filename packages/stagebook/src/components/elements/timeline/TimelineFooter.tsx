@@ -8,6 +8,7 @@ export interface TimelineFooterProps {
   activeIndex: number | null;
   onHelpToggle: () => void;
   helpOpen: boolean;
+  helpButtonRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 function isRangeArray(
@@ -67,6 +68,7 @@ export function TimelineFooter({
   activeIndex,
   onHelpToggle,
   helpOpen,
+  helpButtonRef,
 }: TimelineFooterProps) {
   return (
     <div
@@ -90,6 +92,7 @@ export function TimelineFooter({
       {/* Right: help */}
       <div style={{ display: "flex", alignItems: "center" }}>
         <button
+          ref={helpButtonRef}
           type="button"
           data-testid="timeline-help-button"
           onClick={onHelpToggle}

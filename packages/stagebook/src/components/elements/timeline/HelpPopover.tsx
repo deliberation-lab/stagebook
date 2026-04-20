@@ -1,12 +1,17 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface HelpPopoverProps {
   selectionType: "range" | "point";
   onClose: () => void;
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
 }
 
 const rangeShortcuts: { keys: string; description: string }[] = [
+  { keys: "Space", description: "Play / Pause" },
   { keys: "Click empty space", description: "Seek playhead" },
+  { keys: "←  → (no selection)", description: "Scrub playhead ±1s" },
+  { keys: ", . (no selection)", description: "Scrub ±1 frame" },
   { keys: "Click and drag", description: "Create range" },
   { keys: "Click range", description: "Select it" },
   { keys: "Drag handle", description: "Adjust boundary" },
@@ -19,7 +24,10 @@ const rangeShortcuts: { keys: string; description: string }[] = [
 ];
 
 const pointShortcuts: { keys: string; description: string }[] = [
+  { keys: "Space", description: "Play / Pause" },
   { keys: "Click empty space", description: "Place point" },
+  { keys: "←  → (no selection)", description: "Scrub playhead ±1s" },
+  { keys: ", . (no selection)", description: "Scrub ±1 frame" },
   { keys: "Click point", description: "Select it" },
   { keys: "Drag point", description: "Reposition" },
   { keys: "←  →", description: "Reposition ±1s" },
@@ -29,9 +37,69 @@ const pointShortcuts: { keys: string; description: string }[] = [
   { keys: "Escape", description: "Deselect" },
 ];
 
-export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
+export function HelpPopover({
+  selectionType,
+  onClose,
+  buttonRef,
+}: HelpPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const shortcuts = selectionType === "range" ? rangeShortcuts : pointShortcuts;
+
+  // Track button position for fixed positioning
+  const [position, setPosition] = useState<{ top: number; right: number }>({
+    top: 0,
+    right: 0,
+  });
+
+  // Compute position from the button's bounding rect on mount and on
+  // scroll/resize. The scroll handler fires frequently, so throttle updates
+  // to one per animation frame and skip setState if the computed position
+  // hasn't changed.
+  useEffect(() => {
+    let rafId: number | null = null;
+    let lastTop = Number.NaN;
+    let lastRight = Number.NaN;
+
+    function updatePosition() {
+      rafId = null;
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const popoverHeight =
+        popoverRef.current?.getBoundingClientRect().height ?? 0;
+      // Flip above ↔ below when there's not enough room above, and clamp
+      // the final top into the viewport so the popover never goes off-screen.
+      const viewportPadding = 4;
+      const topAbove = rect.top - popoverHeight - viewportPadding;
+      const topBelow = rect.bottom + viewportPadding;
+      const preferredTop = topAbove >= viewportPadding ? topAbove : topBelow;
+      const maxTop = Math.max(
+        viewportPadding,
+        window.innerHeight - popoverHeight - viewportPadding,
+      );
+      const top = Math.min(Math.max(preferredTop, viewportPadding), maxTop);
+      const right = window.innerWidth - rect.right;
+      if (top === lastTop && right === lastRight) return;
+      lastTop = top;
+      lastRight = right;
+      setPosition({ top, right });
+    }
+    function schedule() {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(updatePosition);
+    }
+
+    updatePosition();
+    window.addEventListener("scroll", schedule, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [buttonRef]);
 
   // Ref `onClose` so the listener effect doesn't re-register document
   // listeners when the parent passes a fresh callback identity (#105).
@@ -47,12 +115,12 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
       }
     }
     function onClick(e: MouseEvent) {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node)
-      ) {
-        onCloseRef.current();
-      }
+      const target = e.target as Node;
+      if (popoverRef.current?.contains(target)) return;
+      // If the button ref is missing (unmounted or never attached), treat
+      // the click as "outside" so the popover can still be dismissed.
+      if (buttonRef.current?.contains(target)) return;
+      onCloseRef.current();
     }
     document.addEventListener("keydown", onKey, true);
     // Use capture so we run before other listeners; mousedown so we close
@@ -62,19 +130,19 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
       document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("mousedown", onClick, true);
     };
-  }, []);
+  }, [buttonRef]);
 
-  return (
+  const popoverContent = (
     <div
       ref={popoverRef}
       data-testid="timeline-help-popover"
       role="dialog"
       aria-label="Timeline keyboard shortcuts"
       style={{
-        position: "absolute",
-        right: "0.5rem",
-        bottom: "2rem",
-        zIndex: 100,
+        position: "fixed",
+        top: `${String(position.top)}px`,
+        right: `${String(position.right)}px`,
+        zIndex: 1000,
         background: "var(--stagebook-bg, #ffffff)",
         border: "1px solid var(--stagebook-border, #e5e7eb)",
         borderRadius: "0.375rem",
@@ -127,4 +195,8 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
       </table>
     </div>
   );
+
+  // Guard against SSR / pre-render: document may be undefined.
+  if (typeof document === "undefined") return null;
+  return createPortal(popoverContent, document.body);
 }
