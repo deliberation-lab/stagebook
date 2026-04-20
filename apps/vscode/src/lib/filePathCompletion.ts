@@ -4,9 +4,10 @@
  * extension host wires them into CompletionItemProvider / CodeActionProvider.
  *
  * The set of YAML field names covered here MUST stay in sync with
- * `FILE_FIELDS_BY_ELEMENT_TYPE` in `stagebook/utils/referencedAssets.ts` —
- * that table is what drives "file not found" diagnostics, so the same fields
- * should offer completions.
+ * `FILE_FIELDS_BY_ELEMENT_TYPE` in
+ * `packages/stagebook/src/utils/referencedAssets.ts` — that table is what
+ * drives "file not found" diagnostics, so the same fields should offer
+ * completions.
  */
 
 /**
@@ -36,10 +37,10 @@ export interface FilePathCompletionContext {
   valueStart: number;
 }
 
-// `[^\s#]` guards against treating the same field name embedded in a larger
-// word (`fileName:`) as a match. Captured group 1 is the field name, group 2
-// is any whitespace between `:` and the value (always at least one space to
-// be valid YAML).
+// `(?:^|[^\w-])` guards against treating the same field name embedded in a
+// larger word or hyphenated identifier (`fileName:`, `my-file:`) as a match.
+// Captured group 1 is the field name; group 2 is the whitespace matched by
+// `\s+` between `:` and the value (at least one whitespace character).
 const FIELD_PATTERN = new RegExp(
   `(?:^|[^\\w-])(${FILE_PATH_FIELDS.join("|")})\\s*:(\\s+)`,
   "g",
@@ -66,8 +67,10 @@ export function parseFilePathCompletionContext(
   if (!last) return null;
 
   const field = last[1] as (typeof FILE_PATH_FIELDS)[number];
-  // last.index points at the character before the field (or -1 when the
-  // match is anchored at start — `(?:^|...)` consumes 0 chars in that case).
+  // `last.index` is the start offset of the overall match. If the regex
+  // matched a preceding non-word/non-hyphen character via `(?:^|[^\w-])`,
+  // the field starts one character later; if it matched `^`, the field
+  // starts exactly at `last.index` (which is 0 at the beginning of the line).
   const fieldStart = last.index + (last[0].startsWith(field) ? 0 : 1);
   const valueStart = fieldStart + field.length + 1 + last[2].length; // +1 for ":"
   const partial = lineBeforeCursor.substring(valueStart);
