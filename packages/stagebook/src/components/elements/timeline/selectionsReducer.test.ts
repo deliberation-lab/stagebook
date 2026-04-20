@@ -561,4 +561,86 @@ describe("selectionsReducer", () => {
       expect(result.selections).toEqual([]);
     });
   });
+
+  describe("handle drag edge cases", () => {
+    it("start handle clamps at end handle position", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+        activeIndex: 0,
+        activeHandle: "start",
+      };
+      const result = selectionsReducer(state, {
+        type: "ADJUST_HANDLE",
+        index: 0,
+        handle: "start",
+        time: 25, // past the end
+        noSnapshot: true,
+      });
+      const range = result.selections[0] as { start: number; end: number };
+      expect(range.start).toBe(20);
+      expect(range.end).toBe(20);
+    });
+
+    it("end handle clamps at start handle position", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [{ start: 10, end: 20 }],
+        activeIndex: 0,
+        activeHandle: "end",
+      };
+      const result = selectionsReducer(state, {
+        type: "ADJUST_HANDLE",
+        index: 0,
+        handle: "end",
+        time: 5, // past the start
+        noSnapshot: true,
+      });
+      const range = result.selections[0] as { start: number; end: number };
+      expect(range.start).toBe(10);
+      expect(range.end).toBe(10);
+    });
+
+    it("start handle clamps exactly at neighbor end", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [
+          { start: 0, end: 10 },
+          { start: 15, end: 25 },
+        ],
+        activeIndex: 1,
+        activeHandle: "start",
+      };
+      const result = selectionsReducer(state, {
+        type: "ADJUST_HANDLE",
+        index: 1,
+        handle: "start",
+        time: 5, // into the first range
+        noSnapshot: true,
+      });
+      const ranges = result.selections as { start: number; end: number }[];
+      expect(ranges[1].start).toBe(10);
+    });
+
+    it("end handle clamps exactly at neighbor start", () => {
+      const state: SelectionState = {
+        ...emptyState(),
+        selections: [
+          { start: 0, end: 10 },
+          { start: 15, end: 25 },
+        ],
+        activeIndex: 0,
+        activeHandle: "end",
+      };
+      const result = selectionsReducer(state, {
+        type: "ADJUST_HANDLE",
+        index: 0,
+        handle: "end",
+        time: 20, // into the second range
+        noSnapshot: true,
+      });
+      const ranges = result.selections as { start: number; end: number }[];
+      expect(ranges[0].end).toBe(15);
+    });
+  });
 });

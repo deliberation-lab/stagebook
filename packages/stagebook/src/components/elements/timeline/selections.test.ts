@@ -114,45 +114,51 @@ describe("clampToFreeGap", () => {
 
 describe("adjustHandle", () => {
   test("adjusts start handle within free space", () => {
-    const selections: RangeSelection[] = [{ start: 10, end: 20 }];
-    const result = adjustHandle(selections, 0, "start", 5);
+    const result = adjustHandle([{ start: 10, end: 20 }], 0, "start", 5);
     expect(result[0]).toEqual({ start: 5, end: 20 });
   });
 
   test("adjusts end handle within free space", () => {
-    const selections: RangeSelection[] = [{ start: 10, end: 20 }];
-    const result = adjustHandle(selections, 0, "end", 25);
+    const result = adjustHandle([{ start: 10, end: 20 }], 0, "end", 25);
     expect(result[0]).toEqual({ start: 10, end: 25 });
   });
 
   test("clamps start handle at neighbor boundary", () => {
-    const selections: RangeSelection[] = [
-      { start: 0, end: 10 },
-      { start: 15, end: 25 },
-    ];
-    const result = adjustHandle(selections, 1, "start", 5);
+    const result = adjustHandle(
+      [
+        { start: 0, end: 10 },
+        { start: 15, end: 25 },
+      ],
+      1,
+      "start",
+      5,
+    );
     expect(result[1]).toEqual({ start: 10, end: 25 });
   });
 
   test("clamps end handle at neighbor boundary", () => {
-    const selections: RangeSelection[] = [
-      { start: 0, end: 10 },
-      { start: 15, end: 25 },
-    ];
-    const result = adjustHandle(selections, 0, "end", 20);
+    const result = adjustHandle(
+      [
+        { start: 0, end: 10 },
+        { start: 15, end: 25 },
+      ],
+      0,
+      "end",
+      20,
+    );
     expect(result[0]).toEqual({ start: 0, end: 15 });
   });
 
-  test("start handle cannot cross end handle", () => {
-    const selections: RangeSelection[] = [{ start: 10, end: 20 }];
-    const result = adjustHandle(selections, 0, "start", 25);
-    expect(result[0].start).toBeLessThanOrEqual(result[0].end);
+  test("start handle clamps at end handle position", () => {
+    const result = adjustHandle([{ start: 10, end: 20 }], 0, "start", 25);
+    expect(result[0].start).toBe(20);
+    expect(result[0].end).toBe(20);
   });
 
-  test("end handle cannot cross start handle", () => {
-    const selections: RangeSelection[] = [{ start: 10, end: 20 }];
-    const result = adjustHandle(selections, 0, "end", 5);
-    expect(result[0].end).toBeGreaterThanOrEqual(result[0].start);
+  test("end handle clamps at start handle position", () => {
+    const result = adjustHandle([{ start: 10, end: 20 }], 0, "end", 5);
+    expect(result[0].start).toBe(10);
+    expect(result[0].end).toBe(10);
   });
 });
 
