@@ -157,6 +157,7 @@ export function Timeline({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [viewportStart, setViewportStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const helpButtonRef = useRef<HTMLButtonElement>(null);
 
   // Per-track mute state. Ephemeral (not persisted, not saved) — a
   // listening aid only. Default: all tracks unmuted. Starts empty and
@@ -703,6 +704,7 @@ export function Timeline({
         activeIndex={state.activeIndex}
         onHelpToggle={() => setHelpOpen((v) => !v)}
         helpOpen={helpOpen}
+        helpButtonRef={helpButtonRef}
       />
 
       {/* Help popover */}
@@ -710,6 +712,7 @@ export function Timeline({
         <HelpPopover
           selectionType={selectionType}
           onClose={() => setHelpOpen(false)}
+          buttonRef={helpButtonRef}
         />
       )}
     </div>

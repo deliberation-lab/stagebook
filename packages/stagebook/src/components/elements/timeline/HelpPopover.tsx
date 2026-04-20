@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface HelpPopoverProps {
   selectionType: "range" | "point";
   onClose: () => void;
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
 }
 
 const rangeShortcuts: { keys: string; description: string }[] = [
@@ -29,9 +31,40 @@ const pointShortcuts: { keys: string; description: string }[] = [
   { keys: "Escape", description: "Deselect" },
 ];
 
-export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
+export function HelpPopover({
+  selectionType,
+  onClose,
+  buttonRef,
+}: HelpPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const shortcuts = selectionType === "range" ? rangeShortcuts : pointShortcuts;
+
+  // Track button position for fixed positioning
+  const [position, setPosition] = useState<{ top: number; right: number }>({
+    top: 0,
+    right: 0,
+  });
+
+  // Compute position from the button's bounding rect on mount and on scroll/resize
+  useEffect(() => {
+    function updatePosition() {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const popoverHeight =
+        popoverRef.current?.getBoundingClientRect().height ?? 0;
+      setPosition({
+        top: rect.top - popoverHeight - 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [buttonRef]);
 
   // Ref `onClose` so the listener effect doesn't re-register document
   // listeners when the parent passes a fresh callback identity (#105).
@@ -49,7 +82,9 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
     function onClick(e: MouseEvent) {
       if (
         popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node)
+        !popoverRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
       ) {
         onCloseRef.current();
       }
@@ -62,19 +97,19 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
       document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("mousedown", onClick, true);
     };
-  }, []);
+  }, [buttonRef]);
 
-  return (
+  const popoverContent = (
     <div
       ref={popoverRef}
       data-testid="timeline-help-popover"
       role="dialog"
       aria-label="Timeline keyboard shortcuts"
       style={{
-        position: "absolute",
-        right: "0.5rem",
-        bottom: "2rem",
-        zIndex: 100,
+        position: "fixed",
+        top: `${String(position.top)}px`,
+        right: `${String(position.right)}px`,
+        zIndex: 1000,
         background: "var(--stagebook-bg, #ffffff)",
         border: "1px solid var(--stagebook-border, #e5e7eb)",
         borderRadius: "0.375rem",
@@ -127,4 +162,6 @@ export function HelpPopover({ selectionType, onClose }: HelpPopoverProps) {
       </table>
     </div>
   );
+
+  return createPortal(popoverContent, document.body);
 }
