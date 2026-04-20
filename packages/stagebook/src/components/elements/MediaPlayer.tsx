@@ -67,6 +67,17 @@ export interface MediaPlayerProps {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
+// Subtle edge for the video viewport. Without this, near-white content
+// (a washed-out background, a whiteboard) bleeds into the surrounding page.
+// A 1px inset ring via boxShadow keeps layout identical to a border-less
+// viewport (no size inflation) while still delimiting the edge.
+const VIEWPORT_STYLE: React.CSSProperties = {
+  position: "relative",
+  borderRadius: "0.5rem",
+  overflow: "hidden",
+  boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06)",
+};
+
 /** Reject URLs with dangerous protocols (javascript:, data:, vbscript:, etc.) */
 function isSafeURL(url: string): boolean {
   try {
@@ -1026,10 +1037,7 @@ export function MediaPlayer({
         onMouseLeave={() => setIsHovered(false)}
         style={{ position: "relative" }}
       >
-        <div
-          data-testid="mediaPlayer-viewport"
-          style={{ position: "relative" }}
-        >
+        <div data-testid="mediaPlayer-viewport" style={VIEWPORT_STYLE}>
           <YouTubePlayer
             videoId={youtubeVideoId}
             startAt={startAt}
@@ -1143,10 +1151,7 @@ export function MediaPlayer({
 
       {/* Video viewport — video + captions + overlay controls */}
       {playVideo && (
-        <div
-          data-testid="mediaPlayer-viewport"
-          style={{ position: "relative" }}
-        >
+        <div data-testid="mediaPlayer-viewport" style={VIEWPORT_STYLE}>
           <video
             ref={videoRef}
             data-testid="mediaPlayer-video"

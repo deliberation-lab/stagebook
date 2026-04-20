@@ -1,15 +1,11 @@
 import React from "react";
 import { formatTime } from "../../../utils/formatTime.js";
 import type { TimelineValue } from "./selections.js";
-import { MIN_ZOOM, MAX_ZOOM } from "./viewport.js";
 
 export interface TimelineFooterProps {
   selectionType: "range" | "point";
   selections: TimelineValue;
   activeIndex: number | null;
-  zoomLevel: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
   onHelpToggle: () => void;
   helpOpen: boolean;
 }
@@ -65,19 +61,10 @@ const buttonStyle: React.CSSProperties = {
   color: "inherit",
 };
 
-const disabledStyle: React.CSSProperties = {
-  ...buttonStyle,
-  cursor: "not-allowed",
-  opacity: 0.4,
-};
-
 export function TimelineFooter({
   selectionType,
   selections,
   activeIndex,
-  zoomLevel,
-  onZoomIn,
-  onZoomOut,
   onHelpToggle,
   helpOpen,
 }: TimelineFooterProps) {
@@ -95,31 +82,7 @@ export function TimelineFooter({
         userSelect: "none",
       }}
     >
-      {/* Left: zoom controls */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-        <button
-          type="button"
-          data-testid="timeline-zoom-out"
-          onClick={onZoomOut}
-          disabled={zoomLevel <= MIN_ZOOM}
-          aria-label="Zoom out"
-          style={zoomLevel <= MIN_ZOOM ? disabledStyle : buttonStyle}
-        >
-          −
-        </button>
-        <button
-          type="button"
-          data-testid="timeline-zoom-in"
-          onClick={onZoomIn}
-          disabled={zoomLevel >= MAX_ZOOM}
-          aria-label="Zoom in"
-          style={zoomLevel >= MAX_ZOOM ? disabledStyle : buttonStyle}
-        >
-          +
-        </button>
-      </div>
-
-      {/* Center: selection summary */}
+      {/* Left: selection summary */}
       <div data-testid="timeline-selection-summary">
         {summary(selectionType, selections, activeIndex)}
       </div>
