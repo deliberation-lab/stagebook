@@ -43,6 +43,7 @@ export interface KeyEventLike {
   ctrlKey: boolean;
   metaKey: boolean;
   shiftKey: boolean;
+  altKey: boolean;
 }
 
 /**
@@ -79,8 +80,11 @@ export function keyToAction(
     return { type: "undo" };
   }
 
-  // No active selection: arrow/comma/period scrub the playhead.
+  // No active selection: arrow/comma/period scrub the playhead. Skip when
+  // Alt is held so browser/OS shortcuts (e.g. Alt+Left history navigation)
+  // still work.
   if (ctx.activeIndex === null) {
+    if (e.altKey) return null;
     let delta = 0;
     if (e.key === "ArrowLeft") delta = -ARROW_STEP;
     else if (e.key === "ArrowRight") delta = ARROW_STEP;

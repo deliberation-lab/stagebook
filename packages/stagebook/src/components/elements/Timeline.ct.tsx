@@ -1739,7 +1739,7 @@ test("footer summary: shows time range for active selection", async ({
   ).toContainText("0:06 – 0:12");
 });
 
-test("help button opens popover", async ({ mount }) => {
+test("help button opens popover", async ({ mount, page }) => {
   const component = await mount(
     <MockTimeline
       source="player"
@@ -1749,17 +1749,19 @@ test("help button opens popover", async ({ mount }) => {
       mockDuration={60}
     />,
   );
+  // Popover is rendered via portal into document.body, so query `page`
   await expect(
-    component.locator('[data-testid="timeline-help-popover"]'),
+    page.locator('[data-testid="timeline-help-popover"]'),
   ).not.toBeAttached();
   await component.locator('[data-testid="timeline-help-button"]').click();
   await expect(
-    component.locator('[data-testid="timeline-help-popover"]'),
+    page.locator('[data-testid="timeline-help-popover"]'),
   ).toBeAttached();
 });
 
 test("help popover shows range-mode shortcuts in range mode", async ({
   mount,
+  page,
 }) => {
   const component = await mount(
     <MockTimeline
@@ -1771,13 +1773,14 @@ test("help popover shows range-mode shortcuts in range mode", async ({
     />,
   );
   await component.locator('[data-testid="timeline-help-button"]').click();
-  const popover = component.locator('[data-testid="timeline-help-popover"]');
+  const popover = page.locator('[data-testid="timeline-help-popover"]');
   await expect(popover).toContainText("Create range");
   await expect(popover).toContainText("Switch handle");
 });
 
 test("help popover shows point-mode shortcuts in point mode", async ({
   mount,
+  page,
 }) => {
   const component = await mount(
     <MockTimeline
@@ -1789,7 +1792,7 @@ test("help popover shows point-mode shortcuts in point mode", async ({
     />,
   );
   await component.locator('[data-testid="timeline-help-button"]').click();
-  const popover = component.locator('[data-testid="timeline-help-popover"]');
+  const popover = page.locator('[data-testid="timeline-help-popover"]');
   await expect(popover).toContainText("Place point");
   await expect(popover).toContainText("Reposition");
 });
@@ -1814,7 +1817,7 @@ test("help popover closes when Escape is pressed", async ({ mount, page }) => {
   await expect(popover).not.toBeAttached();
 });
 
-test("help popover closes when clicking outside", async ({ mount }) => {
+test("help popover closes when clicking outside", async ({ mount, page }) => {
   const component = await mount(
     <MockTimeline
       source="player"
@@ -1825,7 +1828,7 @@ test("help popover closes when clicking outside", async ({ mount }) => {
     />,
   );
   await component.locator('[data-testid="timeline-help-button"]').click();
-  const popover = component.locator('[data-testid="timeline-help-popover"]');
+  const popover = page.locator('[data-testid="timeline-help-popover"]');
   await expect(popover).toBeAttached();
 
   // Click somewhere outside the popover (the timeline overlay)
@@ -1841,7 +1844,7 @@ test("help popover closes when clicking outside", async ({ mount }) => {
   await expect(popover).not.toBeAttached();
 });
 
-test("help button toggles popover open and closed", async ({ mount }) => {
+test("help button toggles popover open and closed", async ({ mount, page }) => {
   const component = await mount(
     <MockTimeline
       source="player"
@@ -1852,7 +1855,7 @@ test("help button toggles popover open and closed", async ({ mount }) => {
     />,
   );
   const helpBtn = component.locator('[data-testid="timeline-help-button"]');
-  const popover = component.locator('[data-testid="timeline-help-popover"]');
+  const popover = page.locator('[data-testid="timeline-help-popover"]');
 
   await expect(popover).not.toBeAttached();
   await helpBtn.click();

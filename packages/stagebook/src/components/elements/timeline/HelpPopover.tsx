@@ -51,24 +51,53 @@ export function HelpPopover({
     right: 0,
   });
 
-  // Compute position from the button's bounding rect on mount and on scroll/resize
+  // Compute position from the button's bounding rect on mount and on
+  // scroll/resize. The scroll handler fires frequently, so throttle updates
+  // to one per animation frame and skip setState if the computed position
+  // hasn't changed.
   useEffect(() => {
+    let rafId: number | null = null;
+    let lastTop = Number.NaN;
+    let lastRight = Number.NaN;
+
     function updatePosition() {
+      rafId = null;
       const rect = buttonRef.current?.getBoundingClientRect();
       if (!rect) return;
       const popoverHeight =
         popoverRef.current?.getBoundingClientRect().height ?? 0;
-      setPosition({
-        top: rect.top - popoverHeight - 4,
-        right: window.innerWidth - rect.right,
-      });
+      // Flip above ↔ below when there's not enough room above, and clamp
+      // the final top into the viewport so the popover never goes off-screen.
+      const viewportPadding = 4;
+      const topAbove = rect.top - popoverHeight - viewportPadding;
+      const topBelow = rect.bottom + viewportPadding;
+      const preferredTop = topAbove >= viewportPadding ? topAbove : topBelow;
+      const maxTop = Math.max(
+        viewportPadding,
+        window.innerHeight - popoverHeight - viewportPadding,
+      );
+      const top = Math.min(Math.max(preferredTop, viewportPadding), maxTop);
+      const right = window.innerWidth - rect.right;
+      if (top === lastTop && right === lastRight) return;
+      lastTop = top;
+      lastRight = right;
+      setPosition({ top, right });
     }
+    function schedule() {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(updatePosition);
+    }
+
     updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", schedule, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", schedule);
     return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
     };
   }, [buttonRef]);
 
@@ -86,14 +115,12 @@ export function HelpPopover({
       }
     }
     function onClick(e: MouseEvent) {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        onCloseRef.current();
-      }
+      const target = e.target as Node;
+      if (popoverRef.current?.contains(target)) return;
+      // If the button ref is missing (unmounted or never attached), treat
+      // the click as "outside" so the popover can still be dismissed.
+      if (buttonRef.current?.contains(target)) return;
+      onCloseRef.current();
     }
     document.addEventListener("keydown", onKey, true);
     // Use capture so we run before other listeners; mousedown so we close
@@ -169,5 +196,7 @@ export function HelpPopover({
     </div>
   );
 
+  // Guard against SSR / pre-render: document may be undefined.
+  if (typeof document === "undefined") return null;
   return createPortal(popoverContent, document.body);
 }

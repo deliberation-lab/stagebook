@@ -421,6 +421,7 @@ export function Timeline({
         ctrlKey: e.ctrlKey,
         metaKey: e.metaKey,
         shiftKey: e.shiftKey,
+        altKey: e.altKey,
       },
       {
         selectionType,

@@ -17,7 +17,13 @@ describe("keyToAction", () => {
     it("arrow keys return seekPlayhead when no selection", () => {
       expect(
         keyToAction(
-          { key: "ArrowLeft", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "ArrowLeft",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx({ activeIndex: null }),
         ),
       ).toEqual({ type: "seekPlayhead", delta: -1 });
@@ -28,6 +34,7 @@ describe("keyToAction", () => {
             ctrlKey: false,
             metaKey: false,
             shiftKey: false,
+            altKey: false,
           },
           ctx({ activeIndex: null }),
         ),
@@ -37,7 +44,13 @@ describe("keyToAction", () => {
     it("comma/period return seekPlayhead when no selection", () => {
       expect(
         keyToAction(
-          { key: ",", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: ",",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx({ activeIndex: null }),
         ),
       ).toEqual({ type: "seekPlayhead", delta: -FRAME_STEP });
@@ -46,7 +59,13 @@ describe("keyToAction", () => {
     it("returns null for Tab", () => {
       expect(
         keyToAction(
-          { key: "Tab", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "Tab",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx({ activeIndex: null }),
         ),
       ).toBe(null);
@@ -55,7 +74,13 @@ describe("keyToAction", () => {
     it("returns null for Delete", () => {
       expect(
         keyToAction(
-          { key: "Delete", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "Delete",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx({ activeIndex: null }),
         ),
       ).toBe(null);
@@ -64,7 +89,13 @@ describe("keyToAction", () => {
     it("returns null for Escape", () => {
       expect(
         keyToAction(
-          { key: "Escape", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "Escape",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx({ activeIndex: null }),
         ),
       ).toBe(null);
@@ -72,7 +103,13 @@ describe("keyToAction", () => {
 
     it("Ctrl+Z returns undo even with no selection", () => {
       const action = keyToAction(
-        { key: "z", ctrlKey: true, metaKey: false, shiftKey: false },
+        {
+          key: "z",
+          ctrlKey: true,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({ activeIndex: null }),
       );
       expect(action).toEqual({ type: "undo" });
@@ -83,7 +120,13 @@ describe("keyToAction", () => {
     it("Space returns togglePlayPause with active selection", () => {
       expect(
         keyToAction(
-          { key: " ", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: " ",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx(),
         ),
       ).toEqual({ type: "togglePlayPause" });
@@ -92,7 +135,13 @@ describe("keyToAction", () => {
     it("returns null for k", () => {
       expect(
         keyToAction(
-          { key: "k", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "k",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx(),
         ),
       ).toBe(null);
@@ -101,7 +150,13 @@ describe("keyToAction", () => {
     it("returns null for K", () => {
       expect(
         keyToAction(
-          { key: "K", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "K",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx(),
         ),
       ).toBe(null);
@@ -110,13 +165,25 @@ describe("keyToAction", () => {
     it("returns null for J and L (MediaPlayer shortcuts)", () => {
       expect(
         keyToAction(
-          { key: "j", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "j",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx(),
         ),
       ).toBe(null);
       expect(
         keyToAction(
-          { key: "l", ctrlKey: false, metaKey: false, shiftKey: false },
+          {
+            key: "l",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: false,
+          },
           ctx(),
         ),
       ).toBe(null);
@@ -126,7 +193,13 @@ describe("keyToAction", () => {
   describe("range mode: handle adjustment", () => {
     it("ArrowRight extends end handle by ARROW_STEP", () => {
       const action = keyToAction(
-        { key: "ArrowRight", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "ArrowRight",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({
@@ -139,7 +212,13 @@ describe("keyToAction", () => {
 
     it("ArrowLeft moves end handle left", () => {
       const action = keyToAction(
-        { key: "ArrowLeft", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "ArrowLeft",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({
@@ -152,7 +231,13 @@ describe("keyToAction", () => {
 
     it("comma steps back by FRAME_STEP", () => {
       const action = keyToAction(
-        { key: ",", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: ",",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({
@@ -165,7 +250,13 @@ describe("keyToAction", () => {
 
     it("period steps forward by FRAME_STEP", () => {
       const action = keyToAction(
-        { key: ".", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: ".",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({
@@ -178,7 +269,13 @@ describe("keyToAction", () => {
 
     it("adjusts start handle when activeHandle is start", () => {
       const action = keyToAction(
-        { key: "ArrowRight", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "ArrowRight",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({ activeHandle: "start" }),
       );
       expect(action).toEqual({
@@ -197,6 +294,7 @@ describe("keyToAction", () => {
             ctrlKey: false,
             metaKey: false,
             shiftKey: false,
+            altKey: false,
           },
           ctx({ activeHandle: null }),
         ),
@@ -207,7 +305,13 @@ describe("keyToAction", () => {
   describe("range mode: Tab switches handle", () => {
     it("Tab switches from end to start", () => {
       const action = keyToAction(
-        { key: "Tab", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "Tab",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({ activeHandle: "end" }),
       );
       expect(action).toEqual({ type: "switchHandle", handle: "start" });
@@ -215,7 +319,13 @@ describe("keyToAction", () => {
 
     it("Tab switches from start to end", () => {
       const action = keyToAction(
-        { key: "Tab", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "Tab",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({ activeHandle: "start" }),
       );
       expect(action).toEqual({ type: "switchHandle", handle: "end" });
@@ -223,7 +333,13 @@ describe("keyToAction", () => {
 
     it("Tab defaults to end when no handle is active", () => {
       const action = keyToAction(
-        { key: "Tab", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "Tab",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({ activeHandle: null }),
       );
       expect(action).toEqual({ type: "switchHandle", handle: "end" });
@@ -233,7 +349,13 @@ describe("keyToAction", () => {
   describe("point mode: repositioning", () => {
     it("ArrowRight moves point forward", () => {
       const action = keyToAction(
-        { key: "ArrowRight", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "ArrowRight",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({
           selectionType: "point",
           currentRange: null,
@@ -249,7 +371,13 @@ describe("keyToAction", () => {
 
     it("comma steps back by FRAME_STEP", () => {
       const action = keyToAction(
-        { key: ",", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: ",",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({
           selectionType: "point",
           currentRange: null,
@@ -267,7 +395,13 @@ describe("keyToAction", () => {
   describe("Delete and Escape", () => {
     it("Delete returns delete action", () => {
       const action = keyToAction(
-        { key: "Delete", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "Delete",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({ type: "delete" });
@@ -275,7 +409,13 @@ describe("keyToAction", () => {
 
     it("Backspace returns delete action", () => {
       const action = keyToAction(
-        { key: "Backspace", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "Backspace",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({ type: "delete" });
@@ -283,7 +423,13 @@ describe("keyToAction", () => {
 
     it("Escape returns deselect action", () => {
       const action = keyToAction(
-        { key: "Escape", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "Escape",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({ type: "deselect" });
@@ -293,7 +439,13 @@ describe("keyToAction", () => {
   describe("undo", () => {
     it("Ctrl+Z returns undo", () => {
       const action = keyToAction(
-        { key: "z", ctrlKey: true, metaKey: false, shiftKey: false },
+        {
+          key: "z",
+          ctrlKey: true,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({ type: "undo" });
@@ -301,7 +453,13 @@ describe("keyToAction", () => {
 
     it("Cmd+Z returns undo", () => {
       const action = keyToAction(
-        { key: "z", ctrlKey: false, metaKey: true, shiftKey: false },
+        {
+          key: "z",
+          ctrlKey: false,
+          metaKey: true,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({ type: "undo" });
@@ -309,7 +467,13 @@ describe("keyToAction", () => {
 
     it("Ctrl+Shift+Z does not undo (redo is not supported)", () => {
       const action = keyToAction(
-        { key: "z", ctrlKey: true, metaKey: false, shiftKey: true },
+        {
+          key: "z",
+          ctrlKey: true,
+          metaKey: false,
+          shiftKey: true,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toBe(null);
@@ -319,7 +483,13 @@ describe("keyToAction", () => {
   describe("unhandled keys", () => {
     it("returns null for unrecognized keys", () => {
       const action = keyToAction(
-        { key: "a", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "a",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toBe(null);
@@ -329,7 +499,13 @@ describe("keyToAction", () => {
   describe("spacebar play/pause", () => {
     it("Space returns togglePlayPause", () => {
       const action = keyToAction(
-        { key: " ", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: " ",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx(),
       );
       expect(action).toEqual({ type: "togglePlayPause" });
@@ -337,7 +513,13 @@ describe("keyToAction", () => {
 
     it("Space returns togglePlayPause even without active selection", () => {
       const action = keyToAction(
-        { key: " ", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: " ",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         ctx({ activeIndex: null }),
       );
       expect(action).toEqual({ type: "togglePlayPause" });
@@ -353,7 +535,13 @@ describe("keyToAction", () => {
 
     it("ArrowRight seeks forward 1s", () => {
       const action = keyToAction(
-        { key: "ArrowRight", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "ArrowRight",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         noSelection,
       );
       expect(action).toEqual({ type: "seekPlayhead", delta: 1 });
@@ -361,7 +549,13 @@ describe("keyToAction", () => {
 
     it("ArrowLeft seeks backward 1s", () => {
       const action = keyToAction(
-        { key: "ArrowLeft", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: "ArrowLeft",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         noSelection,
       );
       expect(action).toEqual({ type: "seekPlayhead", delta: -1 });
@@ -369,7 +563,13 @@ describe("keyToAction", () => {
 
     it("Period seeks forward one frame", () => {
       const action = keyToAction(
-        { key: ".", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: ".",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         noSelection,
       );
       expect(action).toEqual({ type: "seekPlayhead", delta: FRAME_STEP });
@@ -377,10 +577,43 @@ describe("keyToAction", () => {
 
     it("Comma seeks backward one frame", () => {
       const action = keyToAction(
-        { key: ",", ctrlKey: false, metaKey: false, shiftKey: false },
+        {
+          key: ",",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
         noSelection,
       );
       expect(action).toEqual({ type: "seekPlayhead", delta: -FRAME_STEP });
+    });
+
+    it("Alt+ArrowLeft/Right falls through (don't block browser history nav)", () => {
+      expect(
+        keyToAction(
+          {
+            key: "ArrowLeft",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: true,
+          },
+          noSelection,
+        ),
+      ).toBe(null);
+      expect(
+        keyToAction(
+          {
+            key: "ArrowRight",
+            ctrlKey: false,
+            metaKey: false,
+            shiftKey: false,
+            altKey: true,
+          },
+          noSelection,
+        ),
+      ).toBe(null);
     });
   });
 });
