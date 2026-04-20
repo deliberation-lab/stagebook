@@ -1,4 +1,5 @@
 import { parseDocument, isMap, isSeq, isScalar } from "yaml";
+import { offsetToLineCol } from "./offsetToLineCol";
 
 export interface SourceRange {
   startLine: number;
@@ -11,24 +12,6 @@ export interface YamlError {
   line: number;
   col: number;
   message: string;
-}
-
-/**
- * Convert a character offset to a 0-based line and column.
- */
-function offsetToLineCol(
-  source: string,
-  offset: number,
-): { line: number; col: number } {
-  let line = 0;
-  let lastNewline = -1;
-  for (let i = 0; i < offset && i < source.length; i++) {
-    if (source[i] === "\n") {
-      line++;
-      lastNewline = i;
-    }
-  }
-  return { line, col: offset - lastNewline - 1 };
 }
 
 /**

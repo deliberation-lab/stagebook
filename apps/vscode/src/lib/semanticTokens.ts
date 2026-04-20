@@ -4,6 +4,7 @@ import {
   validComparators,
   validReferenceTypes,
 } from "stagebook";
+import { offsetToLineCol } from "./offsetToLineCol";
 
 // Map domain concepts to VS Code's built-in semantic token types.
 // These are standard types that all themes already color distinctly.
@@ -73,24 +74,6 @@ const sectionKeys = new Set([
 ]);
 
 /**
- * Convert a character offset to a 0-based line and column.
- */
-function offsetToLineCol(
-  source: string,
-  offset: number,
-): { line: number; col: number } {
-  let line = 0;
-  let lastNewline = -1;
-  for (let i = 0; i < offset && i < source.length; i++) {
-    if (source[i] === "\n") {
-      line++;
-      lastNewline = i;
-    }
-  }
-  return { line, col: offset - lastNewline - 1 };
-}
-
-/**
  * Compute semantic tokens for a treatment YAML source string.
  *
  * Walks the YAML AST and identifies domain-specific tokens based
@@ -117,6 +100,28 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
       tokenType,
       text,
     });
+  }
+
+  /**
+   * Get the on-disk text and starting offset of a scalar value, with the
+   * surrounding quotes stripped for `"..."` / `'...'` scalars. The yaml
+   * library's `range` spans the whole quoted form while `value.value` holds
+   * only the unquoted content, so deriving both text and offset from the raw
+   * source slice keeps semantic tokens aligned with what the user typed.
+   */
+  function getScalarSource(
+    range: [number, number, number] | undefined,
+  ): { offset: number; text: string } | null {
+    if (!range) return null;
+    const raw = source.slice(range[0], range[1]);
+    if (
+      raw.length >= 2 &&
+      ((raw[0] === '"' && raw[raw.length - 1] === '"') ||
+        (raw[0] === "'" && raw[raw.length - 1] === "'"))
+    ) {
+      return { offset: range[0] + 1, text: raw.slice(1, -1) };
+    }
+    return { offset: range[0], text: raw };
   }
 
   const TEMPLATE_VAR_RE = /\$\{[a-zA-Z0-9_]+\}/g;
@@ -179,79 +184,82 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
         if (isScalar(key) && typeof key.value === "string") {
           const k = key.value;
 
+          const scalarSrc =
+            isScalar(value) && typeof value.value === "string"
+              ? getScalarSource(value.range)
+              : null;
+
           if (
             k === "type" &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range
+            scalarSrc
           ) {
             if (elementTypeSet.has(value.value)) {
-              addToken(value.range[0], value.value, "type");
+              addToken(scalarSrc.offset, scalarSrc.text, "type");
             }
           } else if (
             k === "comparator" &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range
+            scalarSrc
           ) {
             if (comparatorSet.has(value.value)) {
-              addToken(value.range[0], value.value, "keyword");
+              addToken(scalarSrc.offset, scalarSrc.text, "keyword");
             }
           } else if (
             k === "reference" &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range
+            scalarSrc
           ) {
             const refType = value.value.split(".")[0];
             if (referenceTypeSet.has(refType)) {
-              addToken(value.range[0], value.value, "variable");
+              addToken(scalarSrc.offset, scalarSrc.text, "variable");
             }
           } else if (
             k === "file" &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range
+            scalarSrc
           ) {
-            addFilePathTokens(value.range[0], value.value);
+            addFilePathTokens(scalarSrc.offset, scalarSrc.text);
           } else if (
             k === "contentType" &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range &&
+            scalarSrc &&
             contentTypeSet.has(value.value)
           ) {
-            addToken(value.range[0], value.value, "type");
+            addToken(scalarSrc.offset, scalarSrc.text, "type");
           } else if (
             k === "style" &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range &&
+            scalarSrc &&
             separatorStyles.has(value.value)
           ) {
-            addToken(value.range[0], value.value, "keyword");
+            addToken(scalarSrc.offset, scalarSrc.text, "keyword");
           } else if (
             (k === "position" || k === "chatType") &&
             isScalar(value) &&
             typeof value.value === "string" &&
-            value.range &&
+            scalarSrc &&
             enumValues.has(value.value)
           ) {
-            addToken(value.range[0], value.value, "keyword");
+            addToken(scalarSrc.offset, scalarSrc.text, "keyword");
           }
 
           // For any other scalar value containing ${...} placeholders,
           // emit variable tokens so template fields are highlighted
           // consistently everywhere they appear.
           if (
-            isScalar(value) &&
-            typeof value.value === "string" &&
-            value.range &&
+            scalarSrc &&
+            k !== "file" && // file paths already handled above
             ((TEMPLATE_VAR_RE.lastIndex = 0),
-            TEMPLATE_VAR_RE.test(value.value)) &&
-            k !== "file" // file paths already handled above
+            TEMPLATE_VAR_RE.test(scalarSrc.text))
           ) {
-            emitTemplateVarTokens(value.range[0], value.value);
+            emitTemplateVarTokens(scalarSrc.offset, scalarSrc.text);
           }
 
           // Recurse into the value
