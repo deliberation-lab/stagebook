@@ -139,6 +139,7 @@ function App() {
       selectedIntroIndex={introIndex}
       selectedTreatmentIndex={treatmentIndex}
       onRefresh={() => vscode.postMessage({ type: "refresh" })}
+      contentVersion={contentVersion}
     />
   );
 }

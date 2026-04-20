@@ -27,6 +27,8 @@ export interface PreviewHostProps {
   onFieldsResolved?: (values: Record<string, string>) => void;
   /** Optional refresh affordance passed through to the Viewer header. */
   onRefresh?: () => void;
+  /** Bump to force useTextContent to re-fetch all prompt files. */
+  contentVersion?: number;
 }
 
 /**
@@ -48,6 +50,7 @@ export function PreviewHost({
   onBack,
   onFieldsResolved,
   onRefresh,
+  contentVersion,
 }: PreviewHostProps) {
   const [userValues, setUserValues] = useState<Record<string, string> | null>(
     null,
@@ -86,6 +89,7 @@ export function PreviewHost({
       selectedTreatmentIndex={selectedTreatmentIndex}
       onBack={onBack}
       onRefresh={onRefresh}
+      contentVersion={contentVersion}
     />
   );
 }
