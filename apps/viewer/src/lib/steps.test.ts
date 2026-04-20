@@ -108,4 +108,24 @@ describe("flattenSteps", () => {
     const steps = flattenSteps(introSequence, treatment);
     expect(steps.map((s) => s.index)).toEqual([0, 1, 2, 3, 4]);
   });
+
+  it("carries discussion through on game stages", () => {
+    const discussion = {
+      chatType: "video" as const,
+      showNickname: true,
+      showTitle: true,
+    };
+    const withDiscussion = {
+      ...treatment,
+      gameStages: [
+        { ...treatment.gameStages[0], discussion },
+        treatment.gameStages[1],
+      ],
+    };
+    const steps = flattenSteps(introSequence, withDiscussion);
+    const round1 = steps.find((s) => s.name === "round1")!;
+    const round2 = steps.find((s) => s.name === "round2")!;
+    expect(round1.discussion).toEqual(discussion);
+    expect(round2.discussion).toBeUndefined();
+  });
 });

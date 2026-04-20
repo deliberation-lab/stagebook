@@ -126,6 +126,7 @@ export function Viewer({
     name: currentStep.name,
     duration: currentStep.duration,
     elements: currentStep.elements,
+    discussion: currentStep.discussion,
   };
 
   return (

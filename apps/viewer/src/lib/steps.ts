@@ -1,4 +1,4 @@
-import type { ElementType } from "stagebook";
+import type { ElementType, DiscussionType } from "stagebook";
 
 export type Phase = "intro" | "game" | "exit";
 
@@ -8,6 +8,7 @@ export interface ViewerStep {
   name: string;
   elements: ElementType[];
   duration?: number;
+  discussion?: DiscussionType;
 }
 
 interface IntroSequence {
@@ -18,7 +19,12 @@ interface IntroSequence {
 interface Treatment {
   name: string;
   playerCount: number;
-  gameStages: { name: string; duration?: number; elements: ElementType[] }[];
+  gameStages: {
+    name: string;
+    duration?: number;
+    elements: ElementType[];
+    discussion?: DiscussionType;
+  }[];
   exitSequence?: { name: string; elements: ElementType[] }[];
 }
 
@@ -49,6 +55,7 @@ export function flattenSteps(
       name: stage.name,
       elements: stage.elements,
       duration: stage.duration,
+      discussion: stage.discussion,
     });
   }
 

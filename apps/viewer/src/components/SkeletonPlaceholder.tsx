@@ -5,13 +5,133 @@ interface SkeletonPlaceholderProps {
   config?: Record<string, unknown>;
 }
 
+const chatTypeIcons: Record<string, string> = {
+  video: "\uD83D\uDCF9", // 📹
+  audio: "\uD83C\uDFA7", // 🎧
+  text: "\uD83D\uDCAC", // 💬
+};
+
+const chatTypeLabels: Record<string, string> = {
+  video: "Video Call",
+  audio: "Audio Call",
+  text: "Text Chat",
+};
+
+/**
+ * Build a human-readable summary of discussion configuration options,
+ * filtered to only those relevant to the chatType.
+ */
+function describeDiscussionConfig(config: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const chatType = config.chatType as string | undefined;
+
+  if (config.showNickname !== undefined) {
+    lines.push(`Nicknames: ${config.showNickname ? "shown" : "hidden"}`);
+  }
+
+  if (chatType === "video" && config.showSelfView !== undefined) {
+    lines.push(`Self-view: ${config.showSelfView ? "shown" : "hidden"}`);
+  }
+
+  if (config.showReportMissing !== undefined) {
+    lines.push(
+      `Report missing: ${config.showReportMissing ? "available" : "unavailable"}`,
+    );
+  }
+
+  if (
+    (chatType === "audio" || chatType === "video") &&
+    config.showAudioMute !== undefined
+  ) {
+    lines.push(
+      `Audio mute: ${config.showAudioMute ? "available" : "unavailable"}`,
+    );
+  }
+
+  if (chatType === "video" && config.showVideoMute !== undefined) {
+    lines.push(
+      `Video mute: ${config.showVideoMute ? "available" : "unavailable"}`,
+    );
+  }
+
+  if (chatType === "text") {
+    if (
+      Array.isArray(config.reactionEmojisAvailable) &&
+      config.reactionEmojisAvailable.length > 0
+    ) {
+      lines.push(
+        `Reactions: ${(config.reactionEmojisAvailable as string[]).join(" ")}`,
+      );
+    }
+    if (config.numReactionsPerMessage !== undefined) {
+      lines.push(
+        `Reactions per message: ${config.numReactionsPerMessage as number}`,
+      );
+    }
+    if (config.reactToSelf !== undefined) {
+      lines.push(`React to own messages: ${config.reactToSelf ? "yes" : "no"}`);
+    }
+  }
+
+  if (chatType === "video" && config.rooms !== undefined) {
+    const rooms = config.rooms as unknown[];
+    lines.push(`Rooms: ${rooms.length} configured`);
+  }
+
+  if (chatType === "video" && config.layout !== undefined) {
+    lines.push("Layout: custom layout configured");
+  }
+
+  if (config.showToPositions !== undefined) {
+    lines.push(
+      `Shown to positions: ${(config.showToPositions as number[]).join(", ")}`,
+    );
+  }
+
+  if (config.hideFromPositions !== undefined) {
+    lines.push(
+      `Hidden from positions: ${(config.hideFromPositions as number[]).join(", ")}`,
+    );
+  }
+
+  return lines;
+}
+
 export function SkeletonPlaceholder({
   type,
   config,
 }: SkeletonPlaceholderProps) {
+  // Discussion gets a rich, type-aware placeholder
+  if (type === "discussion" && config) {
+    const chatType = config.chatType as string | undefined;
+    const icon = chatType ? chatTypeIcons[chatType] : undefined;
+    const label = chatType ? chatTypeLabels[chatType] : "Discussion";
+    const configLines = describeDiscussionConfig(config);
+
+    return (
+      <div style={discussionContainerStyle}>
+        <div style={discussionHeaderStyle}>
+          {icon && <span style={discussionIconStyle}>{icon}</span>}
+          <span style={discussionTitleStyle}>{label}</span>
+        </div>
+        <p style={discussionSubtitleStyle}>
+          Requires live session with multiple participants
+        </p>
+        {configLines.length > 0 && (
+          <ul style={configListStyle}>
+            {configLines.map((line) => (
+              <li key={line} style={configItemStyle}>
+                {line}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  // Generic placeholder for other platform-coupled elements
   const labels: Record<string, string> = {
-    discussion:
-      "Discussion element — requires live session with multiple participants",
     survey: "Survey element — requires external survey platform",
     sharedNotepad:
       "Shared notepad — requires live session with multiple participants",
@@ -62,7 +182,62 @@ export function createSkeletonRenderers() {
   };
 }
 
-// --- Styles ---
+// --- Discussion placeholder styles ---
+
+const discussionContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "0.75rem",
+  padding: "2rem",
+  border: "2px dashed #93c5fd",
+  borderRadius: "0.75rem",
+  backgroundColor: "#eff6ff",
+  minHeight: "16rem",
+  height: "100%",
+};
+
+const discussionHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+};
+
+const discussionIconStyle: React.CSSProperties = {
+  fontSize: "1.5rem",
+};
+
+const discussionTitleStyle: React.CSSProperties = {
+  fontSize: "1rem",
+  fontWeight: 600,
+  color: "#1e40af",
+};
+
+const discussionSubtitleStyle: React.CSSProperties = {
+  fontSize: "0.8125rem",
+  color: "#3b82f6",
+  margin: 0,
+  textAlign: "center",
+};
+
+const configListStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.25rem",
+  marginTop: "0.5rem",
+};
+
+const configItemStyle: React.CSSProperties = {
+  fontSize: "0.75rem",
+  color: "#6b7280",
+  textAlign: "center",
+};
+
+// --- Generic placeholder styles ---
 
 const containerStyle: React.CSSProperties = {
   display: "flex",

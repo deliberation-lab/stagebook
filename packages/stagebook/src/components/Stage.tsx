@@ -168,6 +168,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           height: "100%",
           width: "100%",
           flexDirection: "row",
