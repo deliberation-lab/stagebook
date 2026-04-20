@@ -404,4 +404,54 @@ describe("useTextContent", () => {
 
     act(() => root.unmount());
   });
+
+  test("contentVersion bump triggers re-fetch even when path and getTextContent are stable", async () => {
+    const container = document.createElement("div");
+    let root: Root;
+    const result = { current: undefined as unknown as TextContentResult };
+    const getTextContent = vi.fn(() => Promise.resolve("# Original"));
+
+    function makeCtx(version: number): StagebookContext {
+      return {
+        ...createMockContext({ getTextContent }),
+        contentVersion: version,
+      };
+    }
+
+    function Harness(): ReactNode {
+      result.current = useTextContent("prompts/hello.md");
+      return null;
+    }
+
+    // Initial render with contentVersion 0
+    act(() => {
+      root = createRoot(container);
+      root.render(
+        <StagebookProvider value={makeCtx(0)}>
+          <Harness />
+        </StagebookProvider>,
+      );
+    });
+    await act(() => Promise.resolve());
+
+    expect(getTextContent).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toBe("# Original");
+
+    // Bump contentVersion — same path, same getTextContent identity
+    getTextContent.mockResolvedValue("# Updated");
+    act(() => {
+      root.render(
+        <StagebookProvider value={makeCtx(1)}>
+          <Harness />
+        </StagebookProvider>,
+      );
+    });
+    await act(() => Promise.resolve());
+
+    // Must have re-fetched because contentVersion changed
+    expect(getTextContent).toHaveBeenCalledTimes(2);
+    expect(result.current.data).toBe("# Updated");
+
+    act(() => root.unmount());
+  });
 });

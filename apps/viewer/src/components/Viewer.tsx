@@ -37,6 +37,11 @@ export interface ViewerProps {
    * prop update since React doesn't unmount the component.
    */
   onRefresh?: () => void;
+  /**
+   * Bump to force useTextContent to re-fetch all prompt files. Optional —
+   * production hosts that never change content can omit it.
+   */
+  contentVersion?: number;
 }
 
 export function Viewer({
@@ -47,6 +52,7 @@ export function Viewer({
   selectedTreatmentIndex,
   onBack,
   onRefresh,
+  contentVersion,
 }: ViewerProps) {
   const treatment = treatmentFile.treatments[selectedTreatmentIndex];
   const introSequence = treatmentFile.introSequences[selectedIntroIndex];
@@ -105,6 +111,7 @@ export function Viewer({
         onSubmit: handleSubmit,
         getTextContent,
         getAssetURL,
+        contentVersion,
         renderers: createSkeletonRenderers(),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,6 +124,7 @@ export function Viewer({
       handleSubmit,
       getTextContent,
       getAssetURL,
+      contentVersion,
     ],
   );
 
