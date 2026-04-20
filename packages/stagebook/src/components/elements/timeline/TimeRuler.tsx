@@ -17,7 +17,7 @@ export interface TimeRulerProps {
   viewportStart: number;
 }
 
-const RULER_HEIGHT = 24;
+export const RULER_HEIGHT = 24;
 
 /**
  * Time labels and tick marks along the top of the waveform area.
@@ -51,8 +51,8 @@ export function TimeRuler({
         position: "relative",
         height: `${String(RULER_HEIGHT)}px`,
         width: `${String(width)}px`,
-        overflow: "hidden",
-        fontSize: "0.625rem",
+        overflow: "visible",
+        fontSize: "0.72rem",
         color: "var(--stagebook-text-faint, #9ca3af)",
         userSelect: "none",
       }}
@@ -67,20 +67,13 @@ export function TimeRuler({
               position: "absolute",
               left: `${String(x)}px`,
               top: 0,
+              transform: "translateX(-50%)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
             }}
           >
-            <span
-              style={{
-                whiteSpace: "nowrap",
-                transform: "translateX(-50%)",
-                display: "block",
-              }}
-            >
-              {formatTime(t)}
-            </span>
+            <span style={{ whiteSpace: "nowrap" }}>{formatTime(t)}</span>
             <div
               style={{
                 width: "1px",

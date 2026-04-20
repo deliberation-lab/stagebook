@@ -54,6 +54,7 @@ export function TimelineTrack({
       <div
         data-testid="track-gutter"
         style={{
+          boxSizing: "border-box",
           width: `${String(GUTTER_WIDTH)}px`,
           minWidth: `${String(GUTTER_WIDTH)}px`,
           display: "flex",
@@ -97,7 +98,7 @@ export function TimelineTrack({
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
-            fontSize: "0.6875rem",
+            fontSize: "0.79rem",
             color: "var(--stagebook-text-faint, #9ca3af)",
             userSelect: "none",
             overflow: "hidden",

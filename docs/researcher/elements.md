@@ -260,7 +260,7 @@ By default (`selectionScope: all`), selections span all audio channels. In `trac
     - "Participant"
 ```
 
-When `trackLabels` is omitted, tracks are labeled by position index: "Position 0", "Position 1", etc. (matching the channel order in the composed video). If there are more audio channels than labels, extra channels fall back to "Position N".
+When `trackLabels` is omitted, tracks are labeled by index: "Track 0", "Track 1", etc. (matching the channel order in the composed video). If there are more audio channels than labels, extra channels fall back to "Track N".
 
 ### Use case examples
 

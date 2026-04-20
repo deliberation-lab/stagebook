@@ -173,7 +173,7 @@ test("renders at least one track", async ({ mount }) => {
   await expect(tracks.first()).toBeAttached();
 });
 
-test("renders default track label as Position N", async ({ mount }) => {
+test("renders default track label as Track N", async ({ mount }) => {
   const component = await mount(
     <MockTimeline
       source="player"
@@ -185,8 +185,8 @@ test("renders default track label as Position N", async ({ mount }) => {
     />,
   );
   const labels = component.locator('[data-testid="track-label"]');
-  await expect(labels.nth(0)).toContainText("Position 0");
-  await expect(labels.nth(1)).toContainText("Position 1");
+  await expect(labels.nth(0)).toContainText("Track 0");
+  await expect(labels.nth(1)).toContainText("Track 1");
 });
 
 test("renders custom track labels", async ({ mount }) => {
@@ -206,7 +206,7 @@ test("renders custom track labels", async ({ mount }) => {
   await expect(labels.nth(1)).toContainText("Participant");
 });
 
-test("falls back to Position N for extra channels beyond trackLabels", async ({
+test("falls back to Track N for extra channels beyond trackLabels", async ({
   mount,
 }) => {
   const component = await mount(
@@ -222,8 +222,8 @@ test("falls back to Position N for extra channels beyond trackLabels", async ({
   );
   const labels = component.locator('[data-testid="track-label"]');
   await expect(labels.nth(0)).toContainText("Speaker A");
-  await expect(labels.nth(1)).toContainText("Position 1");
-  await expect(labels.nth(2)).toContainText("Position 2");
+  await expect(labels.nth(1)).toContainText("Track 1");
+  await expect(labels.nth(2)).toContainText("Track 2");
 });
 
 test("renders canvas for waveform", async ({ mount }) => {
@@ -2427,4 +2427,173 @@ test("mute state is not written to the save log", async ({ mount }) => {
     expect(entry.key).not.toContain("mute");
     expect(JSON.stringify(entry.value)).not.toContain("mute");
   }
+});
+
+// -- Handle z-index at edges --
+
+test("start handle is on top when range is at the right edge", async ({
+  mount,
+}) => {
+  // Range near the right edge of a 60s timeline (58-60s)
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="edge_test"
+      selectionType="range"
+      multiSelect={false}
+      initialSelections={[{ start: 58, end: 60 }]}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const startHandle = component.locator('[data-testid="range-0-handle-start"]');
+  const endHandle = component.locator('[data-testid="range-0-handle-end"]');
+  await expect(startHandle).toBeAttached();
+  await expect(endHandle).toBeAttached();
+
+  const startZ = await startHandle.evaluate(
+    (el) => getComputedStyle(el).zIndex,
+  );
+  const endZ = await endHandle.evaluate((el) => getComputedStyle(el).zIndex);
+  // Start handle should be on top so the user can drag it left
+  expect(Number(startZ)).toBeGreaterThan(Number(endZ));
+});
+
+test("end handle is on top when range is at the left edge", async ({
+  mount,
+}) => {
+  // Range near the left edge of a 60s timeline (0-2s)
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="edge_test"
+      selectionType="range"
+      multiSelect={false}
+      initialSelections={[{ start: 0, end: 2 }]}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const startHandle = component.locator('[data-testid="range-0-handle-start"]');
+  const endHandle = component.locator('[data-testid="range-0-handle-end"]');
+  await expect(startHandle).toBeAttached();
+  await expect(endHandle).toBeAttached();
+
+  const startZ = await startHandle.evaluate(
+    (el) => getComputedStyle(el).zIndex,
+  );
+  const endZ = await endHandle.evaluate((el) => getComputedStyle(el).zIndex);
+  // End handle should be on top so the user can drag it right
+  expect(Number(endZ)).toBeGreaterThan(Number(startZ));
+});
+
+test("end handle is on top when range is in the middle (default)", async ({
+  mount,
+}) => {
+  // Range in the middle of a 60s timeline (25-35s)
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="edge_test"
+      selectionType="range"
+      multiSelect={false}
+      initialSelections={[{ start: 25, end: 35 }]}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const startHandle = component.locator('[data-testid="range-0-handle-start"]');
+  const endHandle = component.locator('[data-testid="range-0-handle-end"]');
+  await expect(startHandle).toBeAttached();
+  await expect(endHandle).toBeAttached();
+
+  const startZ = await startHandle.evaluate(
+    (el) => getComputedStyle(el).zIndex,
+  );
+  const endZ = await endHandle.evaluate((el) => getComputedStyle(el).zIndex);
+  // Default: end handle on top
+  expect(Number(endZ)).toBeGreaterThan(Number(startZ));
+});
+
+test("playhead time box is visible and shows formatted time", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="playhead_test"
+      selectionType="range"
+      mockCurrentTime={16.5}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const playhead = component.locator('[data-testid="playhead"]');
+  await expect(playhead).toBeAttached();
+  // Should display the formatted time with tenths at zoom 1
+  await expect(playhead).toContainText("0:16.5");
+});
+
+test("handle hover shows time tooltip", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="tooltip_test"
+      selectionType="range"
+      multiSelect={false}
+      initialSelections={[{ start: 10, end: 30 }]}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const startHandle = component.locator('[data-testid="range-0-handle-start"]');
+  await expect(startHandle).toBeAttached();
+
+  // Before hover: no tooltip text visible on the handle
+  await expect(startHandle).not.toContainText("0:10");
+
+  // Hover the start handle
+  await startHandle.hover();
+
+  // Tooltip should appear with the formatted start time
+  await expect(startHandle).toContainText("0:10");
+});
+
+test("playhead time box is draggable (pointerEvents: auto)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="drag_test"
+      selectionType="range"
+      mockCurrentTime={30}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const playhead = component.locator('[data-testid="playhead"]');
+  await expect(playhead).toBeAttached();
+
+  // The time box (first child of playhead) must have pointerEvents: auto
+  // so it can receive drag events. A regression occurred when shared
+  // tooltipBaseStyle (which has pointerEvents: none) was spread after
+  // the auto override, silently disabling dragging.
+  const timeBox = playhead.locator("div").first();
+  const pointerEvents = await timeBox.evaluate(
+    (el) => getComputedStyle(el).pointerEvents,
+  );
+  expect(pointerEvents).toBe("auto");
 });

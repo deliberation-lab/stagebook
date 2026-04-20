@@ -62,6 +62,9 @@
   --stagebook-danger-bg: #fef2f2;
   --stagebook-warning: #dc2626;
 
+  /* Timeline playhead */
+  --stagebook-playhead: #e11d48;
+
   /* Timer */
   --stagebook-timer-fill: #60a5fa;
   --stagebook-timer-warn: #ef4444;

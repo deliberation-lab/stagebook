@@ -2,6 +2,8 @@ import React, { useCallback, useRef, useState } from "react";
 import { pixelToTime, timeToPixel } from "./timelineLayout.js";
 import { clampToFreeGap } from "./selections.js";
 import type { RangeSelection, TimelineValue } from "./selections.js";
+import { formatTime } from "../../../utils/formatTime.js";
+import { zoomDecimals, handleTooltipStyle } from "./timelineStyles.js";
 
 export interface SelectionOverlayProps {
   /** Width of the waveform area in pixels (excludes gutter). */
@@ -130,6 +132,11 @@ export function SelectionOverlay({
     endTime: number;
     track: number | undefined;
   } | null>(null);
+  // Track which handle is hovered for time tooltip display
+  const [hoveredHandle, setHoveredHandle] = useState<{
+    index: number;
+    handle: "start" | "end";
+  } | null>(null);
 
   const trackHeight = channelCount > 0 ? height / channelCount : height;
 
@@ -211,7 +218,8 @@ export function SelectionOverlay({
         }
       }
 
-      const currentTime = eventToTime(e.clientX);
+      const rawTime = eventToTime(e.clientX);
+      const currentTime = Math.max(0, Math.min(duration, rawTime));
 
       if (drag.mode === "create-range") {
         setDragPreview({
@@ -242,6 +250,7 @@ export function SelectionOverlay({
     },
     [
       eventToTime,
+      duration,
       onAdjustHandle,
       onRepositionPoint,
       onBeginDrag,
@@ -255,7 +264,8 @@ export function SelectionOverlay({
       const drag = dragRef.current;
       if (!drag) return;
 
-      const time = eventToTime(e.clientX);
+      const rawTime = eventToTime(e.clientX);
+      const time = Math.max(0, Math.min(duration, rawTime));
       const track = drag.track;
 
       if (!drag.isDragging) {
@@ -285,6 +295,7 @@ export function SelectionOverlay({
         onRequestFocus();
       }
       dragRef.current = null;
+      setHoveredHandle(null);
     },
     [
       eventToTime,
@@ -370,6 +381,7 @@ export function SelectionOverlay({
       if (dragRef.current?.beganDrag) onEndDrag();
       dragRef.current = null;
       setDragPreview(null);
+      setHoveredHandle(null);
     },
     [onEndDrag, releasePointer],
   );
@@ -396,6 +408,12 @@ export function SelectionOverlay({
       );
       const left = Math.min(x1, x2);
       const rangeWidth = Math.abs(x2 - x1);
+
+      // When the end handle is near the right edge of the visible area,
+      // put the start handle on top so the user can grab it to drag left.
+      // At the left edge, the default (end handle on top via DOM order)
+      // is correct since the end handle is the one that can move right.
+      const startHandleOnTop = x2 > width - 10;
 
       // Per-track positioning in track scope
       const top =
@@ -431,7 +449,18 @@ export function SelectionOverlay({
           <div
             data-testid={`range-${String(i)}-handle-start`}
             data-active={isActive && activeHandle === "start"}
-            onPointerDown={(e) => handleHandlePointerDown(e, i, "start")}
+            draggable={false}
+            onPointerDown={(e) => {
+              e.preventDefault(); // suppress native drag-and-drop
+              setHoveredHandle({ index: i, handle: "start" });
+              handleHandlePointerDown(e, i, "start");
+            }}
+            onPointerEnter={() =>
+              setHoveredHandle({ index: i, handle: "start" })
+            }
+            onPointerLeave={() => {
+              if (!dragRef.current) setHoveredHandle(null);
+            }}
             style={{
               position: "absolute",
               left: -3,
@@ -443,13 +472,30 @@ export function SelectionOverlay({
                   ? "rgba(37, 99, 235, 1)"
                   : "rgba(59, 130, 246, 0.7)",
               cursor: "ew-resize",
+              zIndex: startHandleOnTop ? 2 : 1,
             }}
-          />
+          >
+            {hoveredHandle?.index === i &&
+              hoveredHandle?.handle === "start" && (
+                <div style={handleTooltipStyle("start")}>
+                  {formatTime(range.start, zoomDecimals(zoomLevel))}
+                </div>
+              )}
+          </div>
           {/* End handle */}
           <div
             data-testid={`range-${String(i)}-handle-end`}
             data-active={isActive && activeHandle === "end"}
-            onPointerDown={(e) => handleHandlePointerDown(e, i, "end")}
+            draggable={false}
+            onPointerDown={(e) => {
+              e.preventDefault(); // suppress native drag-and-drop
+              setHoveredHandle({ index: i, handle: "end" });
+              handleHandlePointerDown(e, i, "end");
+            }}
+            onPointerEnter={() => setHoveredHandle({ index: i, handle: "end" })}
+            onPointerLeave={() => {
+              if (!dragRef.current) setHoveredHandle(null);
+            }}
             style={{
               position: "absolute",
               right: -3,
@@ -461,8 +507,15 @@ export function SelectionOverlay({
                   ? "rgba(37, 99, 235, 1)"
                   : "rgba(59, 130, 246, 0.7)",
               cursor: "ew-resize",
+              zIndex: startHandleOnTop ? 1 : 2,
             }}
-          />
+          >
+            {hoveredHandle?.index === i && hoveredHandle?.handle === "end" && (
+              <div style={handleTooltipStyle("end")}>
+                {formatTime(range.end, zoomDecimals(zoomLevel))}
+              </div>
+            )}
+          </div>
         </div>
       );
     });

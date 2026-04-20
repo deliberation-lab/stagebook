@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { usePlayback } from "../playback/PlaybackProvider.js";
-import { TimeRuler } from "./timeline/TimeRuler.js";
+import { TimeRuler, RULER_HEIGHT } from "./timeline/TimeRuler.js";
 import { TimelineTrack, GUTTER_WIDTH } from "./timeline/TimelineTrack.js";
 import { Playhead } from "./timeline/Playhead.js";
 import { SelectionOverlay } from "./timeline/SelectionOverlay.js";
@@ -530,7 +530,7 @@ export function Timeline({
   // Build track labels
   const labels: string[] = [];
   for (let i = 0; i < channelCount; i++) {
-    labels.push(trackLabels?.[i] ?? `Position ${String(i)}`);
+    labels.push(trackLabels?.[i] ?? `Track ${String(i)}`);
   }
 
   const tracksHeight = channelCount * TRACK_HEIGHT;
@@ -682,14 +682,16 @@ export function Timeline({
             }
           />
 
-          {/* Playhead — over selection overlay */}
+          {/* Playhead — over selection overlay, extends into ruler via negative top */}
           <Playhead
             currentTime={currentTime}
             duration={duration}
             width={waveformWidth}
             height={tracksHeight}
+            rulerHeight={RULER_HEIGHT}
             zoomLevel={zoomLevel}
             viewportStart={viewportStart}
+            onSeek={(t) => handle.seekTo(t)}
           />
         </div>
       </div>
