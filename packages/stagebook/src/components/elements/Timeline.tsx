@@ -482,6 +482,19 @@ export function Timeline({
       case "undo":
         dispatch({ type: "UNDO" });
         break;
+      case "togglePlayPause":
+        if (handleRef.current?.isPaused()) {
+          handleRef.current.play();
+        } else {
+          handleRef.current?.pause();
+        }
+        break;
+      case "seekPlayhead": {
+        const current = handleRef.current?.getCurrentTime() ?? 0;
+        const t = clampToMedia(current + action.delta);
+        handleRef.current?.seekTo(t);
+        break;
+      }
     }
   };
 

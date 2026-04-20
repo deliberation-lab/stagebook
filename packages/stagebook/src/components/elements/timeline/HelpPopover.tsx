@@ -8,7 +8,10 @@ export interface HelpPopoverProps {
 }
 
 const rangeShortcuts: { keys: string; description: string }[] = [
+  { keys: "Space", description: "Play / Pause" },
   { keys: "Click empty space", description: "Seek playhead" },
+  { keys: "←  → (no selection)", description: "Scrub playhead ±1s" },
+  { keys: ", . (no selection)", description: "Scrub ±1 frame" },
   { keys: "Click and drag", description: "Create range" },
   { keys: "Click range", description: "Select it" },
   { keys: "Drag handle", description: "Adjust boundary" },
@@ -21,7 +24,10 @@ const rangeShortcuts: { keys: string; description: string }[] = [
 ];
 
 const pointShortcuts: { keys: string; description: string }[] = [
+  { keys: "Space", description: "Play / Pause" },
   { keys: "Click empty space", description: "Place point" },
+  { keys: "←  → (no selection)", description: "Scrub playhead ±1s" },
+  { keys: ", . (no selection)", description: "Scrub ±1 frame" },
   { keys: "Click point", description: "Select it" },
   { keys: "Drag point", description: "Reposition" },
   { keys: "←  →", description: "Reposition ±1s" },

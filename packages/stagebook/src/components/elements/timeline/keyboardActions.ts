@@ -33,7 +33,9 @@ export type KeyAction =
   | { type: "switchHandle"; handle: "start" | "end" }
   | { type: "delete" }
   | { type: "deselect" }
-  | { type: "undo" };
+  | { type: "undo" }
+  | { type: "togglePlayPause" }
+  | { type: "seekPlayhead"; delta: number };
 
 /** Subset of KeyboardEvent that we care about — easier to test. */
 export interface KeyEventLike {
@@ -48,18 +50,25 @@ export interface KeyEventLike {
  * event should fall through to the MediaPlayer.
  *
  * Rules:
- * - Space, K, J, L are NEVER intercepted (always belong to MediaPlayer)
+ * - K, J, L are NEVER intercepted (always belong to MediaPlayer)
+ * - Space toggles play/pause (handled by Timeline, not MediaPlayer,
+ *   because Timeline has focus during annotation)
  * - Ctrl+Z / Cmd+Z (without Shift) is undo, even when no selection is active
- * - All other actions require an active selection (`activeIndex !== null`)
+ * - Arrow/comma/period with an active selection adjust the handle/point
+ * - Arrow/comma/period WITHOUT an active selection scrub the playhead
  */
 export function keyToAction(
   e: KeyEventLike,
   ctx: KeyContext,
 ): KeyAction | null {
-  // Never intercept playback shortcuts — always fall through.
-  if (e.key === " " || e.key === "k" || e.key === "K") return null;
+  // Never intercept MediaPlayer-specific shortcuts.
+  if (e.key === "k" || e.key === "K") return null;
   if (e.key === "j" || e.key === "J" || e.key === "l" || e.key === "L")
     return null;
+
+  // Space: toggle play/pause. Handled here (not fall-through) because
+  // when the timeline has focus, MediaPlayer doesn't receive key events.
+  if (e.key === " ") return { type: "togglePlayPause" };
 
   // Undo works regardless of active selection.
   if (
@@ -70,8 +79,16 @@ export function keyToAction(
     return { type: "undo" };
   }
 
-  // Everything else requires an active selection.
-  if (ctx.activeIndex === null) return null;
+  // No active selection: arrow/comma/period scrub the playhead.
+  if (ctx.activeIndex === null) {
+    let delta = 0;
+    if (e.key === "ArrowLeft") delta = -ARROW_STEP;
+    else if (e.key === "ArrowRight") delta = ARROW_STEP;
+    else if (e.key === ",") delta = -FRAME_STEP;
+    else if (e.key === ".") delta = FRAME_STEP;
+    if (delta !== 0) return { type: "seekPlayhead", delta };
+    return null;
+  }
 
   if (e.key === "Delete" || e.key === "Backspace") {
     return { type: "delete" };
