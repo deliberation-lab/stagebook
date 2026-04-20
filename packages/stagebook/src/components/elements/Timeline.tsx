@@ -11,6 +11,7 @@ import { TimelineTrack, GUTTER_WIDTH } from "./timeline/TimelineTrack.js";
 import { Playhead } from "./timeline/Playhead.js";
 import { SelectionOverlay } from "./timeline/SelectionOverlay.js";
 import { TimelineFooter } from "./timeline/TimelineFooter.js";
+import { TimelineHeader } from "./timeline/TimelineHeader.js";
 import { Minimap } from "./timeline/Minimap.js";
 import { HelpPopover } from "./timeline/HelpPopover.js";
 import { computeBucketCount } from "./mediaPlayer/waveformCapture.js";
@@ -546,23 +547,29 @@ export function Timeline({
         position: "relative",
       }}
     >
-      {/* Minimap — only when zoomed in */}
-      {zoomLevel > 1 && (
-        <div style={{ marginLeft: `${String(GUTTER_WIDTH)}px` }}>
-          <Minimap
-            duration={duration}
-            width={waveformWidth}
-            zoomLevel={zoomLevel}
-            viewportStart={viewportStart}
-            currentTime={currentTime}
-            selections={state.selections}
-            peaks={peaks}
-            peaksVersion={peaksVersion}
-            totalBuckets={totalBuckets}
-            onViewportChange={onMinimapPan}
-          />
-        </div>
-      )}
+      {/* Header: zoom controls (always) + minimap (when zoomed in) — puts
+          the zoom buttons next to the minimap for context (issue #129). */}
+      <TimelineHeader
+        zoomLevel={zoomLevel}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        minimap={
+          zoomLevel > 1 ? (
+            <Minimap
+              duration={duration}
+              width={waveformWidth}
+              zoomLevel={zoomLevel}
+              viewportStart={viewportStart}
+              currentTime={currentTime}
+              selections={state.selections}
+              peaks={peaks}
+              peaksVersion={peaksVersion}
+              totalBuckets={totalBuckets}
+              onViewportChange={onMinimapPan}
+            />
+          ) : null
+        }
+      />
 
       {/* Time ruler — offset by gutter width */}
       <div style={{ marginLeft: `${String(GUTTER_WIDTH)}px` }}>
@@ -681,9 +688,6 @@ export function Timeline({
         selectionType={selectionType}
         selections={state.selections}
         activeIndex={state.activeIndex}
-        zoomLevel={zoomLevel}
-        onZoomIn={onZoomIn}
-        onZoomOut={onZoomOut}
         onHelpToggle={() => setHelpOpen((v) => !v)}
         helpOpen={helpOpen}
       />

@@ -1428,7 +1428,7 @@ test("Space key never intercepted by timeline", async ({ mount }) => {
 
 // -- Footer / zoom / minimap / help (#49) --
 
-test("footer renders with default zoom buttons and selection summary", async ({
+test("footer renders with selection summary and help button", async ({
   mount,
 }) => {
   const component = await mount(
@@ -1444,13 +1444,61 @@ test("footer renders with default zoom buttons and selection summary", async ({
     component.locator('[data-testid="timeline-footer"]'),
   ).toBeAttached();
   await expect(
-    component.locator('[data-testid="timeline-zoom-in"]'),
-  ).toBeAttached();
-  await expect(
-    component.locator('[data-testid="timeline-zoom-out"]'),
-  ).toBeAttached();
-  await expect(
     component.locator('[data-testid="timeline-help-button"]'),
+  ).toBeAttached();
+});
+
+test("zoom buttons live in the header, not the footer", async ({ mount }) => {
+  // Issue #129: the minimap sits at the top; zoom controls belong next to
+  // it for context. Keep the data-testids stable so click-driven tests
+  // elsewhere keep working, but move them into `timeline-header`.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const header = component.locator('[data-testid="timeline-header"]');
+  await expect(header).toBeAttached();
+  await expect(
+    header.locator('[data-testid="timeline-zoom-in"]'),
+  ).toBeAttached();
+  await expect(
+    header.locator('[data-testid="timeline-zoom-out"]'),
+  ).toBeAttached();
+
+  // Footer must no longer own them.
+  const footer = component.locator('[data-testid="timeline-footer"]');
+  await expect(footer.locator('[data-testid="timeline-zoom-in"]')).toHaveCount(
+    0,
+  );
+  await expect(footer.locator('[data-testid="timeline-zoom-out"]')).toHaveCount(
+    0,
+  );
+});
+
+test("zoom controls share the header row with the minimap once zoomed", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  const header = component.locator('[data-testid="timeline-header"]');
+  await expect(
+    header.locator('[data-testid="timeline-minimap"]'),
+  ).toBeAttached();
+  await expect(
+    header.locator('[data-testid="timeline-zoom-in"]'),
   ).toBeAttached();
 });
 

@@ -14,6 +14,11 @@ import { expandAndValidate } from "./lib/expandAndValidate";
 import { findClosestMatch } from "./lib/levenshtein";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
 import {
+  ASSET_GLOB,
+  buildCompletionGlob,
+  parseFilePathCompletionContext,
+} from "./lib/filePathCompletion";
+import {
   fillTemplates,
   getReferencedAssets,
   treatmentFileSchema,
@@ -307,10 +312,7 @@ class FilePathQuickFixProvider implements vscode.CodeActionProvider {
       this.cachedTreatmentDir !== treatmentDirFsPath
     ) {
       const allFiles = await vscode.workspace.findFiles(
-        new vscode.RelativePattern(
-          workspaceFolder,
-          "**/*.{prompt.md,md,yaml,jpg,jpeg,png,mp3,mp4}",
-        ),
+        new vscode.RelativePattern(workspaceFolder, ASSET_GLOB),
         "**/node_modules/**",
         5000,
       );
@@ -351,8 +353,11 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
     const line = document.lineAt(position).text;
     const prefix = line.substring(0, position.character);
 
-    // Trigger after "file:" anywhere in the line (handles "- file:", indented, etc.)
-    if (!/\bfile:\s/.test(prefix)) return undefined;
+    // Trigger inside the value of any recognised file-path field:
+    // `file:` (prompt/image/audio), `url:` (mediaPlayer — including local
+    // video files), or `captionsFile:` (mediaPlayer captions).
+    const ctx = parseFilePathCompletionContext(prefix);
+    if (!ctx) return undefined;
 
     if (!vscode.workspace.workspaceFolders?.length) return undefined;
 
@@ -362,15 +367,7 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
     // Completions should be relative to the treatment file's directory
     const treatmentDirFsPath = vscode.Uri.joinPath(document.uri, "..").fsPath;
 
-    // Get the partial path the user has typed so far
-    const fileValueMatch = prefix.match(/\bfile:\s+(.*)/);
-    const partial = fileValueMatch?.[1] ?? "";
-
-    // Sanitize glob metacharacters in user input
-    const sanitized = partial.replace(/[*?[\]{}]/g, "\\$&");
-    const globPattern = sanitized
-      ? `**/${sanitized}*`
-      : "**/*.{prompt.md,md,yaml}";
+    const globPattern = buildCompletionGlob(ctx.partial);
     const files = await vscode.workspace.findFiles(
       new vscode.RelativePattern(workspaceFolder, globPattern),
       "**/node_modules/**",
@@ -391,12 +388,9 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
       );
       item.insertText = relativePath;
       // Replace only the value portion (not trailing comments)
-      const valueStart = prefix.lastIndexOf("file:") + "file:".length;
-      const whitespaceAfterColon =
-        prefix.substring(valueStart).match(/^\s*/)?.[0] ?? " ";
       item.range = new vscode.Range(
         position.line,
-        valueStart + whitespaceAfterColon.length,
+        ctx.valueStart,
         position.line,
         valueEnd,
       );

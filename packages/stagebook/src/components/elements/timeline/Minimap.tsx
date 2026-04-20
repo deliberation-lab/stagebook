@@ -213,7 +213,6 @@ export function Minimap({
         height: `${String(HEIGHT)}px`,
         width: `${String(width)}px`,
         background: "var(--stagebook-bg-muted, #f9fafb)",
-        borderBottom: "1px solid var(--stagebook-border, #e5e7eb)",
         cursor: "pointer",
         userSelect: "none",
         touchAction: "none",
