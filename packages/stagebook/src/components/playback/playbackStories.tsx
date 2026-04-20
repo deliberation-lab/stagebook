@@ -23,6 +23,7 @@ export function makeHandle(
     channelCount: 0,
     peaks: [],
     peaksVersion: 0,
+    durationVersion: 1,
     requestWaveformCapture() {},
     setChannelMuted() {},
     isChannelMuted: () => false,

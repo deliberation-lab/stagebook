@@ -32,6 +32,14 @@ export interface PlaybackHandle {
   readonly peaksVersion: number;
 
   /**
+   * Monotonically increasing counter that bumps when the media duration
+   * becomes known (loadedmetadata). Consumers that render based on duration
+   * (e.g., Timeline selection positioning) should read this to trigger a
+   * re-render once the duration is available.
+   */
+  readonly durationVersion: number;
+
+  /**
    * Request the MediaPlayer to start capturing waveform data.
    * Lazily creates AudioContext + AnalyserNodes on first call.
    * No-op on subsequent calls. No-op for YouTube sources.

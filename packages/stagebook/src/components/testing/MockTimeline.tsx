@@ -41,6 +41,7 @@ function makeRefBackedHandle(refs: {
   captureCallCount: { current: number };
   peaks: { current: Float32Array[] };
   peaksVersion: { current: number };
+  durationVersion: { current: number };
   muted: { current: boolean[] };
 }): PlaybackHandle {
   return {
@@ -65,6 +66,9 @@ function makeRefBackedHandle(refs: {
     },
     get peaksVersion() {
       return refs.peaksVersion.current;
+    },
+    get durationVersion() {
+      return refs.durationVersion.current;
     },
     requestWaveformCapture() {
       refs.captureCallCount.current += 1;
@@ -135,6 +139,7 @@ export function MockTimeline({
   const captureCallCountRef = useRef(0);
   const peaksRef = useRef<Float32Array[]>([]);
   const peaksVersionRef = useRef(0);
+  const durationVersionRef = useRef(1);
   // Channel mute state the handle reports. Tests read this through the
   // <div data-testid="mute-state"> below.
   const mutedRef = useRef<boolean[]>([]);
@@ -174,6 +179,7 @@ export function MockTimeline({
         captureCallCount: captureCallCountRef,
         peaks: peaksRef,
         peaksVersion: peaksVersionRef,
+        durationVersion: durationVersionRef,
         muted: mutedRef,
       }),
     // Refs only — handle is stable for the lifetime of the mock.
