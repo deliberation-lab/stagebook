@@ -168,6 +168,7 @@ export function Stage({ stage, onSubmit }: StageProps) {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           height: "100%",
           width: "100%",
           flexDirection: "row",
@@ -192,13 +193,14 @@ export function Stage({ stage, onSubmit }: StageProps) {
           {renderDiscussion(stage.discussion)}
         </div>
 
-        {/* Elements column — scrollable independently */}
+        {/* Elements column — scrollable independently.
+            flex: "1 1 20rem" lets it share space in row mode (40vw preferred)
+            but stretch to full width when the container wraps to column. */}
         <div
           ref={discussionContentRef}
           data-testid="stageContent"
           style={{
-            width: "40vw",
-            minWidth: "20rem",
+            flex: "1 1 20rem",
             maxWidth: "48rem",
             overflowY: "auto",
             scrollBehavior: "smooth",
