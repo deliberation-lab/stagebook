@@ -33,6 +33,13 @@ export interface StagebookContext {
   getAssetURL(path: string): string;
   getTextContent(path: string): Promise<string>;
 
+  /**
+   * Monotonically increasing counter that signals cached content is stale.
+   * When bumped, useTextContent re-fetches all paths. Optional — hosts that
+   * never change content (production experiments) can omit it entirely.
+   */
+  contentVersion?: number;
+
   // Identity and progress
   progressLabel: string;
   playerId: string;
@@ -163,14 +170,15 @@ export interface TextContentResult {
 }
 
 export function useTextContent(path: string): TextContentResult {
-  const { getTextContent } = useStagebookContext();
+  const { getTextContent, contentVersion } = useStagebookContext();
   const [data, setData] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | undefined>(undefined);
 
   // Ref `getTextContent` so a rebuilt StagebookContext (fresh function
-  // identity each render) doesn't cause the fetch effect to re-fire and
-  // refetch content on every parent re-render (#105).
+  // identity each render) doesn't cause the fetch effect to re-fire on
+  // every parent re-render (#105). Intentional cache busts are signaled
+  // via `contentVersion` instead of function identity.
   const getTextContentRef = useRef(getTextContent);
   getTextContentRef.current = getTextContent;
 
@@ -204,7 +212,10 @@ export function useTextContent(path: string): TextContentResult {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+    // contentVersion is bumped by the host when cached content should be
+    // re-fetched (e.g. VS Code preview refresh). getTextContent is ref'd
+    // to avoid re-fetches from unstable context identity (#105).
+  }, [path, contentVersion ?? 0]);
 
   return { data, isLoading, error };
 }

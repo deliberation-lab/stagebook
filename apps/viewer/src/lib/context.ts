@@ -9,6 +9,7 @@ export interface ViewerContextOptions {
   onSubmit: () => void;
   getTextContent: (path: string) => Promise<string>;
   getAssetURL: (path: string) => string;
+  contentVersion?: number;
   renderers?: Partial<
     Pick<
       StagebookContext,
@@ -37,6 +38,7 @@ export function createViewerContext(
     onSubmit,
     getTextContent,
     getAssetURL,
+    contentVersion,
     renderers,
   } = options;
 
@@ -64,6 +66,7 @@ export function createViewerContext(
 
     getAssetURL,
     getTextContent,
+    contentVersion,
 
     progressLabel: `game_${stageIndex}`,
     playerId: "viewer",
