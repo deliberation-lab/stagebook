@@ -124,6 +124,7 @@ export function Playhead({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         style={{
+          ...tooltipBaseStyle,
           position: "absolute",
           top: 0,
           left: "50%",
@@ -132,7 +133,6 @@ export function Playhead({
           background: "var(--stagebook-playhead, #e11d48)",
           cursor: "ew-resize",
           userSelect: "none",
-          ...tooltipBaseStyle,
         }}
       >
         {formatTime(currentTime, zoomDecimals(zoomLevel))}

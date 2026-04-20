@@ -2568,3 +2568,32 @@ test("handle hover shows time tooltip", async ({ mount }) => {
   // Tooltip should appear with the formatted start time
   await expect(startHandle).toContainText("0:10");
 });
+
+test("playhead time box is draggable (pointerEvents: auto)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="drag_test"
+      selectionType="range"
+      mockCurrentTime={30}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await expect(timeline).toBeAttached();
+
+  const playhead = component.locator('[data-testid="playhead"]');
+  await expect(playhead).toBeAttached();
+
+  // The time box (first child of playhead) must have pointerEvents: auto
+  // so it can receive drag events. A regression occurred when shared
+  // tooltipBaseStyle (which has pointerEvents: none) was spread after
+  // the auto override, silently disabling dragging.
+  const timeBox = playhead.locator("div").first();
+  const pointerEvents = await timeBox.evaluate(
+    (el) => getComputedStyle(el).pointerEvents,
+  );
+  expect(pointerEvents).toBe("auto");
+});
