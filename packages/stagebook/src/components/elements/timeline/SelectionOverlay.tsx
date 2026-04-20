@@ -448,7 +448,9 @@ export function SelectionOverlay({
           <div
             data-testid={`range-${String(i)}-handle-start`}
             data-active={isActive && activeHandle === "start"}
+            draggable={false}
             onPointerDown={(e) => {
+              e.preventDefault(); // suppress native drag-and-drop
               setHoveredHandle({ index: i, handle: "start" });
               handleHandlePointerDown(e, i, "start");
             }}
@@ -483,7 +485,9 @@ export function SelectionOverlay({
           <div
             data-testid={`range-${String(i)}-handle-end`}
             data-active={isActive && activeHandle === "end"}
+            draggable={false}
             onPointerDown={(e) => {
+              e.preventDefault(); // suppress native drag-and-drop
               setHoveredHandle({ index: i, handle: "end" });
               handleHandlePointerDown(e, i, "end");
             }}

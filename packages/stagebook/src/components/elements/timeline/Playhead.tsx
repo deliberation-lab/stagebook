@@ -120,7 +120,11 @@ export function Playhead({
     >
       {/* Time box — draggable handle in the ruler area */}
       <div
-        onPointerDown={handlePointerDown}
+        draggable={false}
+        onPointerDown={(e) => {
+          e.preventDefault(); // suppress native drag-and-drop
+          handlePointerDown(e);
+        }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         style={{
