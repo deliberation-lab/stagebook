@@ -58,6 +58,51 @@ test("renders an iframe for YouTube URL", async ({ mount }) => {
   ).not.toBeAttached();
 });
 
+// -- Viewport border: edges stay visible when video content is near-white --
+// Without a border or subtle outline, light-colored content (a washed-out
+// blurred background, a whiteboard) bleeds into the page. The viewport div
+// is where the definition needs to live so it applies equally to HTML5 and
+// YouTube embeds.
+
+test("video viewport has a visible edge for white-content visibility", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer url="/sample-video.mp4" name="test" />,
+  );
+  const viewport = component.locator('[data-testid="mediaPlayer-viewport"]');
+  const { borderTopWidth, boxShadow } = await viewport.evaluate((el) => {
+    const s = window.getComputedStyle(el);
+    return {
+      borderTopWidth: s.borderTopWidth,
+      boxShadow: s.boxShadow,
+    };
+  });
+  // Either a non-zero border or a non-"none" box-shadow suffices.
+  const hasBorder = borderTopWidth !== "0px";
+  const hasShadow = boxShadow !== "none";
+  expect(hasBorder || hasShadow).toBe(true);
+});
+
+test("YouTube viewport has the same visible edge as HTML5", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockMediaPlayer url="https://youtu.be/QC8iQqtG0hg" name="test" />,
+  );
+  const viewport = component.locator('[data-testid="mediaPlayer-viewport"]');
+  const { borderTopWidth, boxShadow } = await viewport.evaluate((el) => {
+    const s = window.getComputedStyle(el);
+    return {
+      borderTopWidth: s.borderTopWidth,
+      boxShadow: s.boxShadow,
+    };
+  });
+  const hasBorder = borderTopWidth !== "0px";
+  const hasShadow = boxShadow !== "none";
+  expect(hasBorder || hasShadow).toBe(true);
+});
+
 // -- YouTube IFrame API integration --
 
 // Injects a synchronous mock window.YT into the page so YouTubePlayer's
