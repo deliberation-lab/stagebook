@@ -360,3 +360,34 @@ describe("edge cases", () => {
     expect(result).toEqual([]);
   });
 });
+
+describe("millisecond rounding", () => {
+  test("createRange rounds start/end to 3 decimal places", () => {
+    const result = createRange(
+      8.158326452250607,
+      13.313919717533455,
+      undefined,
+      [],
+    );
+    expect(result).not.toBeNull();
+    expect(result!.start).toBe(8.158);
+    expect(result!.end).toBe(13.314);
+  });
+
+  test("createPoint rounds time to 3 decimal places", () => {
+    const result = createPoint(8.158326452250607, undefined);
+    expect(result.time).toBe(8.158);
+  });
+
+  test("adjustHandle rounds to 3 decimal places", () => {
+    const selections = [{ start: 10, end: 20 }];
+    const result = adjustHandle(selections, 0, "start", 8.158326452250607);
+    expect(result[0].start).toBe(8.158);
+  });
+
+  test("repositionPoint rounds to 3 decimal places", () => {
+    const selections = [{ time: 10 }];
+    const result = repositionPoint(selections, 0, 8.158326452250607);
+    expect(result[0].time).toBe(8.158);
+  });
+});

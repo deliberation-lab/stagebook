@@ -1,6 +1,11 @@
 // Selection data model for Timeline component.
 // Pure TypeScript — no React/DOM dependencies.
 
+/** Round to millisecond precision (3 decimal places). */
+function roundMs(t: number): number {
+  return Math.round(t * 1000) / 1000;
+}
+
 export interface RangeSelection {
   track?: number;
   start: number;
@@ -114,8 +119,8 @@ export function createRange(
   if (!clamped) return null;
 
   const range: RangeSelection = {
-    start: clamped.start,
-    end: clamped.end,
+    start: roundMs(clamped.start),
+    end: roundMs(clamped.end),
   };
   if (track !== undefined) range.track = track;
   return range;
@@ -159,7 +164,7 @@ export function adjustHandle(
       }
     }
 
-    target.start = clampedTime;
+    target.start = roundMs(clampedTime);
   } else {
     let clampedTime = newTime;
 
@@ -174,7 +179,7 @@ export function adjustHandle(
       }
     }
 
-    target.end = clampedTime;
+    target.end = roundMs(clampedTime);
   }
 
   return result;
@@ -188,7 +193,7 @@ export function createPoint(
   time: number,
   track: number | undefined,
 ): PointSelection {
-  const point: PointSelection = { time };
+  const point: PointSelection = { time: roundMs(time) };
   if (track !== undefined) point.track = track;
   return point;
 }
@@ -198,7 +203,9 @@ export function repositionPoint(
   index: number,
   newTime: number,
 ): PointSelection[] {
-  return selections.map((s, i) => (i === index ? { ...s, time: newTime } : s));
+  return selections.map((s, i) =>
+    i === index ? { ...s, time: roundMs(newTime) } : s,
+  );
 }
 
 // ---------------------------------------------------------------------------

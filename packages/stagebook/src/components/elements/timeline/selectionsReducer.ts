@@ -100,8 +100,8 @@ export function selectionsReducer(
       // clamp against ranges that are about to be discarded, and don't try
       // to "keep the last in time order" (that would keep the wrong one).
       if (!action.multiSelect) {
-        const lo = Math.min(action.start, action.end);
-        const hi = Math.max(action.start, action.end);
+        const lo = Math.round(Math.min(action.start, action.end) * 1000) / 1000;
+        const hi = Math.round(Math.max(action.start, action.end) * 1000) / 1000;
         if (hi <= lo) return state;
         const range: RangeSelection = { start: lo, end: hi };
         if (action.track !== undefined) range.track = action.track;
