@@ -114,6 +114,10 @@ describe("flattenSteps", () => {
       chatType: "video" as const,
       showNickname: true,
       showTitle: true,
+      showSelfView: true,
+      showReportMissing: true,
+      showAudioMute: true,
+      showVideoMute: true,
     };
     const withDiscussion = {
       ...treatment,

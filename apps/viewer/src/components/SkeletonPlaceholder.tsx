@@ -1,4 +1,5 @@
 import React from "react";
+import type { DiscussionType } from "stagebook";
 
 interface SkeletonPlaceholderProps {
   type: string;
@@ -21,77 +22,60 @@ const chatTypeLabels: Record<string, string> = {
  * Build a human-readable summary of discussion configuration options,
  * filtered to only those relevant to the chatType.
  */
-function describeDiscussionConfig(config: Record<string, unknown>): string[] {
+function describeDiscussionConfig(config: DiscussionType): string[] {
   const lines: string[] = [];
-  const chatType = config.chatType as string | undefined;
 
-  if (config.showNickname !== undefined) {
-    lines.push(`Nicknames: ${config.showNickname ? "shown" : "hidden"}`);
-  }
+  lines.push(`Nicknames: ${config.showNickname ? "shown" : "hidden"}`);
 
-  if (chatType === "video" && config.showSelfView !== undefined) {
+  if (config.chatType === "video") {
     lines.push(`Self-view: ${config.showSelfView ? "shown" : "hidden"}`);
   }
 
-  if (config.showReportMissing !== undefined) {
-    lines.push(
-      `Report missing: ${config.showReportMissing ? "available" : "unavailable"}`,
-    );
-  }
+  lines.push(
+    `Report missing: ${config.showReportMissing ? "available" : "unavailable"}`,
+  );
 
-  if (
-    (chatType === "audio" || chatType === "video") &&
-    config.showAudioMute !== undefined
-  ) {
+  if (config.chatType === "audio" || config.chatType === "video") {
     lines.push(
       `Audio mute: ${config.showAudioMute ? "available" : "unavailable"}`,
     );
   }
 
-  if (chatType === "video" && config.showVideoMute !== undefined) {
+  if (config.chatType === "video") {
     lines.push(
       `Video mute: ${config.showVideoMute ? "available" : "unavailable"}`,
     );
   }
 
-  if (chatType === "text") {
+  if (config.chatType === "text") {
     if (
-      Array.isArray(config.reactionEmojisAvailable) &&
+      config.reactionEmojisAvailable &&
       config.reactionEmojisAvailable.length > 0
     ) {
-      lines.push(
-        `Reactions: ${(config.reactionEmojisAvailable as string[]).join(" ")}`,
-      );
+      lines.push(`Reactions: ${config.reactionEmojisAvailable.join(" ")}`);
     }
     if (config.numReactionsPerMessage !== undefined) {
-      lines.push(
-        `Reactions per message: ${config.numReactionsPerMessage as number}`,
-      );
+      lines.push(`Reactions per message: ${config.numReactionsPerMessage}`);
     }
     if (config.reactToSelf !== undefined) {
       lines.push(`React to own messages: ${config.reactToSelf ? "yes" : "no"}`);
     }
   }
 
-  if (chatType === "video" && config.rooms !== undefined) {
-    const rooms = config.rooms as unknown[];
-    lines.push(`Rooms: ${rooms.length} configured`);
+  if (config.chatType === "video" && config.rooms) {
+    lines.push(`Rooms: ${config.rooms.length} configured`);
   }
 
-  if (chatType === "video" && config.layout !== undefined) {
+  if (config.chatType === "video" && config.layout) {
     lines.push("Layout: custom layout configured");
   }
 
-  if (config.showToPositions !== undefined) {
-    lines.push(
-      `Shown to positions: ${(config.showToPositions as number[]).join(", ")}`,
-    );
+  if (config.showToPositions) {
+    lines.push(`Shown to positions: ${config.showToPositions.join(", ")}`);
   }
 
-  if (config.hideFromPositions !== undefined) {
-    lines.push(
-      `Hidden from positions: ${(config.hideFromPositions as number[]).join(", ")}`,
-    );
+  if (config.hideFromPositions) {
+    lines.push(`Hidden from positions: ${config.hideFromPositions.join(", ")}`);
   }
 
   return lines;
@@ -103,10 +87,10 @@ export function SkeletonPlaceholder({
 }: SkeletonPlaceholderProps) {
   // Discussion gets a rich, type-aware placeholder
   if (type === "discussion" && config) {
-    const chatType = config.chatType as string | undefined;
-    const icon = chatType ? chatTypeIcons[chatType] : undefined;
-    const label = chatType ? chatTypeLabels[chatType] : "Discussion";
-    const configLines = describeDiscussionConfig(config);
+    const discussion = config as unknown as DiscussionType;
+    const icon = chatTypeIcons[discussion.chatType];
+    const label = chatTypeLabels[discussion.chatType] ?? "Discussion";
+    const configLines = describeDiscussionConfig(discussion);
 
     return (
       <div style={discussionContainerStyle}>
