@@ -428,8 +428,6 @@ export function MediaPlayer({
 
   // Hold-to-scrub state
   const arrowRepeatCountRef = useRef(0);
-  const isFastScrubbing = useRef(false);
-  const pausedBeforeScrub = useRef(true);
   const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -665,23 +663,6 @@ export function MediaPlayer({
     [allowScrubOutsideBounds, startAt, stopAt, ytHandle, recordEvent],
   );
 
-  const exitFastScrub = useCallback(() => {
-    const v = videoRef.current;
-    if (!v || !isFastScrubbing.current) return;
-    isFastScrubbing.current = false;
-    v.playbackRate = playbackRate;
-    if (pausedBeforeScrub.current) v.pause();
-  }, [playbackRate]);
-
-  const enterFastScrubForward = useCallback(() => {
-    const v = videoRef.current;
-    if (!v || isFastScrubbing.current) return;
-    isFastScrubbing.current = true;
-    pausedBeforeScrub.current = v.paused;
-    v.playbackRate = 2;
-    if (v.paused) void v.play();
-  }, []);
-
   const cycleSpeed = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -745,7 +726,7 @@ export function MediaPlayer({
           if (e.repeat) {
             arrowRepeatCountRef.current++;
             if (arrowRepeatCountRef.current >= HOLD_REPEAT_THRESHOLD) {
-              enterFastScrubForward();
+              seek(0.5);
             }
           } else {
             arrowRepeatCountRef.current = 0;
@@ -757,7 +738,6 @@ export function MediaPlayer({
           if (e.repeat) {
             arrowRepeatCountRef.current++;
             if (arrowRepeatCountRef.current >= HOLD_REPEAT_THRESHOLD) {
-              // Rewind: keep seeking back rapidly
               seek(-0.5);
             }
           } else {
@@ -803,82 +783,60 @@ export function MediaPlayer({
           break;
       }
     },
-    [
-      effectivePlayback,
-      seek,
-      stepDuration,
-      playbackRate,
-      enterFastScrubForward,
-    ],
+    [effectivePlayback, seek, stepDuration, playbackRate],
   );
 
-  const handleKeyUp = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        arrowRepeatCountRef.current = 0;
-        exitFastScrub();
-      }
-    },
-    [exitFastScrub],
-  );
+  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      arrowRepeatCountRef.current = 0;
+    }
+  }, []);
 
-  // Button hold-to-scrub
+  // Button hold-to-scrub — rapid discrete seeks in both directions
   const startButtonHold = useCallback(
     (direction: 1 | -1) => {
       holdTimeoutRef.current = setTimeout(() => {
-        const v = videoRef.current;
-        if (!v) return;
-        if (direction === 1) {
-          enterFastScrubForward();
-        } else {
-          isFastScrubbing.current = true;
-          pausedBeforeScrub.current = v.paused;
-          // Step back rapidly via interval
-          holdIntervalRef.current = setInterval(() => {
-            seek(-0.5);
-          }, 100);
-        }
+        holdIntervalRef.current = setInterval(() => {
+          seek(direction * 0.5);
+        }, 100);
       }, 500);
     },
-    [enterFastScrubForward, seek],
+    [seek],
   );
 
-  const endButtonHold = useCallback(
-    (didSeekOnClick: boolean) => {
-      if (holdTimeoutRef.current !== null) {
-        clearTimeout(holdTimeoutRef.current);
-        holdTimeoutRef.current = null;
-      }
-      if (holdIntervalRef.current !== null) {
-        clearInterval(holdIntervalRef.current);
-        holdIntervalRef.current = null;
-      }
-      exitFastScrub();
-      isFastScrubbing.current = false;
-      void didSeekOnClick;
-    },
-    [exitFastScrub],
-  );
+  const endButtonHold = useCallback(() => {
+    if (holdTimeoutRef.current !== null) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+    if (holdIntervalRef.current !== null) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+  }, []);
+
+  // Track whether a hold-to-scrub was active so a single click (no hold)
+  // still does a one-step seek.
+  const holdWasActive = useCallback(() => {
+    return holdIntervalRef.current !== null;
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Callbacks forwarded to HTML5Controls / YouTubeControls
   // ---------------------------------------------------------------------------
 
-  // Seek button: read isFastScrubbing before endButtonHold resets it, then
-  // do a single-step seek only if the hold didn't already move the playhead.
+  // Seek button: do a single-step seek only if the hold didn't already
+  // move the playhead via the interval.
   const onSeekButtonRelease = useCallback(
     (direction: 1 | -1) => {
-      const wasHeld = isFastScrubbing.current;
-      endButtonHold(false);
+      const wasHeld = holdWasActive();
+      endButtonHold();
       if (!wasHeld) seek(direction);
     },
-    [endButtonHold, seek],
+    [endButtonHold, holdWasActive, seek],
   );
 
-  const onSeekButtonLeave = useCallback(
-    () => endButtonHold(false),
-    [endButtonHold],
-  );
+  const onSeekButtonLeave = useCallback(() => endButtonHold(), [endButtonHold]);
 
   const onPlayPause = useCallback(() => {
     const v = videoRef.current;
