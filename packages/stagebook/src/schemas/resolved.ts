@@ -12,7 +12,6 @@
 import { z } from "zod";
 import {
   nameSchema,
-  descriptionSchema,
   durationSchema,
   displayTimeSchema,
   hideTimeSchema,
@@ -73,7 +72,6 @@ const resolvedConditionsSchema = z.array(resolvedConditionSchema).optional();
 const resolvedElementBaseSchema = z.object({
   type: z.string(),
   name: nameSchema.optional(),
-  desc: descriptionSchema.optional(),
   file: z.string().optional(),
   displayTime: displayTimeSchema.optional(),
   hideTime: hideTimeSchema.optional(),
@@ -134,7 +132,6 @@ export type ResolvedElementType = z.infer<typeof resolvedElementSchema>;
 
 export const resolvedStageSchema = z.object({
   name: nameSchema,
-  desc: descriptionSchema.optional(),
   discussion: discussionSchema.optional(),
   duration: durationSchema,
   elements: z.array(resolvedElementSchema).nonempty(),
@@ -147,7 +144,6 @@ export type ResolvedStageType = z.infer<typeof resolvedStageSchema>;
 
 export const resolvedIntroExitStepSchema = z.object({
   name: nameSchema,
-  desc: descriptionSchema.optional(),
   elements: z.array(resolvedElementSchema).nonempty(),
 });
 export type ResolvedIntroExitStepType = z.infer<
@@ -160,12 +156,10 @@ export type ResolvedIntroExitStepType = z.infer<
 
 export const resolvedTreatmentSchema = z.object({
   name: nameSchema,
-  desc: descriptionSchema.optional(),
   playerCount: z.number(),
   groupComposition: z
     .array(
       z.object({
-        desc: descriptionSchema.optional(),
         position: positionSchema,
         title: z.string().max(25).optional(),
         conditions: resolvedConditionsSchema,

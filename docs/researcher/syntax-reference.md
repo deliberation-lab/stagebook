@@ -65,7 +65,7 @@ conditions:
 
 ## 6. Elements
 
-All elements accept: `name?`, `desc?`, `file?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`.
+All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`.
 
 | Type | Key Fields |
 |------|-----------|

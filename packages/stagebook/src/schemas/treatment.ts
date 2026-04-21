@@ -16,7 +16,7 @@ function isValidRegex(pattern: string): boolean {
   }
 }
 
-// ------------------ Names, descriptions, and files ------------------ //
+// ------------------ Names and files ------------------ //
 
 // Field placeholder pattern: only alphanumeric + underscore.
 // Must match FIELD_PLACEHOLDER_REGEX in templates/fillTemplates.ts
@@ -39,9 +39,6 @@ export const nameSchema = z
       "Name must be alphanumeric, cannot have special characters, with optional template fields in the format ${fieldname}",
   });
 export type NameType = z.infer<typeof nameSchema>;
-
-export const descriptionSchema = z.string();
-export type DescriptionType = z.infer<typeof descriptionSchema>;
 
 // TODO: check that file exists
 export const fileSchema = z.string().optional();
@@ -674,7 +671,6 @@ export type ConditionType = z.infer<typeof conditionSchema>;
 
 export const playerSchema = z
   .object({
-    desc: descriptionSchema.optional(),
     position: positionSchema,
     title: z.string().max(25).optional(),
     conditions: z
@@ -692,7 +688,7 @@ export type PlayerType = z.infer<typeof playerSchema>;
 const elementBaseSchema = z
   .object({
     name: nameSchema.optional(),
-    desc: descriptionSchema.optional(),
+    notes: z.string().optional(),
     file: fileSchema.or(fieldPlaceholderSchema).optional(),
     displayTime: displayTimeSchema.or(fieldPlaceholderSchema).optional(),
     hideTime: hideTimeSchema.or(fieldPlaceholderSchema).optional(),
@@ -1085,7 +1081,7 @@ export const stageSchema = altTemplateContext(
   z
     .object({
       name: nameSchema,
-      desc: descriptionSchema.optional(),
+      notes: z.string().optional(),
       discussion: discussionSchema.optional(),
       duration: durationSchema.or(fieldPlaceholderSchema),
       elements: elementsSchema,
@@ -1146,7 +1142,7 @@ export const introExitStepSchema = altTemplateContext(
   z
     .object({
       name: nameSchema,
-      desc: descriptionSchema.optional(),
+      notes: z.string().optional(),
       elements: elementsSchema,
     })
     .strict(),
@@ -1281,7 +1277,7 @@ export const introSequenceSchema = altTemplateContext(
   z
     .object({
       name: nameSchema,
-      desc: descriptionSchema.optional(),
+      notes: z.string().optional(),
       introSteps: introStepsSchema,
     })
     .strict(),
@@ -1302,7 +1298,6 @@ export const introSequencesSchema = altTemplateContext(
 export const baseTreatmentSchema = z
   .object({
     name: nameSchema,
-    desc: descriptionSchema.optional(),
     notes: z.string().optional(),
     playerCount: z.number(),
     groupComposition: z
@@ -1653,7 +1648,8 @@ export const templateSchema = z
         "other",
       ])
       .optional(),
-    templateDesc: descriptionSchema.optional(),
+    templateDesc: z.string().optional(),
+    notes: z.string().optional(),
     templateContent: z.any(),
   })
   .strict()
