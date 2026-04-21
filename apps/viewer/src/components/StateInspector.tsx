@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { getReferenceKeyAndPath, getNestedValueByPath } from "stagebook";
+import { Markdown } from "stagebook/components";
 import { ViewerStateStore } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
+
+/** DOM id used to scroll a specific element's note into view. */
+export function noteAnchorId(
+  elementType: string,
+  elementName?: string,
+): string {
+  return `note-${elementType}${elementName ? `-${elementName}` : ""}`;
+}
 
 interface StateInspectorProps {
   store: ViewerStateStore;
@@ -66,6 +75,9 @@ export function StateInspector({
         <p style={emptyStyle}>No external references on this stage.</p>
       )}
 
+      {/* Researcher notes (never shown to participants) */}
+      <NotesSection currentStep={currentStep} />
+
       {/* All state expansion */}
       <button onClick={() => setShowAll(!showAll)} style={expandButtonStyle}>
         {showAll ? "▾ Hide all state" : "▸ Show all state"}
@@ -79,6 +91,56 @@ export function StateInspector({
         />
       )}
     </div>
+  );
+}
+
+interface ElementNote {
+  type: string;
+  name?: string;
+  notes: string;
+}
+
+function NotesSection({ currentStep }: { currentStep: ViewerStep }) {
+  const stageNote = currentStep.notes;
+  const elementNotes: ElementNote[] = [];
+  for (const el of currentStep.elements) {
+    const e = el as { type: string; name?: string; notes?: string };
+    if (e.notes) {
+      elementNotes.push({ type: e.type, name: e.name, notes: e.notes });
+    }
+  }
+
+  if (!stageNote && elementNotes.length === 0) return null;
+
+  return (
+    <>
+      <div style={{ ...sectionHeaderStyle, marginTop: "1rem" }}>Notes</div>
+      <div style={notesStackStyle}>
+        {stageNote && (
+          <div style={noteItemStyle}>
+            <div style={noteLabelStyle}>Stage: {currentStep.name}</div>
+            <div style={noteBodyStyle}>
+              <Markdown text={stageNote} />
+            </div>
+          </div>
+        )}
+        {elementNotes.map((n, i) => (
+          <div
+            id={noteAnchorId(n.type, n.name)}
+            key={`${n.type}-${n.name ?? "anon"}-${i}`}
+            style={noteItemStyle}
+          >
+            <div style={noteLabelStyle}>
+              Element: {n.name ?? "(unnamed)"}{" "}
+              <span style={noteTypeStyle}>({n.type})</span>
+            </div>
+            <div style={noteBodyStyle}>
+              <Markdown text={n.notes} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -314,4 +376,40 @@ const allStateValueStyle: React.CSSProperties = {
   color: "#6b7280",
   marginTop: "0.125rem",
   wordBreak: "break-all" as const,
+};
+
+const notesStackStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.5rem",
+  marginTop: "0.25rem",
+};
+
+const noteItemStyle: React.CSSProperties = {
+  padding: "0.5rem 0.625rem",
+  backgroundColor: "#fffbeb",
+  border: "1px solid #fde68a",
+  borderRadius: "0.375rem",
+  fontSize: "0.75rem",
+  color: "#374151",
+  scrollMarginTop: "1rem",
+  transition: "background-color 300ms ease-out",
+};
+
+const noteLabelStyle: React.CSSProperties = {
+  fontSize: "0.6875rem",
+  fontWeight: 600,
+  color: "#92400e",
+  marginBottom: "0.25rem",
+};
+
+const noteTypeStyle: React.CSSProperties = {
+  fontWeight: 400,
+  color: "#b45309",
+  fontFamily: "monospace",
+};
+
+const noteBodyStyle: React.CSSProperties = {
+  color: "#374151",
+  lineHeight: 1.45,
 };

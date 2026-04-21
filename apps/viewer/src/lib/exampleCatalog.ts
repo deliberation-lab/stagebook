@@ -13,6 +13,8 @@ export interface ExampleEntry {
   /** Content of every `*.prompt.md` in the example, keyed by path
    *  relative to the example directory (e.g. `"prompts/consent.prompt.md"`). */
   prompts: Record<string, string>;
+  /** README.md content, if present in the example directory. */
+  readme?: string;
 }
 
 /**
@@ -61,6 +63,7 @@ function buildEntry(
     notes: firstTreatment?.notes,
     yaml,
     prompts,
+    readme: textByPath[`${exampleDir}README.md`],
   };
 }
 
@@ -73,11 +76,10 @@ const yamlByPath = import.meta.glob(
   { query: "?raw", import: "default", eager: true },
 ) as Record<string, string>;
 
-const textByPath = import.meta.glob("../../../../examples/**/*.prompt.md", {
-  query: "?raw",
-  import: "default",
-  eager: true,
-}) as Record<string, string>;
+const textByPath = import.meta.glob(
+  ["../../../../examples/**/*.prompt.md", "../../../../examples/*/README.md"],
+  { query: "?raw", import: "default", eager: true },
+) as Record<string, string>;
 
 export const exampleCatalog: ExampleEntry[] = buildCatalog(
   yamlByPath,
@@ -91,6 +93,12 @@ export const exampleCatalog: ExampleEntry[] = buildCatalog(
 export function createExampleContentFns(entry: ExampleEntry) {
   return {
     getTextContent(path: string): Promise<string> {
+      // README is bundled separately from prompts but served via the same
+      // getTextContent channel so App.tsx can fetch it without knowing
+      // whether the source is an example or a URL.
+      if (path === "README.md" && entry.readme !== undefined) {
+        return Promise.resolve(entry.readme);
+      }
       const content = entry.prompts[path];
       if (content === undefined) {
         return Promise.reject(

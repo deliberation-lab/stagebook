@@ -13,7 +13,7 @@ import {
   type ExampleEntry,
 } from "./lib/exampleCatalog";
 import { LandingPage } from "./components/LandingPage";
-import { TreatmentPicker } from "./components/TreatmentPicker";
+import { OverviewPage } from "./components/OverviewPage";
 import { PreviewHost } from "./components/PreviewHost";
 
 type ContentFns = ReturnType<typeof createUrlContentFns>;
@@ -22,9 +22,10 @@ type AppState =
   | { phase: "landing" }
   | { phase: "loading"; url: string }
   | {
-      phase: "selecting";
+      phase: "overview";
       treatmentFile: TreatmentFileType;
       contentFns: ContentFns;
+      readmeContent: string | null;
     }
   | {
       phase: "viewing";
@@ -44,13 +45,22 @@ export function App() {
   const [state, setState] = useState<AppState>({ phase: "landing" });
 
   const enterTreatment = useCallback(
-    (treatmentFile: TreatmentFileType, contentFns: ContentFns) => {
+    async (treatmentFile: TreatmentFileType, contentFns: ContentFns) => {
+      const readmeContent = await contentFns
+        .getTextContent("README.md")
+        .catch(() => null);
+
       const needsPicker =
         treatmentFile.introSequences.length > 1 ||
         treatmentFile.treatments.length > 1;
 
-      if (needsPicker) {
-        setState({ phase: "selecting", treatmentFile, contentFns });
+      if (needsPicker || readmeContent !== null) {
+        setState({
+          phase: "overview",
+          treatmentFile,
+          contentFns,
+          readmeContent,
+        });
       } else {
         setState({
           phase: "viewing",
@@ -69,7 +79,7 @@ export function App() {
       setState({ phase: "loading", url });
       try {
         const { treatmentFile, rawBaseUrl } = await loadTreatmentFromUrl(url);
-        enterTreatment(treatmentFile, createUrlContentFns(rawBaseUrl));
+        await enterTreatment(treatmentFile, createUrlContentFns(rawBaseUrl));
       } catch (err) {
         const validationIssues =
           err instanceof TreatmentValidationError ? err.issues : undefined;
@@ -85,10 +95,10 @@ export function App() {
   );
 
   const handleLoadExample = useCallback(
-    (entry: ExampleEntry) => {
+    async (entry: ExampleEntry) => {
       try {
         const treatmentFile = parseTreatmentYaml(entry.yaml);
-        enterTreatment(treatmentFile, createExampleContentFns(entry));
+        await enterTreatment(treatmentFile, createExampleContentFns(entry));
       } catch (err) {
         const validationIssues =
           err instanceof TreatmentValidationError ? err.issues : undefined;
@@ -134,11 +144,13 @@ export function App() {
         />
       );
 
-    case "selecting": {
-      const { treatmentFile, contentFns } = state;
+    case "overview": {
+      const { treatmentFile, contentFns, readmeContent } = state;
       return (
-        <TreatmentPicker
+        <OverviewPage
           treatmentFile={treatmentFile}
+          readmeContent={readmeContent}
+          onBack={() => setState({ phase: "landing" })}
           onSelect={(introIndex, treatmentIndex) => {
             setState({
               phase: "viewing",

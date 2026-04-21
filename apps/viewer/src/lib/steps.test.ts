@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenSteps, type ViewerStep } from "./steps";
+import { flattenSteps } from "./steps";
 
 describe("flattenSteps", () => {
   const introSequence = {
@@ -107,6 +107,38 @@ describe("flattenSteps", () => {
   it("assigns sequential indices", () => {
     const steps = flattenSteps(introSequence, treatment);
     expect(steps.map((s) => s.index)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("carries notes through on intro steps, game stages, and exit steps", () => {
+    const introWithNotes = {
+      ...introSequence,
+      introSteps: [
+        { ...introSequence.introSteps[0], notes: "Intro step rationale" },
+        introSequence.introSteps[1],
+      ],
+    };
+    const treatmentWithNotes = {
+      ...treatment,
+      gameStages: [
+        { ...treatment.gameStages[0], notes: "Stage rationale" },
+        treatment.gameStages[1],
+      ],
+      exitSequence: [
+        { ...treatment.exitSequence[0], notes: "Debrief rationale" },
+      ],
+    };
+    const steps = flattenSteps(introWithNotes, treatmentWithNotes);
+    expect(steps.find((s) => s.name === "consent")?.notes).toBe(
+      "Intro step rationale",
+    );
+    expect(steps.find((s) => s.name === "round1")?.notes).toBe(
+      "Stage rationale",
+    );
+    expect(steps.find((s) => s.name === "debrief")?.notes).toBe(
+      "Debrief rationale",
+    );
+    // Unannotated steps have no notes.
+    expect(steps.find((s) => s.name === "round2")?.notes).toBeUndefined();
   });
 
   it("carries discussion through on game stages", () => {
