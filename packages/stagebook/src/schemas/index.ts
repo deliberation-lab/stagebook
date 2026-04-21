@@ -11,7 +11,6 @@ export {
 
 export {
   nameSchema,
-  descriptionSchema,
   fileSchema,
   urlSchema,
   durationSchema,
@@ -48,7 +47,6 @@ export {
   timelineSchema,
   matchContentType,
   type NameType,
-  type DescriptionType,
   type FileType,
   type UrlType,
   type DurationType,

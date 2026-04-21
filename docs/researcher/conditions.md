@@ -260,13 +260,13 @@ You can also use URL parameters for pre-assigned roles:
 ```yaml
 groupComposition:
   - position: 0
-    desc: Confederate
+    title: Confederate
     conditions:
       - reference: urlParams.role
         comparator: equals
         value: confederate
   - position: 1
-    desc: Participant
+    title: Participant
     conditions:
       - reference: urlParams.role
         comparator: equals

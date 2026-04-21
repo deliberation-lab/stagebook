@@ -51,7 +51,7 @@ introSequences:
 
 treatments:
   - name: two_player_discussion
-    desc: Simple two-player video discussion
+    notes: Simple two-player video discussion
     playerCount: 2
 
     gameStages:
@@ -93,8 +93,29 @@ Each game stage has:
 | `duration` | integer | yes | Stage length in seconds |
 | `discussion` | object | no | Video/text chat configuration (see [Discussions](discussions.md)) |
 | `elements` | array | yes | UI elements displayed during the stage |
+| `notes` | string | no | Researcher-facing rationale, citations, or design decisions (see [Notes](#notes)) |
 
 Intro and exit steps have `name` and `elements` but no `duration` (they are untimed).
+
+## Notes
+
+Any treatment, stage, intro/exit step, element, template, or introSequence can carry a `notes` field. Notes are **researcher-facing only** — they're visible in the viewer and to authoring tools, but the platform runtime strips them before any data reaches participants.
+
+Use YAML's block scalar syntax (`|`) for multi-line markdown:
+
+```yaml
+- name: story_ratings
+  duration: 180
+  notes: |
+    Adapted from the narrative engagement scale (Busselle & Bilandzic, 2009).
+
+    We use 5 items instead of the original 12 to reduce participant fatigue.
+  elements:
+    - type: prompt
+      file: task/story_well_told.prompt.md
+```
+
+> `notes` replaces the old `desc` field. Treatment files that still use `desc` will fail validation — rename them to `notes`.
 
 ## Positions
 
