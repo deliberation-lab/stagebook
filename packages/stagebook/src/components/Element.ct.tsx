@@ -131,6 +131,31 @@ test.describe("Element router dispatch", () => {
     await expect(component.locator("iframe")).toBeVisible();
   });
 
+  // Regression guard: Element must forward `urlParams` through to the
+  // Qualtrics component. Prior versions of the sibling project
+  // (deliberation-empirica#1240) regressed this silently because the
+  // direct-mount Qualtrics tests bypassed the Element wrapper.
+  test("type: qualtrics forwards urlParams (static + reference) to iframe URL", async ({
+    mount,
+  }) => {
+    const component = await mount(
+      <MockStageRenderer
+        stage={singleElementStage({
+          type: "qualtrics",
+          url: "https://upenn.qualtrics.com/jfe/form/SV_test",
+          urlParams: [
+            { key: "condition", value: "topicA" },
+            { key: "answer", reference: "prompt.myQ" },
+          ],
+        })}
+        stateValues={{ "prompt.myQ": "yes" }}
+      />,
+    );
+    const src = await component.locator("iframe").getAttribute("src");
+    expect(src).toContain("condition=topicA");
+    expect(src).toContain("answer=yes");
+  });
+
   test("type: mediaPlayer renders a video element", async ({ mount }) => {
     const component = await mount(
       <MockStageRenderer
