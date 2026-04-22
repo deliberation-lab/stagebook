@@ -87,6 +87,7 @@ export function flattenSteps(
         name: step.name,
         elements: step.elements,
         notes: step.notes,
+        conditions: step.conditions,
       });
     }
   }

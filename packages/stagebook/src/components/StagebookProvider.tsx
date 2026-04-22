@@ -44,11 +44,15 @@ export interface StagebookContext {
 
   /**
    * Opaque host-provided identifier for the current stage instance.
-   * Stagebook captures it at condition-evaluation time and no-ops the
-   * `advanceStage` call if the id has changed by the time the effect
-   * fires (guards against racing against host-driven navigation).
-   * Optional — single-participant hosts can omit; the mount-lifecycle
-   * guarantee is sufficient there.
+   * Stagebook uses it as the identity key for `StageConditionGate`'s
+   * advance latch: when `stageId` changes the latch resets, so a host
+   * that reuses the provider across stages doesn't need to key-remount
+   * the subtree between stages. Hosts that already remount per stage,
+   * or that never change stage mid-mount, can omit it — the conditions
+   * array reference is used as a fallback identity. Cross-client
+   * staleness checks (e.g. "is this advance still for the stage we
+   * thought it was?") belong inside the host's `advanceStage`
+   * implementation, not here.
    */
   stageId?: string;
 

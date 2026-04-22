@@ -69,7 +69,12 @@ export function StageConditionGate({
       warnFallbackOnce();
       submit();
     }
-  }, [hasConditions, allMet, advanceStage, submit, stageId]);
+    // `stageKey` in deps: without it, two consecutive stages that both
+    // fail conditions wouldn't re-fire the effect, because `allMet`
+    // stays `false` across the transition and no other dep changes.
+    // The in-render latch reset covers the latch, but the effect also
+    // needs to be woken up for the new stage.
+  }, [hasConditions, allMet, advanceStage, submit, stageKey]);
 
   if (!hasConditions || allMet) return <>{children}</>;
 
@@ -88,7 +93,12 @@ let warned = false;
 function warnFallbackOnce(): void {
   if (warned) return;
   warned = true;
-  console.warn(
+  // `console.debug` rather than `console.warn`: the fallback is a
+  // legitimate choice for single-participant hosts that don't need
+  // cross-client advancement, and we don't want to spam those hosts'
+  // production logs. Browsers hide `.debug` by default but surface it
+  // at the Verbose log level for hosts investigating stage behavior.
+  console.debug(
     "[stagebook] StagebookContext.advanceStage is not implemented; " +
       "falling back to submit() for stage-level condition advancement. " +
       "Multi-participant hosts should implement advanceStage to submit " +

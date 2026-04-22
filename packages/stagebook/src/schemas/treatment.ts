@@ -1364,8 +1364,13 @@ export const introExitStepSchema = altTemplateContext(
       }
     }),
 );
-// Todo: add a superrefine that checks that no conditions have position values
-// and that no elements have showToPositions or hideFromPositions
+// Intro/exit step conditions intentionally allow any `position` value —
+// these steps are per-participant, so per-player positions don't desync.
+// The superRefine above still enforces the `percentAgreement → numeric
+// comparator` rule. The original TODO about position-value restriction
+// was superseded by #183; if we later want to forbid `showToPositions` /
+// `hideFromPositions` on intro/exit elements (they render for one
+// participant so those fields are no-ops), it belongs here.
 export type IntroExitStepType = z.infer<typeof introExitStepSchema>;
 
 export const introExitStepsBaseSchema = altTemplateContext(
