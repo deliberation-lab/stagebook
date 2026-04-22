@@ -50,9 +50,11 @@ function buildEntry(
     | { name: string; notes?: string }
     | undefined;
 
+  // `textByPath` globs both `*.prompt.md` and `README.md`; only the
+  // prompt files belong in `prompts`. README is a separate field.
   const prompts: Record<string, string> = {};
   for (const [p, content] of Object.entries(textByPath)) {
-    if (p.startsWith(exampleDir)) {
+    if (p.startsWith(exampleDir) && p.endsWith(".prompt.md")) {
       prompts[p.substring(exampleDir.length)] = content;
     }
   }

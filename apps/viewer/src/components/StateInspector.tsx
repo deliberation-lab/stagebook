@@ -5,12 +5,19 @@ import { ViewerStateStore } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
 
-/** DOM id used to scroll a specific element's note into view. */
+/**
+ * DOM id used to scroll a specific element's note into view. Encodes the
+ * type and name so characters like spaces (which nameSchema permits in
+ * some contexts) don't produce invalid HTML ids.
+ */
 export function noteAnchorId(
   elementType: string,
   elementName?: string,
 ): string {
-  return `note-${elementType}${elementName ? `-${elementName}` : ""}`;
+  const type = encodeURIComponent(elementType);
+  const name =
+    elementName === undefined ? "" : `-${encodeURIComponent(elementName)}`;
+  return `note-${type}${name}`;
 }
 
 interface StateInspectorProps {

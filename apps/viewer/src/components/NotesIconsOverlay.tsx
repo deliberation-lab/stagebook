@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import type { ViewerStep } from "../lib/steps";
 import { noteAnchorId } from "./StateInspector";
 
@@ -37,7 +31,6 @@ export function NotesIconsOverlay({
   currentStep,
 }: NotesIconsOverlayProps) {
   const [positions, setPositions] = useState<IconPos[]>([]);
-  const observerRef = useRef<ResizeObserver | null>(null);
 
   const recompute = useCallback(() => {
     const container = containerRef.current;
@@ -69,20 +62,27 @@ export function NotesIconsOverlay({
     const container = containerRef.current;
     if (!container) return;
     // Recompute once after layout settles, then whenever the container
-    // resizes or its subtree mutates. Layout shifts from prompt-markdown
-    // loading or stage nav don't fire window.resize, so we need both
-    // ResizeObserver and MutationObserver.
+    // resizes, its subtree mutates, the window resizes, or any internal
+    // scroll container scrolls (Stage uses `[data-testid="stageContent"]`
+    // with `overflow: auto` for long content). Scroll events don't bubble,
+    // so we listen in the capture phase on the container — this catches
+    // scrolls on any current or future descendant without having to
+    // re-resolve the scroller set on DOM churn.
     const ro = new ResizeObserver(recompute);
     ro.observe(container);
-    observerRef.current = ro;
     const mo = new MutationObserver(recompute);
     mo.observe(container, { childList: true, subtree: true });
     window.addEventListener("resize", recompute);
+    container.addEventListener("scroll", recompute, {
+      capture: true,
+      passive: true,
+    });
     const raf = requestAnimationFrame(recompute);
     return () => {
       ro.disconnect();
       mo.disconnect();
       window.removeEventListener("resize", recompute);
+      container.removeEventListener("scroll", recompute, true);
       cancelAnimationFrame(raf);
     };
   }, [recompute, containerRef]);

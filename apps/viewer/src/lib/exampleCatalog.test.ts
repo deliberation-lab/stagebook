@@ -72,6 +72,19 @@ describe("buildCatalog", () => {
     expect(entry.readme).toContain("Overview text.");
   });
 
+  it("does NOT mix README.md into the `prompts` field", () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {
+        "/root/examples/demo/README.md": "# Demo",
+        "/root/examples/demo/prompts/x.prompt.md":
+          "---\ntype: noResponse\n---\nbody\n---\n",
+      },
+    );
+    expect(Object.keys(entry.prompts)).toEqual(["prompts/x.prompt.md"]);
+    expect(entry.prompts["README.md"]).toBeUndefined();
+  });
+
   it("leaves `readme` undefined when no README.md is bundled", () => {
     const [entry] = buildCatalog(
       { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
