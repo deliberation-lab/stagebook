@@ -713,6 +713,67 @@ const GAME_STAGE_FORBIDDEN_POSITIONS = new Set([
 ]);
 
 /**
+ * Validate that every `type: "timeline"` element's `source` names a
+ * `type: "mediaPlayer"` element's `name` in the same step (stage, intro
+ * step, or exit step). PlaybackHandles are step-scoped at runtime, so
+ * a cross-step source would fail at render with a "source player not
+ * found" error box — catching it at preflight gives authors immediate
+ * feedback on typos.
+ *
+ * Called from both `stageSchema.superRefine` and
+ * `introExitStepSchema.superRefine` since both step kinds can mix
+ * timelines with mediaPlayers (e.g. a practice-annotation intro step).
+ */
+function validateTimelineSources(
+  elements: Record<string, unknown>[],
+  ctx: z.RefinementCtx,
+): void {
+  // Track total mediaPlayer elements alongside the named set so the
+  // error message can distinguish "no mediaPlayers at all" from
+  // "mediaPlayers exist but all are unnamed."
+  let totalMediaPlayers = 0;
+  const mediaPlayerNames = new Set<string>();
+  for (const element of elements) {
+    if (
+      element &&
+      typeof element === "object" &&
+      element.type === "mediaPlayer"
+    ) {
+      totalMediaPlayers++;
+      if (typeof element.name === "string") {
+        mediaPlayerNames.add(element.name);
+      }
+    }
+  }
+  elements.forEach((element, elementIndex) => {
+    if (!element || typeof element !== "object" || element.type !== "timeline")
+      return;
+    const source = element.source;
+    if (typeof source !== "string") return;
+    // Skip when source is an unresolved `${field}` placeholder — the
+    // referenced name may only be known after template fill.
+    if (containsFieldPlaceholder(source)) return;
+    if (mediaPlayerNames.has(source)) return;
+    let available: string;
+    if (mediaPlayerNames.size > 0) {
+      available = ` Available mediaPlayers in this step: ${[...mediaPlayerNames]
+        .map((n) => `"${n}"`)
+        .join(", ")}.`;
+    } else if (totalMediaPlayers > 0) {
+      available =
+        " No mediaPlayer elements in this step have a `name:` field — add one so timelines can reference them.";
+    } else {
+      available = " No mediaPlayer elements are defined in this step.";
+    }
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["elements", elementIndex, "source"],
+      message: `Timeline source "${source}" does not match any mediaPlayer.name in this step.${available}`,
+    });
+  });
+}
+
+/**
  * Apply cross-cutting rules to a list of conditions (stage-level or
  * element-level). Adds zod issues for each violation found; called from
  * stage/intro-exit superRefines so we can point issue paths at the
@@ -1263,59 +1324,7 @@ export const stageSchema = altTemplateContext(
         });
       }
 
-      // Validate that every timeline's `source` names a mediaPlayer in
-      // the same stage. PlaybackHandles are stage-scoped, so a timeline
-      // whose source doesn't match any mediaPlayer.name here would fail
-      // at runtime with a "source player not found" error. Track total
-      // mediaPlayer elements alongside the named set so the error
-      // message can distinguish "no mediaPlayers at all" from "all
-      // mediaPlayers are unnamed".
-      let totalMediaPlayers = 0;
-      const mediaPlayerNames = new Set<string>();
-      for (const element of elements) {
-        if (
-          element &&
-          typeof element === "object" &&
-          element.type === "mediaPlayer"
-        ) {
-          totalMediaPlayers++;
-          if (typeof element.name === "string") {
-            mediaPlayerNames.add(element.name);
-          }
-        }
-      }
-      elements.forEach((element, elementIndex) => {
-        if (
-          !element ||
-          typeof element !== "object" ||
-          element.type !== "timeline"
-        )
-          return;
-        const source = element.source;
-        if (typeof source !== "string") return;
-        // Skip when source is an unresolved `${field}` placeholder —
-        // the referenced name may only be known after template fill.
-        if (containsFieldPlaceholder(source)) return;
-        if (mediaPlayerNames.has(source)) return;
-        let available: string;
-        if (mediaPlayerNames.size > 0) {
-          available = ` Available mediaPlayers in this stage: ${[
-            ...mediaPlayerNames,
-          ]
-            .map((n) => `"${n}"`)
-            .join(", ")}.`;
-        } else if (totalMediaPlayers > 0) {
-          available =
-            " No mediaPlayer elements in this stage have a `name:` field — add one so timelines can reference them.";
-        } else {
-          available = " No mediaPlayer elements are defined in this stage.";
-        }
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["elements", elementIndex, "source"],
-          message: `Timeline source "${source}" does not match any mediaPlayer.name in this stage.${available}`,
-        });
-      });
+      validateTimelineSources(elements, ctx);
     }),
 );
 export type StageType = z.infer<typeof stageSchema>;
@@ -1350,18 +1359,22 @@ export const introExitStepSchema = altTemplateContext(
         forbidSelfPosition: false,
       });
       if (Array.isArray(data.elements)) {
-        (data.elements as Record<string, unknown>[]).forEach(
-          (element, elementIndex) => {
-            if (element && typeof element === "object") {
-              validateConditionRules(
-                (element as { conditions?: unknown }).conditions,
-                ["elements", elementIndex, "conditions"],
-                ctx,
-                { contextLabel: "Element", forbidSelfPosition: false },
-              );
-            }
-          },
-        );
+        const elements = data.elements as Record<string, unknown>[];
+        elements.forEach((element, elementIndex) => {
+          if (element && typeof element === "object") {
+            validateConditionRules(
+              (element as { conditions?: unknown }).conditions,
+              ["elements", elementIndex, "conditions"],
+              ctx,
+              { contextLabel: "Element", forbidSelfPosition: false },
+            );
+          }
+        });
+        // Same timeline-source validation as game stages: a timeline's
+        // `source` must name a mediaPlayer in the same step. Intro and
+        // exit steps can carry timeline+mediaPlayer pairs too (e.g. a
+        // practice-annotation intro step).
+        validateTimelineSources(elements, ctx);
       }
     }),
 );
