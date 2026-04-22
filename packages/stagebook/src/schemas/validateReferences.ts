@@ -49,7 +49,14 @@ const RANK_GAME_BASE = 1;
 
 /** The types of reference whose target keys are **produced by a stage**. A
  *  reference of any other type (urlParams, participantInfo, …) is external
- *  and always valid regardless of position. */
+ *  and always valid regardless of position.
+ *
+ *  Note: `discussion` references aren't in this set because stagebook
+ *  doesn't model discussion storage keys — their shape depends on the
+ *  host's runtime conventions (Tajriba attributes, chat transcript
+ *  layout, …). We leave `discussion.*` refs alone rather than risk a
+ *  false-positive "doesn't match any discussion element" on valid
+ *  references. Forward-ref and unknown-ref checks both skip them. */
 const STAGE_PRODUCED_REF_TYPES = new Set([
   "prompt",
   "survey",
@@ -57,7 +64,6 @@ const STAGE_PRODUCED_REF_TYPES = new Set([
   "qualtrics",
   "timeline",
   "trackedLink",
-  "discussion",
 ]);
 
 /**
@@ -73,6 +79,7 @@ export function validateTreatmentFileReferences(
 
   const introSequences = toArray(treatmentFile.introSequences);
   const treatments = toArray(treatmentFile.treatments);
+  const templates = toArray(treatmentFile.templates);
 
   // Build the set of keys produced by any game stage or exit step across
   // all treatments. Intro-step references to any of these are forward
@@ -90,6 +97,33 @@ export function validateTreatmentFileReferences(
     }
   }
 
+  // Every key produced *anywhere* in the treatment file — intro + game +
+  // exit, plus whatever templates could produce. Used to catch "unknown
+  // reference" typos (e.g. `timeline.storySegment2` where the actual
+  // element is `storySegment`). We walk template content recursively so
+  // elements produced via template expansion don't false-positive as
+  // unknown.
+  const globalProducedKeys = new Set<string>();
+  for (const seq of introSequences) {
+    if (!isRecord(seq)) continue;
+    for (const step of toArray(seq.introSteps)) {
+      for (const key of collectStepKeys(step)) globalProducedKeys.add(key);
+    }
+  }
+  for (const treatment of treatments) {
+    if (!isRecord(treatment)) continue;
+    for (const stage of toArray(treatment.gameStages)) {
+      for (const key of collectStepKeys(stage)) globalProducedKeys.add(key);
+    }
+    for (const step of toArray(treatment.exitSequence)) {
+      for (const key of collectStepKeys(step)) globalProducedKeys.add(key);
+    }
+  }
+  for (const tmpl of templates) {
+    if (!isRecord(tmpl)) continue;
+    collectKeysFromAny(tmpl.templateContent, globalProducedKeys);
+  }
+
   // Intro sequences: validate each sequence in isolation for within-sequence
   // forward references, cross-phase forward references into game/exit, and
   // stage-level always-skip.
@@ -102,6 +136,7 @@ export function validateTreatmentFileReferences(
       phase: "intro",
       issues,
       laterPhaseKeys,
+      globalProducedKeys,
     });
   });
 
@@ -123,6 +158,7 @@ export function validateTreatmentFileReferences(
       treatmentPath: ["treatments", treatmentIdx],
       introProducedKeys,
       issues,
+      globalProducedKeys,
     });
   });
 
@@ -142,6 +178,7 @@ function validateStepSequence({
   issues,
   priorPhaseKeys,
   laterPhaseKeys,
+  globalProducedKeys,
 }: {
   steps: unknown[];
   sequencePath: (string | number)[];
@@ -152,6 +189,9 @@ function validateStepSequence({
   /** Keys produced by later phases. Any intro-step reference to one of
    *  these is a cross-phase forward reference. */
   laterPhaseKeys?: Set<string>;
+  /** Union of every produced key anywhere in the file (incl. templates).
+   *  Used to flag unknown-reference typos. */
+  globalProducedKeys?: Set<string>;
 }): void {
   // Build producedAt: key → earliest step index that produces it.
   const producedAt = new Map<string, number>();
@@ -172,6 +212,7 @@ function validateStepSequence({
         issues,
         priorPhaseKeys,
         laterPhaseKeys,
+        globalProducedKeys,
         phaseLabel: phase === "intro" ? "intro step" : "exit step",
       });
     }
@@ -183,11 +224,13 @@ function validateTreatment({
   treatmentPath,
   introProducedKeys,
   issues,
+  globalProducedKeys,
 }: {
   treatment: Record<string, unknown>;
   treatmentPath: (string | number)[];
   introProducedKeys: Set<string>;
   issues: ReferenceValidationIssue[];
+  globalProducedKeys?: Set<string>;
 }): void {
   const gameStages = toArray(treatment.gameStages);
   const exitSequence = toArray(treatment.exitSequence);
@@ -243,6 +286,7 @@ function validateTreatment({
         // groupComposition's rule: target must be intro-phase or external.
         // Pass intro keys as the only valid phase.
         allowedProducerRanks: new Set([RANK_INTRO]),
+        globalProducedKeys,
       });
     });
   });
@@ -259,6 +303,7 @@ function validateTreatment({
         producedAt,
         issues,
         phaseLabel: "game stage",
+        globalProducedKeys,
       });
     }
     // Discussion conditions nested under the stage
@@ -285,6 +330,7 @@ function validateTreatment({
           producedAt,
           issues,
           phaseLabel: "game stage",
+          globalProducedKeys,
         });
       });
     }
@@ -302,6 +348,7 @@ function validateTreatment({
         producedAt,
         issues,
         phaseLabel: "exit step",
+        globalProducedKeys,
       });
     }
   });
@@ -410,6 +457,7 @@ function applyRules({
   laterPhaseKeys,
   allowedProducerRanks,
   phaseLabel,
+  globalProducedKeys,
 }: {
   site: RefSite;
   enclosingRank: number;
@@ -427,6 +475,11 @@ function applyRules({
   allowedProducerRanks?: Set<number>;
   /** Context word used in error messages — "game stage", "intro step", … */
   phaseLabel?: string;
+  /** Union of produced keys across every stage + template in the file.
+   *  When a reference's target isn't in this set, the reference is to
+   *  something that doesn't exist anywhere in the treatment — typically
+   *  a typo (e.g. `timeline.storySegment2` vs `timeline.storySegment`). */
+  globalProducedKeys?: Set<string>;
 }): void {
   // Try to parse the reference.
   let referenceKey: string;
@@ -456,6 +509,17 @@ function applyRules({
       issues.push({
         path: site.path,
         message: `Reference "${site.reference}" points at data produced by a later phase (game or exit) than this ${phase}. Forward references across phases are always falsy at runtime — move the reference or reorder the flow.`,
+      });
+      return;
+    }
+    // Unknown reference: the target key isn't produced anywhere in the
+    // treatment (concrete stages or templates). Almost always a typo on
+    // the element name (e.g. `timeline.storySegment2` when the actual
+    // element is `storySegment`).
+    if (globalProducedKeys && !globalProducedKeys.has(referenceKey)) {
+      issues.push({
+        path: site.path,
+        message: `Reference "${site.reference}" doesn't match any ${refType} element in the treatment. Check the name — no element produces the storage key "${referenceKey}".`,
       });
     }
     return;
@@ -514,6 +578,48 @@ function collectStepKeys(step: unknown): Set<string> {
     collectProducedKeys(el, keys);
   }
   return keys;
+}
+
+/** Recursively collect every storage key that appears anywhere under
+ *  `node`. Used for templates, where the `templateContent` can be a bare
+ *  element, a list of elements, a stage-shaped object, etc. We walk all
+ *  sub-values rather than trying to shape-check against `contentType`,
+ *  because template shapes are flexible and we just want "every key that
+ *  could come out of this template."
+ *
+ *  Bare `*.prompt.md` strings are only treated as produced keys when
+ *  they appear as prompt-shorthand entries inside an `elements` array.
+ *  Treating every matching string as a produced key would
+ *  over-approximate — e.g. an explicit `{ type: prompt, name: foo,
+ *  file: "p.prompt.md" }` element would add *both* `prompt_foo` (real
+ *  key) and `prompt_p.prompt.md` (bogus) — and mask real typos.
+ */
+function collectKeysFromAny(
+  node: unknown,
+  acc: Set<string>,
+  allowPromptShorthand = false,
+): void {
+  if (typeof node === "string") {
+    if (allowPromptShorthand && node.endsWith(".prompt.md")) {
+      acc.add(`prompt_${node}`);
+    }
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      collectKeysFromAny(item, acc, allowPromptShorthand);
+    }
+    return;
+  }
+  if (!isRecord(node)) return;
+  // Try as an element first (matches the concrete-walker shape).
+  collectProducedKeys(node, acc);
+  // Recurse into every sub-value. Only `elements` arrays carry
+  // prompt-shorthand strings — any other string field (e.g. `file:
+  // "…prompt.md"`) is not a shorthand and shouldn't be counted.
+  for (const [key, value] of Object.entries(node)) {
+    collectKeysFromAny(value, acc, key === "elements");
+  }
 }
 
 /** Map an element (or a bare prompt-shorthand path string) to its storage

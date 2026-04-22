@@ -1222,6 +1222,62 @@ test("stage allows multiple timelines pointing at different mediaPlayers", () =>
   expect(result.success).toBe(true);
 });
 
+test("intro/exit step also rejects a timeline whose source doesn't match a sibling mediaPlayer", () => {
+  // Regression: the timeline-source check was originally only wired into
+  // `stageSchema.superRefine` (game stages). Intro and exit steps can
+  // also mix timelines with mediaPlayers (e.g. a practice-annotation
+  // intro step with a sample video), and the same typo footgun applies.
+  const result = introExitStepSchema.safeParse({
+    name: "practice",
+    elements: [
+      {
+        type: "mediaPlayer",
+        url: "asset://recordings/sample.mp4",
+        name: "practiceStory",
+      },
+      {
+        type: "timeline",
+        source: "practiceStoryy", // typo
+        name: "practiceSegment",
+        selectionType: "range",
+      },
+      { type: "submitButton" },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) =>
+        i.path.join(".") === "elements.1.source" &&
+        i.message.includes("practiceStoryy"),
+    );
+    expect(issue).toBeDefined();
+    expect(issue?.message).toContain('"practiceStory"');
+  }
+});
+
+test("intro/exit step accepts a matching timeline source", () => {
+  const result = introExitStepSchema.safeParse({
+    name: "practice",
+    elements: [
+      {
+        type: "mediaPlayer",
+        url: "asset://recordings/sample.mp4",
+        name: "practiceStory",
+      },
+      {
+        type: "timeline",
+        source: "practiceStory",
+        name: "practiceSegment",
+        selectionType: "range",
+      },
+      { type: "submitButton" },
+    ],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
 test("stage reports one issue per mismatched timeline (not a single aggregated error)", () => {
   const result = stageSchema.safeParse({
     name: "coding",
