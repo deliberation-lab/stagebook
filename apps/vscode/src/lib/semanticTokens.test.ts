@@ -399,6 +399,44 @@ duration: 300`;
       ]);
     });
 
+    it("highlights a content line that happens to be a single `|` or `>` character", () => {
+      // Only the *first* line of the scalar is the indicator. A later
+      // content line that is literally just `|` or `>` is legitimate
+      // prose (e.g., a table separator drawn in ASCII) and must not be
+      // dropped.
+      const src = `treatments:
+  - name: t1
+    notes: |
+      header
+      |
+      >
+      footer`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens
+        .filter((t) => t.tokenType === "comment")
+        .map((t) => t.text);
+      expect(comment).toEqual(["header", "|", ">", "footer"]);
+    });
+
+    it("strips a trailing CR on CRLF-terminated files", () => {
+      const src =
+        "treatments:\r\n" +
+        "  - name: t1\r\n" +
+        "    notes: |\r\n" +
+        "      first line\r\n" +
+        "      second line\r\n";
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment).toHaveLength(2);
+      // No carriage return should leak into the token text or its length.
+      for (const t of comment) {
+        expect(t.text.includes("\r")).toBe(false);
+        expect(t.length).toBe(t.text.length);
+      }
+      expect(comment[0].text).toBe("first line");
+      expect(comment[1].text).toBe("second line");
+    });
+
     it("survives blank lines inside a block scalar", () => {
       const src = `treatments:
   - name: t1

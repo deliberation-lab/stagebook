@@ -164,17 +164,24 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
 
     // Block scalar: walk source line-by-line within the value's range.
     let lineStart = range[0];
+    let isFirstLine = true;
     while (lineStart < range[1]) {
       const nlIdx = source.indexOf("\n", lineStart);
       const lineEnd = nlIdx === -1 || nlIdx >= range[1] ? range[1] : nlIdx;
-      const lineText = source.slice(lineStart, lineEnd);
+      // Trim a trailing \r so CRLF-terminated files don't leak carriage
+      // returns into the token's text/length.
+      const lineTextEnd =
+        lineEnd > lineStart && source[lineEnd - 1] === "\r"
+          ? lineEnd - 1
+          : lineEnd;
+      const lineText = source.slice(lineStart, lineTextEnd);
       const firstNonWs = lineText.search(/\S/);
       if (firstNonWs !== -1) {
-        const firstChar = lineText[firstNonWs];
-        // Skip the block-scalar indicator line (`|`, `>`, `|-`, `|+`, etc.)
+        // Only the first line of the scalar is the block-scalar indicator
+        // (`|`, `>`, `|-`, `|+`, etc.). Later content lines may legitimately
+        // consist of a single `|` or `>` character and must be highlighted.
         const isIndicator =
-          (firstChar === "|" || firstChar === ">") &&
-          /^[|>][-+]?\s*$/.test(lineText.slice(firstNonWs));
+          isFirstLine && /^[|>][-+]?\s*$/.test(lineText.slice(firstNonWs));
         if (!isIndicator) {
           addToken(
             lineStart + firstNonWs,
@@ -183,6 +190,7 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
           );
         }
       }
+      isFirstLine = false;
       if (nlIdx === -1 || nlIdx >= range[1]) break;
       lineStart = nlIdx + 1;
     }
