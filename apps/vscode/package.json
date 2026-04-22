@@ -53,7 +53,11 @@
         "extensions": [
           ".treatments.yaml"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/treatments-light.svg",
+          "dark": "./icons/treatments-dark.svg"
+        }
       },
       {
         "id": "stagebookPrompt",
@@ -62,7 +66,11 @@
         ],
         "extensions": [
           ".prompt.md"
-        ]
+        ],
+        "icon": {
+          "light": "./icons/prompt-light.svg",
+          "dark": "./icons/prompt-dark.svg"
+        }
       }
     ],
     "grammars": [
