@@ -47,6 +47,32 @@ test("renders GFM tables", async ({ mount }) => {
   await expect(component.locator("table")).toBeVisible();
 });
 
+test("table uses collapsed borders and visible cell borders", async ({
+  mount,
+}) => {
+  // Also implicitly verifies the stylesheet is loading — no other test
+  // exercises that failure mode. Tables style via the stylesheet, not
+  // inline, so a dropped rule or unloaded sheet would regress silently.
+  const component = await mount(
+    <Markdown text={"| A | B |\n|---|---|\n| 1 | 2 |"} />,
+  );
+  const borderCollapse = await component
+    .locator("table")
+    .evaluate((el) => getComputedStyle(el).borderCollapse);
+  expect(borderCollapse).toBe("collapse");
+
+  const cellBorderWidth = await component
+    .locator("td")
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).borderTopWidth));
+  expect(cellBorderWidth).toBeGreaterThan(0);
+});
+
+test("renders GFM strikethrough", async ({ mount }) => {
+  const component = await mount(<Markdown text="~~crossed out~~" />);
+  await expect(component.locator("del")).toContainText("crossed out");
+});
+
 // ---------------------------------------------------------------------------
 // Inline styling — issue #33
 //
@@ -102,6 +128,16 @@ test("strong renders with bold weight (matches browser default)", async ({
     .locator("strong")
     .evaluate((el) => parseInt(getComputedStyle(el).fontWeight, 10));
   expect(weight).toBe(700);
+});
+
+test("em renders with italic style (matches browser default)", async ({
+  mount,
+}) => {
+  const component = await mount(<Markdown text="Some *italic* text" />);
+  const style = await component
+    .locator("em")
+    .evaluate((el) => getComputedStyle(el).fontStyle);
+  expect(style).toBe("italic");
 });
 
 test("ul renders with disc bullets, not none", async ({ mount }) => {
