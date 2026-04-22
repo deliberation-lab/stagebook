@@ -13,6 +13,7 @@ import {
   timelineSchema,
   promptSchema,
   treatmentFileSchema,
+  urlSchema,
 } from "./treatment.js";
 
 // ----------- Reference Schema ------------
@@ -502,6 +503,66 @@ test("mediaPlayer: relative path url is valid", () => {
   });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
+});
+
+test("mediaPlayer: asset:// url is valid (platform-provided)", () => {
+  // mediaPlayer.url is z.string() (accepts relative paths too), so any
+  // string passes here — the real schema-level gate on `asset://` lives
+  // in `urlSchema` and is covered below.
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "asset://group_recordings/training_video.mp4",
+  });
+  if (!result.success) console.log(result.error.message);
+  expect(result.success).toBe(true);
+});
+
+// --- urlSchema (used by qualtrics.url and trackedLink.url, #188) ---
+
+test("urlSchema accepts https://", () => {
+  expect(urlSchema.safeParse("https://example.com/foo").success).toBe(true);
+});
+
+test("urlSchema accepts http://", () => {
+  expect(urlSchema.safeParse("http://example.com/foo").success).toBe(true);
+});
+
+test("urlSchema accepts asset:// with a host and path", () => {
+  expect(
+    urlSchema.safeParse("asset://group_recordings/training.mp4").success,
+  ).toBe(true);
+});
+
+test("urlSchema accepts case-insensitive asset scheme", () => {
+  expect(urlSchema.safeParse("ASSET://clip.mp4").success).toBe(true);
+});
+
+test("urlSchema rejects bare `asset://` with no host or path", () => {
+  expect(urlSchema.safeParse("asset://").success).toBe(false);
+});
+
+test("urlSchema rejects ftp:// and other non-allowed protocols", () => {
+  expect(urlSchema.safeParse("ftp://example.com/clip.mp4").success).toBe(false);
+  expect(urlSchema.safeParse("javascript:alert(1)").success).toBe(false);
+  expect(urlSchema.safeParse("file:///etc/passwd").success).toBe(false);
+});
+
+test("urlSchema rejects non-URL strings", () => {
+  expect(urlSchema.safeParse("not a url").success).toBe(false);
+  expect(urlSchema.safeParse("").success).toBe(false);
+});
+
+test("urlSchema rejects opaque-scheme URLs without //", () => {
+  // `new URL()` accepts these, but downstream consumers expect the
+  // hierarchical `scheme://` form.
+  expect(urlSchema.safeParse("https:example.com").success).toBe(false);
+  expect(urlSchema.safeParse("http:foo").success).toBe(false);
+  expect(urlSchema.safeParse("asset:clip.mp4").success).toBe(false);
+});
+
+test("urlSchema rejects http(s):// with an empty host", () => {
+  expect(urlSchema.safeParse("https://").success).toBe(false);
+  expect(urlSchema.safeParse("http://").success).toBe(false);
 });
 
 test("mediaPlayer: full config with all fields", () => {

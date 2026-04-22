@@ -64,20 +64,45 @@ export const promptFilePathSchema = z
 
 export type FileType = z.infer<typeof fileSchema>;
 
-export const urlSchema = z
-  .string()
-  .url()
-  .refine(
-    (url) => {
-      try {
-        const parsed = new URL(url);
-        return ["http:", "https:"].includes(parsed.protocol);
-      } catch {
-        return false;
+// Three accepted URL forms in treatment files:
+// - `http://…` / `https://…`  — fetched directly by the browser
+// - `asset://path/…`          — platform-provided; resolved by the
+//   host's `getAssetURL()` (e.g. S3 presigned URL, local file server).
+//   See #188.
+// Callers that walk treatment trees for repo-local assets (e.g.
+// `getReferencedAssets`) should exclude both `http(s)://` and
+// `asset://` — neither is a local file.
+// Require the hierarchical `scheme://` form. `new URL()` alone accepts
+// opaque-scheme variants like `https:example.com` or `asset:clip.mp4`
+// (no `//`), which parse but aren't what we mean — downstream code
+// (e.g. the Qualtrics iframe, the `asset://` exclusion in
+// `getReferencedAssets`) expects a real hierarchical URL.
+const HIERARCHICAL_URL_RE = /^(?:https?|asset):\/\//i;
+
+export const urlSchema = z.string().refine(
+  (url) => {
+    if (!HIERARCHICAL_URL_RE.test(url)) return false;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        // Reject `https://` with no host.
+        return parsed.host.length > 0;
       }
-    },
-    { message: "URL must use http or https protocol" },
-  );
+      if (parsed.protocol === "asset:") {
+        // Require the URL to carry *some* location after the scheme so
+        // we don't silently accept a bare `asset://`.
+        return parsed.host.length > 0 || parsed.pathname.length > 1;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+  {
+    message:
+      "URL must use http://, https://, or asset:// (platform-provided media) with a non-empty host/path",
+  },
+);
 export type UrlType = z.infer<typeof urlSchema>;
 
 // stage duration:

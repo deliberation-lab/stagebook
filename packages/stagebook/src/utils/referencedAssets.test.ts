@@ -158,6 +158,36 @@ describe("getReferencedAssets — exclusions", () => {
     expect(getReferencedAssets(tree)).toEqual([]);
   });
 
+  test("excludes asset:// platform-provided references (#188)", () => {
+    const tree = treatmentWithElements([
+      {
+        type: "mediaPlayer",
+        url: "asset://group_recordings/training_video.mp4",
+      },
+      { type: "image", file: "asset://diagrams/flow.png" },
+      { type: "audio", file: "asset://stings/intro.mp3" },
+    ]);
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+
+  test("is case-insensitive on the asset:// scheme", () => {
+    const tree = treatmentWithElements([
+      { type: "mediaPlayer", url: "ASSET://clip.mp4" },
+      { type: "mediaPlayer", url: "Asset://clip.mp4" },
+    ]);
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+
+  test("excludes malformed opaque `asset:` form too (no //)", () => {
+    // Guard against an `asset:clip.mp4` slipping through as a "local
+    // file" when `urlSchema` would have rejected it upstream.
+    const tree = treatmentWithElements([
+      { type: "mediaPlayer", url: "asset:clip.mp4" },
+      { type: "image", file: "asset:diagram.png" },
+    ]);
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+
   test("excludes empty string paths", () => {
     const tree = treatmentWithElements([
       { type: "image", file: "" },
