@@ -20,10 +20,22 @@ function isValidRegex(pattern: string): boolean {
 
 // Field placeholder pattern: only alphanumeric + underscore.
 // Must match FIELD_PLACEHOLDER_REGEX in templates/fillTemplates.ts
-const fieldPlaceholderSchema = z.string().regex(/\$\{[a-zA-Z0-9_]+\}/, {
+const FIELD_PLACEHOLDER_PATTERN = /\$\{[a-zA-Z0-9_]+\}/;
+
+const fieldPlaceholderSchema = z.string().regex(FIELD_PLACEHOLDER_PATTERN, {
   message:
     "Field placeholder must be in the format `${fieldKey}` (alphanumeric and underscores only)",
 });
+
+/**
+ * True if `value` contains any `${field}` placeholder. Used by cross-field
+ * refinements that should skip validation until templates are filled.
+ * Keeps placeholder detection colocated with `fieldPlaceholderSchema` so
+ * future rule changes apply consistently.
+ */
+function containsFieldPlaceholder(value: string): boolean {
+  return FIELD_PLACEHOLDER_PATTERN.test(value);
+}
 
 // Names should have properties:
 // max length: 64 characters
@@ -1097,12 +1109,13 @@ export const stageSchema = altTemplateContext(
         });
       }
 
+      if (!Array.isArray(data.elements)) return;
+      const elements = data.elements as Record<string, unknown>[];
+
       // Validate element time bounds against stage duration
       const duration = data.duration;
-      if (typeof duration !== "number" || !Array.isArray(data.elements)) return;
-
-      data.elements.forEach(
-        (element: Record<string, unknown>, elementIndex: number) => {
+      if (typeof duration === "number") {
+        elements.forEach((element, elementIndex) => {
           if (!element || typeof element !== "object") return;
 
           const timeFields = [
@@ -1117,12 +1130,66 @@ export const stageSchema = altTemplateContext(
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["elements", elementIndex, field],
-                message: `${field} (${value}) exceeds stage duration (${duration}) for element "${String(element.name || element.type)}"`,
+                message: `${field} (${value}) exceeds stage duration (${duration}) for element "${String(element.name ?? element.type)}"`,
               });
             }
           }
-        },
-      );
+        });
+      }
+
+      // Validate that every timeline's `source` names a mediaPlayer in
+      // the same stage. PlaybackHandles are stage-scoped, so a timeline
+      // whose source doesn't match any mediaPlayer.name here would fail
+      // at runtime with a "source player not found" error. Track total
+      // mediaPlayer elements alongside the named set so the error
+      // message can distinguish "no mediaPlayers at all" from "all
+      // mediaPlayers are unnamed".
+      let totalMediaPlayers = 0;
+      const mediaPlayerNames = new Set<string>();
+      for (const element of elements) {
+        if (
+          element &&
+          typeof element === "object" &&
+          element.type === "mediaPlayer"
+        ) {
+          totalMediaPlayers++;
+          if (typeof element.name === "string") {
+            mediaPlayerNames.add(element.name);
+          }
+        }
+      }
+      elements.forEach((element, elementIndex) => {
+        if (
+          !element ||
+          typeof element !== "object" ||
+          element.type !== "timeline"
+        )
+          return;
+        const source = element.source;
+        if (typeof source !== "string") return;
+        // Skip when source is an unresolved `${field}` placeholder —
+        // the referenced name may only be known after template fill.
+        if (containsFieldPlaceholder(source)) return;
+        if (mediaPlayerNames.has(source)) return;
+        let available: string;
+        if (mediaPlayerNames.size > 0) {
+          available = ` Available mediaPlayers in this stage: ${[
+            ...mediaPlayerNames,
+          ]
+            .map((n) => `"${n}"`)
+            .join(", ")}.`;
+        } else if (totalMediaPlayers > 0) {
+          available =
+            " No mediaPlayer elements in this stage have a `name:` field — add one so timelines can reference them.";
+        } else {
+          available = " No mediaPlayer elements are defined in this stage.";
+        }
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["elements", elementIndex, "source"],
+          message: `Timeline source "${source}" does not match any mediaPlayer.name in this stage.${available}`,
+        });
+      });
     }),
 );
 export type StageType = z.infer<typeof stageSchema>;

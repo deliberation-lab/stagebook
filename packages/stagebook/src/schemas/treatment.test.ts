@@ -9,6 +9,7 @@ import {
   introStepsSchema,
   exitStepsSchema,
   mediaPlayerSchema,
+  stageSchema,
   timelineSchema,
   promptSchema,
   treatmentFileSchema,
@@ -1021,4 +1022,168 @@ test("elementsSchema accepts timeline alongside mediaPlayer", () => {
   ]);
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
+});
+
+// ----------- Stage: timeline.source must name a mediaPlayer in the same stage -----------
+
+test("stage accepts a timeline whose source matches a sibling mediaPlayer.name", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      {
+        type: "timeline",
+        source: "interview",
+        name: "segments",
+        selectionType: "range",
+      },
+    ],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stage rejects a timeline whose source doesn't match any mediaPlayer.name", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      {
+        type: "timeline",
+        source: "typo_video",
+        name: "segments",
+        selectionType: "range",
+      },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) =>
+        i.path.join(".") === "elements.1.source" &&
+        i.message.includes("typo_video"),
+    );
+    expect(issue).toBeDefined();
+    expect(issue?.message).toContain('"interview"');
+  }
+});
+
+test("stage rejects a timeline when no mediaPlayer exists in the stage", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      {
+        type: "timeline",
+        source: "missing",
+        name: "segments",
+        selectionType: "range",
+      },
+      { type: "submitButton" },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "elements.0.source",
+    );
+    expect(issue?.message).toContain("No mediaPlayer elements");
+  }
+});
+
+test("stage with an unnamed mediaPlayer distinguishes 'none named' from 'none at all'", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      { type: "mediaPlayer", url: "v.mp4" }, // no name
+      {
+        type: "timeline",
+        source: "missing",
+        name: "segments",
+        selectionType: "range",
+      },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "elements.1.source",
+    );
+    expect(issue?.message).toContain("`name:` field");
+    expect(issue?.message).not.toContain("No mediaPlayer elements are defined");
+  }
+});
+
+test("stage skips source validation when source is a ${field} placeholder", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      {
+        type: "timeline",
+        source: "${playerName}",
+        name: "segments",
+        selectionType: "range",
+      },
+    ],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stage allows multiple timelines pointing at different mediaPlayers", () => {
+  const result = stageSchema.safeParse({
+    name: "review",
+    duration: 120,
+    elements: [
+      { type: "mediaPlayer", url: "a.mp4", name: "clip_a" },
+      { type: "mediaPlayer", url: "b.mp4", name: "clip_b" },
+      {
+        type: "timeline",
+        source: "clip_a",
+        name: "clip_a_segments",
+        selectionType: "range",
+      },
+      {
+        type: "timeline",
+        source: "clip_b",
+        name: "clip_b_segments",
+        selectionType: "range",
+      },
+    ],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stage reports one issue per mismatched timeline (not a single aggregated error)", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      {
+        type: "timeline",
+        source: "bogus_a",
+        name: "seg_a",
+        selectionType: "range",
+      },
+      {
+        type: "timeline",
+        source: "bogus_b",
+        name: "seg_b",
+        selectionType: "range",
+      },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const paths = result.error.issues.map((i) => i.path.join("."));
+    expect(paths).toContain("elements.1.source");
+    expect(paths).toContain("elements.2.source");
+  }
 });
