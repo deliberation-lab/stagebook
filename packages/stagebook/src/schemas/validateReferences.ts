@@ -49,7 +49,14 @@ const RANK_GAME_BASE = 1;
 
 /** The types of reference whose target keys are **produced by a stage**. A
  *  reference of any other type (urlParams, participantInfo, …) is external
- *  and always valid regardless of position. */
+ *  and always valid regardless of position.
+ *
+ *  Note: `discussion` references aren't in this set because stagebook
+ *  doesn't model discussion storage keys — their shape depends on the
+ *  host's runtime conventions (Tajriba attributes, chat transcript
+ *  layout, …). We leave `discussion.*` refs alone rather than risk a
+ *  false-positive "doesn't match any discussion element" on valid
+ *  references. Forward-ref and unknown-ref checks both skip them. */
 const STAGE_PRODUCED_REF_TYPES = new Set([
   "prompt",
   "survey",
@@ -57,7 +64,6 @@ const STAGE_PRODUCED_REF_TYPES = new Set([
   "qualtrics",
   "timeline",
   "trackedLink",
-  "discussion",
 ]);
 
 /**
@@ -580,22 +586,39 @@ function collectStepKeys(step: unknown): Set<string> {
  *  sub-values rather than trying to shape-check against `contentType`,
  *  because template shapes are flexible and we just want "every key that
  *  could come out of this template."
+ *
+ *  Bare `*.prompt.md` strings are only treated as produced keys when
+ *  they appear as prompt-shorthand entries inside an `elements` array.
+ *  Treating every matching string as a produced key would
+ *  over-approximate — e.g. an explicit `{ type: prompt, name: foo,
+ *  file: "p.prompt.md" }` element would add *both* `prompt_foo` (real
+ *  key) and `prompt_p.prompt.md` (bogus) — and mask real typos.
  */
-function collectKeysFromAny(node: unknown, acc: Set<string>): void {
-  if (typeof node === "string" && node.endsWith(".prompt.md")) {
-    acc.add(`prompt_${node}`);
+function collectKeysFromAny(
+  node: unknown,
+  acc: Set<string>,
+  allowPromptShorthand = false,
+): void {
+  if (typeof node === "string") {
+    if (allowPromptShorthand && node.endsWith(".prompt.md")) {
+      acc.add(`prompt_${node}`);
+    }
     return;
   }
   if (Array.isArray(node)) {
-    for (const item of node) collectKeysFromAny(item, acc);
+    for (const item of node) {
+      collectKeysFromAny(item, acc, allowPromptShorthand);
+    }
     return;
   }
   if (!isRecord(node)) return;
   // Try as an element first (matches the concrete-walker shape).
   collectProducedKeys(node, acc);
-  // Then recurse into every sub-value for nested elements.
-  for (const value of Object.values(node)) {
-    collectKeysFromAny(value, acc);
+  // Recurse into every sub-value. Only `elements` arrays carry
+  // prompt-shorthand strings — any other string field (e.g. `file:
+  // "…prompt.md"`) is not a shorthand and shouldn't be counted.
+  for (const [key, value] of Object.entries(node)) {
+    collectKeysFromAny(value, acc, key === "elements");
   }
 }
 

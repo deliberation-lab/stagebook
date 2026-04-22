@@ -721,6 +721,33 @@ describe("Unknown-reference detection", () => {
     expect(unknown).toBeUndefined();
   });
 
+  test("discussion.* references are not flagged as unknown (we don't model their storage keys)", () => {
+    // Regression: before the fix, `discussion.anyName.x` would fall
+    // through the walker as "unknown" because no discussion keys live
+    // in producedAt/globalProducedKeys. Leave discussion refs alone.
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s",
+          duration: 60,
+          elements: [
+            {
+              type: "submitButton",
+              conditions: [
+                {
+                  reference: "discussion.someRoom.messages",
+                  comparator: "exists",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    expect(issues.length).toBe(0);
+  });
+
   test("external references still skip unknown-reference check", () => {
     const file = baseFile({
       gameStages: [

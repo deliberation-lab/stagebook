@@ -727,6 +727,7 @@ const GAME_STAGE_FORBIDDEN_POSITIONS = new Set([
 function validateTimelineSources(
   elements: Record<string, unknown>[],
   ctx: z.RefinementCtx,
+  containerLabel: "stage" | "step" = "stage",
 ): void {
   // Track total mediaPlayer elements alongside the named set so the
   // error message can distinguish "no mediaPlayers at all" from
@@ -756,19 +757,20 @@ function validateTimelineSources(
     if (mediaPlayerNames.has(source)) return;
     let available: string;
     if (mediaPlayerNames.size > 0) {
-      available = ` Available mediaPlayers in this step: ${[...mediaPlayerNames]
+      available = ` Available mediaPlayers in this ${containerLabel}: ${[
+        ...mediaPlayerNames,
+      ]
         .map((n) => `"${n}"`)
         .join(", ")}.`;
     } else if (totalMediaPlayers > 0) {
-      available =
-        " No mediaPlayer elements in this step have a `name:` field — add one so timelines can reference them.";
+      available = ` No mediaPlayer elements in this ${containerLabel} have a \`name:\` field — add one so timelines can reference them.`;
     } else {
-      available = " No mediaPlayer elements are defined in this step.";
+      available = ` No mediaPlayer elements are defined in this ${containerLabel}.`;
     }
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["elements", elementIndex, "source"],
-      message: `Timeline source "${source}" does not match any mediaPlayer.name in this step.${available}`,
+      message: `Timeline source "${source}" does not match any mediaPlayer.name in this ${containerLabel}.${available}`,
     });
   });
 }
@@ -1374,7 +1376,7 @@ export const introExitStepSchema = altTemplateContext(
         // `source` must name a mediaPlayer in the same step. Intro and
         // exit steps can carry timeline+mediaPlayer pairs too (e.g. a
         // practice-annotation intro step).
-        validateTimelineSources(elements, ctx);
+        validateTimelineSources(elements, ctx, "step");
       }
     }),
 );
