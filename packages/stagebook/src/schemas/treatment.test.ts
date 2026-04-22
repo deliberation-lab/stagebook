@@ -552,6 +552,19 @@ test("urlSchema rejects non-URL strings", () => {
   expect(urlSchema.safeParse("").success).toBe(false);
 });
 
+test("urlSchema rejects opaque-scheme URLs without //", () => {
+  // `new URL()` accepts these, but downstream consumers expect the
+  // hierarchical `scheme://` form.
+  expect(urlSchema.safeParse("https:example.com").success).toBe(false);
+  expect(urlSchema.safeParse("http:foo").success).toBe(false);
+  expect(urlSchema.safeParse("asset:clip.mp4").success).toBe(false);
+});
+
+test("urlSchema rejects http(s):// with an empty host", () => {
+  expect(urlSchema.safeParse("https://").success).toBe(false);
+  expect(urlSchema.safeParse("http://").success).toBe(false);
+});
+
 test("mediaPlayer: full config with all fields", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",

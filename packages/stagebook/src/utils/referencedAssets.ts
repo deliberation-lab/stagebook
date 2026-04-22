@@ -25,8 +25,10 @@ const PLACEHOLDER_PATTERN = /\$\{[^}]*\}/;
 const FULL_URL_PATTERN = /^(?:https?:)?\/\//i;
 // Platform-provided assets (see #188) live outside the repo — the host
 // resolves them via `getAssetURL()`, so they aren't collectable as local
-// files for bundling/manifest purposes.
-const ASSET_URI_PATTERN = /^asset:\/\//i;
+// files for bundling/manifest purposes. Match the whole `asset:` scheme
+// (not just the `asset://` form) so a malformed opaque variant like
+// `asset:clip.mp4` isn't silently misclassified as a local file path.
+const ASSET_URI_PATTERN = /^asset:/i;
 
 export interface ReferencedAsset {
   /** The raw path as it appears in the treatment YAML. */

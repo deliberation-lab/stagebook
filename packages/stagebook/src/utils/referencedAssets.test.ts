@@ -178,6 +178,16 @@ describe("getReferencedAssets — exclusions", () => {
     expect(getReferencedAssets(tree)).toEqual([]);
   });
 
+  test("excludes malformed opaque `asset:` form too (no //)", () => {
+    // Guard against an `asset:clip.mp4` slipping through as a "local
+    // file" when `urlSchema` would have rejected it upstream.
+    const tree = treatmentWithElements([
+      { type: "mediaPlayer", url: "asset:clip.mp4" },
+      { type: "image", file: "asset:diagram.png" },
+    ]);
+    expect(getReferencedAssets(tree)).toEqual([]);
+  });
+
   test("excludes empty string paths", () => {
     const tree = treatmentWithElements([
       { type: "image", file: "" },

@@ -72,17 +72,25 @@ export type FileType = z.infer<typeof fileSchema>;
 // Callers that walk treatment trees for repo-local assets (e.g.
 // `getReferencedAssets`) should exclude both `http(s)://` and
 // `asset://` — neither is a local file.
+// Require the hierarchical `scheme://` form. `new URL()` alone accepts
+// opaque-scheme variants like `https:example.com` or `asset:clip.mp4`
+// (no `//`), which parse but aren't what we mean — downstream code
+// (e.g. the Qualtrics iframe, the `asset://` exclusion in
+// `getReferencedAssets`) expects a real hierarchical URL.
+const HIERARCHICAL_URL_RE = /^(?:https?|asset):\/\//i;
+
 export const urlSchema = z.string().refine(
   (url) => {
+    if (!HIERARCHICAL_URL_RE.test(url)) return false;
     try {
       const parsed = new URL(url);
       if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-        return true;
+        // Reject `https://` with no host.
+        return parsed.host.length > 0;
       }
       if (parsed.protocol === "asset:") {
-        // `asset://foo/bar` → pathname is `/bar`, host is `foo`. Require
-        // the URL to carry *some* location after the scheme so we don't
-        // silently accept a bare `asset://`.
+        // Require the URL to carry *some* location after the scheme so
+        // we don't silently accept a bare `asset://`.
         return parsed.host.length > 0 || parsed.pathname.length > 1;
       }
       return false;
@@ -91,7 +99,8 @@ export const urlSchema = z.string().refine(
     }
   },
   {
-    message: "URL must use http, https, or asset:// (platform-provided media)",
+    message:
+      "URL must use http://, https://, or asset:// (platform-provided media) with a non-empty host/path",
   },
 );
 export type UrlType = z.infer<typeof urlSchema>;
