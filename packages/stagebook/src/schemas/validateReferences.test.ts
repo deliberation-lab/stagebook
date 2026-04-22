@@ -594,6 +594,154 @@ describe("Rule 1 — no forward references", () => {
   });
 });
 
+describe("Unknown-reference detection", () => {
+  test("element-level condition referencing a non-existent timeline → rejected as typo", () => {
+    // Regression: a typo like `timeline.storySegment2` for an actual
+    // element named `storySegment` previously passed validation because
+    // the target wasn't in producedAt (so the walker returned early).
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "story",
+          duration: 60,
+          elements: [
+            {
+              type: "mediaPlayer",
+              url: "asset://x.mp4",
+              name: "story",
+            },
+            {
+              type: "timeline",
+              source: "story",
+              name: "storySegment",
+              selectionType: "range",
+            },
+            {
+              type: "submitButton",
+              conditions: [
+                {
+                  reference: "timeline.storySegment2",
+                  comparator: "exists",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const typo = issues.find(
+      (i) =>
+        i.path.join(".").endsWith("elements.2.conditions.0.reference") &&
+        /doesn't match any timeline element/i.test(i.message),
+    );
+    expect(typo).toBeDefined();
+  });
+
+  test("stage-level condition referencing a non-existent prompt → rejected as typo", () => {
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s",
+          duration: 60,
+          conditions: [
+            {
+              reference: "prompt.nonexistent",
+              comparator: "equals",
+              value: "yes",
+              position: "all",
+            },
+          ],
+          elements: [{ type: "submitButton" }],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const typo = issues.find(
+      (i) =>
+        /doesn't match any prompt element/i.test(i.message) &&
+        i.message.includes("nonexistent"),
+    );
+    expect(typo).toBeDefined();
+  });
+
+  test("reference whose target is produced by a template → accepted", () => {
+    // Templates produce elements via broadcast expansion; the walker
+    // collects their produced keys recursively so references aren't
+    // false-flagged as unknown.
+    const file = {
+      templates: [
+        {
+          templateName: "storyStage",
+          contentType: "stage",
+          templateContent: {
+            name: "templated",
+            duration: 60,
+            elements: [
+              {
+                type: "prompt",
+                name: "templatedPrompt",
+                file: "p.prompt.md",
+              },
+              { type: "submitButton" },
+            ],
+          },
+        },
+      ],
+      introSequences: [
+        {
+          name: "seq",
+          introSteps: [{ name: "a", elements: [{ type: "submitButton" }] }],
+        },
+      ],
+      treatments: [
+        {
+          name: "t",
+          playerCount: 1,
+          gameStages: [
+            {
+              name: "uses",
+              duration: 60,
+              elements: [
+                {
+                  type: "display",
+                  reference: "prompt.templatedPrompt",
+                },
+                { type: "submitButton" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const issues = validateTreatmentFileReferences(file);
+    // No unknown-reference complaint about `prompt.templatedPrompt` —
+    // the walker sees it in the template's content.
+    const unknown = issues.find((i) => i.message.includes("templatedPrompt"));
+    expect(unknown).toBeUndefined();
+  });
+
+  test("external references still skip unknown-reference check", () => {
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s",
+          duration: 60,
+          elements: [
+            {
+              type: "display",
+              reference: "urlParams.neverDeclared",
+            },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    expect(issues.length).toBe(0);
+  });
+});
+
 describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)", () => {
   test("stage-level condition `doesNotExist` on current-stage ref → accepted", () => {
     const file = baseFile({
