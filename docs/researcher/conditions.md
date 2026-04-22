@@ -274,3 +274,85 @@ groupComposition:
 ```
 
 **Note:** Group assignment conditions can only use the participant's own responses — no `position` modifier is available.
+
+## Stage-level conditions
+
+Any stage, intro step, or exit step can carry its own `conditions` array. Think of it as: _this stage should be active while these conditions hold._ When any condition is false, stagebook asks the host to advance — either skipping the stage at load (if the data comes from an earlier stage) or ending it early (if it comes from the current stage).
+
+Same condition syntax, same comparators, same position modifier as element-level conditions.
+
+### Skip a stage based on prior data
+
+Round 2 only runs if the group voted to continue after round 1:
+
+```yaml
+gameStages:
+  - name: round1_vote
+    duration: 60
+    elements:
+      - type: survey
+        surveyName: continueVote
+        name: continueVote
+
+  - name: round2
+    duration: 300
+    conditions:
+      - reference: survey.continueVote.result.keepGoing
+        comparator: equals
+        value: "yes"
+        position: all
+    elements:
+      - type: prompt
+        file: round2.prompt.md
+      - type: submitButton
+```
+
+### End a stage early (early termination)
+
+Condition authored so it's `true` while no one has submitted, flips to `false` as soon as anyone does:
+
+```yaml
+gameStages:
+  - name: speed_round
+    duration: 120
+    conditions:
+      - reference: submitButton.speedSubmit
+        comparator: doesNotExist
+        position: all
+    elements:
+      - type: submitButton
+        name: speedSubmit
+```
+
+### Position rules
+
+Game-stage conditions must evaluate **identically on every client** or the stage desyncs (one participant skips while the other renders). Stagebook rejects per-player positions at preflight for game stages:
+
+| Context | Default / `player` | `shared` / `all` / `any` / `percentAgreement` / index |
+|---|---|---|
+| Game stages | ❌ rejected at preflight | ✅ |
+| Intro / exit steps | ✅ | ✅ |
+
+Intro and exit steps run per-participant, so any position is fine there — including the default.
+
+### `percentAgreement` needs a numeric comparator
+
+`percentAgreement` aggregates all players' values and compares the *percentage of agreement* against a threshold. Preflight now enforces that the comparator is one of `isAbove`, `isBelow`, `isAtLeast`, `isAtMost` — the ones that actually compare numbers.
+
+```yaml
+# At least 60% of the group agreed on some value
+conditions:
+  - reference: survey.vote.result.choice
+    comparator: isAtLeast
+    value: 60
+    position: percentAgreement
+```
+
+### Host requirements
+
+Stage-level conditions rely on two fields on `StagebookContext`:
+
+- `advanceStage()` — called by stagebook when conditions fail. Hosts implement the advancement policy. Single-participant hosts wrap `submit()`; multi-participant hosts submit for every player (so dropouts can't hang the stage).
+- `stageId` — opaque per-stage identifier. Lets stagebook reset its internal latch cleanly between stages without a key-remount by the host.
+
+See [platform-requirements.md](../engineer/platform-requirements.md) for the full host-integration checklist.

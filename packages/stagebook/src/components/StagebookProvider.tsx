@@ -29,6 +29,29 @@ export interface StagebookContext {
   // Advance to next step
   submit(): void;
 
+  /**
+   * Called by stagebook when stage-level conditions (#183) evaluate to
+   * false and the stage should end — either at mount (skip-at-load) or
+   * mid-stage (early termination). Hosts implement the advancement
+   * policy: single-participant hosts typically wrap `submit()`;
+   * multi-participant hosts submit for every player so dropouts don't
+   * hang the stage. Distinct from `submit()` so the host can
+   * differentiate "this player finished" from "the stage should end
+   * for everyone." Optional — when absent, stagebook falls back to
+   * `submit()` and logs a dev-mode warning.
+   */
+  advanceStage?: () => void;
+
+  /**
+   * Opaque host-provided identifier for the current stage instance.
+   * Stagebook captures it at condition-evaluation time and no-ops the
+   * `advanceStage` call if the id has changed by the time the effect
+   * fires (guards against racing against host-driven navigation).
+   * Optional — single-participant hosts can omit; the mount-lifecycle
+   * guarantee is sufficient there.
+   */
+  stageId?: string;
+
   // Content resolution — platform handles fetching, caching, retries
   getAssetURL(path: string): string;
   getTextContent(path: string): Promise<string>;

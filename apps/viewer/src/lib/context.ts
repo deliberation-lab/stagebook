@@ -64,6 +64,18 @@ export function createViewerContext(
       onSubmit();
     },
 
+    // Single-participant preview: stage-level conditions (#183) end the
+    // stage by the same mechanism a submit button does. No cross-client
+    // coordination to do — just advance.
+    advanceStage(): void {
+      onSubmit();
+    },
+
+    // Opaque per-stage identity (just the index, which is unique per
+    // flattened step). Lets the StageConditionGate's latch reset cleanly
+    // when the stage changes.
+    stageId: `stage-${String(stageIndex)}`,
+
     getAssetURL,
     getTextContent,
     contentVersion,

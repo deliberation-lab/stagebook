@@ -138,6 +138,7 @@ export function Viewer({
     duration: currentStep.duration,
     elements: currentStep.elements,
     discussion: currentStep.discussion,
+    conditions: currentStep.conditions,
   };
 
   return (

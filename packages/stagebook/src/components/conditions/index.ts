@@ -15,3 +15,7 @@ export {
   SubmissionConditionalRender,
   type SubmissionConditionalRenderProps,
 } from "./SubmissionConditionalRender.js";
+export {
+  StageConditionGate,
+  type StageConditionGateProps,
+} from "./StageConditionGate.js";

@@ -692,6 +692,84 @@ export const conditionSchema = altTemplateContext(
   ]),
 );
 
+// Comparators that compare numeric magnitudes — the only ones that make
+// sense with `position: percentAgreement`, where the referenced value is
+// the *percentage of agreement* rather than the raw response.
+const PERCENT_AGREEMENT_NUMERIC_COMPARATORS = new Set([
+  "isAbove",
+  "isBelow",
+  "isAtLeast",
+  "isAtMost",
+]);
+
+// Positions that are forbidden on game-stage-level conditions because
+// they would evaluate to a different result on each participant's client
+// — causing one participant to skip a stage while the other renders it.
+// Intro/exit steps are per-participant and have no such constraint.
+const GAME_STAGE_FORBIDDEN_POSITIONS = new Set([
+  "player",
+  "self", // not in the schema today but guard against future additions
+]);
+
+/**
+ * Apply cross-cutting rules to a list of conditions (stage-level or
+ * element-level). Adds zod issues for each violation found; called from
+ * stage/intro-exit superRefines so we can point issue paths at the
+ * condition's actual location in the parent object.
+ */
+function validateConditionRules(
+  conditions: unknown,
+  pathPrefix: (string | number)[],
+  ctx: z.RefinementCtx,
+  options: { contextLabel: string; forbidSelfPosition: boolean },
+): void {
+  if (!Array.isArray(conditions)) return;
+  conditions.forEach((rawCondition: unknown, idx: number) => {
+    if (!rawCondition || typeof rawCondition !== "object") return;
+    const c = rawCondition as {
+      position?: unknown;
+      comparator?: unknown;
+      value?: unknown;
+    };
+
+    // `percentAgreement` aggregates the referenced values and compares
+    // the agreement percentage against `value`. Non-numeric comparators
+    // (equals, includes, matches, …) silently produce wrong results.
+    if (
+      c.position === "percentAgreement" &&
+      typeof c.comparator === "string" &&
+      !PERCENT_AGREEMENT_NUMERIC_COMPARATORS.has(c.comparator)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...pathPrefix, idx, "comparator"],
+        message: `position: percentAgreement requires a numeric comparator (isAbove, isBelow, isAtLeast, isAtMost) — got "${c.comparator}". The comparator is applied to the percentage of agreement, not the raw response.`,
+      });
+    }
+
+    // Game-stage conditions must evaluate identically on every client or
+    // they'll desync (one player skips, the other renders). The default
+    // position is "player", which reads this participant's own data — so
+    // we reject both missing and explicitly "player".
+    if (
+      options.forbidSelfPosition &&
+      (c.position === undefined ||
+        (typeof c.position === "string" &&
+          GAME_STAGE_FORBIDDEN_POSITIONS.has(c.position)))
+    ) {
+      const shown =
+        c.position === undefined
+          ? "(default: player)"
+          : `"${String(c.position)}"`;
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...pathPrefix, idx, "position"],
+        message: `${options.contextLabel} conditions must use a cross-client position (shared, all, any, percentAgreement, or a numeric index) — got ${shown}. Per-player positions would let one participant skip the stage while the other renders it.`,
+      });
+    }
+  });
+}
+
 export const conditionsSchema = altTemplateContext(
   z
     .array(conditionSchema, {
@@ -1119,6 +1197,7 @@ export const stageSchema = altTemplateContext(
     .object({
       name: nameSchema,
       notes: z.string().optional(),
+      conditions: conditionsSchema.optional(),
       discussion: discussionSchema.optional(),
       duration: durationSchema.or(fieldPlaceholderSchema),
       elements: elementsSchema,
@@ -1134,8 +1213,29 @@ export const stageSchema = altTemplateContext(
         });
       }
 
+      // Stage-level conditions (#183): forbid per-player positions on
+      // game stages (would desync), validate percentAgreement threshold.
+      validateConditionRules(data.conditions, ["conditions"], ctx, {
+        contextLabel: "Game-stage",
+        forbidSelfPosition: true,
+      });
+
       if (!Array.isArray(data.elements)) return;
       const elements = data.elements as Record<string, unknown>[];
+
+      // Element-level conditions in game stages: elements render per
+      // player, so per-player positions are fine here. Only the
+      // percentAgreement-needs-numeric-comparator rule applies.
+      elements.forEach((element, elementIndex) => {
+        if (element && typeof element === "object") {
+          validateConditionRules(
+            (element as { conditions?: unknown }).conditions,
+            ["elements", elementIndex, "conditions"],
+            ctx,
+            { contextLabel: "Element", forbidSelfPosition: false },
+          );
+        }
+      });
 
       // Validate element time bounds against stage duration
       const duration = data.duration;
@@ -1235,9 +1335,34 @@ export const introExitStepSchema = altTemplateContext(
     .object({
       name: nameSchema,
       notes: z.string().optional(),
+      conditions: conditionsSchema.optional(),
       elements: elementsSchema,
     })
-    .strict(),
+    .strict()
+    .superRefine((data, ctx) => {
+      // Intro/exit steps are per-participant, so per-player positions
+      // are fine here — no desync concern. Just enforce the
+      // percentAgreement-needs-numeric-comparator rule on step-level
+      // and element-level conditions.
+      validateConditionRules(data.conditions, ["conditions"], ctx, {
+        contextLabel: "Intro/exit step",
+        forbidSelfPosition: false,
+      });
+      if (Array.isArray(data.elements)) {
+        (data.elements as Record<string, unknown>[]).forEach(
+          (element, elementIndex) => {
+            if (element && typeof element === "object") {
+              validateConditionRules(
+                (element as { conditions?: unknown }).conditions,
+                ["elements", elementIndex, "conditions"],
+                ctx,
+                { contextLabel: "Element", forbidSelfPosition: false },
+              );
+            }
+          },
+        );
+      }
+    }),
 );
 // Todo: add a superrefine that checks that no conditions have position values
 // and that no elements have showToPositions or hideFromPositions

@@ -21,6 +21,14 @@ export interface MockStageRendererProps {
   elapsedTime?: number;
   /** Key-value map of DSL reference string → extracted value (e.g., "prompt.answer" → "yes") */
   stateValues?: Record<string, unknown>;
+  /**
+   * Host advancement hook for stage-level conditions (#183). Default
+   * is a no-op so existing tests aren't affected; tests that want to
+   * verify stage-gate advancement can pass a mock to inspect.
+   */
+  advanceStage?: () => void;
+  /** Opaque stage id — for the gate's latch-reset logic. */
+  stageId?: string;
 }
 
 /** Wrap a value at a nested path, e.g. wrapAtPath("yes", ["value"]) → { value: "yes" } */
@@ -55,6 +63,8 @@ export function MockStageRenderer({
   isSubmitted = false,
   elapsedTime = 0,
   stateValues = {},
+  advanceStage,
+  stageId,
 }: MockStageRendererProps) {
   const flatValues = buildFlatValues(stateValues);
 
@@ -66,6 +76,8 @@ export function MockStageRenderer({
     save: () => {},
     getElapsedTime: () => elapsedTime,
     submit: () => {},
+    advanceStage,
+    stageId,
     getAssetURL: (path: string) => `https://mock-cdn.test/${path}`,
     getTextContent: (path: string) =>
       Promise.resolve(
