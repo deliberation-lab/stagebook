@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { z } from "zod";
 import type { ZodIssue } from "zod";
+import { validateTreatmentFileReferences } from "./validateReferences.js";
 
 // TODO: used by regex validation in conditionMatchesSchema — wire up or remove
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1953,12 +1954,25 @@ export function matchContentType(contentType: string) {
 export type TemplateType = z.infer<typeof templateSchema>;
 
 // ------------------ Treatment File ------------------ //
-export const treatmentFileSchema = z.object({
-  templates: z
-    .array(templateSchema)
-    .min(1, "Templates cannot be empty")
-    .optional(),
-  introSequences: introSequencesSchema,
-  treatments: treatmentsSchema,
-});
+export const treatmentFileSchema = z
+  .object({
+    templates: z
+      .array(templateSchema)
+      .min(1, "Templates cannot be empty")
+      .optional(),
+    introSequences: introSequencesSchema,
+    treatments: treatmentsSchema,
+  })
+  .superRefine((data, ctx) => {
+    // Cross-stage reference validation (#197): forward-reference rejection
+    // + stage-level always-skip-at-load detection. Walker lives in its
+    // own module to keep this file focused.
+    for (const issue of validateTreatmentFileReferences(data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: issue.path,
+        message: issue.message,
+      });
+    }
+  });
 export type TreatmentFileType = z.infer<typeof treatmentFileSchema>;
