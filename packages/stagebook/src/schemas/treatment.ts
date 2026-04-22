@@ -1097,12 +1097,13 @@ export const stageSchema = altTemplateContext(
         });
       }
 
+      if (!Array.isArray(data.elements)) return;
+      const elements = data.elements as Record<string, unknown>[];
+
       // Validate element time bounds against stage duration
       const duration = data.duration;
-      if (typeof duration !== "number" || !Array.isArray(data.elements)) return;
-
-      data.elements.forEach(
-        (element: Record<string, unknown>, elementIndex: number) => {
+      if (typeof duration === "number") {
+        elements.forEach((element, elementIndex) => {
           if (!element || typeof element !== "object") return;
 
           const timeFields = [
@@ -1117,12 +1118,53 @@ export const stageSchema = altTemplateContext(
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["elements", elementIndex, field],
-                message: `${field} (${value}) exceeds stage duration (${duration}) for element "${String(element.name || element.type)}"`,
+                message: `${field} (${value}) exceeds stage duration (${duration}) for element "${String(element.name ?? element.type)}"`,
               });
             }
           }
-        },
-      );
+        });
+      }
+
+      // Validate that every timeline's `source` names a mediaPlayer in
+      // the same stage. PlaybackHandles are stage-scoped, so a timeline
+      // whose source doesn't match any mediaPlayer.name here would fail
+      // at runtime with a "source player not found" error.
+      const mediaPlayerNames = new Set<string>();
+      for (const element of elements) {
+        if (
+          element &&
+          typeof element === "object" &&
+          element.type === "mediaPlayer" &&
+          typeof element.name === "string"
+        ) {
+          mediaPlayerNames.add(element.name);
+        }
+      }
+      elements.forEach((element, elementIndex) => {
+        if (
+          !element ||
+          typeof element !== "object" ||
+          element.type !== "timeline"
+        )
+          return;
+        const source = element.source;
+        if (typeof source !== "string") return;
+        // Skip when source is an unresolved `${field}` placeholder —
+        // the referenced name may only be known after template fill.
+        if (/\$\{[a-zA-Z0-9_]+\}/.test(source)) return;
+        if (mediaPlayerNames.has(source)) return;
+        const available =
+          mediaPlayerNames.size > 0
+            ? ` Available mediaPlayers in this stage: ${[...mediaPlayerNames]
+                .map((n) => `"${n}"`)
+                .join(", ")}.`
+            : " No mediaPlayer elements are defined in this stage.";
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["elements", elementIndex, "source"],
+          message: `Timeline source "${source}" does not match any mediaPlayer.name in this stage.${available}`,
+        });
+      });
     }),
 );
 export type StageType = z.infer<typeof stageSchema>;
