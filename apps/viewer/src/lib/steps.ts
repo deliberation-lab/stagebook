@@ -9,11 +9,13 @@ export interface ViewerStep {
   elements: ElementType[];
   duration?: number;
   discussion?: DiscussionType;
+  /** Researcher-facing notes on the stage (never shown to participants). */
+  notes?: string;
 }
 
 interface IntroSequence {
   name: string;
-  introSteps: { name: string; elements: ElementType[] }[];
+  introSteps: { name: string; notes?: string; elements: ElementType[] }[];
 }
 
 interface Treatment {
@@ -21,11 +23,12 @@ interface Treatment {
   playerCount: number;
   gameStages: {
     name: string;
+    notes?: string;
     duration?: number;
     elements: ElementType[];
     discussion?: DiscussionType;
   }[];
-  exitSequence?: { name: string; elements: ElementType[] }[];
+  exitSequence?: { name: string; notes?: string; elements: ElementType[] }[];
 }
 
 /**
@@ -45,6 +48,7 @@ export function flattenSteps(
       phase: "intro",
       name: step.name,
       elements: step.elements,
+      notes: step.notes,
     });
   }
 
@@ -56,6 +60,7 @@ export function flattenSteps(
       elements: stage.elements,
       duration: stage.duration,
       discussion: stage.discussion,
+      notes: stage.notes,
     });
   }
 
@@ -66,6 +71,7 @@ export function flattenSteps(
         phase: "exit",
         name: step.name,
         elements: step.elements,
+        notes: step.notes,
       });
     }
   }

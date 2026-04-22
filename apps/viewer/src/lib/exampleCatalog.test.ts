@@ -60,6 +60,39 @@ describe("buildCatalog", () => {
     expect(entry.prompts["prompts/x.prompt.md"]).toContain("noResponse");
   });
 
+  it("picks up the example's sibling README.md into the `readme` field", () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {
+        "/root/examples/demo/README.md": "# Demo study\n\nOverview text.",
+        "/root/examples/other/README.md": "ignored",
+      },
+    );
+    expect(entry.readme).toContain("Demo study");
+    expect(entry.readme).toContain("Overview text.");
+  });
+
+  it("does NOT mix README.md into the `prompts` field", () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {
+        "/root/examples/demo/README.md": "# Demo",
+        "/root/examples/demo/prompts/x.prompt.md":
+          "---\ntype: noResponse\n---\nbody\n---\n",
+      },
+    );
+    expect(Object.keys(entry.prompts)).toEqual(["prompts/x.prompt.md"]);
+    expect(entry.prompts["README.md"]).toBeUndefined();
+  });
+
+  it("leaves `readme` undefined when no README.md is bundled", () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {},
+    );
+    expect(entry.readme).toBeUndefined();
+  });
+
   it("falls back to the id when the treatment has no notes", () => {
     const yaml = SAMPLE_YAML.replace(
       "    notes: |\n      A **Markdown** note describing the treatment.\n",
@@ -94,6 +127,26 @@ describe("createExampleContentFns", () => {
     );
     const fns = createExampleContentFns(entry);
     await expect(fns.getTextContent("prompts/missing.md")).rejects.toThrow(
+      /No bundled content/,
+    );
+  });
+
+  it("serves README.md via getTextContent when bundled", async () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      { "/root/examples/demo/README.md": "# Demo" },
+    );
+    const fns = createExampleContentFns(entry);
+    await expect(fns.getTextContent("README.md")).resolves.toBe("# Demo");
+  });
+
+  it("rejects getTextContent for README.md when not bundled", async () => {
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {},
+    );
+    const fns = createExampleContentFns(entry);
+    await expect(fns.getTextContent("README.md")).rejects.toThrow(
       /No bundled content/,
     );
   });

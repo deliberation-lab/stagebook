@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
 import {
@@ -13,7 +13,7 @@ import {
   type ExampleEntry,
 } from "./lib/exampleCatalog";
 import { LandingPage } from "./components/LandingPage";
-import { TreatmentPicker } from "./components/TreatmentPicker";
+import { OverviewPage } from "./components/OverviewPage";
 import { PreviewHost } from "./components/PreviewHost";
 
 type ContentFns = ReturnType<typeof createUrlContentFns>;
@@ -22,9 +22,10 @@ type AppState =
   | { phase: "landing" }
   | { phase: "loading"; url: string }
   | {
-      phase: "selecting";
+      phase: "overview";
       treatmentFile: TreatmentFileType;
       contentFns: ContentFns;
+      readmeContent: string | null;
     }
   | {
       phase: "viewing";
@@ -43,14 +44,33 @@ type AppState =
 export function App() {
   const [state, setState] = useState<AppState>({ phase: "landing" });
 
+  // Monotonic token — incremented on every load request so a slower README
+  // fetch from an earlier click can't overwrite state set by a later one.
+  const loadSeqRef = useRef(0);
+
   const enterTreatment = useCallback(
-    (treatmentFile: TreatmentFileType, contentFns: ContentFns) => {
+    async (
+      treatmentFile: TreatmentFileType,
+      contentFns: ContentFns,
+      seq: number,
+    ) => {
+      const readmeContent = await contentFns
+        .getTextContent("README.md")
+        .catch(() => null);
+      // A newer load started while we were awaiting README — drop this one.
+      if (seq !== loadSeqRef.current) return;
+
       const needsPicker =
         treatmentFile.introSequences.length > 1 ||
         treatmentFile.treatments.length > 1;
 
-      if (needsPicker) {
-        setState({ phase: "selecting", treatmentFile, contentFns });
+      if (needsPicker || readmeContent !== null) {
+        setState({
+          phase: "overview",
+          treatmentFile,
+          contentFns,
+          readmeContent,
+        });
       } else {
         setState({
           phase: "viewing",
@@ -66,11 +86,18 @@ export function App() {
 
   const handleLoad = useCallback(
     async (url: string) => {
+      const seq = ++loadSeqRef.current;
       setState({ phase: "loading", url });
       try {
         const { treatmentFile, rawBaseUrl } = await loadTreatmentFromUrl(url);
-        enterTreatment(treatmentFile, createUrlContentFns(rawBaseUrl));
+        if (seq !== loadSeqRef.current) return;
+        await enterTreatment(
+          treatmentFile,
+          createUrlContentFns(rawBaseUrl),
+          seq,
+        );
       } catch (err) {
+        if (seq !== loadSeqRef.current) return;
         const validationIssues =
           err instanceof TreatmentValidationError ? err.issues : undefined;
         setState({
@@ -85,11 +112,17 @@ export function App() {
   );
 
   const handleLoadExample = useCallback(
-    (entry: ExampleEntry) => {
+    async (entry: ExampleEntry) => {
+      const seq = ++loadSeqRef.current;
       try {
         const treatmentFile = parseTreatmentYaml(entry.yaml);
-        enterTreatment(treatmentFile, createExampleContentFns(entry));
+        await enterTreatment(
+          treatmentFile,
+          createExampleContentFns(entry),
+          seq,
+        );
       } catch (err) {
+        if (seq !== loadSeqRef.current) return;
         const validationIssues =
           err instanceof TreatmentValidationError ? err.issues : undefined;
         setState({
@@ -134,11 +167,13 @@ export function App() {
         />
       );
 
-    case "selecting": {
-      const { treatmentFile, contentFns } = state;
+    case "overview": {
+      const { treatmentFile, contentFns, readmeContent } = state;
       return (
-        <TreatmentPicker
+        <OverviewPage
           treatmentFile={treatmentFile}
+          readmeContent={readmeContent}
+          onBack={() => setState({ phase: "landing" })}
           onSelect={(introIndex, treatmentIndex) => {
             setState({
               phase: "viewing",

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   useMemo,
   useCallback,
@@ -13,6 +14,7 @@ import { createViewerContext } from "../lib/context";
 import { StageNav } from "./StageNav";
 import { StateInspector } from "./StateInspector";
 import { TimeScrubber } from "./TimeScrubber";
+import { NotesIconsOverlay } from "./NotesIconsOverlay";
 import { createSkeletonRenderers } from "./SkeletonPlaceholder";
 
 export interface ViewerProps {
@@ -65,6 +67,7 @@ export function Viewer({
   const [stageIndex, setStageIndex] = useState(0);
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
+  const stageContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Clamp stageIndex if the treatment was edited to have fewer stages
   // (e.g. researcher deleted a stage while the preview was open). Without
@@ -217,9 +220,15 @@ export function Viewer({
               </button>
             </div>
           ) : (
-            <StagebookProvider value={ctx}>
-              <Stage stage={stageConfig} onSubmit={handleSubmit} />
-            </StagebookProvider>
+            <div ref={stageContainerRef} style={stageContainerStyle}>
+              <StagebookProvider value={ctx}>
+                <Stage stage={stageConfig} onSubmit={handleSubmit} />
+              </StagebookProvider>
+              <NotesIconsOverlay
+                containerRef={stageContainerRef}
+                currentStep={currentStep}
+              />
+            </div>
           )}
         </main>
       </div>
@@ -316,6 +325,12 @@ const mainStyle: React.CSSProperties = {
   padding: "1.5rem",
   display: "flex",
   justifyContent: "center",
+};
+
+const stageContainerStyle: React.CSSProperties = {
+  position: "relative",
+  width: "100%",
+  alignSelf: "flex-start",
 };
 
 const submittedOverlayStyle: React.CSSProperties = {
