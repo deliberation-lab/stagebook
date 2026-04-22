@@ -343,6 +343,193 @@ duration: 300`;
     });
   });
 
+  describe("notes (comment color)", () => {
+    it("highlights an inline plain-scalar notes value", () => {
+      const src = `treatments:
+  - name: t1
+    notes: adapted from Smith et al. 2021`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment).toHaveLength(1);
+      expect(comment[0]).toMatchObject({
+        line: 2,
+        text: "adapted from Smith et al. 2021",
+      });
+    });
+
+    it("highlights a quoted-scalar notes value and strips the quotes", () => {
+      const src = `treatments:
+  - name: t1
+    notes: "rationale in quotes"`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment).toHaveLength(1);
+      expect(comment[0].text).toBe("rationale in quotes");
+    });
+
+    it("highlights every content line of a literal block scalar, skipping the indicator line", () => {
+      const src = `treatments:
+  - name: t1
+    notes: |
+      Adapted from the narrative engagement scale.
+      We use 5 items instead of 12.
+    playerCount: 2`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment.map((t) => t.text)).toEqual([
+        "Adapted from the narrative engagement scale.",
+        "We use 5 items instead of 12.",
+      ]);
+      // First content line starts at col 6 (six-space indent under `notes: |`).
+      expect(comment[0]).toMatchObject({ line: 3, startCol: 6 });
+      expect(comment[1]).toMatchObject({ line: 4, startCol: 6 });
+    });
+
+    it("handles a folded block scalar (`>`) the same way", () => {
+      const src = `treatments:
+  - name: t1
+    notes: >
+      Folded paragraph first line
+      Folded paragraph second line`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment.map((t) => t.text)).toEqual([
+        "Folded paragraph first line",
+        "Folded paragraph second line",
+      ]);
+    });
+
+    it("highlights a content line that happens to be a single `|` or `>` character", () => {
+      // Only the *first* line of the scalar is the indicator. A later
+      // content line that is literally just `|` or `>` is legitimate
+      // prose (e.g., a table separator drawn in ASCII) and must not be
+      // dropped.
+      const src = `treatments:
+  - name: t1
+    notes: |
+      header
+      |
+      >
+      footer`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens
+        .filter((t) => t.tokenType === "comment")
+        .map((t) => t.text);
+      expect(comment).toEqual(["header", "|", ">", "footer"]);
+    });
+
+    it("strips a trailing CR on CRLF-terminated files", () => {
+      const src =
+        "treatments:\r\n" +
+        "  - name: t1\r\n" +
+        "    notes: |\r\n" +
+        "      first line\r\n" +
+        "      second line\r\n";
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment).toHaveLength(2);
+      // No carriage return should leak into the token text or its length.
+      for (const t of comment) {
+        expect(t.text.includes("\r")).toBe(false);
+        expect(t.length).toBe(t.text.length);
+      }
+      expect(comment[0].text).toBe("first line");
+      expect(comment[1].text).toBe("second line");
+    });
+
+    it("survives blank lines inside a block scalar", () => {
+      const src = `treatments:
+  - name: t1
+    notes: |
+      First paragraph.
+
+      Second paragraph.`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment.map((t) => t.text)).toEqual([
+        "First paragraph.",
+        "Second paragraph.",
+      ]);
+    });
+
+    it("does NOT leave the notes: key itself colored", () => {
+      const src = `treatments:
+  - name: t1
+    notes: short`;
+      const tokens = computeSemanticTokens(src);
+      // No token covers the key text "notes".
+      expect(tokens.some((t) => t.text === "notes")).toBe(false);
+    });
+
+    it("highlights notes: on stages, elements, intro steps, and templates", () => {
+      const src = `templates:
+  - templateName: tpl
+    contentType: stage
+    notes: template note
+    templateContent:
+      name: s
+      notes: stage-in-template note
+      duration: 10
+      elements:
+        - type: prompt
+          notes: element note
+          file: p.prompt.md
+introSequences:
+  - name: i
+    introSteps:
+      - name: step1
+        notes: intro step note
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    notes: treatment note
+    playerCount: 1
+    gameStages:
+      - name: g1
+        notes: game stage note
+        duration: 5
+        elements:
+          - type: submitButton`;
+      const tokens = computeSemanticTokens(src);
+      const commentTexts = new Set(
+        tokens.filter((t) => t.tokenType === "comment").map((t) => t.text),
+      );
+      expect(commentTexts).toEqual(
+        new Set([
+          "template note",
+          "stage-in-template note",
+          "element note",
+          "intro step note",
+          "treatment note",
+          "game stage note",
+        ]),
+      );
+    });
+
+    it("does NOT highlight notes: inside a freeform template (contentType: other)", () => {
+      const src = `templates:
+  - templateName: freeform
+    contentType: other
+    templateContent:
+      notes: not a real researcher note
+      anything: goes`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment).toHaveLength(0);
+    });
+
+    it("does NOT highlight notes: inside a template with no contentType", () => {
+      const src = `templates:
+  - templateName: untagged
+    templateContent:
+      notes: can't prove what this is`;
+      const tokens = computeSemanticTokens(src);
+      const comment = tokens.filter((t) => t.tokenType === "comment");
+      expect(comment).toHaveLength(0);
+    });
+  });
+
   describe("mixed content", () => {
     it("handles a realistic treatment snippet", () => {
       const src = `treatments:
