@@ -1093,6 +1093,30 @@ test("stage rejects a timeline when no mediaPlayer exists in the stage", () => {
   }
 });
 
+test("stage with an unnamed mediaPlayer distinguishes 'none named' from 'none at all'", () => {
+  const result = stageSchema.safeParse({
+    name: "coding",
+    duration: 60,
+    elements: [
+      { type: "mediaPlayer", url: "v.mp4" }, // no name
+      {
+        type: "timeline",
+        source: "missing",
+        name: "segments",
+        selectionType: "range",
+      },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "elements.1.source",
+    );
+    expect(issue?.message).toContain("`name:` field");
+    expect(issue?.message).not.toContain("No mediaPlayer elements are defined");
+  }
+});
+
 test("stage skips source validation when source is a ${field} placeholder", () => {
   const result = stageSchema.safeParse({
     name: "coding",
