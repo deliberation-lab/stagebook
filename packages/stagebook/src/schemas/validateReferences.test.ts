@@ -396,6 +396,114 @@ describe("Rule 1 — no forward references", () => {
     expect(issues.length).toBe(0);
   });
 
+  test("intro-step condition referencing game-stage data → rejected (cross-phase forward)", () => {
+    // Intro always runs before game, so a reference FROM intro TO game is
+    // always falsy at runtime. Caught via the laterPhaseKeys set.
+    const file = baseFile({
+      introSteps: [
+        {
+          name: "welcome",
+          conditions: [
+            {
+              reference: "prompt.gameAnswer",
+              comparator: "equals",
+              value: "yes",
+            },
+          ],
+          elements: [{ type: "submitButton" }],
+        },
+      ],
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          elements: [
+            { type: "prompt", name: "gameAnswer", file: "g.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find(
+      (i) =>
+        i.path.join(".") ===
+          "introSequences.0.introSteps.0.conditions.0.reference" &&
+        /later phase/i.test(i.message),
+    );
+    expect(hit).toBeDefined();
+  });
+
+  test("intro-step display.reference targeting game-stage data → rejected", () => {
+    const file = baseFile({
+      introSteps: [
+        {
+          name: "welcome",
+          elements: [
+            { type: "display", reference: "prompt.gameAnswer" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          elements: [
+            { type: "prompt", name: "gameAnswer", file: "g.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find(
+      (i) =>
+        i.path.join(".") ===
+          "introSequences.0.introSteps.0.elements.0.reference" &&
+        /later phase/i.test(i.message),
+    );
+    expect(hit).toBeDefined();
+  });
+
+  test("survey produces a storage key from surveyName when name is absent", () => {
+    // Element.tsx derives the storage key as
+    // `survey_${element.name ?? element.surveyName}`. The walker has to
+    // match, otherwise forward references to `survey.<surveyName>` slip
+    // through when authors omit the optional `name`.
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          elements: [
+            {
+              type: "display",
+              reference: "survey.MySurvey.result.answer",
+            },
+            { type: "submitButton" },
+          ],
+        },
+        {
+          name: "s2",
+          duration: 60,
+          elements: [
+            // no `name:` — storage key derives from surveyName
+            { type: "survey", surveyName: "MySurvey" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find(
+      (i) =>
+        i.path.join(".") === "treatments.0.gameStages.0.elements.0.reference" &&
+        /later/i.test(i.message),
+    );
+    expect(hit).toBeDefined();
+  });
+
   test("external references (urlParams.x, participantInfo.x) accepted at every site", () => {
     const file = baseFile({
       gameStages: [

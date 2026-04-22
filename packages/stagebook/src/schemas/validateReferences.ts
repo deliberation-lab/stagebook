@@ -71,9 +71,28 @@ export function validateTreatmentFileReferences(
   const issues: ReferenceValidationIssue[] = [];
   if (!isRecord(treatmentFile)) return issues;
 
-  // Intro sequences: validate each sequence in isolation for within-sequence
-  // forward references and stage-level always-skip.
   const introSequences = toArray(treatmentFile.introSequences);
+  const treatments = toArray(treatmentFile.treatments);
+
+  // Build the set of keys produced by any game stage or exit step across
+  // all treatments. Intro-step references to any of these are forward
+  // references (intro always runs before game/exit). Passed to
+  // validateStepSequence so intro validation catches the cross-phase case
+  // even though intros don't otherwise know about game/exit data.
+  const laterPhaseKeys = new Set<string>();
+  for (const treatment of treatments) {
+    if (!isRecord(treatment)) continue;
+    for (const stage of toArray(treatment.gameStages)) {
+      for (const key of collectStepKeys(stage)) laterPhaseKeys.add(key);
+    }
+    for (const step of toArray(treatment.exitSequence)) {
+      for (const key of collectStepKeys(step)) laterPhaseKeys.add(key);
+    }
+  }
+
+  // Intro sequences: validate each sequence in isolation for within-sequence
+  // forward references, cross-phase forward references into game/exit, and
+  // stage-level always-skip.
   introSequences.forEach((seq, seqIdx) => {
     if (!isRecord(seq)) return;
     const steps = toArray(seq.introSteps);
@@ -82,6 +101,7 @@ export function validateTreatmentFileReferences(
       sequencePath: ["introSequences", seqIdx, "introSteps"],
       phase: "intro",
       issues,
+      laterPhaseKeys,
     });
   });
 
@@ -96,7 +116,6 @@ export function validateTreatmentFileReferences(
   }
 
   // Each treatment has its own game/exit rank space.
-  const treatments = toArray(treatmentFile.treatments);
   treatments.forEach((treatment, treatmentIdx) => {
     if (!isRecord(treatment)) return;
     validateTreatment({
@@ -122,6 +141,7 @@ function validateStepSequence({
   phase,
   issues,
   priorPhaseKeys,
+  laterPhaseKeys,
 }: {
   steps: unknown[];
   sequencePath: (string | number)[];
@@ -129,6 +149,9 @@ function validateStepSequence({
   issues: ReferenceValidationIssue[];
   /** Keys produced by earlier phases (for exit sequences: intro + game). */
   priorPhaseKeys?: Set<string>;
+  /** Keys produced by later phases. Any intro-step reference to one of
+   *  these is a cross-phase forward reference. */
+  laterPhaseKeys?: Set<string>;
 }): void {
   // Build producedAt: key → earliest step index that produces it.
   const producedAt = new Map<string, number>();
@@ -148,6 +171,7 @@ function validateStepSequence({
         producedAt,
         issues,
         priorPhaseKeys,
+        laterPhaseKeys,
         phaseLabel: phase === "intro" ? "intro step" : "exit step",
       });
     }
@@ -383,6 +407,7 @@ function applyRules({
   producedAt,
   issues,
   priorPhaseKeys,
+  laterPhaseKeys,
   allowedProducerRanks,
   phaseLabel,
 }: {
@@ -393,6 +418,9 @@ function applyRules({
   /** For exit-phase walkers: keys produced by earlier phases that aren't
    *  in the exit-local producedAt map. */
   priorPhaseKeys?: Set<string>;
+  /** For intro-phase walkers: keys produced by later phases. Any target in
+   *  this set is a cross-phase forward reference. */
+  laterPhaseKeys?: Set<string>;
   /** For groupComposition: a whitelist of producer ranks that the target
    *  key must live in. Anything else (or a non-whitelisted stage-produced
    *  target) is rejected. */
@@ -420,7 +448,18 @@ function applyRules({
   const producerRank =
     producedAt.get(referenceKey) ??
     (priorPhaseKeys?.has(referenceKey) ? RANK_INTRO : undefined);
-  if (producerRank === undefined) return;
+  if (producerRank === undefined) {
+    // Cross-phase forward reference: intro-step site referencing a key
+    // produced by any later phase (game / exit) across treatments.
+    if (laterPhaseKeys?.has(referenceKey)) {
+      const phase = phaseLabel ?? "stage";
+      issues.push({
+        path: site.path,
+        message: `Reference "${site.reference}" points at data produced by a later phase (game or exit) than this ${phase}. Forward references across phases are always falsy at runtime — move the reference or reorder the flow.`,
+      });
+    }
+    return;
+  }
 
   // groupComposition: target must be in the allowed-rank whitelist.
   if (allowedProducerRanks && !allowedProducerRanks.has(producerRank)) {
@@ -493,14 +532,29 @@ function collectProducedKeys(element: unknown, acc: Set<string>): void {
   if (!isRecord(element)) return;
   const type = element.type;
   const name = element.name;
-  if (typeof type !== "string" || typeof name !== "string") return;
+  if (typeof type !== "string") return;
+  // Survey elements fall back to `surveyName` when `name` is absent —
+  // mirrors the runtime storage-key derivation in Element.tsx:
+  // `survey_${element.name ?? element.surveyName}`. Without this fallback,
+  // a reference to `survey.<surveyName>` (common when authors omit `name`)
+  // would silently escape the forward-ref check.
+  if (type === "survey") {
+    const keyName =
+      typeof name === "string"
+        ? name
+        : typeof element.surveyName === "string"
+          ? element.surveyName
+          : undefined;
+    if (keyName !== undefined) acc.add(`survey_${keyName}`);
+    return;
+  }
   if (
-    type === "prompt" ||
-    type === "survey" ||
-    type === "submitButton" ||
-    type === "qualtrics" ||
-    type === "timeline" ||
-    type === "trackedLink"
+    typeof name === "string" &&
+    (type === "prompt" ||
+      type === "submitButton" ||
+      type === "qualtrics" ||
+      type === "timeline" ||
+      type === "trackedLink")
   ) {
     acc.add(`${type}_${name}`);
   }
