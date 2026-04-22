@@ -356,3 +356,41 @@ Stage-level conditions rely on two fields on `StagebookContext`:
 - `stageId` — opaque per-stage identifier. Lets stagebook reset its internal latch cleanly between stages without a key-remount by the host.
 
 See [platform-requirements.md](../engineer/platform-requirements.md) for the full host-integration checklist.
+
+## Preflight reference validation
+
+References (in conditions, `display.reference`, `trackedLink` / `qualtrics` `urlParams`, discussion conditions, and `groupComposition` conditions) are checked at preflight. Two rules, the second of which is stage-condition-specific:
+
+### No forward references — everywhere
+
+A reference must point at data produced by an earlier or the current stage in the flow:
+
+```
+introSteps → gameStages → exitSequence
+```
+
+Referencing a stage that hasn't run yet is rejected. External references (`urlParams.*`, `participantInfo.*`, `connectionInfo.*`, `browserInfo.*`) are always valid — they come from the platform, not a stage.
+
+`groupComposition` is stricter: it runs before the game starts, so its conditions can only reference intro-phase or external data. Referencing game or exit data from `groupComposition` is rejected.
+
+### No always-skip-at-load — stage-level conditions only
+
+A stage-level condition that references its *own* stage's data (early-termination pattern) must be authored so `compare(undefined, comparator, value) === true` — otherwise the stage evaluates false at mount and always skips itself, which is almost always a forgotten `doesNotExist`.
+
+OK:
+```yaml
+conditions:
+  - reference: submitButton.speedSubmit
+    comparator: doesNotExist   # true against undefined → stage renders
+    position: all
+```
+
+Rejected at preflight:
+```yaml
+conditions:
+  - reference: submitButton.speedSubmit
+    comparator: exists         # false against undefined → always skips
+    position: all
+```
+
+This rule only applies to stage-level conditions. Element-level conditions, `display.reference`, `urlParams`, and discussion conditions all have "wait for data to arrive" semantics where false-at-load is the standard pattern (e.g., a submit button that appears only after the prompt is answered).
