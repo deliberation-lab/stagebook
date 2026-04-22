@@ -158,6 +158,69 @@ treatments:
 
 Positions must be unique and cover 0 through `playerCount - 1`.
 
+## Media and asset references
+
+Elements that point at media (`mediaPlayer.url`, `image.file`, `audio.file`, `prompt.file`, `mediaPlayer.captionsFile`) accept three reference forms. Pick based on who owns the asset.
+
+### 1. Relative path — bundled with the treatment
+
+```yaml
+- type: mediaPlayer
+  url: shared/training.mp4
+```
+
+The file lives in the treatment's own directory (or a sibling directory like `shared/`) and ships to the platform alongside the YAML. Use this for public, stable assets that are appropriate to commit to the repo.
+
+### 2. Full URL — hosted at a fixed, public endpoint
+
+```yaml
+- type: mediaPlayer
+  url: https://youtu.be/QC8iQqtG0hg
+```
+
+`http://` or `https://`. The browser fetches the URL directly; the platform doesn't rewrite it. Use this for CDN links, YouTube embeds, or any asset whose public URL won't change.
+
+### 3. `asset://` — platform-provided
+
+```yaml
+- type: mediaPlayer
+  # Video is sensitive and can't live in the repo. Each platform
+  # supplies the URL at task time (S3 presigned URL, local file server,
+  # CDN — implementation is host-specific).
+  url: asset://group_recordings/session_001.mp4
+```
+
+`asset://path/to/file` means *the platform will resolve this*. Stagebook passes the URI through `getAssetURL()`, and each host (annotator, viewer, VS Code extension) implements its own resolution strategy. `asset://` references are explicitly excluded from `getReferencedAssets()` — they aren't repo files.
+
+Use `asset://` for:
+
+- **Sensitive media** — recordings, identifiable audio, or anything that shouldn't sit in version control.
+- **Large binaries** — files that would bloat the repo or exceed git/LFS limits.
+- **Host-specific storage** — an S3 bucket you own, a Box folder, a local dev server's asset directory.
+- **Swappability** — swap the underlying file without editing the treatment.
+
+### `${field}` placeholders — per-task variable media
+
+Distinct from `asset://`: use a field when the asset *varies from task to task*.
+
+```yaml
+- type: mediaPlayer
+  # Each participant gets a different recording (their partner's
+  # previous-round video). Filled in from the task CSV / API call.
+  url: ${partnerVideoUrl}
+```
+
+The task definition supplies the value at creation time. The value itself can be any of the three forms above (relative path, full URL, or `asset://`).
+
+### Choosing between the three
+
+| Asset is the same every task? | Asset is in the repo? | Reference form |
+|---|---|---|
+| yes | yes | relative path |
+| yes | no — public URL | full URL |
+| yes | no — host storage | `asset://…` |
+| no (varies per task) | — | `${fieldName}` |
+
 ## Naming Rules
 
 Names (for stages, elements, treatments, etc.) must be:

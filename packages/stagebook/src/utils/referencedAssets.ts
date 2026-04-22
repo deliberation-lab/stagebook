@@ -23,6 +23,10 @@ const PROMPT_SHORTHAND_SUFFIX = ".prompt.md";
 
 const PLACEHOLDER_PATTERN = /\$\{[^}]*\}/;
 const FULL_URL_PATTERN = /^(?:https?:)?\/\//i;
+// Platform-provided assets (see #188) live outside the repo — the host
+// resolves them via `getAssetURL()`, so they aren't collectable as local
+// files for bundling/manifest purposes.
+const ASSET_URI_PATTERN = /^asset:\/\//i;
 
 export interface ReferencedAsset {
   /** The raw path as it appears in the treatment YAML. */
@@ -44,6 +48,7 @@ function isCollectableLocalPath(value: unknown): value is string {
   if (value.length === 0) return false;
   if (PLACEHOLDER_PATTERN.test(value)) return false;
   if (FULL_URL_PATTERN.test(value)) return false;
+  if (ASSET_URI_PATTERN.test(value)) return false;
   return true;
 }
 
@@ -58,9 +63,10 @@ function isCollectableLocalPath(value: unknown): value is string {
  * yields `[]`.
  *
  * Excludes template-placeholder paths (`${…}`), full URLs (`http://…`,
- * `https://…`, `//…`), and empty strings. Order is stable tree-walk order
- * (outer-to-inner, then insertion order within each object), with
- * field-declaration order from the table above within a single element.
+ * `https://…`, `//…`), `asset://…` platform-provided references (#188),
+ * and empty strings. Order is stable tree-walk order (outer-to-inner,
+ * then insertion order within each object), with field-declaration order
+ * from the table above within a single element.
  */
 export function getReferencedAssets(treatmentFile: unknown): ReferencedAsset[] {
   const results: ReferencedAsset[] = [];

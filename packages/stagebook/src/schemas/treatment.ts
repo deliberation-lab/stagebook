@@ -64,20 +64,36 @@ export const promptFilePathSchema = z
 
 export type FileType = z.infer<typeof fileSchema>;
 
-export const urlSchema = z
-  .string()
-  .url()
-  .refine(
-    (url) => {
-      try {
-        const parsed = new URL(url);
-        return ["http:", "https:"].includes(parsed.protocol);
-      } catch {
-        return false;
+// Three accepted URL forms in treatment files:
+// - `http://…` / `https://…`  — fetched directly by the browser
+// - `asset://path/…`          — platform-provided; resolved by the
+//   host's `getAssetURL()` (e.g. S3 presigned URL, local file server).
+//   See #188.
+// Callers that walk treatment trees for repo-local assets (e.g.
+// `getReferencedAssets`) should exclude both `http(s)://` and
+// `asset://` — neither is a local file.
+export const urlSchema = z.string().refine(
+  (url) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return true;
       }
-    },
-    { message: "URL must use http or https protocol" },
-  );
+      if (parsed.protocol === "asset:") {
+        // `asset://foo/bar` → pathname is `/bar`, host is `foo`. Require
+        // the URL to carry *some* location after the scheme so we don't
+        // silently accept a bare `asset://`.
+        return parsed.host.length > 0 || parsed.pathname.length > 1;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+  {
+    message: "URL must use http, https, or asset:// (platform-provided media)",
+  },
+);
 export type UrlType = z.infer<typeof urlSchema>;
 
 // stage duration:
