@@ -1,4 +1,4 @@
-import type { ElementType, DiscussionType } from "stagebook";
+import type { ElementType, DiscussionType, ConditionType } from "stagebook";
 
 export type Phase = "intro" | "game" | "exit";
 
@@ -11,11 +11,18 @@ export interface ViewerStep {
   discussion?: DiscussionType;
   /** Researcher-facing notes on the stage (never shown to participants). */
   notes?: string;
+  /** Stage-level conditions (#183). Evaluated by StageConditionGate. */
+  conditions?: ConditionType[];
 }
 
 interface IntroSequence {
   name: string;
-  introSteps: { name: string; notes?: string; elements: ElementType[] }[];
+  introSteps: {
+    name: string;
+    notes?: string;
+    conditions?: ConditionType[];
+    elements: ElementType[];
+  }[];
 }
 
 interface Treatment {
@@ -24,11 +31,17 @@ interface Treatment {
   gameStages: {
     name: string;
     notes?: string;
+    conditions?: ConditionType[];
     duration?: number;
     elements: ElementType[];
     discussion?: DiscussionType;
   }[];
-  exitSequence?: { name: string; notes?: string; elements: ElementType[] }[];
+  exitSequence?: {
+    name: string;
+    notes?: string;
+    conditions?: ConditionType[];
+    elements: ElementType[];
+  }[];
 }
 
 /**
@@ -49,6 +62,7 @@ export function flattenSteps(
       name: step.name,
       elements: step.elements,
       notes: step.notes,
+      conditions: step.conditions,
     });
   }
 
@@ -61,6 +75,7 @@ export function flattenSteps(
       duration: stage.duration,
       discussion: stage.discussion,
       notes: stage.notes,
+      conditions: stage.conditions,
     });
   }
 
@@ -72,6 +87,7 @@ export function flattenSteps(
         name: step.name,
         elements: step.elements,
         notes: step.notes,
+        conditions: step.conditions,
       });
     }
   }

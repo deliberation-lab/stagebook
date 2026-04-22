@@ -6,6 +6,7 @@ import { TimeConditionalRender } from "./conditions/TimeConditionalRender.js";
 import { PositionConditionalRender } from "./conditions/PositionConditionalRender.js";
 import { ConditionsConditionalRender } from "./conditions/ConditionsConditionalRender.js";
 import { SubmissionConditionalRender } from "./conditions/SubmissionConditionalRender.js";
+import { StageConditionGate } from "./conditions/StageConditionGate.js";
 import { ScrollIndicator } from "./scroll/ScrollIndicator.js";
 import { useScrollAwareness } from "./scroll/useScrollAwareness.js";
 import { PlaybackProvider } from "./playback/PlaybackProvider.js";
@@ -32,6 +33,14 @@ export interface StageConfig {
   duration?: number;
   elements: ElementConfig[];
   discussion?: DiscussionType;
+  /**
+   * Stage-level conditions (#183). When any condition evaluates to
+   * false at mount the stage is skipped; when a condition flips to
+   * false after mount the stage ends early. Stagebook asks the host
+   * to advance via `StagebookContext.advanceStage` (falling back to
+   * `submit`).
+   */
+  conditions?: Condition[];
 }
 
 export interface StageProps {
@@ -214,64 +223,68 @@ export function Stage({ stage, onSubmit }: StageProps) {
     );
 
     return (
-      <PlaybackProvider>
-        <SubmissionConditionalRender
-          isSubmitted={isSubmitted}
-          playerCount={playerCount}
-        >
-          {discussionConditions && discussionConditions.length > 0 ? (
-            <ConditionsConditionalRender
-              conditions={discussionConditions}
-              resolve={resolve}
-              fallback={
-                <div
-                  data-testid="stageContent"
-                  style={{
-                    display: "flex",
-                    height: "100%",
-                    width: "100%",
-                    flexDirection: "column",
-                    paddingBottom: "0.5rem",
-                    overflow: "auto",
-                  }}
-                >
-                  {elementsColumn}
-                </div>
-              }
-            >
-              {discussionPage}
-            </ConditionsConditionalRender>
-          ) : (
-            discussionPage
-          )}
-        </SubmissionConditionalRender>
-      </PlaybackProvider>
+      <StageConditionGate conditions={stage.conditions}>
+        <PlaybackProvider>
+          <SubmissionConditionalRender
+            isSubmitted={isSubmitted}
+            playerCount={playerCount}
+          >
+            {discussionConditions && discussionConditions.length > 0 ? (
+              <ConditionsConditionalRender
+                conditions={discussionConditions}
+                resolve={resolve}
+                fallback={
+                  <div
+                    data-testid="stageContent"
+                    style={{
+                      display: "flex",
+                      height: "100%",
+                      width: "100%",
+                      flexDirection: "column",
+                      paddingBottom: "0.5rem",
+                      overflow: "auto",
+                    }}
+                  >
+                    {elementsColumn}
+                  </div>
+                }
+              >
+                {discussionPage}
+              </ConditionsConditionalRender>
+            ) : (
+              discussionPage
+            )}
+          </SubmissionConditionalRender>
+        </PlaybackProvider>
+      </StageConditionGate>
     );
   }
 
   // Single-column layout: elements only
   return (
-    <PlaybackProvider>
-      <SubmissionConditionalRender
-        isSubmitted={isSubmitted}
-        playerCount={playerCount}
-      >
-        <div
-          ref={singleColumnRef}
-          data-testid="stageContent"
-          style={{
-            display: "flex",
-            height: "100%",
-            width: "100%",
-            flexDirection: "column",
-            paddingBottom: "0.5rem",
-            overflow: "auto",
-          }}
+    <StageConditionGate conditions={stage.conditions}>
+      <PlaybackProvider>
+        <SubmissionConditionalRender
+          isSubmitted={isSubmitted}
+          playerCount={playerCount}
         >
-          {elementsColumn}
-          <ScrollIndicator visible={showSingleColumnScrollIndicator} />
-        </div>
-      </SubmissionConditionalRender>
-    </PlaybackProvider>
+          <div
+            ref={singleColumnRef}
+            data-testid="stageContent"
+            style={{
+              display: "flex",
+              height: "100%",
+              width: "100%",
+              flexDirection: "column",
+              paddingBottom: "0.5rem",
+              overflow: "auto",
+            }}
+          >
+            {elementsColumn}
+            <ScrollIndicator visible={showSingleColumnScrollIndicator} />
+          </div>
+        </SubmissionConditionalRender>
+      </PlaybackProvider>
+    </StageConditionGate>
   );
 }

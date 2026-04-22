@@ -6,6 +6,7 @@ import {
   discussionSchema,
   elementsSchema,
   elementSchema,
+  introExitStepSchema,
   introStepsSchema,
   exitStepsSchema,
   mediaPlayerSchema,
@@ -1247,4 +1248,173 @@ test("stage reports one issue per mismatched timeline (not a single aggregated e
     expect(paths).toContain("elements.1.source");
     expect(paths).toContain("elements.2.source");
   }
+});
+
+// ----------- Stage-level conditions (#183) -----------
+
+test("stageSchema accepts stage-level conditions with a cross-client position", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "survey.continueVote.responses.keepGoing",
+        comparator: "equals",
+        value: "yes",
+        position: "all",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stageSchema rejects stage-level conditions with default position (implicit player)", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "prompt.vote",
+        comparator: "equals",
+        value: "yes",
+        // no position → defaults to per-player, would desync
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "conditions.0.position",
+    );
+    expect(issue?.message).toMatch(/cross-client position/);
+  }
+});
+
+test("stageSchema rejects stage-level conditions with explicit position: player", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "prompt.vote",
+        comparator: "equals",
+        value: "yes",
+        position: "player",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "conditions.0.position",
+    );
+    expect(issue).toBeDefined();
+  }
+});
+
+test("introExitStepSchema allows stage-level conditions with any position, including default", () => {
+  const result = introExitStepSchema.safeParse({
+    name: "optional_info",
+    conditions: [
+      // Intro/exit is per-participant — default (player) position is fine
+      {
+        reference: "urlParams.showOptionalInfo",
+        comparator: "equals",
+        value: "true",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stageSchema rejects percentAgreement with a non-numeric comparator", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "survey.continueVote.responses.keepGoing",
+        comparator: "equals",
+        value: "yes",
+        position: "percentAgreement",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "conditions.0.comparator",
+    );
+    expect(issue?.message).toMatch(/percentAgreement.*numeric comparator/);
+  }
+});
+
+test("stageSchema accepts percentAgreement with isAtLeast and a numeric threshold", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "survey.vote.result.normPosition",
+        comparator: "isAtLeast",
+        value: 50,
+        position: "percentAgreement",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stageSchema still rejects element-level percentAgreement with a non-numeric comparator", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    elements: [
+      {
+        type: "prompt",
+        file: "p.prompt.md",
+        conditions: [
+          {
+            reference: "survey.vote.result.x",
+            comparator: "equals",
+            value: "yes",
+            position: "percentAgreement",
+          },
+        ],
+      },
+      { type: "submitButton" },
+    ],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "elements.0.conditions.0.comparator",
+    );
+    expect(issue).toBeDefined();
+  }
+});
+
+test("introExitStepSchema rejects percentAgreement with a non-numeric comparator", () => {
+  const result = introExitStepSchema.safeParse({
+    name: "debrief",
+    conditions: [
+      {
+        reference: "survey.feedback.result.x",
+        comparator: "equals",
+        value: "yes",
+        position: "percentAgreement",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
 });

@@ -194,6 +194,55 @@ When a participant disconnects during a game stage:
 - On reconnection, the participant resumes at the current stage with the correct elapsed time
 - If a video element was playing, it should resume at the correct position
 
+### Stage-level Conditions (#183)
+
+Treatment files may declare `conditions` on a stage, intro step, or exit step. When any condition evaluates to false, stagebook asks the host to advance the stage via two optional context fields:
+
+- **`advanceStage?(): void`** — called when stagebook decides the stage should end (either at mount for skip-at-load, or mid-stage for early termination).
+- **`stageId?: string`** — opaque per-stage identifier. Stagebook uses it to reset its internal advance latch cleanly when the stage changes, so hosts that reuse the provider across stages don't need to key-remount.
+
+Both are optional. If `advanceStage` is missing, stagebook falls back to `submit()` and logs a one-time dev-mode warning.
+
+#### Single-participant hosts
+
+`advanceStage` is a thin wrapper over whatever you do for submit:
+
+```ts
+advanceStage: () => submit(),
+```
+
+`stageId` can be omitted — stagebook uses the conditions array identity as a fallback key.
+
+#### Multi-participant hosts
+
+Two responsibilities that only the host can handle:
+
+1. **Submit for every player, not just self.** A dropout whose client never fires the advance call would otherwise hang the stage until the duration timer expires. Recommended:
+
+    ```ts
+    advanceStage: () => {
+      const target = currentStageId;
+      players.forEach((p) => {
+        if (p.stage?.id === target && !p.stage.get("submit")) {
+          p.stage.set("submit", true);
+        }
+      });
+    }
+    ```
+
+2. **Ensure condition data is hydrated consistently across clients before the provider mounts.** Stagebook evaluates conditions from `context.get()` results; if client A sees the data and client B doesn't, they'll make different advance decisions. Hosts with staged-attribute stores (e.g., Tajriba) should gate the `<StagebookProvider>` mount on full hydration and show a host-level loading UI during transitions.
+
+#### What stagebook handles vs. what the host handles
+
+| | Stagebook | Host |
+|---|---|---|
+| Evaluating conditions | ✅ | |
+| Latching so `advanceStage` fires once per stage | ✅ | |
+| Submitting for every player | | ✅ |
+| Cross-client stage-ID coordination during advance | | ✅ |
+| Force-submit for disconnected players | | ✅ |
+| Hydration sentinel / atomic store snapshot | | ✅ |
+
 ---
 
 ## 3. Group Formation (required for multiplayer)
