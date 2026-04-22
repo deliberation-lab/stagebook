@@ -13,7 +13,8 @@ export type SemanticTokenType =
   | "keyword" // comparators (equals, isAbove) → purple
   | "variable" // reference strings (prompt.q1) → light blue
   | "string" // file paths → orange (distinct via modifier)
-  | "property"; // section keys (elements, treatments) → blue
+  | "property" // section keys (elements, treatments) → blue
+  | "comment"; // notes: body → same color as `# …` YAML comments
 
 export interface SemanticToken {
   line: number;
@@ -139,6 +140,55 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
   }
 
   /**
+   * Emit comment tokens covering a `notes:` scalar value — one token per
+   * non-blank content line. Works for inline plain/quoted scalars and for
+   * block scalars (`notes: |` / `notes: >`), which we identify by the
+   * presence of a newline in the raw source slice. For block scalars we
+   * skip the indicator line (the one starting with `|` or `>`) and any
+   * blank lines, coloring each content line from its first non-whitespace
+   * column to end-of-line.
+   */
+  function addNotesTokens(range: [number, number, number] | undefined): void {
+    if (!range) return;
+    const raw = source.slice(range[0], range[1]);
+    const isBlock = raw.includes("\n");
+
+    if (!isBlock) {
+      // Inline: strip surrounding quotes, color the content as one token.
+      const src = getScalarSource(range);
+      if (src && src.text.length > 0) {
+        addToken(src.offset, src.text, "comment");
+      }
+      return;
+    }
+
+    // Block scalar: walk source line-by-line within the value's range.
+    let lineStart = range[0];
+    while (lineStart < range[1]) {
+      const nlIdx = source.indexOf("\n", lineStart);
+      const lineEnd = nlIdx === -1 || nlIdx >= range[1] ? range[1] : nlIdx;
+      const lineText = source.slice(lineStart, lineEnd);
+      const firstNonWs = lineText.search(/\S/);
+      if (firstNonWs !== -1) {
+        const firstChar = lineText[firstNonWs];
+        // Skip the block-scalar indicator line (`|`, `>`, `|-`, `|+`, etc.)
+        const isIndicator =
+          (firstChar === "|" || firstChar === ">") &&
+          /^[|>][-+]?\s*$/.test(lineText.slice(firstNonWs));
+        if (!isIndicator) {
+          addToken(
+            lineStart + firstNonWs,
+            lineText.slice(firstNonWs),
+            "comment",
+          );
+        }
+      }
+      if (nlIdx === -1 || nlIdx >= range[1]) break;
+      lineStart = nlIdx + 1;
+    }
+  }
+
+  /**
    * Emit tokens for a file path, splitting around ${...} placeholders.
    * Path segments get "string", placeholders get "variable".
    */
@@ -164,8 +214,18 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
     }
   }
 
-  function walkNode(node: unknown, keyName?: string): void {
+  function walkNode(
+    node: unknown,
+    keyName?: string,
+    freeformTemplateContent = false,
+  ): void {
     if (isMap(node)) {
+      // A template whose `contentType` is `"other"` (explicitly freeform) or
+      // unknown can carry arbitrary keys inside `templateContent`. We can't
+      // prove a stray `notes:` in there is a researcher note, so highlight
+      // gets suppressed for that subtree only.
+      const templateContentIsFreeform = isFreeformTemplate(node);
+
       for (const pair of node.items) {
         if (!isPair(pair)) continue;
 
@@ -178,6 +238,20 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
           if (sectionKeys.has(keyStr)) {
             addToken(key.range[0], keyStr, "property");
           }
+        }
+
+        // `notes:` — researcher-facing commentary; render in comment color.
+        // Skipped when we're inside a freeform templateContent (see above).
+        if (
+          !freeformTemplateContent &&
+          isScalar(key) &&
+          typeof key.value === "string" &&
+          key.value === "notes" &&
+          isScalar(value) &&
+          typeof value.value === "string" &&
+          value.range
+        ) {
+          addNotesTokens(value.range);
         }
 
         // Highlight the value based on the key name
@@ -262,17 +336,48 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             emitTemplateVarTokens(scalarSrc.offset, scalarSrc.text);
           }
 
-          // Recurse into the value
-          walkNode(value, isScalar(key) ? String(key.value) : undefined);
+          // Recurse into the value — switch the freeform flag on when we
+          // descend into the templateContent of a freeform template.
+          const childFreeform =
+            freeformTemplateContent ||
+            (templateContentIsFreeform && k === "templateContent");
+          walkNode(value, String(k), childFreeform);
         } else {
-          walkNode(value);
+          walkNode(value, undefined, freeformTemplateContent);
         }
       }
     } else if (isSeq(node)) {
       for (const item of node.items) {
-        walkNode(item, keyName);
+        walkNode(item, keyName, freeformTemplateContent);
       }
     }
+  }
+
+  /**
+   * Detect whether a YAML map is a template whose `templateContent` should
+   * be treated as freeform — either `contentType: other` or `contentType`
+   * is missing (which the stagebook validator tolerates for custom shapes).
+   * Used to suppress `notes:` highlighting inside that subtree.
+   */
+  function isFreeformTemplate(node: unknown): boolean {
+    if (!isMap(node)) return false;
+    let hasTemplateName = false;
+    let contentType: string | undefined;
+    for (const pair of node.items) {
+      if (!isPair(pair)) continue;
+      if (!isScalar(pair.key) || typeof pair.key.value !== "string") continue;
+      const k = pair.key.value;
+      if (k === "templateName") hasTemplateName = true;
+      if (
+        k === "contentType" &&
+        isScalar(pair.value) &&
+        typeof pair.value.value === "string"
+      ) {
+        contentType = pair.value.value;
+      }
+    }
+    if (!hasTemplateName) return false;
+    return contentType === undefined || contentType === "other";
   }
 
   walkNode(doc.contents);

@@ -241,6 +241,7 @@ const semanticTokenTypes: SemanticTokenType[] = [
   "variable",
   "string",
   "property",
+  "comment",
 ];
 
 const tokenLegend = new vscode.SemanticTokensLegend(semanticTokenTypes);
