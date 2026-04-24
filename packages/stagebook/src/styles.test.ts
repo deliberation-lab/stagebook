@@ -95,13 +95,27 @@ describe("styles.css uses theme variables for hardcoded values (#116)", () => {
   });
 
   it.each([
-    ["var(--stagebook-border, #d1d5db)", "form/table border"],
+    ["var(--stagebook-border, #d1d5db)", "form border"],
     ["var(--stagebook-text, #1f2937)", "form text color"],
     ["var(--stagebook-surface, #fff)", "form control background"],
-    ["var(--stagebook-prompt-max-width, 36rem)", "table max-width"],
-    ["var(--stagebook-bg-muted, #f9fafb)", "table header background"],
   ])("references %s (%s)", (needle) => {
     expect(css).toContain(needle);
+  });
+
+  // Table styles moved from styles.css to Markdown.tsx (issue #214). The
+  // tokenization guarantee from #116 still holds — it's just asserted
+  // against the component source now, since that's the source of truth.
+  const markdownSrc = readFileSync(
+    join(componentsDir, "form", "Markdown.tsx"),
+    "utf8",
+  );
+
+  it.each([
+    ["var(--stagebook-border, #d1d5db)", "table cell border"],
+    ["var(--stagebook-prompt-max-width, 36rem)", "table max-width"],
+    ["var(--stagebook-bg-muted, #f9fafb)", "table header background"],
+  ])("Markdown.tsx references %s (%s)", (needle) => {
+    expect(markdownSrc).toContain(needle);
   });
 
   it("derives focus ring border-color from --stagebook-primary", () => {

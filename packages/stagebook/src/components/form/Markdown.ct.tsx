@@ -64,9 +64,6 @@ test("renders GFM tables", async ({ mount }) => {
 test("table uses collapsed borders and visible cell borders", async ({
   mount,
 }) => {
-  // Also implicitly verifies the stylesheet is loading — no other test
-  // exercises that failure mode. Tables style via the stylesheet, not
-  // inline, so a dropped rule or unloaded sheet would regress silently.
   const component = await mount(
     <Markdown text={"| A | B |\n|---|---|\n| 1 | 2 |"} />,
   );
@@ -80,6 +77,92 @@ test("table uses collapsed borders and visible cell borders", async ({
     .first()
     .evaluate((el) => parseFloat(getComputedStyle(el).borderTopWidth));
   expect(cellBorderWidth).toBeGreaterThan(0);
+});
+
+// ---------------------------------------------------------------------------
+// Inline table styling — issue #214
+//
+// Tables were historically styled via styles.css, which loses on hosts that
+// don't import the stylesheet. These tests assert the styles are now INLINE
+// (read el.style.*, not getComputedStyle) so a dropped rule or unloaded
+// sheet can't regress table rendering.
+// ---------------------------------------------------------------------------
+
+test("table has inline border-collapse: collapse", async ({ mount }) => {
+  const component = await mount(
+    <Markdown text={"| A | B |\n|---|---|\n| 1 | 2 |"} />,
+  );
+  const borderCollapse = await component
+    .locator("table")
+    .evaluate((el) => (el as HTMLElement).style.borderCollapse);
+  expect(borderCollapse).toBe("collapse");
+});
+
+test("td has inline border", async ({ mount }) => {
+  const component = await mount(
+    <Markdown text={"| A | B |\n|---|---|\n| 1 | 2 |"} />,
+  );
+  const borderStyle = await component
+    .locator("td")
+    .first()
+    .evaluate((el) => (el as HTMLElement).style.border);
+  // style.border is a shorthand; inline value should be non-empty
+  expect(borderStyle.length).toBeGreaterThan(0);
+});
+
+test("th has inline background and border", async ({ mount }) => {
+  const component = await mount(
+    <Markdown text={"| A | B |\n|---|---|\n| 1 | 2 |"} />,
+  );
+  const { border, background } = await component
+    .locator("th")
+    .first()
+    .evaluate((el) => ({
+      border: (el as HTMLElement).style.border,
+      background: (el as HTMLElement).style.backgroundColor,
+    }));
+  expect(border.length).toBeGreaterThan(0);
+  expect(background.length).toBeGreaterThan(0);
+});
+
+test("table inline styles survive an aggressive host CSS reset (issue #214)", async ({
+  mount,
+}) => {
+  // Mirrors the "inline styles beat a host CSS reset" pattern for tables.
+  // A Tailwind-style preflight routinely zeroes table borders and
+  // collapses cell padding. Inline styles win on specificity without
+  // !important.
+  const resetCSS = `
+    table { border-collapse: separate; border-spacing: 2px; }
+    th, td { border: 0; padding: 0; background: transparent; }
+    th { font-weight: 400; }
+  `;
+  const component = await mount(
+    <div>
+      <style dangerouslySetInnerHTML={{ __html: resetCSS }} />
+      <Markdown text={"| A | B |\n|---|---|\n| 1 | 2 |"} />
+    </div>,
+  );
+
+  // Table still collapses borders
+  const borderCollapse = await component
+    .locator("table")
+    .evaluate((el) => getComputedStyle(el).borderCollapse);
+  expect(borderCollapse).toBe("collapse");
+
+  // td still has a visible border
+  const borderWidth = await component
+    .locator("td")
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).borderTopWidth));
+  expect(borderWidth).toBeGreaterThan(0);
+
+  // td still has padding
+  const padding = await component
+    .locator("td")
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).paddingTop));
+  expect(padding).toBeGreaterThan(0);
 });
 
 test("renders GFM strikethrough", async ({ mount }) => {

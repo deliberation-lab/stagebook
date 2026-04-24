@@ -16,7 +16,6 @@
  * - Inter font
  * - Stagebook CSS custom properties at :root (default values)
  * - Form input resets
- * - GFM table styles (out of scope for inline styling — see issue #33)
  *
  * Customizing typography / colors: override the --stagebook-* variables on
  * any parent element (or :root). For example, to scale headings down on
@@ -262,36 +261,6 @@ input[type="number"] {
 }
 
 /*
- * GFM tables (rendered by react-markdown).
- *
- * Intentionally NOT inlined into Markdown.tsx like headings/lists/etc.
- * The table style surface is large (table + th + td + collapse behavior
- * + cell borders) and inlining would roughly double Markdown.tsx. As a
- * result: hosts that import this stylesheet get nice tables; hosts that
- * don't get browser-default unstyled tables (functional but ugly).
- *
- * If a researcher needs portable table styling on a non-stylesheet host,
- * follow the pattern in Markdown.tsx and add table/thead/tbody/tr/th/td
- * entries to the components map. See issue #33.
+ * GFM tables are styled inline in src/components/form/Markdown.tsx
+ * (table / th / td handlers in the components map). See issue #214.
  */
-table {
-  border-collapse: collapse;
-  margin: 1rem 0;
-  width: 100%;
-  max-width: var(--stagebook-prompt-max-width, 36rem);
-}
-
-th,
-td {
-  border: 1px solid var(--stagebook-border, #d1d5db);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  font-size: 0.875rem;
-  color: #4a5568;
-}
-
-th {
-  background-color: var(--stagebook-bg-muted, #f9fafb);
-  font-weight: 500;
-  color: #1a202c;
-}
