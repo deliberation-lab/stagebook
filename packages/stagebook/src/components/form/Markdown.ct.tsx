@@ -358,9 +358,7 @@ test("hr survives a host CSS reset that sets hr { border: 0 }", async ({
 test("fenced code block renders with background, monospace font, and horizontal overflow", async ({
   mount,
 }) => {
-  const component = await mount(
-    <Markdown text={"```js\nconst x = 1;\n```"} />,
-  );
+  const component = await mount(<Markdown text={"```js\nconst x = 1;\n```"} />);
   const styles = await component.locator("pre").evaluate((el) => {
     const cs = getComputedStyle(el);
     return {
@@ -371,9 +369,7 @@ test("fenced code block renders with background, monospace font, and horizontal 
   });
   expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(styles.backgroundColor).not.toBe("transparent");
-  expect(styles.fontFamily.toLowerCase()).toMatch(
-    /mono|menlo|consolas|sfmono/,
-  );
+  expect(styles.fontFamily.toLowerCase()).toMatch(/mono|menlo|consolas|sfmono/);
   expect(styles.overflowX).toBe("auto");
 });
 
@@ -383,9 +379,7 @@ test("fenced code block does not double-wrap background on the inner code", asyn
   // The <pre> carries the chip styling; the inner <code class="language-*">
   // must NOT also apply its own background/padding, or the block looks
   // like a nested box.
-  const component = await mount(
-    <Markdown text={"```js\nconst x = 1;\n```"} />,
-  );
+  const component = await mount(<Markdown text={"```js\nconst x = 1;\n```"} />);
   const innerCodeInline = await component
     .locator("pre > code")
     .evaluate((el) => ({
@@ -409,7 +403,5 @@ test("inline code renders as a styled chip with background and padding", async (
   });
   expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(styles.backgroundColor).not.toBe("transparent");
-  expect(styles.fontFamily.toLowerCase()).toMatch(
-    /mono|menlo|consolas|sfmono/,
-  );
+  expect(styles.fontFamily.toLowerCase()).toMatch(/mono|menlo|consolas|sfmono/);
 });
