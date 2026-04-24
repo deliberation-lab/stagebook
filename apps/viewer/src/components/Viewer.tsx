@@ -322,7 +322,12 @@ const sidebarStyle: React.CSSProperties = {
 
 const mainStyle: React.CSSProperties = {
   flex: 1,
-  overflow: "auto",
+  // overflow: hidden (not auto) so Stage's own scroll container is the
+  // element that actually scrolls. This is what lets useScrollAwareness
+  // inside Stage see scroll events and content growth — when main was
+  // the scroller, Stage's internal div never overflowed and the scroll
+  // indicator / auto-peek nudge never fired.
+  overflow: "hidden",
   padding: "1.5rem",
   display: "flex",
   justifyContent: "center",
@@ -331,7 +336,9 @@ const mainStyle: React.CSSProperties = {
 const stageContainerStyle: React.CSSProperties = {
   position: "relative",
   width: "100%",
-  alignSelf: "flex-start",
+  // Fill main's height so Stage's height: 100% scroll container resolves
+  // to a concrete size and actually overflows when content exceeds it.
+  height: "100%",
 };
 
 const submittedOverlayStyle: React.CSSProperties = {
