@@ -319,7 +319,11 @@ export function SelectionOverlay({
           const hasExistingRange =
             isRangeArray(selections) && selections.length > 0;
           if (!multiSelect && hasExistingRange) {
+            // No range creation here, but still request focus so arrow /
+            // Delete / Ctrl-Z keep working after the click (Timeline's
+            // container is what owns the keyboard listeners).
             if (activeIndex !== null) onDeselect();
+            onRequestFocus();
           } else {
             let start = time;
             let end = time + CLICK_CREATED_RANGE_SEC;
