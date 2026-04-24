@@ -178,6 +178,12 @@ test("dismissed indicator does not re-fire on subsequent mutations at the same s
     component.locator('[data-testid="scroll-indicator"]'),
   ).toHaveCount(0);
 
+  // Dismissal removes the ScrollIndicator element from the DOM — that's a
+  // mutation the observer sees, and without a settle between it and the
+  // next growth the two can batch into a single rAF callback that misses
+  // the growth delta. Settle so each mutation is processed on its own.
+  await settleHook(component.page());
+
   // User is still at the bottom — another mutation should take the
   // auto-peek branch, not show the indicator again.
   await growContent(container);
