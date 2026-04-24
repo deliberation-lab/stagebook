@@ -204,6 +204,36 @@ const thStyle: React.CSSProperties = {
 
 const tdStyle: React.CSSProperties = tableCellBase;
 
+// GFM task-list checkboxes (`- [x]` / `- [ ]`). remark-gfm emits them as
+// `<input type="checkbox" disabled [checked]>` inside a task-list <li>.
+// Because they're disabled we don't need a focus ring, but the base +
+// checked visuals still need to be inline so the checkbox stays a filled
+// blue box on hosts without styles.css loaded (Tailwind preflight strips
+// the default OS chrome via `appearance: none`). See issue #213.
+const taskListCheckboxBaseStyle: React.CSSProperties = {
+  appearance: "none",
+  WebkitAppearance: "none",
+  width: "1rem",
+  height: "1rem",
+  border: "1px solid var(--stagebook-border, #d1d5db)",
+  borderRadius: "0.125rem",
+  backgroundColor: "var(--stagebook-surface, #fff)",
+  backgroundSize: "100% 100%",
+  backgroundPosition: "center",
+  backgroundRepeat: "no-repeat",
+  verticalAlign: "middle",
+  margin: "0 0.25rem 0 0",
+};
+
+const TASKLIST_CHECK_SVG =
+  "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")";
+
+const taskListCheckboxCheckedStyle: React.CSSProperties = {
+  backgroundColor: "var(--stagebook-primary, #3b82f6)",
+  borderColor: "var(--stagebook-primary, #3b82f6)",
+  backgroundImage: TASKLIST_CHECK_SVG,
+};
+
 export function Markdown({ text, resolveURL }: MarkdownProps) {
   let displayText = text;
 
@@ -297,6 +327,29 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
           ),
           th: ({ node: _node, ...props }) => <th style={thStyle} {...props} />,
           td: ({ node: _node, ...props }) => <td style={tdStyle} {...props} />,
+          // GFM task-list checkboxes (#213). The task-list input is
+          // rendered as a disabled <input type="checkbox">, so no focus
+          // ring is needed — but the base + checked visuals still need
+          // inline styling to survive hosts without styles.css. Other
+          // `<input>` types emitted from raw HTML (if any ever passed
+          // through rehype-raw) aren't styled here; the contract is
+          // specifically about the GFM task-list case.
+          input: ({ node: _node, type, checked, ...props }) => {
+            if (type !== "checkbox") {
+              return <input type={type} checked={checked} {...props} />;
+            }
+            return (
+              <input
+                type="checkbox"
+                checked={checked}
+                {...props}
+                style={{
+                  ...taskListCheckboxBaseStyle,
+                  ...(checked ? taskListCheckboxCheckedStyle : {}),
+                }}
+              />
+            );
+          },
         }}
       >
         {displayText}

@@ -488,3 +488,33 @@ test("inline code renders as a styled chip with background and padding", async (
   expect(styles.backgroundColor).not.toBe("transparent");
   expect(styles.fontFamily.toLowerCase()).toMatch(/mono|menlo|consolas|sfmono/);
 });
+
+// Issue #213: GFM task-list checkboxes are disabled <input type="checkbox">
+// emitted by remark-gfm. They need the same inline primary-fill + check
+// SVG as RadioGroup/CheckboxGroup so they render on hosts without
+// styles.css loaded. Focus ring not needed (the inputs are disabled).
+test("GFM task-list checkbox has inline base + check SVG when checked", async ({
+  mount,
+}) => {
+  const component = await mount(<Markdown text={"- [x] done\n- [ ] todo"} />);
+  const checked = component.locator('input[type="checkbox"]').first();
+  const unchecked = component.locator('input[type="checkbox"]').nth(1);
+
+  const checkedStyle = await checked.evaluate((el) => ({
+    appearance: (el as HTMLElement).style.appearance,
+    backgroundColor: (el as HTMLElement).style.backgroundColor,
+    backgroundImage: (el as HTMLElement).style.backgroundImage,
+  }));
+  expect(checkedStyle.appearance).toBe("none");
+  expect(checkedStyle.backgroundColor).toContain("--stagebook-primary");
+  expect(checkedStyle.backgroundImage).toContain("data:image/svg+xml");
+
+  const uncheckedStyle = await unchecked.evaluate((el) => ({
+    appearance: (el as HTMLElement).style.appearance,
+    backgroundColor: (el as HTMLElement).style.backgroundColor,
+    backgroundImage: (el as HTMLElement).style.backgroundImage,
+  }));
+  expect(uncheckedStyle.appearance).toBe("none");
+  expect(uncheckedStyle.backgroundColor).toContain("--stagebook-surface");
+  expect(uncheckedStyle.backgroundImage).toBe("");
+});

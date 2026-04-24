@@ -175,20 +175,27 @@ describe("styles.css uses theme variables for hardcoded values (#116)", () => {
     );
   });
 
-  it("uses --stagebook-primary for checkbox/radio checked fill", () => {
-    // Find the :checked rule and assert it references the primary token for
-    // both background-color and border-color.
-    const checkedBlock =
-      /input\[type="checkbox"\]:checked,\s*input\[type="radio"\]:checked\s*\{([\s\S]+?)\}/.exec(
-        outsideRoot,
-      );
-    expect(checkedBlock?.[1]).toBeDefined();
-    expect(checkedBlock?.[1]).toMatch(
-      /background-color:\s*var\(--stagebook-primary/,
+  it("radio/checkbox checked fill uses --stagebook-primary (inline, per #213)", () => {
+    // Checkbox + radio styles moved from styles.css to inline per #213.
+    // The #116 guarantee (checked fill sources from --stagebook-primary,
+    // not a bare literal) now needs to be checked on the inline-styled
+    // components themselves.
+    const radioSrc = readFileSync(
+      join(here, "components/form/RadioGroup.tsx"),
+      "utf8",
     );
-    expect(checkedBlock?.[1]).toMatch(
-      /border-color:\s*var\(--stagebook-primary/,
+    const checkboxSrc = readFileSync(
+      join(here, "components/form/CheckboxGroup.tsx"),
+      "utf8",
     );
+    const markdownSrc = readFileSync(
+      join(here, "components/form/Markdown.tsx"),
+      "utf8",
+    );
+    for (const src of [radioSrc, checkboxSrc, markdownSrc]) {
+      expect(src).toMatch(/backgroundColor:\s*["']var\(--stagebook-primary/);
+      expect(src).toMatch(/borderColor:\s*["']var\(--stagebook-primary/);
+    }
   });
 
   // The literal-value checks strip `var(--token, fallback)` calls first: the
