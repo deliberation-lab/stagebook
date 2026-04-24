@@ -110,8 +110,10 @@ const emStyle: React.CSSProperties = {
 };
 
 // Inline code only — `like this`. Fenced code blocks (```...```) get
-// className="language-*" from react-markdown and are passed through
-// untouched (out of scope for issue #33).
+// className="language-*" from react-markdown; the <pre> wrapper receives
+// the block-level chip styling (see preStyle), so the inner <code> is
+// passed through without its own background/padding to avoid a nested
+// box look.
 const inlineCodeStyle: React.CSSProperties = {
   fontFamily:
     "var(--stagebook-code-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
@@ -119,6 +121,36 @@ const inlineCodeStyle: React.CSSProperties = {
   background: "var(--stagebook-code-bg, rgba(0,0,0,0.06))",
   padding: "0.1em 0.3em",
   borderRadius: "0.25rem",
+};
+
+// Fenced code block wrapper. react-markdown emits
+// <pre><code class="language-*">...</code></pre>, so the <pre> carries
+// all of the block-level chip styling (background, padding, radius,
+// horizontal scroll). The inner <code> keeps only the font so the block
+// doesn't render as a nested box. Tailwind preflight and similar resets
+// strip the UA <pre> monospace font, so we reassert it here. See #215.
+const preStyle: React.CSSProperties = {
+  background: "var(--stagebook-code-bg, rgba(0,0,0,0.06))",
+  padding: "0.75rem 1rem",
+  borderRadius: "0.375rem",
+  overflowX: "auto",
+  fontFamily:
+    "var(--stagebook-code-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+  lineHeight: 1.4,
+  marginBlock: "0.5em",
+};
+
+// Horizontal rule (`---`). Tailwind preflight ships `hr { border: 0 }`
+// which makes the rule disappear entirely. Inline border-top wins on
+// specificity and restores a visible rule on any host. We zero the other
+// border sides so a future host rule like `hr { border-width: 1px }`
+// doesn't accidentally give us a full box. See #215.
+const hrStyle: React.CSSProperties = {
+  border: 0,
+  borderTopWidth: "1px",
+  borderTopStyle: "solid",
+  borderTopColor: "var(--stagebook-border, #d1d5db)",
+  marginBlock: "1em",
 };
 
 const aStyle: React.CSSProperties = {
@@ -227,8 +259,11 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
           code: ({ node: _node, className, ...props }) => {
             // react-markdown v10 dropped the `inline` prop. Fenced code
             // blocks get className="language-*"; inline code has no
-            // className. Style only inline code; pass fenced blocks
-            // through unchanged (out of scope for issue #33).
+            // className. The inline variant gets the chip styling
+            // (background, padding, radius); the fenced variant's
+            // block-level chip is supplied by the surrounding <pre>
+            // (preStyle) so we don't double-wrap the background/padding
+            // here. See #215.
             const isFenced =
               typeof className === "string" &&
               className.startsWith("language-");
@@ -238,6 +273,10 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
               <code style={inlineCodeStyle} {...props} />
             );
           },
+          pre: ({ node: _node, ...props }) => (
+            <pre style={preStyle} {...props} />
+          ),
+          hr: ({ node: _node, ...props }) => <hr style={hrStyle} {...props} />,
           a: ({ node: _node, ...props }) => <a style={aStyle} {...props} />,
           blockquote: ({ node: _node, ...props }) => (
             <blockquote style={blockquoteStyle} {...props} />
