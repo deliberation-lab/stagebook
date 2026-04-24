@@ -105,16 +105,51 @@ describe("styles.css uses theme variables for hardcoded values (#116)", () => {
   // Table styles moved from styles.css to Markdown.tsx (issue #214). The
   // tokenization guarantee from #116 still holds — it's just asserted
   // against the component source now, since that's the source of truth.
+  //
+  // We assert two things per token:
+  // 1. The token name appears in a real reference context (inside a `var(...)`
+  //    call or a CSSProperties key), not just in a prose comment. We reuse
+  //    extractReferenced() for that — same helper as the coverage test above.
+  // 2. The full `var(--name, fallback)` string appears verbatim, which pins
+  //    the fallback value too so it can't silently drift.
+  // The two checks together guarantee the token is referenced AND the
+  // documented fallback matches.
   const markdownSrc = readFileSync(
     join(componentsDir, "form", "Markdown.tsx"),
     "utf8",
   );
+  const markdownReferenced = extractReferenced(markdownSrc);
 
   it.each([
-    ["var(--stagebook-border, #d1d5db)", "table cell border"],
-    ["var(--stagebook-prompt-max-width, 36rem)", "table max-width"],
-    ["var(--stagebook-bg-muted, #f9fafb)", "table header background"],
-  ])("Markdown.tsx references %s (%s)", (needle) => {
+    [
+      "--stagebook-border",
+      "var(--stagebook-border, #d1d5db)",
+      "table cell border",
+    ],
+    [
+      "--stagebook-prompt-max-width",
+      "var(--stagebook-prompt-max-width, 36rem)",
+      "table max-width",
+    ],
+    [
+      "--stagebook-bg-muted",
+      "var(--stagebook-bg-muted, #f9fafb)",
+      "table header background",
+    ],
+    [
+      "--stagebook-table-text",
+      "var(--stagebook-table-text, #4a5568)",
+      "table cell text color",
+    ],
+    [
+      "--stagebook-table-header-text",
+      "var(--stagebook-table-header-text, #1a202c)",
+      "table header text color",
+    ],
+  ])("Markdown.tsx references %s via %s (%s)", (name, needle) => {
+    // Real reference (not just a comment mention).
+    expect(markdownReferenced.has(name)).toBe(true);
+    // Verbatim var() call with the documented fallback.
     expect(markdownSrc).toContain(needle);
   });
 

@@ -127,6 +127,10 @@
   --stagebook-code-font:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
+  /* Markdown GFM tables (used by the Markdown component, issue #214) */
+  --stagebook-table-text: #4a5568;
+  --stagebook-table-header-text: #1a202c;
+
   /* Blockquote (used by Display element and markdown blockquotes) */
   --stagebook-blockquote-border: #d1d5db;
   --stagebook-blockquote-bg: #f9fafb;

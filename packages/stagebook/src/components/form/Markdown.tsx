@@ -160,14 +160,14 @@ const tableCellBase: React.CSSProperties = {
   padding: "0.5rem 0.75rem",
   textAlign: "left",
   fontSize: "0.875rem",
-  color: "#4a5568",
+  color: "var(--stagebook-table-text, #4a5568)",
 };
 
 const thStyle: React.CSSProperties = {
   ...tableCellBase,
   backgroundColor: "var(--stagebook-bg-muted, #f9fafb)",
   fontWeight: 500,
-  color: "#1a202c",
+  color: "var(--stagebook-table-header-text, #1a202c)",
 };
 
 const tdStyle: React.CSSProperties = tableCellBase;
@@ -256,12 +256,8 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
           table: ({ node: _node, ...props }) => (
             <table style={tableStyle} {...props} />
           ),
-          th: ({ node: _node, ...props }) => (
-            <th style={thStyle} {...props} />
-          ),
-          td: ({ node: _node, ...props }) => (
-            <td style={tdStyle} {...props} />
-          ),
+          th: ({ node: _node, ...props }) => <th style={thStyle} {...props} />,
+          td: ({ node: _node, ...props }) => <td style={tdStyle} {...props} />,
         }}
       >
         {displayText}
