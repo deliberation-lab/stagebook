@@ -1,0 +1,146 @@
+/*
+ * stagebook/host-typography
+ *
+ * OPT-IN typography + box-model baseline for host apps that want consistent
+ * cross-host rendering on their own bare tags. Import alongside
+ * `stagebook/styles`:
+ *
+ *   import "stagebook/styles";
+ *   import "stagebook/host-typography";
+ *
+ * Why this exists: stagebook components ship inline styles and render
+ * correctly on any host without extra CSS. But the *host's* own pages
+ * (settings, permissions, attention checks, report forms, etc.) use bare
+ * tags like <h1>, <img>, <a>, <p>, and those inherit the host's CSS reset
+ * decisions — Tailwind preflight, no-preflight, normalize.css, bootstrap
+ * reboot, or nothing at all. Two apps that embed stagebook can then render
+ * "sibling" pages inconsistently even though they share the same library.
+ *
+ * This stylesheet targets ONLY bare tags (no class selectors, no
+ * `.stagebook-*` rules, no form resets beyond what styles.css already
+ * handles). It's a host-layer preflight, not a component stylesheet.
+ *
+ * Scope and trade-offs:
+ * - NOT compatible with Tailwind preflight — pick one. Hosts that already
+ *   use Tailwind preflight get sensible defaults without this layer.
+ * - Overrides bare-tag browser defaults everywhere in the host app,
+ *   including inside any third-party widgets the host renders (e.g.
+ *   `survey-react`). Hosts that need to preserve browser defaults for a
+ *   specific subtree should not import this globally — or scope it via
+ *   their own wrapper (this file deliberately doesn't define one).
+ * - NOT a stylesheet for stagebook's own components. Those already ship
+ *   inline styles and aren't affected by this layer.
+ *
+ * Customize by overriding the --stagebook-* variables at :root or on any
+ * ancestor element — same pattern as stagebook/styles.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Typography scale                                                     */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --stagebook-h1-size: 1.875rem; /* 30px */
+  --stagebook-h2-size: 1.5rem; /* 24px */
+  --stagebook-h3-size: 1.25rem; /* 20px */
+  --stagebook-h4-size: 1.125rem; /* 18px */
+  --stagebook-h5-size: 1rem; /* 16px */
+  --stagebook-h6-size: 0.875rem; /* 14px */
+  --stagebook-body-size: 1rem;
+  --stagebook-body-line-height: 1.5;
+  --stagebook-heading-weight: 600;
+  --stagebook-link-hover: #1d4ed8;
+  /* --stagebook-link is declared in stagebook/styles. Usages below carry a
+     literal fallback so this file is still usable if imported alone. */
+}
+
+/* ------------------------------------------------------------------ */
+/* Box model — universal border-box + safe border-default so                 */
+/* utility-style `border-t` / `border-b` rules from downstream code          */
+/* (if any) render as expected without an explicit border-style.            */
+/* ------------------------------------------------------------------ */
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  border: 0 solid;
+}
+
+/* ------------------------------------------------------------------ */
+/* Media — never overflow the container at natural resolution                */
+/* ------------------------------------------------------------------ */
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Headings — reset margin-block so host layouts control spacing, and        */
+/* restore a usable type scale regardless of what the host's reset does.    */
+/* ------------------------------------------------------------------ */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--stagebook-heading-weight, 600);
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--stagebook-h1-size, 1.875rem);
+}
+h2 {
+  font-size: var(--stagebook-h2-size, 1.5rem);
+}
+h3 {
+  font-size: var(--stagebook-h3-size, 1.25rem);
+}
+h4 {
+  font-size: var(--stagebook-h4-size, 1.125rem);
+}
+h5 {
+  font-size: var(--stagebook-h5-size, 1rem);
+}
+h6 {
+  font-size: var(--stagebook-h6-size, 0.875rem);
+}
+
+/* ------------------------------------------------------------------ */
+/* Body text                                                            */
+/* ------------------------------------------------------------------ */
+
+body {
+  font-size: var(--stagebook-body-size, 1rem);
+  line-height: var(--stagebook-body-line-height, 1.5);
+}
+
+/* ------------------------------------------------------------------ */
+/* Paragraphs and lists — zero margin-block so host layouts control          */
+/* vertical rhythm. Hosts that want classic browser spacing can set          */
+/* their own `margin-block` rule after importing this file.                 */
+/* ------------------------------------------------------------------ */
+
+p,
+ul,
+ol {
+  margin-block: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Links                                                                */
+/* ------------------------------------------------------------------ */
+
+a {
+  color: var(--stagebook-link, #2563eb);
+  text-decoration: underline;
+}
+
+a:hover {
+  color: var(--stagebook-link-hover, #1d4ed8);
+}
