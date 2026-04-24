@@ -10,7 +10,7 @@ templates:
     notes: |
       Templates are reusable blocks of YAML — define a structure once,
       then instantiate it with different field values via `template:` +
-      `fields:` (single use) or `template:` + `broadcast:` (cartesian
+      `fields:` (single use) or `template:` + `broadcast:` (Cartesian
       expansion, used here under `treatments:`). Placeholders use the
       `${fieldName}` syntax and are substituted at expansion time.
       `contentType: treatment` tells the validator which schema to apply

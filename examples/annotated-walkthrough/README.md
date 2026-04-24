@@ -28,10 +28,10 @@ The `notes:` fields are researcher documentation, not participant-facing content
 
 ## Running it
 
-Load this directory from the viewer's landing page (file picker → point at `walkthrough.treatments.yaml`) or run the dev viewer from the stagebook repo root:
+From the viewer's landing page you can either click the **annotated-walkthrough** example card, or paste a GitHub URL to this repo's `walkthrough.treatments.yaml` into the URL input and press Load. To run the dev viewer locally:
 
 ```
 npm run dev -w stagebook-viewer
 ```
 
-Then click the "annotated-walkthrough" card. You can step through intro → game → exit from the sidebar, and switch between the two broadcast-generated treatments (`remote work policies`, `the four-day work week`) from the treatment picker.
+Once loaded, step through intro → game → exit from the sidebar, and switch between the two broadcast-generated treatments (`remote work policies`, `the four-day work week`) from the treatment picker.
