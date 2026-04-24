@@ -1,66 +1,36 @@
-# =====================================================================
-# Annotated walkthrough — a Stagebook syntax tour
-# =====================================================================
-#
-# This treatment file is a self-contained pedagogical example. Each
-# block is annotated with what it demonstrates; together they cover
-# the syntax features you need to write a real study:
-#
-#   - templates (with broadcast expansion)
-#   - intro / game / exit sequences
-#   - timed elements (displayTime, hideTime)
-#   - position-based visibility (showToPositions, groupComposition)
-#   - conditions (on elements and on group assignment)
-#   - display elements (showing one player's response to another)
-#   - platform-coupled elements (survey, discussion, sharedNotepad,
-#     qualtrics) — these render as skeleton placeholders in the viewer
-#
-# The study itself is a two-person text discussion. Each participant
-# writes an initial position, discusses it with a partner, then
-# reflects after seeing the partner's original response.
-# Two treatments are generated from one template by broadcasting over
-# a list of discussion topics.
-# ---------------------------------------------------------------------
+# Annotated walkthrough — a Stagebook syntax tour.
+# See README.md for the big-picture overview. The `notes:` fields below
+# describe each stage/element/template and are surfaced in the viewer
+# sidebar; short inline comments flag syntax particulars.
 
-
-# --- TEMPLATES -------------------------------------------------------
-#
-# Templates are reusable blocks of YAML. Define a structure once, then
-# instantiate it with different field values via `template:` + `fields:`
-# (single use) or `template:` + `broadcast:` (cartesian expansion).
-# Placeholders use the `${fieldName}` syntax and are substituted at
-# expansion time. `contentType` tells the validator which schema to
-# apply to `templateContent`.
 templates:
   - templateName: studyTreatment
     contentType: treatment
     templateDesc: One run of the study, parameterised by topic.
+    notes: |
+      Templates are reusable blocks of YAML — define a structure once,
+      then instantiate it with different field values via `template:` +
+      `fields:` (single use) or `template:` + `broadcast:` (cartesian
+      expansion, used here under `treatments:`). Placeholders use the
+      `${fieldName}` syntax and are substituted at expansion time.
+      `contentType: treatment` tells the validator which schema to apply
+      to `templateContent`.
     templateContent:
-      # `${topic}` and `${topicLabel}` come from the broadcast axis
-      # below. After expansion `${topic}` becomes e.g. "remote_work"
-      # and `${topicLabel}` becomes "remote work policies".
+      # `${topic}` and `${topicLabel}` come from the broadcast axis at
+      # the bottom of the file. After expansion `${topic}` becomes e.g.
+      # "remote_work" and `${topicLabel}` becomes "remote work policies".
       name: Annotated walkthrough - ${topicLabel}
-      # `notes` carries free-text, Markdown documentation for the
-      # researcher (rationale, citations, design notes). The viewer
-      # surfaces it — here it powers the treatment card on the
-      # landing page.
-      notes: |
-        A two-person text discussion about ${topicLabel}, annotated as
-        a syntax tour. Demonstrates templates (with broadcast), timed
-        stages, position-based visibility, group composition by
-        condition, display elements, conditional rendering, and the
-        platform-coupled elements (`survey`, `discussion`,
-        `sharedNotepad`, `qualtrics`) that surface as skeleton
-        placeholders in the viewer.
+      notes: A two-person text discussion about ${topicLabel}, annotated as a syntax tour.
       playerCount: 2
 
       # `groupComposition` matches participants to numbered positions
-      # using conditions on data captured during the intro. Here we
-      # use an absolute cutoff on the familiarity slider: scores >= 50
-      # are eligible for position 0 ("Familiar"), scores < 50 are
-      # eligible for position 1 ("Newcomer"). A group only forms when
-      # one participant matches each side of the cutoff — this is the
-      # intentional cost of threshold-based composition.
+      # using conditions on data captured during the intro. (Player-level
+      # blocks don't carry `notes:`, so the explanatory commentary for
+      # this block lives here as a YAML comment.) Absolute cutoff on the
+      # familiarity slider: scores ≥ 50 → position 0 ("Familiar"); scores
+      # < 50 → position 1 ("Newcomer"). A group only forms when one
+      # participant matches each side of the cutoff — the intentional
+      # cost of threshold-based composition.
       groupComposition:
         - position: 0
           title: Familiar
@@ -76,34 +46,46 @@ templates:
               value: 50
 
       gameStages:
-        # ----- Stage 1: Initial position (timed reveal) ------------
-        # Demonstrates `displayTime` / `hideTime`: instructions are
-        # visible for the first 10 seconds, then swapped for the
-        # actual prompt. The submit button only appears after the
-        # prompt is visible to discourage skipping the read.
         - name: ${topic}_initial
           duration: 90
+          notes: |
+            Demonstrates timed reveal with `displayTime` / `hideTime`.
+            Instructions are visible for the first 10 seconds, then
+            swapped for the actual prompt. The submit button only
+            appears after the prompt is visible to discourage skipping
+            the read.
           elements:
             - type: prompt
               file: prompts/initial_intro.prompt.md
               hideTime: 10
-            # `name:` makes this response addressable as
-            # `prompt.${topic}_initial` in later references.
+              notes: |
+                Visible for 0–10s via `hideTime: 10`. Acts as a short
+                orientation screen before the real prompt appears.
             - type: prompt
+              # `name:` makes this response addressable as
+              # `prompt.${topic}_initial` in later references.
               name: ${topic}_initial
               file: prompts/topic_${topic}.prompt.md
               displayTime: 10
+              notes: |
+                Visible from 10s onward via `displayTime: 10`. Named so
+                Stage 3's `display` elements can reference
+                `prompt.${topic}_initial`.
             - type: timer
             - type: submitButton
               buttonText: Submit my position
               displayTime: 10
+              notes: Hidden for the first 10s so participants read the orientation before they can advance.
 
-        # ----- Stage 2: Discussion (platform-coupled) --------------
-        # The `discussion` block adds a synchronised chat panel. The
-        # viewer renders this as a skeleton placeholder — it requires
-        # a live multi-participant session.
         - name: ${topic}_discussion
           duration: 300
+          notes: |
+            Platform-coupled stage. The `discussion` block adds a
+            synchronised chat panel; `sharedNotepad` adds a
+            collaborative editor. Both are slots the host platform
+            implements — they render as skeleton placeholders in the
+            viewer because they require a live multi-participant
+            session.
           discussion:
             chatType: text
             showNickname: true
@@ -112,36 +94,36 @@ templates:
           elements:
             - type: prompt
               file: prompts/discussion_guide.prompt.md
-            # `sharedNotepad` is platform-coupled (collaborative editor).
-            # Skeleton in the viewer.
             - type: sharedNotepad
               name: ${topic}_notes
+              notes: Platform-coupled collaborative editor. Renders as a skeleton placeholder in the viewer.
             - type: timer
             - type: submitButton
               buttonText: End discussion
-              # Hide the submit button during the first minute so
-              # participants engage before bailing out.
               displayTime: 60
+              notes: Hidden for the first 60s so participants engage before they can bail out.
 
-        # ----- Stage 3: Reflection (positions + display + condition)
-        # Each participant sees the *other* participant's initial
-        # response. `showToPositions` restricts which seat receives
-        # the element; `position:` on a `display` selects whose
-        # response to read. The conditional prompt only appears once
-        # both participants have responded to the post-survey.
         - name: ${topic}_reflection
           duration: 120
+          notes: |
+            Demonstrates positions + `display` elements + conditional
+            rendering. Each participant sees the *other* participant's
+            initial response; `showToPositions` restricts which seat
+            receives the element and `position:` on a `display` selects
+            whose response to read. The consensus prompt only appears
+            once both participants have answered the "changed mind"
+            question.
           elements:
-            # Show position 1's initial response to position 0
             - type: display
               reference: prompt.${topic}_initial
               position: 1
               showToPositions: [0]
-            # Show position 0's initial response to position 1
+              notes: Shows position 1's initial response to position 0.
             - type: display
               reference: prompt.${topic}_initial
               position: 0
               showToPositions: [1]
+              notes: Shows position 0's initial response to position 1.
 
             - type: separator
               style: thick
@@ -154,13 +136,6 @@ templates:
               name: ${topic}_changed
               file: prompts/post_changed.prompt.md
 
-            # Conditional element: only appears once *both* players
-            # have answered the "changed mind" question. We check each
-            # position explicitly because the resolver filters out
-            # undefined values before comparison — `position: all`
-            # with `exists` would fire as soon as a single player
-            # responded. Conditions AND together, so this prompt only
-            # becomes visible when both references are defined.
             - type: prompt
               file: prompts/post_consensus.prompt.md
               conditions:
@@ -170,72 +145,75 @@ templates:
                 - reference: prompt.${topic}_changed
                   position: 1
                   comparator: exists
+              notes: |
+                Conditional element — only appears once *both* players
+                have answered the "changed mind" question. We check each
+                position explicitly because the resolver filters out
+                undefined values before comparison: `position: all` with
+                `exists` would fire as soon as a single player
+                responded. Conditions AND together, so this prompt only
+                becomes visible when both references are defined.
 
             - type: submitButton
 
-      # ----- Exit sequence (per-treatment, solo) -------------------
       exitSequence:
         - name: Debrief
+          notes: Per-treatment, solo exit step. Runs after the game stages but before any treatment-wide exit survey.
           elements:
             - type: prompt
               name: ${topic}_feedback
               file: prompts/exit_feedback.prompt.md
             - type: submitButton
-        # Exit step that auto-submits when the embedded survey
-        # completes — `qualtrics` is platform-coupled (skeleton in
-        # the viewer). No submitButton needed because Qualtrics
-        # advancement is handled by the iframe completion event.
         - name: Exit Survey
+          notes: Auto-submits when the embedded Qualtrics survey signals completion — no `submitButton` needed because advancement is handled by the iframe completion event.
           elements:
             - type: qualtrics
               name: exit_qualtrics
               url: https://example.qualtrics.com/jfe/form/SV_example
 
-
-# --- INTRO SEQUENCES -------------------------------------------------
-#
-# Intro steps run solo, before participants are matched. They cannot
-# use `position`, `showToPositions`, or `hideFromPositions`. Every
-# intro/exit step needs an "advancement element" — a submitButton, a
-# survey, a qualtrics, or a mediaPlayer with `submitOnComplete: true`.
 introSequences:
   - name: onboarding
+    notes: |
+      Intro steps run solo, before participants are matched. They
+      cannot use `position`, `showToPositions`, or `hideFromPositions`.
+      Every intro/exit step needs an "advancement element" — a
+      `submitButton`, a `survey`, a `qualtrics`, or a `mediaPlayer`
+      with `submitOnComplete: true`.
     introSteps:
-      # `noResponse` prompt — informational text, no input collected.
       - name: Consent
         elements:
           - type: prompt
             file: prompts/consent.prompt.md
+            notes: Informational `noResponse` prompt — text only, no input collected.
           - type: submitButton
             buttonText: I consent
 
-      # The `name:` field on this slider is what makes it addressable
-      # by `groupComposition` above as `prompt.familiarity`.
       - name: Familiarity
         elements:
           - type: prompt
+            # `name:` here is what makes this slider addressable by
+            # `groupComposition` above as `prompt.familiarity`.
             name: familiarity
             file: prompts/familiarity.prompt.md
+            notes: |
+              The `name: familiarity` here is the reference target
+              `groupComposition` uses (`prompt.familiarity`) to split
+              participants into positions.
           - type: submitButton
 
-      # `survey` is platform-coupled — it renders an external survey
-      # component (here the Ten-Item Personality Inventory). The
-      # viewer shows a skeleton placeholder.
       - name: Personality
         elements:
           - type: survey
             surveyName: TIPI
             name: pre_TIPI
+            notes: Platform-coupled survey element — the host platform renders the Ten-Item Personality Inventory. Skeleton placeholder in the viewer.
 
 
-# --- TREATMENTS ------------------------------------------------------
-#
-# Two treatments are generated from a single template by broadcasting
-# over a list of topics. The viewer will offer them side-by-side in
-# the treatment picker. Each broadcast row supplies a different value
-# for `${topic}` and `${topicLabel}`, which fan out through every
-# `${topic}` placeholder inside `studyTreatment` (stage names, prompt
-# file paths, reference strings, etc.).
+# Two treatments are generated from one template by broadcasting over
+# the `d0` axis below. The viewer offers them side-by-side in the
+# treatment picker; each row supplies a different value for `${topic}`
+# and `${topicLabel}`, which fan out through every `${topic}`
+# placeholder inside `studyTreatment`.
 treatments:
   - template: studyTreatment
     broadcast:
