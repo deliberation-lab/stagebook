@@ -412,9 +412,14 @@ test("range mode: click-and-drag creates a range", async ({ mount }) => {
   expect(value[0]?.end).toBeCloseTo(30, 0);
 });
 
-test("range mode: pure click (no drag) does not create a range", async ({
+test("range mode: pure click (no drag) creates a min-width range at the click", async ({
   mount,
 }) => {
+  // Previously clicks moved the playhead; now they create a 1-second range
+  // starting at the click so novice participants get immediate visible
+  // feedback ("I made a thing I can tune") without needing to discover the
+  // drag gesture. See the follow-up test below for the single-select
+  // protection rule.
   const component = await mount(
     <MockTimeline
       source="player"
@@ -429,7 +434,7 @@ test("range mode: pure click (no drag) does not create a range", async ({
   const box = await overlay.boundingBox();
   if (!box) throw new Error("overlay not found");
 
-  // Click without movement
+  // Click at 50% without movement (30s into a 60s timeline)
   await overlay.dispatchEvent("pointerdown", {
     clientX: box.x + box.width * 0.5,
     clientY: box.y + box.height * 0.5,
@@ -447,12 +452,26 @@ test("range mode: pure click (no drag) does not create a range", async ({
     isPrimary: true,
   });
 
-  await expect(component.locator('[data-testid="range-0"]')).not.toBeAttached();
+  const range = component.locator('[data-testid="range-0"]');
+  await expect(range).toBeAttached();
+
+  const saves = await readSaveLog(component);
+  const value = saves[saves.length - 1]?.value as {
+    start: number;
+    end: number;
+  }[];
+  expect(value).toHaveLength(1);
+  // Click at 30s → range [30, 31] (1s default width)
+  expect(value[0]?.start).toBeCloseTo(30, 0);
+  expect(value[0]?.end).toBeCloseTo(31, 0);
 });
 
-test("range mode: dead zone — small movement is treated as a click", async ({
+test("range mode: dead zone — small movement is treated as a click and creates a default range", async ({
   mount,
 }) => {
+  // Small movements under the drag dead-zone fall into the click path,
+  // which now creates a default-width range (not a zero-width range from
+  // the tiny drag).
   const component = await mount(
     <MockTimeline
       source="player"
@@ -493,7 +512,169 @@ test("range mode: dead zone — small movement is treated as a click", async ({
     isPrimary: true,
   });
 
-  await expect(component.locator('[data-testid="range-0"]')).not.toBeAttached();
+  const range = component.locator('[data-testid="range-0"]');
+  await expect(range).toBeAttached();
+
+  const saves = await readSaveLog(component);
+  const value = saves[saves.length - 1]?.value as {
+    start: number;
+    end: number;
+  }[];
+  expect(value).toHaveLength(1);
+  // Click at 30s → range [30, 31]
+  expect(value[0]?.end - value[0]?.start).toBeCloseTo(1, 2);
+});
+
+test("range mode single-select: click on empty timeline preserves existing range", async ({
+  mount,
+}) => {
+  // In single-select mode clicking empty space must NOT replace the
+  // user's existing range — that would feel punitive. Adjustment happens
+  // via the handles instead. (Dragging still creates a new range, which
+  // the reducer replaces — tested below.)
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={false}
+      mockDuration={60}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+
+  // Drag-create a first range at 20%-30% so single-select has something to
+  // protect.
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.2,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointermove", {
+    clientX: box.x + box.width * 0.3,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.3,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+
+  const savesBefore = await readSaveLog(component);
+  const before = savesBefore[savesBefore.length - 1]?.value as {
+    start: number;
+    end: number;
+  }[];
+
+  // Pure click at 70% (far from the existing range) — should be ignored.
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.7,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.7,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+
+  // Still exactly one range, and it's the original.
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-1"]')).not.toBeAttached();
+
+  const savesAfter = await readSaveLog(component);
+  const after = savesAfter[savesAfter.length - 1]?.value as {
+    start: number;
+    end: number;
+  }[];
+  expect(after).toHaveLength(1);
+  expect(after[0]?.start).toBeCloseTo(before[0]?.start, 2);
+  expect(after[0]?.end).toBeCloseTo(before[0]?.end, 2);
+});
+
+test("range mode multi-select: click adds a second range next to existing", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+
+  // Drag to create first range at 10%-25%
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.1,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointermove", {
+    clientX: box.x + box.width * 0.25,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.25,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+
+  // Click at 60% — should add a second range.
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.6,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.6,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+
+  await expect(component.locator('[data-testid="range-1"]')).toBeAttached();
 });
 
 test("range mode: multiSelect false — new range replaces existing", async ({

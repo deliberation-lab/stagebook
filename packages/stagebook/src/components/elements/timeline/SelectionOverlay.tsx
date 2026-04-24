@@ -71,6 +71,14 @@ export interface SelectionOverlayProps {
 
 const DRAG_DEAD_ZONE_PX = 4;
 
+/**
+ * Width of a range created by a click (no drag) in seconds. Long enough to
+ * be visually distinct as a range rather than a line, short enough that
+ * handles don't overlap for quick tuning. Matches ARROW_STEP in
+ * keyboardActions so click-then-arrow feels consistent.
+ */
+const CLICK_CREATED_RANGE_SEC = 1;
+
 interface DragState {
   startX: number;
   startTime: number;
@@ -92,6 +100,28 @@ interface DragState {
 
 function isRangeArray(s: TimelineValue): s is RangeSelection[] {
   return s.length === 0 || "start" in (s[0] as object);
+}
+
+/**
+ * Two faint vertical bars in the middle of a range handle — signals
+ * "grabbable" at a glance, echoing the standard OS resize-grip pattern.
+ * Sized and positioned relative to the 8px-wide handle parent.
+ */
+function HandleGrip() {
+  const barStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "35%",
+    bottom: "35%",
+    width: 1,
+    background: "rgba(255, 255, 255, 0.75)",
+    pointerEvents: "none",
+  };
+  return (
+    <>
+      <div style={{ ...barStyle, left: 2 }} />
+      <div style={{ ...barStyle, right: 2 }} />
+    </>
+  );
 }
 
 /**
@@ -274,14 +304,34 @@ export function SelectionOverlay({
           // arrow keys adjust the handle rather than scrubbing the playhead.
           onRequestFocus();
         } else if (selectionType === "point") {
+          // Point mode: click anywhere creates a point. The reducer
+          // enforces multiSelect (replacing an existing point in single
+          // mode, appending otherwise), so this one path covers both.
           onCreatePoint(time, track);
           onSeek(time);
           onRequestFocus();
         } else {
-          if (activeIndex !== null) {
-            onDeselect();
+          // Range mode: click creates a default-width range starting at
+          // the click, EXCEPT in single-select mode when a range already
+          // exists — there we preserve the existing work (adjustment
+          // happens via handles). Seek is left to the media player's own
+          // scrubber; click-to-add is the primary gesture on the timeline.
+          const hasExistingRange =
+            isRangeArray(selections) && selections.length > 0;
+          if (!multiSelect && hasExistingRange) {
+            if (activeIndex !== null) onDeselect();
+          } else {
+            let start = time;
+            let end = time + CLICK_CREATED_RANGE_SEC;
+            if (end > duration) {
+              end = duration;
+              start = Math.max(0, duration - CLICK_CREATED_RANGE_SEC);
+            }
+            if (end - start > 0) {
+              onCreateRange(start, end, track);
+              onRequestFocus();
+            }
           }
-          onSeek(time);
         }
       } else if (drag.mode === "create-range") {
         const start = Math.min(drag.startTime, time);
@@ -305,6 +355,9 @@ export function SelectionOverlay({
       eventToTime,
       selectionType,
       activeIndex,
+      duration,
+      selections,
+      multiSelect,
       onCreatePoint,
       onSeek,
       onDeselect,
@@ -467,9 +520,9 @@ export function SelectionOverlay({
             }}
             style={{
               position: "absolute",
-              left: -3,
+              left: -4,
               top: 0,
-              width: 6,
+              width: 8,
               height: "100%",
               background:
                 isActive && activeHandle === "start"
@@ -479,6 +532,7 @@ export function SelectionOverlay({
               zIndex: startHandleOnTop ? 2 : 1,
             }}
           >
+            <HandleGrip />
             {hoveredHandle?.index === i &&
               hoveredHandle?.handle === "start" && (
                 <div style={handleTooltipStyle("start")}>
@@ -502,9 +556,9 @@ export function SelectionOverlay({
             }}
             style={{
               position: "absolute",
-              right: -3,
+              right: -4,
               top: 0,
-              width: 6,
+              width: 8,
               height: "100%",
               background:
                 isActive && activeHandle === "end"
@@ -514,6 +568,7 @@ export function SelectionOverlay({
               zIndex: startHandleOnTop ? 1 : 2,
             }}
           >
+            <HandleGrip />
             {hoveredHandle?.index === i && hoveredHandle?.handle === "end" && (
               <div style={handleTooltipStyle("end")}>
                 {formatTime(range.end, zoomDecimals(zoomLevel))}
@@ -663,7 +718,17 @@ export function SelectionOverlay({
       style={{
         position: "absolute",
         inset: 0,
-        cursor: "crosshair",
+        // Crosshair signals "click adds a selection here." In single-select
+        // range mode once a range exists, clicking empty space is a no-op
+        // (we preserve the existing range) — switch to the default cursor
+        // so the affordance doesn't lie about what a click will do.
+        cursor:
+          selectionType === "range" &&
+          !multiSelect &&
+          isRangeArray(selections) &&
+          selections.length > 0
+            ? "default"
+            : "crosshair",
         pointerEvents: "auto",
       }}
     >
