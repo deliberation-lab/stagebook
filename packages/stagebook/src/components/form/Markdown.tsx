@@ -139,6 +139,11 @@ const blockquoteStyle: React.CSSProperties = {
   background: "var(--stagebook-blockquote-bg, #f9fafb)",
 };
 
+const imgStyle: React.CSSProperties = {
+  maxWidth: "100%",
+  height: "auto",
+};
+
 export function Markdown({ text, resolveURL }: MarkdownProps) {
   let displayText = text;
 
@@ -208,6 +213,15 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
           a: ({ node: _node, ...props }) => <a style={aStyle} {...props} />,
           blockquote: ({ node: _node, ...props }) => (
             <blockquote style={blockquoteStyle} {...props} />
+          ),
+          // Inline max-width keeps markdown-embedded images inside the
+          // prompt container on any host, regardless of what reset the
+          // host chose. host-typography provides the same rule for the
+          // host's own bare-tag pages; this override ensures stagebook's
+          // own rendered content is self-constraining even when the host
+          // hasn't opted in. See issue #211.
+          img: ({ node: _node, ...props }) => (
+            <img style={imgStyle} {...props} alt={props.alt ?? ""} />
           ),
         }}
       >
