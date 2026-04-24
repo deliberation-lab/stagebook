@@ -120,3 +120,18 @@ Stagebook ships a default stylesheet (`stagebook/styles`) with CSS custom proper
 ```
 
 Component layout (padding, flex, positioning) uses inline styles and is not overridable — this ensures consistent experiment rendering. Only visual theming (colors, borders) is customizable.
+
+### Opt-in host typography (`stagebook/host-typography`)
+
+Stagebook components render correctly on any host without extra CSS, but the *host's* own bare-tag pages (settings, permissions, attention checks, etc.) inherit whatever reset the host has (Tailwind preflight, no-preflight, normalize.css, nothing). That's how two apps using stagebook end up with noticeably different `<h1>` / `<img>` / `<a>` rendering on pages that don't use stagebook components.
+
+`stagebook/host-typography` is an opt-in stylesheet that provides a small preflight-like baseline on **bare tags only**: universal `box-sizing: border-box`, `img/video { max-width: 100% }`, a heading type scale, zero `margin-block` on `p/ul/ol/h*`, and `a` styled from `--stagebook-link`. No class selectors — nothing that targets stagebook's own components.
+
+Import it alongside `stagebook/styles`:
+
+```ts
+import "stagebook/styles";
+import "stagebook/host-typography";
+```
+
+Trade-offs: not compatible with Tailwind preflight (pick one), and the reset applies to third-party widgets the host renders too. Hosts that need to preserve third-party rendering should either not import this globally or scope it to their own UI tree via their own wrapper class.

@@ -18,6 +18,7 @@
       }
     },
     "./styles": "./src/styles.css",
+    "./host-typography": "./src/host-typography.css",
     "./components": {
       "import": {
         "types": "./dist/components/index.d.ts",
@@ -31,7 +32,8 @@
   },
   "files": [
     "dist",
-    "src/styles.css"
+    "src/styles.css",
+    "src/host-typography.css"
   ],
   "scripts": {
     "build": "tsup",
