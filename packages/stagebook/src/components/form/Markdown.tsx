@@ -176,6 +176,34 @@ const imgStyle: React.CSSProperties = {
   height: "auto",
 };
 
+// GFM tables. Inlined (per issue #214) so tables render with borders and
+// padding even on hosts that don't import styles.css. thead / tbody / tr
+// have no handlers here — browser defaults are acceptable once the table
+// itself has border-collapse and the cells have borders + padding.
+const tableStyle: React.CSSProperties = {
+  borderCollapse: "collapse",
+  margin: "1rem 0",
+  width: "100%",
+  maxWidth: "var(--stagebook-prompt-max-width, 36rem)",
+};
+
+const tableCellBase: React.CSSProperties = {
+  border: "1px solid var(--stagebook-border, #d1d5db)",
+  padding: "0.5rem 0.75rem",
+  textAlign: "left",
+  fontSize: "0.875rem",
+  color: "var(--stagebook-table-text, #4a5568)",
+};
+
+const thStyle: React.CSSProperties = {
+  ...tableCellBase,
+  backgroundColor: "var(--stagebook-bg-muted, #f9fafb)",
+  fontWeight: 500,
+  color: "var(--stagebook-table-header-text, #1a202c)",
+};
+
+const tdStyle: React.CSSProperties = tableCellBase;
+
 export function Markdown({ text, resolveURL }: MarkdownProps) {
   let displayText = text;
 
@@ -262,6 +290,13 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
           img: ({ node: _node, ...props }) => (
             <img style={imgStyle} {...props} alt={props.alt ?? ""} />
           ),
+          // GFM tables (issue #214). Only table / th / td need handlers —
+          // thead / tbody / tr use browser defaults.
+          table: ({ node: _node, ...props }) => (
+            <table style={tableStyle} {...props} />
+          ),
+          th: ({ node: _node, ...props }) => <th style={thStyle} {...props} />,
+          td: ({ node: _node, ...props }) => <td style={tdStyle} {...props} />,
         }}
       >
         {displayText}
