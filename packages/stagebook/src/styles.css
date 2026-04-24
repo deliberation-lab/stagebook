@@ -103,6 +103,9 @@
 
   /* Timeline waveform bars */
   --stagebook-waveform-color: #6b7280;
+  /* Track-lane background behind the waveform — subtle so the waveform
+     remains visually dominant, but enough to frame the track area. */
+  --stagebook-waveform-track-bg: rgba(128, 128, 128, 0.15);
 
   /* Loading spinner */
   --stagebook-spinner-track: #e5e7eb;
