@@ -50,14 +50,23 @@ export function WaveformRenderer({
 
     ctx.clearRect(0, 0, width, height);
 
+    // Track-lane background band — covers ~90% of the vertical space, giving
+    // a visible "this is the track area" frame even when the waveform is
+    // silent or not yet captured. Themed via --stagebook-waveform-track-bg.
+    const computed = getComputedStyle(canvas);
+    const trackBg =
+      computed.getPropertyValue("--stagebook-waveform-track-bg").trim() ||
+      "rgba(128, 128, 128, 0.15)";
+    ctx.fillStyle = trackBg;
+    ctx.fillRect(0, height * 0.05, width, height * 0.9);
+
     if (!peaks || endBucket <= startBucket) return;
 
     const visibleBuckets = endBucket - startBucket;
     const midY = height / 2;
 
     ctx.fillStyle =
-      getComputedStyle(canvas).getPropertyValue("--stagebook-waveform-color") ||
-      "#6b7280";
+      computed.getPropertyValue("--stagebook-waveform-color") || "#6b7280";
 
     // Two render paths:
     //   buckets <= width  → one bar per bucket (existing behavior, faithful
