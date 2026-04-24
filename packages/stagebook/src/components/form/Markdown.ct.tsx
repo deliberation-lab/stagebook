@@ -315,3 +315,101 @@ test("CSS variable override changes blockquote background", async ({
     .evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).toBe("rgb(0, 255, 0)");
 });
+
+// ---------------------------------------------------------------------------
+// <hr> and <pre> — issue #215
+//
+// `---` in markdown renders as <hr>, which Tailwind preflight and similar
+// resets collapse with `border: 0`. Fenced code blocks wrap in <pre>; with
+// no handler they render as naked pre-formatted text (no background, no
+// monospace font, no overflow scroll). These tests lock in the inline
+// styling that makes both render portably on any host.
+// ---------------------------------------------------------------------------
+
+test("hr renders with visible top border (survives UA stripping)", async ({
+  mount,
+}) => {
+  const component = await mount(<Markdown text={"above\n\n---\n\nbelow"} />);
+  const borderTopWidth = await component
+    .locator("hr")
+    .evaluate((el) => parseFloat(getComputedStyle(el).borderTopWidth));
+  expect(borderTopWidth).toBeGreaterThan(0);
+});
+
+test("hr survives a host CSS reset that sets hr { border: 0 }", async ({
+  mount,
+}) => {
+  // Mirrors the "inline styles beat a host CSS reset" pattern: Tailwind
+  // preflight ships `hr { border: 0 }` which collapses the default UA
+  // border. Our inline border-top must win on specificity.
+  const resetCSS = `hr { border: 0; }`;
+  const component = await mount(
+    <div>
+      <style dangerouslySetInnerHTML={{ __html: resetCSS }} />
+      <Markdown text={"above\n\n---\n\nbelow"} />
+    </div>,
+  );
+  const borderTopWidth = await component
+    .locator("hr")
+    .evaluate((el) => parseFloat(getComputedStyle(el).borderTopWidth));
+  expect(borderTopWidth).toBeGreaterThan(0);
+});
+
+test("fenced code block renders with background, monospace font, and horizontal overflow", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <Markdown text={"```js\nconst x = 1;\n```"} />,
+  );
+  const styles = await component.locator("pre").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      backgroundColor: cs.backgroundColor,
+      fontFamily: cs.fontFamily,
+      overflowX: cs.overflowX,
+    };
+  });
+  expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(styles.backgroundColor).not.toBe("transparent");
+  expect(styles.fontFamily.toLowerCase()).toMatch(
+    /mono|menlo|consolas|sfmono/,
+  );
+  expect(styles.overflowX).toBe("auto");
+});
+
+test("fenced code block does not double-wrap background on the inner code", async ({
+  mount,
+}) => {
+  // The <pre> carries the chip styling; the inner <code class="language-*">
+  // must NOT also apply its own background/padding, or the block looks
+  // like a nested box.
+  const component = await mount(
+    <Markdown text={"```js\nconst x = 1;\n```"} />,
+  );
+  const innerCodeInline = await component
+    .locator("pre > code")
+    .evaluate((el) => ({
+      background: (el as HTMLElement).style.background,
+      padding: (el as HTMLElement).style.padding,
+    }));
+  expect(innerCodeInline.background).toBe("");
+  expect(innerCodeInline.padding).toBe("");
+});
+
+test("inline code renders as a styled chip with background and padding", async ({
+  mount,
+}) => {
+  const component = await mount(<Markdown text="Use `npm test` to run." />);
+  const styles = await component.locator("code").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      backgroundColor: cs.backgroundColor,
+      fontFamily: cs.fontFamily,
+    };
+  });
+  expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(styles.backgroundColor).not.toBe("transparent");
+  expect(styles.fontFamily.toLowerCase()).toMatch(
+    /mono|menlo|consolas|sfmono/,
+  );
+});
