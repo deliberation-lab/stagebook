@@ -18,6 +18,8 @@ describe("host-typography.css", () => {
       "--stagebook-h2-size",
       "--stagebook-h3-size",
       "--stagebook-h4-size",
+      "--stagebook-h5-size",
+      "--stagebook-h6-size",
       "--stagebook-body-size",
       "--stagebook-body-line-height",
       "--stagebook-heading-weight",
@@ -42,18 +44,13 @@ describe("host-typography.css", () => {
   });
 
   it("sets heading font-sizes from variables", () => {
-    expect(cssWithoutComments).toMatch(
-      /\bh1\s*{[^}]*font-size:\s*var\(--stagebook-h1-size/,
-    );
-    expect(cssWithoutComments).toMatch(
-      /\bh2\s*{[^}]*font-size:\s*var\(--stagebook-h2-size/,
-    );
-    expect(cssWithoutComments).toMatch(
-      /\bh3\s*{[^}]*font-size:\s*var\(--stagebook-h3-size/,
-    );
-    expect(cssWithoutComments).toMatch(
-      /\bh4\s*{[^}]*font-size:\s*var\(--stagebook-h4-size/,
-    );
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      expect(cssWithoutComments).toMatch(
+        new RegExp(
+          `\\bh${n}\\s*{[^}]*font-size:\\s*var\\(--stagebook-h${n}-size`,
+        ),
+      );
+    }
   });
 
   it("styles bare <a> with stagebook-link and hover variants", () => {
@@ -77,7 +74,13 @@ describe("host-typography.css", () => {
         .map((s) => s.trim())
         .filter(Boolean),
     );
-    const classSelectors = ruleSelectors.filter((s) => s.includes("."));
+    // Real class selectors only: a literal `.` followed by an identifier.
+    // Raw `includes(".")` would false-positive on attribute selectors like
+    // `[href*=".pdf"]` if any were ever added.
+    const classSelectorPattern = /\.[A-Za-z_-][\w-]*/;
+    const classSelectors = ruleSelectors.filter((s) =>
+      classSelectorPattern.test(s),
+    );
     expect(classSelectors).toEqual([]);
   });
 });

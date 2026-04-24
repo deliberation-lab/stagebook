@@ -125,7 +125,7 @@ Component layout (padding, flex, positioning) uses inline styles and is not over
 
 Stagebook components render correctly on any host without extra CSS, but the *host's* own bare-tag pages (settings, permissions, attention checks, etc.) inherit whatever reset the host has (Tailwind preflight, no-preflight, normalize.css, nothing). That's how two apps using stagebook end up with noticeably different `<h1>` / `<img>` / `<a>` rendering on pages that don't use stagebook components.
 
-`stagebook/host-typography` is an opt-in stylesheet that provides a small preflight-like baseline on **bare tags only**: universal `box-sizing: border-box`, `img/video { max-width: 100% }`, a heading type scale, zero `margin-block` on `p/ul/ol/h*`, and `a` styled from `--stagebook-link`. No class selectors — nothing that targets stagebook's own components.
+`stagebook/host-typography` is an opt-in stylesheet that provides a small preflight-like baseline on **bare tags only**: a universal box-model reset of `box-sizing: border-box` and `border: 0 solid`, `img/video { max-width: 100% }`, a heading type scale, zero `margin-block` on `p/ul/ol/h*`, and `a` styled from `--stagebook-link`. No class selectors — nothing that targets stagebook's own components.
 
 Import it alongside `stagebook/styles`:
 
