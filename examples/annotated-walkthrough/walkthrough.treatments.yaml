@@ -23,14 +23,16 @@ templates:
       notes: A two-person text discussion about ${topicLabel}, annotated as a syntax tour.
       playerCount: 2
 
-      # `groupComposition` matches participants to numbered positions
-      # using conditions on data captured during the intro. (Player-level
-      # blocks don't carry `notes:`, so the explanatory commentary for
-      # this block lives here as a YAML comment.) Absolute cutoff on the
+      # `groupComposition` defines per-position eligibility conditions
+      # on data captured during the intro. (Player-level blocks don't
+      # carry `notes:`, so the explanatory commentary for this block
+      # lives here as a YAML comment.) Absolute cutoff on the
       # familiarity slider: scores ≥ 50 → position 0 ("Familiar"); scores
-      # < 50 → position 1 ("Newcomer"). A group only forms when one
-      # participant matches each side of the cutoff — the intentional
-      # cost of threshold-based composition.
+      # < 50 → position 1 ("Newcomer"). Stagebook defines the contract;
+      # matching happens in the host's lobby. Hosts that enforce strict
+      # threshold matching will fail to form a group when both
+      # participants fall on the same side of the cutoff — the
+      # intentional cost of threshold-based composition there.
       groupComposition:
         - position: 0
           title: Familiar
@@ -165,7 +167,13 @@ templates:
               file: prompts/exit_feedback.prompt.md
             - type: submitButton
         - name: Exit Survey
-          notes: Auto-submits when the embedded Qualtrics survey signals completion — no `submitButton` needed because advancement is handled by the iframe completion event.
+          notes: |
+            Stagebook renders `qualtrics` directly as an iframe (not via
+            a host slot, unlike `survey` / `discussion` /
+            `sharedNotepad`). The step auto-submits when the iframe
+            posts its end-of-survey message — no `submitButton` needed.
+            In the viewer the placeholder URL below won't load; swap in
+            a real Qualtrics form URL to test the flow.
           elements:
             - type: qualtrics
               name: exit_qualtrics
