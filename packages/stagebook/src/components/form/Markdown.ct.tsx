@@ -28,6 +28,20 @@ test("passes through relative image paths without resolveURL", async ({
   );
 });
 
+test("img renders with inline max-width: 100% and height: auto so it can't overflow the prompt (issue #211)", async ({
+  mount,
+}) => {
+  const component = await mount(<Markdown text="![photo](images/test.png)" />);
+  const { maxWidth, height } = await component
+    .locator("img")
+    .evaluate((el) => ({
+      maxWidth: (el as HTMLElement).style.maxWidth,
+      height: (el as HTMLElement).style.height,
+    }));
+  expect(maxWidth).toBe("100%");
+  expect(height).toBe("auto");
+});
+
 test("renders headings", async ({ mount }) => {
   const component = await mount(<Markdown text="## Section Title" />);
   await expect(component.locator("h2")).toContainText("Section Title");
