@@ -49,6 +49,19 @@ export function TimeRuler({
   const seekToClientX = useCallback(
     (clientX: number) => {
       if (!onSeek) return;
+      // Bail on degenerate inputs — pixelToTime divides by `zoomLevel`
+      // internally, so 0 / NaN / negative values would produce
+      // Infinity/NaN times and unpredictable seeks.
+      if (
+        !Number.isFinite(zoomLevel) ||
+        zoomLevel <= 0 ||
+        !Number.isFinite(duration) ||
+        duration <= 0 ||
+        !Number.isFinite(width) ||
+        width <= 0
+      ) {
+        return;
+      }
       const el = elRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
@@ -60,7 +73,7 @@ export function TimeRuler({
         zoomLevel,
         viewportStart,
       );
-      const visibleDuration = zoomLevel > 0 ? duration / zoomLevel : duration;
+      const visibleDuration = duration / zoomLevel;
       const lo = Math.max(0, viewportStart);
       const hi = Math.min(duration, viewportStart + visibleDuration);
       onSeek(Math.max(lo, Math.min(hi, time)));
