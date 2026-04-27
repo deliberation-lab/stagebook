@@ -79,6 +79,14 @@ const DRAG_DEAD_ZONE_PX = 4;
  */
 const CLICK_CREATED_RANGE_SEC = 1;
 
+/**
+ * Minimum visual width (in pixels) for a click-created range. For long
+ * videos at low zoom, 1 second can render at <1px, leaving the start and
+ * end handles overlapping with no visible range between them. We expand
+ * the range so the gap between the handles is at least this many pixels.
+ */
+const CLICK_CREATED_RANGE_MIN_PX = 6;
+
 interface DragState {
   startX: number;
   startTime: number;
@@ -102,24 +110,81 @@ function isRangeArray(s: TimelineValue): s is RangeSelection[] {
   return s.length === 0 || "start" in (s[0] as object);
 }
 
+const HANDLE_HIT_WIDTH = 8;
+const HANDLE_TIP_WIDTH = 2;
+
 /**
- * Two faint vertical bars in the middle of a range handle — signals
- * "grabbable" at a glance, echoing the standard OS resize-grip pattern.
- * Sized and positioned relative to the 8px-wide handle parent.
+ * Visual content of a range handle — three vertical sections stacked
+ * top-to-middle-to-bottom. The thin top/bottom tips mark the actual range
+ * boundary (same width as the playhead, so they read as precise endpoints);
+ * the thick middle extends outward from the boundary as a wider grab
+ * affordance, with two grip bars echoing OS resize-grip iconography. The
+ * inner edge of the thick block aligns with the inner edge of the tips.
+ *
+ * The thick middle overflows the parent handle's CSS box outward — pointer
+ * events still bubble up to the handle, so the visible grab area matches
+ * what's clickable. The handle's own 8px-wide box stays centered on the
+ * boundary so existing hit behavior (clicking near the edge to grab)
+ * continues to work.
  */
-function HandleGrip() {
-  const barStyle: React.CSSProperties = {
+function HandleVisual({
+  handle,
+  color,
+}: {
+  handle: "start" | "end";
+  color: string;
+}) {
+  const isStart = handle === "start";
+  // The parent handle's CSS box is 8px wide and centered on the boundary
+  // (left:-4 width:8 for start; right:-4 width:8 for end), so the boundary
+  // sits at the parent's INNER edge — boundary = parent's right edge for
+  // a start handle, parent's left edge for an end handle. We anchor every
+  // visual element's inner edge to that point using `right: 4` (start) or
+  // `left: 4` (end), which both resolve to the boundary in container coords.
+  const innerOffset = HANDLE_HIT_WIDTH / 2;
+  const innerEdge: React.CSSProperties = isStart
+    ? { right: innerOffset }
+    : { left: innerOffset };
+  // Tips: 2px wide, sitting just outside the boundary so their inner edge
+  // marks the actual endpoint of the range.
+  const tipStyle: React.CSSProperties = {
     position: "absolute",
-    top: "35%",
-    bottom: "35%",
+    width: HANDLE_TIP_WIDTH,
+    background: color,
+    pointerEvents: "none",
+    ...innerEdge,
+  };
+  // Thick middle: 8px wide, inner edge at the boundary, extending outward.
+  // The left half overflows the parent handle's box; pointer events still
+  // bubble up to the handle, so clicks on the visible thick area are
+  // captured as handle drags.
+  const thickStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "33%",
+    bottom: "33%",
+    width: HANDLE_HIT_WIDTH,
+    background: color,
+    ...innerEdge,
+  };
+  // Two faint grip bars centered inside the thick block (matches the prior
+  // resize-grip iconography — the visual itself is what's changing, not
+  // the affordance).
+  const gripBar: React.CSSProperties = {
+    position: "absolute",
+    top: "25%",
+    bottom: "25%",
     width: 1,
     background: "rgba(255, 255, 255, 0.75)",
     pointerEvents: "none",
   };
   return (
     <>
-      <div style={{ ...barStyle, left: 2 }} />
-      <div style={{ ...barStyle, right: 2 }} />
+      <div style={{ ...tipStyle, top: 0, height: "33%" }} />
+      <div style={thickStyle}>
+        <div style={{ ...gripBar, left: 2 }} />
+        <div style={{ ...gripBar, right: 2 }} />
+      </div>
+      <div style={{ ...tipStyle, bottom: 0, height: "33%" }} />
     </>
   );
 }
@@ -325,11 +390,23 @@ export function SelectionOverlay({
             if (activeIndex !== null) onDeselect();
             onRequestFocus();
           } else {
+            // Pick a width that's at least CLICK_CREATED_RANGE_SEC AND at
+            // least CLICK_CREATED_RANGE_MIN_PX wide on screen — for long
+            // videos at low zoom 1 second can render sub-pixel, so the
+            // pixel floor keeps the new range visible.
+            const pxPerSec = duration > 0 ? (width * zoomLevel) / duration : 0;
+            const widthSec =
+              pxPerSec > 0
+                ? Math.max(
+                    CLICK_CREATED_RANGE_SEC,
+                    CLICK_CREATED_RANGE_MIN_PX / pxPerSec,
+                  )
+                : CLICK_CREATED_RANGE_SEC;
             let start = time;
-            let end = time + CLICK_CREATED_RANGE_SEC;
+            let end = time + widthSec;
             if (end > duration) {
               end = duration;
-              start = Math.max(0, duration - CLICK_CREATED_RANGE_SEC);
+              start = Math.max(0, duration - widthSec);
             }
             if (end - start > 0) {
               onCreateRange(start, end, track);
@@ -360,6 +437,8 @@ export function SelectionOverlay({
       selectionType,
       activeIndex,
       duration,
+      width,
+      zoomLevel,
       selections,
       multiSelect,
       onCreatePoint,
@@ -524,19 +603,22 @@ export function SelectionOverlay({
             }}
             style={{
               position: "absolute",
-              left: -4,
+              left: -(HANDLE_HIT_WIDTH / 2),
               top: 0,
-              width: 8,
+              width: HANDLE_HIT_WIDTH,
               height: "100%",
-              background:
-                isActive && activeHandle === "start"
-                  ? "rgba(37, 99, 235, 1)"
-                  : "rgba(59, 130, 246, 0.7)",
               cursor: "ew-resize",
               zIndex: startHandleOnTop ? 2 : 1,
             }}
           >
-            <HandleGrip />
+            <HandleVisual
+              handle="start"
+              color={
+                isActive && activeHandle === "start"
+                  ? "rgba(37, 99, 235, 1)"
+                  : "rgba(59, 130, 246, 0.7)"
+              }
+            />
             {hoveredHandle?.index === i &&
               hoveredHandle?.handle === "start" && (
                 <div style={handleTooltipStyle("start")}>
@@ -560,19 +642,22 @@ export function SelectionOverlay({
             }}
             style={{
               position: "absolute",
-              right: -4,
+              right: -(HANDLE_HIT_WIDTH / 2),
               top: 0,
-              width: 8,
+              width: HANDLE_HIT_WIDTH,
               height: "100%",
-              background:
-                isActive && activeHandle === "end"
-                  ? "rgba(37, 99, 235, 1)"
-                  : "rgba(59, 130, 246, 0.7)",
               cursor: "ew-resize",
               zIndex: startHandleOnTop ? 1 : 2,
             }}
           >
-            <HandleGrip />
+            <HandleVisual
+              handle="end"
+              color={
+                isActive && activeHandle === "end"
+                  ? "rgba(37, 99, 235, 1)"
+                  : "rgba(59, 130, 246, 0.7)"
+              }
+            />
             {hoveredHandle?.index === i && hoveredHandle?.handle === "end" && (
               <div style={handleTooltipStyle("end")}>
                 {formatTime(range.end, zoomDecimals(zoomLevel))}

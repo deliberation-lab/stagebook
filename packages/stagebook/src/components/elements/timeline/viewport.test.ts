@@ -3,11 +3,15 @@ import {
   computeViewportAfterZoom,
   computeViewportAfterScroll,
   computeViewportAfterSeek,
+  computeViewportAfterFocalZoom,
+  computeViewportAfterPan,
   clampViewportStart,
   isPlayheadPastThreshold,
+  pinchZoom,
   zoomIn,
   zoomOut,
   MIN_ZOOM,
+  MAX_ZOOM,
 } from "./viewport.js";
 
 describe("clampViewportStart", () => {
@@ -166,5 +170,196 @@ describe("computeViewportAfterSeek", () => {
     // Playhead at 58, visible 30, snap 0.25 → start = 50.5. Max = 60 - 30 = 30. Clamp to 30.
     const result = computeViewportAfterSeek(58, 30, 60, 0.25);
     expect(result).toBe(30);
+  });
+});
+
+describe("pinchZoom", () => {
+  it("returns the input zoom for deltaY = 0", () => {
+    expect(pinchZoom(2, 0)).toBe(2);
+  });
+
+  it("zooms in for negative deltaY (pinch out / two-finger swipe up)", () => {
+    expect(pinchZoom(2, -100)).toBeGreaterThan(2);
+  });
+
+  it("zooms out for positive deltaY (pinch in / two-finger swipe down)", () => {
+    expect(pinchZoom(4, 100)).toBeLessThan(4);
+  });
+
+  it("compounds multiplicatively across ticks", () => {
+    // Two ticks of -50 should equal one tick of -100 (within float tolerance).
+    const onceLarge = pinchZoom(2, -100);
+    const twiceSmall = pinchZoom(pinchZoom(2, -50), -50);
+    expect(twiceSmall).toBeCloseTo(onceLarge, 5);
+  });
+
+  it("clamps at MIN_ZOOM", () => {
+    expect(pinchZoom(MIN_ZOOM, 1000)).toBe(MIN_ZOOM);
+  });
+
+  it("clamps at MAX_ZOOM", () => {
+    expect(pinchZoom(MAX_ZOOM, -1000)).toBe(MAX_ZOOM);
+  });
+
+  it("clamps at MAX_ZOOM even when the multiplicative factor overflows", () => {
+    // exp(-(-100000) * 0.01) = exp(1000) overflows to Infinity. We rely on
+    // Math.min(MAX_ZOOM, Infinity) === MAX_ZOOM rather than bailing out,
+    // since the user's intent (huge pinch-in) is unambiguously "max zoom."
+    expect(pinchZoom(1, -100000)).toBe(MAX_ZOOM);
+  });
+
+  it("returns input on non-finite deltaY", () => {
+    expect(pinchZoom(2, Number.NaN)).toBe(2);
+    expect(pinchZoom(2, Number.POSITIVE_INFINITY)).toBe(2);
+  });
+});
+
+describe("computeViewportAfterFocalZoom", () => {
+  it("keeps focalTime under focalRatio after zoom", () => {
+    // Focal at 30s, want it to stay at 50% of viewport at zoom 4.
+    // visible = 60/4 = 15, so start = 30 - 15*0.5 = 22.5.
+    const result = computeViewportAfterFocalZoom({
+      newZoom: 4,
+      duration: 60,
+      focalTime: 30,
+      focalRatio: 0.5,
+    });
+    expect(result).toBeCloseTo(22.5, 5);
+  });
+
+  it("anchors to the left edge when focalRatio is 0", () => {
+    // focalTime should remain at the very left of the viewport.
+    const result = computeViewportAfterFocalZoom({
+      newZoom: 4,
+      duration: 60,
+      focalTime: 20,
+      focalRatio: 0,
+    });
+    expect(result).toBeCloseTo(20, 5);
+  });
+
+  it("anchors to the right edge when focalRatio is 1", () => {
+    // visible = 15. start = 45 - 15 = 30.
+    const result = computeViewportAfterFocalZoom({
+      newZoom: 4,
+      duration: 60,
+      focalTime: 45,
+      focalRatio: 1,
+    });
+    expect(result).toBeCloseTo(30, 5);
+  });
+
+  it("clamps to 0 when zooming would push viewport before t=0", () => {
+    // Focal near start, zoom would put start = 5 - 30*0.5 = -10 → clamp 0.
+    const result = computeViewportAfterFocalZoom({
+      newZoom: 2,
+      duration: 60,
+      focalTime: 5,
+      focalRatio: 0.5,
+    });
+    expect(result).toBe(0);
+  });
+
+  it("clamps to max when zooming would push viewport past duration", () => {
+    // Focal near end. visible = 30, max start = 30. Should clamp.
+    const result = computeViewportAfterFocalZoom({
+      newZoom: 2,
+      duration: 60,
+      focalTime: 58,
+      focalRatio: 0.1,
+    });
+    expect(result).toBe(30);
+  });
+
+  it("returns 0 at zoom <= 1 (full duration visible)", () => {
+    expect(
+      computeViewportAfterFocalZoom({
+        newZoom: 1,
+        duration: 60,
+        focalTime: 30,
+        focalRatio: 0.5,
+      }),
+    ).toBe(0);
+  });
+
+  it("returns 0 for non-positive duration", () => {
+    expect(
+      computeViewportAfterFocalZoom({
+        newZoom: 4,
+        duration: 0,
+        focalTime: 30,
+        focalRatio: 0.5,
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("computeViewportAfterPan", () => {
+  it("pans right (forward in time) on positive deltaPx", () => {
+    // 800px shows 30s (zoom 2 of 60s) → 1px = 0.0375s. 100px = 3.75s.
+    const result = computeViewportAfterPan({
+      currentViewportStart: 0,
+      deltaPx: 100,
+      waveformWidthPx: 800,
+      duration: 60,
+      zoomLevel: 2,
+    });
+    expect(result).toBeCloseTo(3.75, 5);
+  });
+
+  it("pans left (back in time) on negative deltaPx", () => {
+    const result = computeViewportAfterPan({
+      currentViewportStart: 10,
+      deltaPx: -100,
+      waveformWidthPx: 800,
+      duration: 60,
+      zoomLevel: 2,
+    });
+    expect(result).toBeCloseTo(6.25, 5);
+  });
+
+  it("clamps at the left edge", () => {
+    const result = computeViewportAfterPan({
+      currentViewportStart: 1,
+      deltaPx: -1000,
+      waveformWidthPx: 800,
+      duration: 60,
+      zoomLevel: 2,
+    });
+    expect(result).toBe(0);
+  });
+
+  it("clamps at the right edge", () => {
+    // max start at zoom 2 = 60 - 30 = 30
+    const result = computeViewportAfterPan({
+      currentViewportStart: 25,
+      deltaPx: 10000,
+      waveformWidthPx: 800,
+      duration: 60,
+      zoomLevel: 2,
+    });
+    expect(result).toBe(30);
+  });
+
+  it("returns currentViewportStart for zero waveform width", () => {
+    const result = computeViewportAfterPan({
+      currentViewportStart: 5,
+      deltaPx: 100,
+      waveformWidthPx: 0,
+      duration: 60,
+      zoomLevel: 2,
+    });
+    expect(result).toBe(5);
+  });
+
+  it("returns currentViewportStart for zero duration", () => {
+    const result = computeViewportAfterPan({
+      currentViewportStart: 5,
+      deltaPx: 100,
+      waveformWidthPx: 800,
+      duration: 0,
+      zoomLevel: 2,
+    });
+    expect(result).toBe(5);
   });
 });

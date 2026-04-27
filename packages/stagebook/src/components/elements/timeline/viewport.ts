@@ -127,3 +127,80 @@ export function computeViewportAfterSeek(
   const zoomLevel = duration / visibleDuration;
   return clampViewportStart(newStart, duration, zoomLevel);
 }
+
+/**
+ * Sensitivity (per pixel of wheel deltaY) for ctrl+wheel pinch-to-zoom.
+ * Sized so a typical Mac trackpad pinch — which produces deltaY accumulation
+ * of ~50–100 over the gesture — zooms by roughly 1.5–3×, matching the feel
+ * of native browser pinch.
+ */
+export const PINCH_ZOOM_SENSITIVITY = 0.01;
+
+/**
+ * Apply a single pinch wheel tick to a zoom level. Negative deltaY (pinch
+ * out / two-finger swipe up with ctrl) zooms in; positive deltaY zooms out.
+ * Multiplicative so successive ticks compound smoothly. Clamped to
+ * [MIN_ZOOM, MAX_ZOOM].
+ */
+export function pinchZoom(currentZoom: number, deltaY: number): number {
+  if (!Number.isFinite(deltaY)) return currentZoom;
+  const factor = Math.exp(-deltaY * PINCH_ZOOM_SENSITIVITY);
+  const next = currentZoom * factor;
+  // Math.min/max with Infinity behaves correctly: huge negative deltaY
+  // produces +Infinity, which clamps to MAX_ZOOM; huge positive deltaY
+  // produces ~0, which clamps to MIN_ZOOM. NaN can't reach here since
+  // deltaY is finite (Math.exp of a finite number is in [0, +Infinity]).
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+}
+
+/**
+ * Compute the new viewport start when zooming around a focal point that
+ * should stay anchored on screen — e.g., during pinch-to-zoom, the time
+ * under the cursor stays under the cursor.
+ *
+ * @param newZoom - Target zoom level (clamped at MIN_ZOOM internally)
+ * @param duration - Total media duration in seconds
+ * @param focalTime - Time (seconds) under the focal point
+ * @param focalRatio - Fraction across the viewport (0 = left, 1 = right)
+ *                     where focalTime should remain after the zoom
+ */
+export function computeViewportAfterFocalZoom(args: {
+  newZoom: number;
+  duration: number;
+  focalTime: number;
+  focalRatio: number;
+}): number {
+  const { newZoom, duration, focalTime, focalRatio } = args;
+  if (newZoom <= 1) return 0;
+  if (duration <= 0) return 0;
+  const newVisible = duration / newZoom;
+  const newStart = focalTime - newVisible * focalRatio;
+  return clampViewportStart(newStart, duration, newZoom);
+}
+
+/**
+ * Compute the new viewport start after a horizontal pan by `deltaPx`
+ * pixels. Positive deltaPx pans the viewport to the right (forward in
+ * time), matching the convention that wheel deltaX is positive when the
+ * user scrolls right.
+ */
+export function computeViewportAfterPan(args: {
+  currentViewportStart: number;
+  deltaPx: number;
+  waveformWidthPx: number;
+  duration: number;
+  zoomLevel: number;
+}): number {
+  const {
+    currentViewportStart,
+    deltaPx,
+    waveformWidthPx,
+    duration,
+    zoomLevel,
+  } = args;
+  if (waveformWidthPx <= 0 || duration <= 0) return currentViewportStart;
+  const visibleDuration = duration / zoomLevel;
+  const secondsPerPx = visibleDuration / waveformWidthPx;
+  const newStart = currentViewportStart + deltaPx * secondsPerPx;
+  return clampViewportStart(newStart, duration, zoomLevel);
+}
