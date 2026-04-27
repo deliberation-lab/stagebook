@@ -5,6 +5,19 @@ import { ViewerStateStore } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
 
+// Mirrors the read-side guard in stagebook/utils/reference.ts. The viewer
+// writes through these paths, so traversing into prototype slots would let
+// a crafted reference mutate Object.prototype. Defence in depth.
+const DISALLOWED_PATH_SEGMENTS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+function hasUnsafeSegment(path: string[]): boolean {
+  return path.some((seg) => DISALLOWED_PATH_SEGMENTS.has(seg));
+}
+
 /**
  * DOM id used to scroll a specific element's note into view. Encodes the
  * type and name so characters like spaces (which nameSchema permits in
@@ -36,6 +49,7 @@ export function StateInspector({
   playerCount,
 }: StateInspectorProps) {
   const [showAll, setShowAll] = useState(false);
+  const [confirmingClearAll, setConfirmingClearAll] = useState(false);
 
   const references = extractStageReferences(
     currentStep.elements as Record<string, unknown>[],
@@ -85,10 +99,43 @@ export function StateInspector({
       {/* Researcher notes (never shown to participants) */}
       <NotesSection currentStep={currentStep} />
 
-      {/* All state expansion */}
-      <button onClick={() => setShowAll(!showAll)} style={expandButtonStyle}>
-        {showAll ? "▾ Hide all state" : "▸ Show all state"}
-      </button>
+      {/* All state expansion + clear */}
+      <div style={allStateActionsStyle}>
+        <button onClick={() => setShowAll(!showAll)} style={expandButtonStyle}>
+          {showAll ? "▾ Hide all state" : "▸ Show all state"}
+        </button>
+        {confirmingClearAll ? (
+          <div style={clearAllConfirmGroupStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                store.clearAll();
+                setConfirmingClearAll(false);
+              }}
+              style={clearAllConfirmButtonStyle}
+              title="Wipe all stored state"
+            >
+              Confirm clear
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingClearAll(false)}
+              style={clearAllCancelButtonStyle}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingClearAll(true)}
+            style={clearAllButtonStyle}
+            title="Wipe all stored state in the viewer"
+          >
+            Clear all state
+          </button>
+        )}
+      </div>
 
       {showAll && (
         <AllState
@@ -181,11 +228,29 @@ function ReferenceEditor({
     );
   }
 
+  const unsafe = hasUnsafeSegment(path);
+
+  if (unsafe) {
+    return (
+      <div style={refGroupStyle}>
+        <label style={refLabelStyle}>{reference}</label>
+        <input
+          type="text"
+          value=""
+          disabled
+          placeholder="(unsafe path segment)"
+          style={{ ...refInputStyle, opacity: 0.5 }}
+        />
+      </div>
+    );
+  }
+
   const rawValues = store.lookup(referenceKey, position);
   const values = rawValues
     .map((v) => getNestedValueByPath(v, path))
     .filter((v) => v !== undefined);
   const currentValue = values[0] !== undefined ? String(values[0]) : "";
+  const isSet = values.length > 0;
 
   const handleChange = (newValue: string) => {
     if (path.length === 0) {
@@ -193,7 +258,8 @@ function ReferenceEditor({
       store.set(position, referenceKey, newValue, stageIndex);
     } else {
       // Nested path (e.g., prompt → path=["value"]) — preserve existing
-      // object structure and write the value at the correct path
+      // object structure and write the value at the correct path. Use
+      // Object.hasOwn to avoid traversing inherited properties.
       const existing = store.get(position, referenceKey)?.value;
       const obj =
         existing && typeof existing === "object" && !Array.isArray(existing)
@@ -202,7 +268,8 @@ function ReferenceEditor({
       let cursor: Record<string, unknown> = obj;
       for (let i = 0; i < path.length - 1; i++) {
         const seg = path[i];
-        if (typeof cursor[seg] !== "object" || cursor[seg] === null) {
+        const child = Object.hasOwn(cursor, seg) ? cursor[seg] : undefined;
+        if (typeof child !== "object" || child === null) {
           cursor[seg] = {};
         }
         cursor = cursor[seg] as Record<string, unknown>;
@@ -212,18 +279,89 @@ function ReferenceEditor({
     }
   };
 
+  const handleClear = () => {
+    if (path.length === 0) {
+      store.delete(position, referenceKey);
+      return;
+    }
+    const existing = store.get(position, referenceKey)?.value;
+    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+      // Nothing to prune at this path — drop the whole entry so `exists` fails
+      store.delete(position, referenceKey);
+      return;
+    }
+    const root = deletePath(existing as Record<string, unknown>, path);
+    if (root === undefined) {
+      store.delete(position, referenceKey);
+    } else {
+      store.set(position, referenceKey, root, stageIndex);
+    }
+  };
+
   return (
     <div style={refGroupStyle}>
       <label style={refLabelStyle}>{reference}</label>
-      <input
-        type="text"
-        value={currentValue}
-        onChange={(e) => handleChange(e.target.value)}
-        placeholder="(not set)"
-        style={refInputStyle}
-      />
+      <div style={refInputRowStyle}>
+        <input
+          type="text"
+          value={currentValue}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="(not set)"
+          style={refInputStyle}
+        />
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={!isSet}
+          aria-label={`Clear ${reference}`}
+          title={
+            isSet
+              ? "Remove this value entirely (so exists checks fail)"
+              : "Not set"
+          }
+          style={isSet ? refClearButtonStyle : refClearButtonDisabledStyle}
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
+}
+
+/**
+ * Returns a new object with the leaf at `path` removed, pruning any
+ * parent objects that become empty as a result. Returns `undefined` if
+ * the entire root would become empty (signal to delete the entry).
+ *
+ * Defensive: rejects prototype-polluting segments and uses own-property
+ * checks so callers can't reach into Object.prototype via crafted paths.
+ */
+function deletePath(
+  obj: Record<string, unknown>,
+  path: string[],
+): Record<string, unknown> | undefined {
+  if (path.length === 0) return undefined;
+  const [head, ...rest] = path;
+  if (DISALLOWED_PATH_SEGMENTS.has(head)) return obj;
+  if (!Object.hasOwn(obj, head)) return obj;
+  const next = { ...obj };
+  if (rest.length === 0) {
+    delete next[head];
+  } else {
+    const child = next[head];
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      const pruned = deletePath(child as Record<string, unknown>, rest);
+      if (pruned === undefined) {
+        delete next[head];
+      } else {
+        next[head] = pruned;
+      }
+    } else {
+      // Path goes through a non-object — nothing to prune, leave as-is
+      return obj;
+    }
+  }
+  return Object.keys(next).length === 0 ? undefined : next;
 }
 
 function AllState({
@@ -324,17 +462,53 @@ const refLabelStyle: React.CSSProperties = {
   fontFamily: "monospace",
 };
 
+const refInputRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "stretch",
+  gap: "0.25rem",
+};
+
 const refInputStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
   padding: "0.25rem 0.375rem",
   border: "1px solid #d1d5db",
   borderRadius: "0.25rem",
   fontSize: "0.8125rem",
 };
 
+const refClearButtonBaseStyle: React.CSSProperties = {
+  padding: "0 0.375rem",
+  border: "none",
+  background: "transparent",
+  fontSize: "0.875rem",
+  lineHeight: 1,
+};
+
+const refClearButtonStyle: React.CSSProperties = {
+  ...refClearButtonBaseStyle,
+  color: "#9ca3af",
+  cursor: "pointer",
+};
+
+const refClearButtonDisabledStyle: React.CSSProperties = {
+  ...refClearButtonBaseStyle,
+  color: "transparent",
+  cursor: "default",
+};
+
 const emptyStyle: React.CSSProperties = {
   fontSize: "0.75rem",
   color: "#9ca3af",
   marginTop: "0.5rem",
+};
+
+const allStateActionsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "0.5rem",
+  marginTop: "1rem",
 };
 
 const expandButtonStyle: React.CSSProperties = {
@@ -345,7 +519,42 @@ const expandButtonStyle: React.CSSProperties = {
   cursor: "pointer",
   textAlign: "left" as const,
   padding: "0.25rem 0",
-  marginTop: "1rem",
+};
+
+const clearAllButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "1px solid #e5e7eb",
+  borderRadius: "0.25rem",
+  color: "#b91c1c",
+  fontSize: "0.75rem",
+  cursor: "pointer",
+  padding: "0.25rem 0.5rem",
+};
+
+const clearAllConfirmGroupStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.25rem",
+};
+
+const clearAllConfirmButtonStyle: React.CSSProperties = {
+  background: "#b91c1c",
+  border: "1px solid #b91c1c",
+  borderRadius: "0.25rem",
+  color: "white",
+  fontSize: "0.75rem",
+  cursor: "pointer",
+  padding: "0.25rem 0.5rem",
+};
+
+const clearAllCancelButtonStyle: React.CSSProperties = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "0.25rem",
+  color: "#6b7280",
+  fontSize: "0.75rem",
+  cursor: "pointer",
+  padding: "0.25rem 0.5rem",
 };
 
 const allStateStyle: React.CSSProperties = {
