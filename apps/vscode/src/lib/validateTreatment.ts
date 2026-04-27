@@ -51,11 +51,27 @@ export function validateTreatmentSource(source: string): ValidationResult {
 
   if (!result.success) {
     for (const issue of result.error.issues) {
-      // Try to resolve the exact path; if it doesn't exist in the source
-      // (e.g., "Required" errors on missing fields), walk up to the nearest
-      // ancestor that does exist so the squiggly lands somewhere meaningful.
-      let range = mapper.resolve(issue.path);
+      // Unrecognized-key issues (rewritten by safeParseTreatmentFile) end
+      // their path at the offending key string and carry a `params.badKey`
+      // marker. Resolve them as KEY-token ranges so the squiggle lands on
+      // `survyName:`, not on its value — and so the quick-fix's
+      // `replace(diagnostic.range, suggestion)` correctly renames the key.
+      const params =
+        issue.code === "custom"
+          ? ((issue as { params?: unknown }).params as
+              | { badKey?: unknown }
+              | undefined)
+          : undefined;
+      const isUnrecognizedKey =
+        params !== undefined && typeof params.badKey === "string";
+
+      let range = isUnrecognizedKey
+        ? mapper.resolveKey(issue.path)
+        : mapper.resolve(issue.path);
       let ancestorPath = issue.path;
+      // If the exact path doesn't resolve (e.g., "Required" errors on
+      // missing fields, or a key-token resolve that fell through), walk up
+      // to the nearest ancestor whose value range we can find.
       while (!range && ancestorPath.length > 0) {
         ancestorPath = ancestorPath.slice(0, -1);
         range = mapper.resolve(ancestorPath);

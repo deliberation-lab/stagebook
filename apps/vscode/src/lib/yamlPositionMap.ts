@@ -59,6 +59,57 @@ function resolvePathInDoc(
 }
 
 /**
+ * Like `resolvePathInDoc` but returns the range of the *key* scalar
+ * at the final map segment instead of the value. The path's last
+ * segment must be a string. Returns null otherwise (sequence indices
+ * have no key token), or when the path can't be resolved.
+ */
+function resolveKeyInDoc(
+  doc: ReturnType<typeof parseDocument>,
+  source: string,
+  path: (string | number)[],
+): SourceRange | null {
+  if (path.length === 0) return null;
+  const lastSegment = path[path.length - 1];
+  if (typeof lastSegment !== "string") return null;
+  if (!doc.contents) return null;
+
+  let node = doc.contents;
+  // Walk to the parent map.
+  for (const segment of path.slice(0, -1)) {
+    if (isMap(node) && typeof segment === "string") {
+      const pair = node.items.findLast(
+        (p) => isScalar(p.key) && p.key.value === segment,
+      );
+      if (!pair) return null;
+      node = pair.value as typeof node;
+    } else if (isSeq(node) && typeof segment === "number") {
+      const item = node.items[segment];
+      if (!item) return null;
+      node = item as typeof node;
+    } else {
+      return null;
+    }
+  }
+
+  if (!isMap(node)) return null;
+  const pair = node.items.findLast(
+    (p) => isScalar(p.key) && p.key.value === lastSegment,
+  );
+  if (!pair || !isScalar(pair.key) || !pair.key.range) return null;
+
+  const [startOffset, endOffset] = pair.key.range;
+  const start = offsetToLineCol(source, startOffset);
+  const end = offsetToLineCol(source, endOffset);
+  return {
+    startLine: start.line,
+    startCol: start.col,
+    endLine: end.line,
+    endCol: end.col,
+  };
+}
+
+/**
  * Given a YAML source string and a path (e.g. from a Zod issue),
  * return the source range of the value node at that path.
  *
@@ -78,6 +129,18 @@ export function pathToRange(
 export interface PositionMapper {
   /** Resolve a path to a source range. Returns null if the path cannot be resolved. */
   resolve(path: (string | number)[]): SourceRange | null;
+  /**
+   * Resolve a path to the *key token* range at the final map segment.
+   * Where `resolve(["a", "b", "c"])` returns the range of the value at
+   * `a.b.c`, `resolveKey(["a", "b", "c"])` returns the range of the
+   * literal `c:` key token. Used by the unrecognized-key diagnostic
+   * pipeline so a "Did you mean…?" quick-fix can replace the bad key,
+   * not the bad key's value.
+   *
+   * Returns null when the final segment isn't a string (i.e. it
+   * indexes into a sequence) or when the path can't be resolved.
+   */
+  resolveKey(path: (string | number)[]): SourceRange | null;
   /** Get the parsed JS object (for passing to Zod or remapErrorPath). */
   toJSON(): unknown;
 }
@@ -94,6 +157,9 @@ export function createPositionMapper(source: string): PositionMapper {
   return {
     resolve(path) {
       return resolvePathInDoc(doc, source, path);
+    },
+    resolveKey(path) {
+      return resolveKeyInDoc(doc, source, path);
     },
     toJSON() {
       return doc.toJSON();

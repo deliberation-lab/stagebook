@@ -1,27 +1,23 @@
 import * as vscode from "vscode";
+import { UNRECOGNIZED_KEY_DID_YOU_MEAN_RE } from "./unrecognizedKeyMessage";
 
-/**
- * Match the rich "Unrecognized key 'X' on …. Did you mean 'Y'? …"
- * diagnostic produced by stagebook's `safeParseTreatmentFile` wrapper
- * (#123). The first capture group is the bad key; the second is the
- * suggested replacement. We parse from the message text because VS
- * Code's `Diagnostic` doesn't carry the structured `issue.params` —
- * adding an out-of-band channel would be more brittle than parsing a
- * fixed-format string that the same package owns end-to-end.
- *
- * Exported so unit tests can validate the regex matches the messages
- * stagebook emits.
- */
-export const UNRECOGNIZED_KEY_DID_YOU_MEAN_RE =
-  /^Unrecognized key '([^']+)' on [^.]+\. Did you mean '([^']+)'\?/;
+// Why parse the suggestion out of the message instead of attaching
+// structured params: vscode.Diagnostic has no extension-data field
+// that survives the round-trip through `vscode.languages.getDiagnostics`.
+// The regex/message pair is owned end-to-end by stagebook + this
+// extension, and `unrecognizedKeyQuickFix.test.ts` pins them together
+// — so drift is caught in CI rather than in the field.
+export { UNRECOGNIZED_KEY_DID_YOU_MEAN_RE };
 
 /**
  * Quick-fix provider that offers a "Change to 'X'" action for each
- * `safeParseTreatmentFile` diagnostic that includes a suggestion. The
- * diagnostic's range already points at the bad key (the wrapper
- * appends the bad key to the issue path before `validateTreatment`
- * resolves it), so we just replace the diagnostic's range with the
- * suggestion.
+ * `safeParseTreatmentFile` diagnostic that includes a suggestion.
+ *
+ * The diagnostic's range covers the *key token* (e.g., `survyName`)
+ * because `validateTreatment` resolves unrecognized-key issues via
+ * the position mapper's `resolveKey()` method. Replacing
+ * `diagnostic.range` with the suggestion therefore renames the key,
+ * not its value — no regex over the document text needed.
  */
 export class UnrecognizedKeyQuickFixProvider
   implements vscode.CodeActionProvider

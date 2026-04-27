@@ -127,7 +127,6 @@ function getAtPath(root: unknown, path: (string | number)[]): unknown {
  *
  * Path shapes recognized:
  * - element     : … "elements" <number>             (any depth)
- * - element     : … "templateContent" (when contentType=element/elements)
  * - condition   : … "conditions" <number>           (any depth)
  * - stage       : "treatments" <n> "gameStages" <n>
  * - introExitStep: "introSequences" <n> "introSteps" <n>
@@ -135,6 +134,14 @@ function getAtPath(root: unknown, path: (string | number)[]): unknown {
  * - treatment   : "treatments" <n>
  * - discussion  : … "discussion"
  * - player      : … "groupComposition" <n>
+ *
+ * NOT recognized today: `templateContent` paths. Unrecognized keys
+ * inside a template body fall through to the `unknown` bucket and
+ * surface with a bare "Unrecognized key 'X'." (no key list, no
+ * suggestion). Resolving these would require walking back up the path
+ * to the enclosing `templates[n]`, reading its `contentType`, and
+ * dispatching to the matching getValidKeysFor* helper. Out of scope
+ * for #123; would land as a follow-up if researchers actually hit it.
  *
  * `path` here is the path *to the container* (i.e. the issue.path —
  * which in `unrecognized_keys` issues already points at the parent of
@@ -297,8 +304,11 @@ function rewriteUnrecognizedKeysIssue(
 
     // Use ZodIssueCode.custom so the issue can carry structured params
     // (Zod's built-in `unrecognized_keys` code has no `params` field).
-    // Path points at the bad key so VS Code's position mapper resolves
-    // the squiggle to the offending key, not its parent.
+    // Path ends at the bad key. The VS Code extension detects these
+    // issues via `params.badKey` and uses the position mapper's
+    // `resolveKey()` method to land the squiggle on the key token
+    // itself; consumers that don't have a key-token resolver fall back
+    // to the parent's value range via path-walking.
     return {
       code: z.ZodIssueCode.custom,
       path: [...issue.path, badKey],
