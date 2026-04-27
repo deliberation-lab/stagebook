@@ -25,7 +25,7 @@ export interface TimelineTrackProps {
   onToggleMute: (nextMuted: boolean) => void;
 }
 
-const GUTTER_WIDTH = 60;
+const GUTTER_WIDTH = 32;
 const MUTE_BUTTON_WIDTH = 22;
 
 /**

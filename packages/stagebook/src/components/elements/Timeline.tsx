@@ -175,6 +175,12 @@ export function Timeline({
   const lastPlayheadRef = useRef(0);
   const lastTickWasPlayingRef = useRef(false);
 
+  // Set true while the user is actively dragging the red playhead time
+  // box. Auto-scroll skips while this is true — otherwise the scroll
+  // chases the cursor (cursor at >90% scrolls right; new viewport puts
+  // cursor at >90% again; runaway) and the user can't stop near the edge.
+  const playheadDraggingRef = useRef(false);
+
   // Selection state via reducer. Lazy initializer hydrates from saved state
   // when present so participants who reload mid-stage see their existing
   // selections (validated to drop malformed items).
@@ -326,6 +332,11 @@ export function Timeline({
     const lastT = lastPlayheadRef.current;
     lastPlayheadRef.current = currentTime;
     lastTickWasPlayingRef.current = !isPaused;
+
+    // While the user is manually dragging the playhead, they're the
+    // source of motion — auto-scroll/snap would fight the cursor and
+    // either run away to the edge or yank the viewport mid-drag.
+    if (playheadDraggingRef.current) return;
 
     // No motion → nothing to do
     if (currentTime === lastT) return;
@@ -682,13 +693,25 @@ export function Timeline({
         }
       />
 
-      {/* Time ruler — offset by gutter width */}
+      {/* Time ruler — offset by gutter width. Click/drag scrubs the
+          playhead (standard NLE convention). */}
       <div style={{ marginLeft: `${String(GUTTER_WIDTH)}px` }}>
         <TimeRuler
           duration={duration}
           width={waveformWidth}
           zoomLevel={zoomLevel}
           viewportStart={viewportStart}
+          onSeek={(t) => handle.seekTo(t)}
+          onDragStart={() => {
+            playheadDraggingRef.current = true;
+          }}
+          onDragEnd={() => {
+            playheadDraggingRef.current = false;
+            // Reset auto-scroll memory so the post-drag RAF tick doesn't
+            // see drag_end_time - 0 as a "jump" and snap-to-25%.
+            lastPlayheadRef.current =
+              handleRef.current?.getCurrentTime() ?? 0;
+          }}
         />
       </div>
 
@@ -792,6 +815,14 @@ export function Timeline({
             zoomLevel={zoomLevel}
             viewportStart={viewportStart}
             onSeek={(t) => handle.seekTo(t)}
+            onDragStart={() => {
+              playheadDraggingRef.current = true;
+            }}
+            onDragEnd={() => {
+              playheadDraggingRef.current = false;
+              lastPlayheadRef.current =
+                handleRef.current?.getCurrentTime() ?? 0;
+            }}
           />
         </div>
       </div>

@@ -1,6 +1,5 @@
 import React from "react";
 import { MIN_ZOOM, MAX_ZOOM } from "./viewport.js";
-import { GUTTER_WIDTH } from "./TimelineTrack.js";
 
 export interface TimelineHeaderProps {
   zoomLevel: number;
@@ -53,17 +52,16 @@ export function TimelineHeader({
         userSelect: "none",
       }}
     >
-      {/* Gutter-width zoom controls — align with the per-track labels below */}
+      {/* Zoom controls — sized to their content. (Used to be locked to the
+          gutter width when the gutter held the per-track labels; the labels
+          now overlay the waveform, so there's no alignment to preserve.) */}
       <div
         style={{
-          width: `${String(GUTTER_WIDTH)}px`,
-          minWidth: `${String(GUTTER_WIDTH)}px`,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
           gap: "0.25rem",
           padding: "0.25rem",
-          boxSizing: "border-box",
+          flexShrink: 0,
         }}
       >
         <button

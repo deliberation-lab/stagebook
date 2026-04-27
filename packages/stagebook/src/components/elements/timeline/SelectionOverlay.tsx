@@ -807,6 +807,11 @@ export function SelectionOverlay({
       style={{
         position: "absolute",
         inset: 0,
+        // Clip ranges/points/drag preview at the waveform bounds so they
+        // don't bleed into the gutter (left) when scrolled into a range
+        // whose start is off-screen. The right side is already clipped by
+        // the outer timeline's overflow:hidden.
+        overflow: "hidden",
         // Crosshair signals "click adds a selection here." In single-select
         // range mode once a range exists, clicking empty space is a no-op
         // (we preserve the existing range) — switch to the default cursor
