@@ -12,6 +12,7 @@ import {
 } from "./lib/semanticTokens";
 import { expandAndValidate } from "./lib/expandAndValidate";
 import { findClosestMatch } from "./lib/levenshtein";
+import { UnrecognizedKeyQuickFixProvider } from "./lib/unrecognizedKeyQuickFix";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
 import {
   ASSET_GLOB,
@@ -640,6 +641,20 @@ export function activate(context: vscode.ExtensionContext): void {
       {
         providedCodeActionKinds:
           FilePathQuickFixProvider.providedCodeActionKinds,
+      },
+    ),
+  );
+
+  // Register unrecognized-key quick-fix provider (#123) — offers
+  // "Change to 'X'" actions on rich "Did you mean 'X'?" diagnostics
+  // that come from `safeParseTreatmentFile`.
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      "treatmentsYaml",
+      new UnrecognizedKeyQuickFixProvider(),
+      {
+        providedCodeActionKinds:
+          UnrecognizedKeyQuickFixProvider.providedCodeActionKinds,
       },
     ),
   );

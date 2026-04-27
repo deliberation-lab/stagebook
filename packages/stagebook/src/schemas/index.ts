@@ -74,7 +74,19 @@ export {
   validElementTypes,
   validComparators,
   validReferenceTypes,
+  getValidKeysForElementType,
+  getValidKeysForComparator,
+  getValidKeysForStage,
+  getValidKeysForIntroExitStep,
+  getValidKeysForTreatment,
+  getValidKeysForDiscussion,
+  getValidKeysForPlayer,
 } from "./treatment.js";
+
+export {
+  safeParseTreatmentFile,
+  type UnrecognizedKeyIssueParams,
+} from "./safeParseTreatmentFile.js";
 
 export {
   resolvedElementSchema,

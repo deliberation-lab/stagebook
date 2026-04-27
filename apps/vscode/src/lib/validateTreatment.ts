@@ -1,4 +1,4 @@
-import { treatmentFileSchema } from "stagebook";
+import { safeParseTreatmentFile } from "stagebook";
 import { createPositionMapper, extractYamlErrors } from "./yamlPositionMap";
 import type { Diagnostic } from "./types";
 
@@ -42,10 +42,12 @@ export function validateTreatmentSource(source: string): ValidationResult {
   const mapper = createPositionMapper(source);
   const parsedObj = mapper.toJSON();
 
-  // Step 3: Validate with stagebook's treatmentFileSchema
+  // Step 3: Validate with stagebook's treatmentFileSchema (via the
+  // wrapper that rewrites `unrecognized_keys` issues into rich
+  // per-key "Did you mean …?" diagnostics — see #123).
   // Pass whatever was parsed (even null/scalar) — Zod produces clear
   // "Expected object, received ..." messages for non-object input.
-  const result = treatmentFileSchema.safeParse(parsedObj);
+  const result = safeParseTreatmentFile(parsedObj);
 
   if (!result.success) {
     for (const issue of result.error.issues) {

@@ -1,5 +1,5 @@
 import { load as loadYaml } from "js-yaml";
-import { treatmentFileSchema, type TreatmentFileType } from "stagebook";
+import { safeParseTreatmentFile, type TreatmentFileType } from "stagebook";
 
 export { expandTreatmentFile } from "./expandTreatmentFile";
 
@@ -25,7 +25,10 @@ export class TreatmentValidationError extends Error {
  */
 export function parseTreatmentYaml(yaml: string): TreatmentFileType {
   const raw = loadYaml(yaml);
-  const result = treatmentFileSchema.safeParse(raw);
+  // Use stagebook's enriched parser (#123) so unrecognized-key issues
+  // surface with rich messages + structured params instead of Zod's
+  // bare default. Other issue codes pass through unchanged.
+  const result = safeParseTreatmentFile(raw);
   if (!result.success) {
     const issues: ValidationIssue[] = result.error.issues.map((issue) => ({
       path: issue.path.join(".") || "(root)",
