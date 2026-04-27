@@ -630,9 +630,9 @@ export function SelectionOverlay({
             {hoveredHandle?.index === i &&
               hoveredHandle?.handle === "start" && (
                 <div
-                data-testid="handle-tooltip"
-                style={handleTooltipStyle("start", flipStartTooltip)}
-              >
+                  data-testid="handle-tooltip"
+                  style={handleTooltipStyle("start", flipStartTooltip)}
+                >
                   {formatTime(range.start, zoomDecimals(zoomLevel))}
                 </div>
               )}

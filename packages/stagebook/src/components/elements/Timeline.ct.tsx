@@ -2872,9 +2872,7 @@ test("handle hover tooltip flips inward near the clipped edges", async ({
   // so its computed `left` style (relative to the handle) is non-empty
   // and `right` is "auto" / unset. Read the inline style of the tooltip
   // child element.
-  const startTooltip = startHandle.locator(
-    '[data-testid="handle-tooltip"]',
-  );
+  const startTooltip = startHandle.locator('[data-testid="handle-tooltip"]');
   const startPlacement = await startTooltip.evaluate((el) => ({
     left: (el as HTMLElement).style.left,
     right: (el as HTMLElement).style.right,
@@ -2910,9 +2908,7 @@ test("handle hover tooltip stays outside when there's room", async ({
   );
   const startHandle = component.locator('[data-testid="range-0-handle-start"]');
   await startHandle.hover();
-  const startTooltip = startHandle.locator(
-    '[data-testid="handle-tooltip"]',
-  );
+  const startTooltip = startHandle.locator('[data-testid="handle-tooltip"]');
   const startPlacement = await startTooltip.evaluate((el) => ({
     left: (el as HTMLElement).style.left,
     right: (el as HTMLElement).style.right,
