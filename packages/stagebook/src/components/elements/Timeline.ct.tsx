@@ -226,6 +226,94 @@ test("falls back to Track N for extra channels beyond trackLabels", async ({
   await expect(labels.nth(2)).toContainText("Track 2");
 });
 
+// The label is overlaid on the upper-left of each track's waveform, on top
+// of the SelectionOverlay. It must not capture pointer events — otherwise
+// drags that start in the upper-left region would silently fail to create
+// a range. Guards against accidentally dropping `pointer-events: none` on
+// the label in the future.
+test("track-label overlay does not block pointer events on the waveform", async ({
+  mount,
+  page,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ranges"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockChannelCount={1}
+      trackLabels={["A reasonably wide track label"]}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const label = component.locator('[data-testid="track-label"]').first();
+  const overlayBox = await overlay.boundingBox();
+  const labelBox = await label.boundingBox();
+  if (!overlayBox || !labelBox) throw new Error("missing element");
+
+  // Sanity: label sits inside the overlay's x range. If this weren't true,
+  // the test below wouldn't actually exercise click-through.
+  expect(labelBox.x).toBeGreaterThanOrEqual(overlayBox.x);
+  expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(
+    overlayBox.x + overlayBox.width,
+  );
+
+  // Real mouse drag starting INSIDE the label, ending in the open waveform.
+  // Using page.mouse (not dispatchEvent) so the browser hit-tests through
+  // CSS — this is what proves pointer-events: none is honored.
+  const startX = labelBox.x + labelBox.width / 2;
+  const startY = labelBox.y + labelBox.height / 2;
+  const endX = overlayBox.x + overlayBox.width * 0.7;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, startY);
+  await page.mouse.up();
+
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+});
+
+test("very long track labels truncate within the waveform width", async ({
+  mount,
+}) => {
+  // Repeat enough that the natural width exceeds even a wide test viewport.
+  const longLabel =
+    "Speaker who has a needlessly long descriptive name ".repeat(20);
+  const component = await mount(
+    <div style={{ width: "400px" }}>
+      <MockTimeline
+        source="player"
+        playerName="player"
+        name="vis"
+        selectionType="range"
+        mockDuration={60}
+        mockChannelCount={1}
+        trackLabels={[longLabel]}
+      />
+    </div>,
+  );
+  const label = component.locator('[data-testid="track-label"]').first();
+
+  // text-overflow: ellipsis kicks in when scrollWidth > clientWidth.
+  const dims = await label.evaluate((el) => ({
+    clientWidth: (el as HTMLElement).clientWidth,
+    scrollWidth: (el as HTMLElement).scrollWidth,
+  }));
+  expect(dims.scrollWidth).toBeGreaterThan(dims.clientWidth);
+
+  // Rendered label must fit within the waveform region (no spilling past
+  // the overlay's right edge, which would mean truncation isn't bounded).
+  const labelBox = await label.boundingBox();
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const overlayBox = await overlay.boundingBox();
+  if (!labelBox || !overlayBox) throw new Error("missing element");
+  expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(
+    overlayBox.x + overlayBox.width + 1,
+  );
+});
+
 test("renders canvas for waveform", async ({ mount }) => {
   const component = await mount(
     <MockTimeline
@@ -2780,4 +2868,462 @@ test("playhead time box is draggable (pointerEvents: auto)", async ({
     (el) => getComputedStyle(el).pointerEvents,
   );
   expect(pointerEvents).toBe("auto");
+});
+
+// -- Trackpad gestures: wheel pan and pinch-to-zoom --
+
+/**
+ * Read viewportStart off the timeline element. Lives on the data-attribute
+ * so tests can verify pan/zoom behavior without reaching into React state.
+ */
+async function readViewportStart(
+  timeline: import("@playwright/test").Locator,
+): Promise<number> {
+  const raw = await timeline.getAttribute("data-viewport-start");
+  if (raw === null) throw new Error("data-viewport-start missing");
+  return parseFloat(raw);
+}
+
+async function readZoomLevel(
+  timeline: import("@playwright/test").Locator,
+): Promise<number> {
+  const raw = await timeline.getAttribute("data-zoom-level");
+  if (raw === null) throw new Error("data-zoom-level missing");
+  return parseFloat(raw);
+}
+
+test("wheel pan: horizontal-dominant deltaX advances viewportStart when zoomed", async ({
+  mount,
+}) => {
+  // Two zoom-ins to land at 4×, where there's room to pan in both directions.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pan_test"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  expect(await readZoomLevel(timeline)).toBe(4);
+
+  const before = await readViewportStart(timeline);
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 200,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  const after = await readViewportStart(timeline);
+  expect(after).toBeGreaterThan(before);
+});
+
+test("wheel pan: negative deltaX moves viewportStart back toward zero", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pan_back_test"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  // Wait for the zoom commit to land in the DOM. Without this, on busy CI
+  // the wheel dispatch can race the commit — our handler reads zoomLevel
+  // from a render-time ref, sees the stale value (1), and bails before
+  // panning anything.
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  // Pan right first so we have room to pan back.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 400,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  const mid = await readViewportStart(timeline);
+  expect(mid).toBeGreaterThan(0);
+
+  await timeline.dispatchEvent("wheel", {
+    deltaX: -400,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  const after = await readViewportStart(timeline);
+  expect(after).toBeLessThan(mid);
+});
+
+test("wheel pan: ignored when zoom level is 1 (full duration visible)", async ({
+  mount,
+}) => {
+  // At zoom 1 there's nothing to pan to — wheel should pass through.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="no_pan_at_1x"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  expect(await readZoomLevel(timeline)).toBe(1);
+  expect(await readViewportStart(timeline)).toBe(0);
+
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 500,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  expect(await readViewportStart(timeline)).toBe(0);
+});
+
+test("wheel pan: vertical-dominant wheel does NOT pan (passes through to page)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="vertical_passthrough"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  const before = await readViewportStart(timeline);
+  // |deltaY| > |deltaX| → vertical-dominant. Should pass through.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 10,
+    deltaY: 200,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  const after = await readViewportStart(timeline);
+  expect(after).toBe(before);
+});
+
+test("wheel pan: clamps at viewport start (cannot pan before t=0)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="clamp_left"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  // Already at viewportStart=0; a leftward swipe must not go negative.
+  expect(await readViewportStart(timeline)).toBe(0);
+  await timeline.dispatchEvent("wheel", {
+    deltaX: -1000,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  expect(await readViewportStart(timeline)).toBe(0);
+});
+
+test("wheel pan: clamps at viewport end (cannot pan past duration)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="clamp_right"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  // Pan all the way right.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 100000,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  const maxStart = await readViewportStart(timeline);
+  // At zoom 4 of 60s, max viewportStart = 60 - 15 = 45.
+  expect(maxStart).toBeCloseTo(45, 5);
+
+  // Another rightward swipe should not move further.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 1000,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  const stillMax = await readViewportStart(timeline);
+  expect(stillMax).toBe(maxStart);
+});
+
+test("pinch-to-zoom: ctrl+wheel with negative deltaY zooms in", async ({
+  mount,
+}) => {
+  // Chromium reports trackpad pinch as wheel + ctrlKey.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pinch_in"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  expect(await readZoomLevel(timeline)).toBe(1);
+
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline box not found");
+  // Aim the pinch in the middle of the waveform so the focal computation
+  // has somewhere reasonable to anchor.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 0,
+    deltaY: -200,
+    deltaMode: 0,
+    ctrlKey: true,
+    clientX: box.x + box.width / 2,
+    clientY: box.y + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  const after = await readZoomLevel(timeline);
+  expect(after).toBeGreaterThan(1);
+});
+
+test("pinch-to-zoom: ctrl+wheel with positive deltaY zooms out", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pinch_out"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  // Zoom in via the buttons first so there's room to zoom out.
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+  const before = await readZoomLevel(timeline);
+  expect(before).toBe(4);
+
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline box not found");
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 0,
+    deltaY: 200,
+    deltaMode: 0,
+    ctrlKey: true,
+    clientX: box.x + box.width / 2,
+    clientY: box.y + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  const after = await readZoomLevel(timeline);
+  expect(after).toBeLessThan(before);
+});
+
+test("pinch-to-zoom: anchors on cursor — pinching inside the gutter pins viewport at 0", async ({
+  mount,
+}) => {
+  // Cursor over the gutter (where track labels live, before the waveform
+  // starts) → cursorX inside the wheel handler is negative, focalRatio
+  // clamps to 0, so the focal time IS viewportStart and viewportStart
+  // should remain pinned at 0 across the zoom.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pinch_focal_left"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline box not found");
+
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 0,
+    deltaY: -400,
+    deltaMode: 0,
+    ctrlKey: true,
+    // 20px in is well inside the 72px gutter — focalRatio clamps to 0.
+    clientX: box.x + 20,
+    clientY: box.y + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  const zoom = await readZoomLevel(timeline);
+  expect(zoom).toBeGreaterThan(1);
+  const vs = await readViewportStart(timeline);
+  expect(vs).toBe(0);
+});
+
+test("pinch-to-zoom: anchors on cursor — pinching at right edge advances viewportStart", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pinch_focal_right"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline box not found");
+
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 0,
+    deltaY: -400,
+    deltaMode: 0,
+    ctrlKey: true,
+    clientX: box.x + box.width - 20,
+    clientY: box.y + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  const zoom = await readZoomLevel(timeline);
+  expect(zoom).toBeGreaterThan(1);
+  // Cursor at the right edge → focalRatio ≈ 1 → viewport should advance
+  // so the right-edge time stays near the right of the new viewport.
+  const vs = await readViewportStart(timeline);
+  expect(vs).toBeGreaterThan(0);
+});
+
+test("pinch-to-zoom: zoom level is clamped at MAX_ZOOM", async ({ mount }) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pinch_max"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline box not found");
+
+  // Massive negative delta — should saturate at MAX_ZOOM (32) and stay there.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 0,
+    deltaY: -100000,
+    deltaMode: 0,
+    ctrlKey: true,
+    clientX: box.x + box.width / 2,
+    clientY: box.y + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  expect(await readZoomLevel(timeline)).toBe(32);
+});
+
+test("pinch-to-zoom: zoom level is clamped at MIN_ZOOM (1)", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="pinch_min"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  // Already at zoom 1 — pinch-out further should not go below 1.
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline box not found");
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 0,
+    deltaY: 100000,
+    deltaMode: 0,
+    ctrlKey: true,
+    clientX: box.x + box.width / 2,
+    clientY: box.y + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  expect(await readZoomLevel(timeline)).toBe(1);
+});
+
+test("wheel pan: line-mode (deltaMode=1) deltas are normalized to pixels", async ({
+  mount,
+}) => {
+  // Some mice / browsers report wheel deltas in lines (~16px each) rather
+  // than pixels. The handler must normalize these so a small line count
+  // becomes a meaningful pan — otherwise line-wheel users would barely
+  // move when swiping. Without normalization, deltaX=5 → 5/pxPerSec ≈
+  // 0.06s of pan; with normalization, deltaX=5 lines → ~80px → ~1s of pan.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="line_mode"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 5,
+    deltaY: 0,
+    deltaMode: 1,
+    bubbles: true,
+    cancelable: true,
+  });
+  // 5 lines * 16px ≈ 80px. At zoom 4 / 60s on any reasonable width
+  // (>= 320px waveform), that's >= 0.5s of pan. Without normalization
+  // it would top out at ~0.1s. The 0.5s threshold has comfortable
+  // margin without depending on exact render width. expect.poll keeps
+  // re-reading the attribute until React commits the post-wheel state
+  // (a one-shot read can race the commit on busy CI workers).
+  await expect.poll(() => readViewportStart(timeline)).toBeGreaterThan(0.5);
 });

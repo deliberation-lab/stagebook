@@ -25,10 +25,14 @@ import {
   AUTO_SCROLL_THRESHOLD,
   SEEK_JUMP_THRESHOLD,
   clampViewportStart,
+  computeViewportAfterFocalZoom,
+  computeViewportAfterPan,
   computeViewportAfterScroll,
   computeViewportAfterSeek,
   computeViewportAfterZoom,
   isPlayheadPastThreshold,
+  normalizeWheelDelta,
+  pinchZoom,
   zoomIn as nextZoomIn,
   zoomOut as nextZoomOut,
 } from "./timeline/viewport.js";
@@ -403,6 +407,86 @@ export function Timeline({
     [zoomLevel],
   );
 
+  // Trackpad gestures: ctrl+wheel = pinch-to-zoom centered on the cursor;
+  // horizontal-dominant wheel (two-finger swipe left/right) = pan when
+  // zoomed in. Vertical-dominant wheel passes through to scroll the page.
+  //
+  // Bound natively (not via React's onWheel) with passive: false so we can
+  // call preventDefault on gestures we handle. Refs feed the latest zoom
+  // and viewport into the handler so we don't re-attach on every change.
+  const zoomLevelRef = useRef(zoomLevel);
+  zoomLevelRef.current = zoomLevel;
+  const viewportStartRef = useRef(viewportStart);
+  viewportStartRef.current = viewportStart;
+  useEffect(() => {
+    const el = containerElRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const dur = handleRef.current?.getDuration() ?? 0;
+      if (dur <= 0) return;
+      const rect = el.getBoundingClientRect();
+      const waveformWidth = Math.max(rect.width - GUTTER_WIDTH, 0);
+      if (waveformWidth <= 0) return;
+
+      // Normalize deltas to pixels. Trackpads always report PIXEL mode
+      // (0); some mouse wheels and rare browsers report LINE (1) or
+      // PAGE (2). Without this our pan/pinch sensitivity would silently
+      // become wildly off on those input devices.
+      const dx = normalizeWheelDelta(e.deltaX, e.deltaMode);
+      const dy = normalizeWheelDelta(e.deltaY, e.deltaMode);
+
+      // Chromium/Safari report trackpad pinch as wheel + ctrlKey, even
+      // without the Control key being physically pressed.
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const currentZoom = zoomLevelRef.current;
+        const newZoom = pinchZoom(currentZoom, dy);
+        if (newZoom === currentZoom) return;
+        // Anchor the zoom on the time under the cursor so it stays put.
+        const cursorX = e.clientX - rect.left - GUTTER_WIDTH;
+        const focalRatio = Math.max(0, Math.min(1, cursorX / waveformWidth));
+        const visible = dur / currentZoom;
+        const focalTime = viewportStartRef.current + visible * focalRatio;
+        setZoomLevel(newZoom);
+        setViewportStart(
+          computeViewportAfterFocalZoom({
+            newZoom,
+            duration: dur,
+            focalTime,
+            focalRatio,
+          }),
+        );
+        return;
+      }
+
+      // Horizontal pan only when zoomed in (otherwise there's nothing to
+      // pan to) and only when the gesture is unambiguously horizontal —
+      // pure vertical scroll passes through to the page.
+      if (zoomLevelRef.current <= 1) return;
+      if (Math.abs(dx) <= Math.abs(dy)) return;
+      e.preventDefault();
+      setViewportStart(
+        computeViewportAfterPan({
+          currentViewportStart: viewportStartRef.current,
+          deltaPx: dx,
+          waveformWidthPx: waveformWidth,
+          duration: dur,
+          zoomLevel: zoomLevelRef.current,
+        }),
+      );
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+    // Re-run when the playback handle materializes — until then the
+    // timeline div isn't rendered (we show an error fallback) and
+    // containerElRef.current is null, so an initial-mount-only effect
+    // would never bind the listener.
+  }, [handle]);
+
   // Keyboard handler — delegates to keyboardActions.ts for the key-to-action
   // mapping. Returns null when the key should fall through to MediaPlayer.
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -561,6 +645,7 @@ export function Timeline({
       data-multi-select={multiSelect}
       data-show-waveform={showWaveform}
       data-zoom-level={zoomLevel}
+      data-viewport-start={viewportStart}
       role="region"
       aria-label={`Timeline: ${name}`}
       tabIndex={0}
