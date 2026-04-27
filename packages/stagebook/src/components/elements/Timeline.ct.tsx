@@ -3325,7 +3325,5 @@ test("wheel pan: line-mode (deltaMode=1) deltas are normalized to pixels", async
   // margin without depending on exact render width. expect.poll keeps
   // re-reading the attribute until React commits the post-wheel state
   // (a one-shot read can race the commit on busy CI workers).
-  await expect
-    .poll(() => readViewportStart(timeline))
-    .toBeGreaterThan(0.5);
+  await expect.poll(() => readViewportStart(timeline)).toBeGreaterThan(0.5);
 });
