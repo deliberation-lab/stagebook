@@ -555,6 +555,14 @@ export function SelectionOverlay({
       // is correct since the end handle is the one that can move right.
       const startHandleOnTop = x2 > width - 10;
 
+      // Hover-tooltip flip detection. Tooltip is ~50 px wide (varies with
+      // timestamp text) and sits OUTSIDE the handle by default. If the
+      // handle is too close to the SelectionOverlay's clipped edge, the
+      // outside-default would be cut off — flip to the inside instead.
+      const TOOLTIP_FLIP_PX = 50;
+      const flipStartTooltip = x1 < TOOLTIP_FLIP_PX;
+      const flipEndTooltip = x2 > width - TOOLTIP_FLIP_PX;
+
       // Per-track positioning in track scope
       const top =
         selectionScope === "track" && range.track !== undefined
@@ -621,7 +629,10 @@ export function SelectionOverlay({
             />
             {hoveredHandle?.index === i &&
               hoveredHandle?.handle === "start" && (
-                <div style={handleTooltipStyle("start")}>
+                <div
+                  data-testid="handle-tooltip"
+                  style={handleTooltipStyle("start", flipStartTooltip)}
+                >
                   {formatTime(range.start, zoomDecimals(zoomLevel))}
                 </div>
               )}
@@ -659,7 +670,10 @@ export function SelectionOverlay({
               }
             />
             {hoveredHandle?.index === i && hoveredHandle?.handle === "end" && (
-              <div style={handleTooltipStyle("end")}>
+              <div
+                data-testid="handle-tooltip"
+                style={handleTooltipStyle("end", flipEndTooltip)}
+              >
                 {formatTime(range.end, zoomDecimals(zoomLevel))}
               </div>
             )}

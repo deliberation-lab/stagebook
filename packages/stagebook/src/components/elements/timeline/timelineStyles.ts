@@ -34,19 +34,26 @@ export const tooltipBaseStyle: React.CSSProperties = {
 };
 
 /**
- * Compute inline styles for a range-handle hover tooltip.
- * Positions the tooltip to the left of the start handle or to the
- * right of the end handle, vertically centered.
+ * Compute inline styles for a range-handle hover tooltip. Positions the
+ * tooltip on the OUTSIDE of the handle by default (left of start, right
+ * of end) so it doesn't cover the range body. When `flip` is true the
+ * tooltip swings to the inside of the handle instead — used for handles
+ * near the SelectionOverlay's clipped edges, where the default outside
+ * position would extend past the clip and get cut off.
  *
  * @param handle - Which handle the tooltip is attached to.
+ * @param flip - When true, place the tooltip on the inside of the handle.
  */
 export function handleTooltipStyle(
   handle: "start" | "end",
+  flip = false,
 ): React.CSSProperties {
+  // start + !flip → left; end + flip → left; otherwise → right
+  const placeLeft = (handle === "start") !== flip;
   return {
     position: "absolute",
     top: "50%",
-    ...(handle === "start"
+    ...(placeLeft
       ? { right: "100%", marginRight: 4 }
       : { left: "100%", marginLeft: 4 }),
     transform: "translateY(-50%)",

@@ -2841,6 +2841,82 @@ test("handle hover shows time tooltip", async ({ mount }) => {
   await expect(startHandle).toContainText("0:10");
 });
 
+test("handle hover tooltip flips inward near the clipped edges", async ({
+  mount,
+}) => {
+  // The SelectionOverlay clips horizontally to keep ranges out of the
+  // gutter; the tooltip's default outside-the-handle position would get
+  // clipped near the edges. So we flip the tooltip to the inside-handle
+  // side instead. Verify both edges:
+  //   - start handle near LEFT edge → tooltip flips to the RIGHT (inside
+  //     the range body)
+  //   - end handle near RIGHT edge → tooltip flips to the LEFT
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="tooltip_flip"
+      selectionType="range"
+      multiSelect={false}
+      mockDuration={60}
+      // Range spans nearly the full visible viewport so both handles sit
+      // close to their respective clip edges.
+      initialSelections={[{ start: 0, end: 60 }]}
+    />,
+  );
+  const startHandle = component.locator('[data-testid="range-0-handle-start"]');
+  const endHandle = component.locator('[data-testid="range-0-handle-end"]');
+
+  await startHandle.hover();
+  // The flipped start tooltip uses `left: 100%` instead of `right: 100%`,
+  // so its computed `left` style (relative to the handle) is non-empty
+  // and `right` is "auto" / unset. Read the inline style of the tooltip
+  // child element.
+  const startTooltip = startHandle.locator('[data-testid="handle-tooltip"]');
+  const startPlacement = await startTooltip.evaluate((el) => ({
+    left: (el as HTMLElement).style.left,
+    right: (el as HTMLElement).style.right,
+  }));
+  expect(startPlacement.left).toBe("100%");
+  expect(startPlacement.right).toBe("");
+
+  await endHandle.hover();
+  const endTooltip = endHandle.locator('[data-testid="handle-tooltip"]');
+  const endPlacement = await endTooltip.evaluate((el) => ({
+    left: (el as HTMLElement).style.left,
+    right: (el as HTMLElement).style.right,
+  }));
+  expect(endPlacement.right).toBe("100%");
+  expect(endPlacement.left).toBe("");
+});
+
+test("handle hover tooltip stays outside when there's room", async ({
+  mount,
+}) => {
+  // Range comfortably in the middle — both handles have ~50 px of room
+  // on the outside, so neither tooltip should flip.
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="tooltip_no_flip"
+      selectionType="range"
+      multiSelect={false}
+      mockDuration={60}
+      initialSelections={[{ start: 20, end: 40 }]}
+    />,
+  );
+  const startHandle = component.locator('[data-testid="range-0-handle-start"]');
+  await startHandle.hover();
+  const startTooltip = startHandle.locator('[data-testid="handle-tooltip"]');
+  const startPlacement = await startTooltip.evaluate((el) => ({
+    left: (el as HTMLElement).style.left,
+    right: (el as HTMLElement).style.right,
+  }));
+  expect(startPlacement.right).toBe("100%");
+  expect(startPlacement.left).toBe("");
+});
+
 test("playhead time box is draggable (pointerEvents: auto)", async ({
   mount,
 }) => {
