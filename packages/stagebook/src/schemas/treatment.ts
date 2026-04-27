@@ -1123,6 +1123,148 @@ export const validReferenceTypes = [
   "discussion",
 ] as const;
 
+// ------------------ Schema introspection ------------------ //
+//
+// These maps and getValidKeysFor* helpers expose the set of valid keys
+// for each container kind, so authoring tools (VS Code diagnostics, the
+// viewer's load error path, future autocomplete) can report rich
+// "Unrecognized key 'X' on element of type 'survey'. Did you mean
+// 'surveyName'? Valid keys: …" messages instead of the bare Zod default.
+//
+// Each per-element/per-condition schema in this file is a `ZodObject`
+// (built via `elementBaseSchema.extend({...}).strict()` /
+// `baseConditionSchema.extend({...}).strict()`), so `.shape` resolves
+// directly to the merged key set without us having to re-list anything.
+
+const elementSchemasByType = {
+  audio: audioSchema,
+  display: displaySchema,
+  image: imageSchema,
+  prompt: promptSchema,
+  qualtrics: qualtricsSchema,
+  separator: separatorSchema,
+  sharedNotepad: sharedNotepadSchema,
+  submitButton: submitButtonSchema,
+  survey: surveySchema,
+  talkMeter: talkMeterSchema,
+  timer: timerSchema,
+  mediaPlayer: mediaPlayerSchema,
+  timeline: timelineSchema,
+  trackedLink: trackedLinkSchema,
+} as const;
+
+const conditionSchemasByComparator = {
+  exists: conditionExistsSchema,
+  doesNotExist: conditionDoesNotExistSchema,
+  equals: conditionEqualsSchema,
+  doesNotEqual: conditionDoesNotEqualSchema,
+  isAbove: conditionIsAboveSchema,
+  isBelow: conditionIsBelowSchema,
+  isAtLeast: conditionIsAtLeastSchema,
+  isAtMost: conditionIsAtMostSchema,
+  hasLengthAtLeast: conditionHasLengthAtLeastSchema,
+  hasLengthAtMost: conditionHasLengthAtMostSchema,
+  includes: conditionIncludesSchema,
+  doesNotInclude: conditionDoesNotIncludeSchema,
+  matches: conditionMatchesSchema,
+  doesNotMatch: conditionDoesNotMatchSchema,
+  isOneOf: conditionIsOneOfSchema,
+  isNotOneOf: conditionIsNotOneOfSchema,
+} as const;
+
+/**
+ * Return the list of valid keys allowed on an element of the given
+ * `type`, or null if `type` is not a recognized element type. Keys are
+ * returned in declaration order (base keys first, then per-type keys).
+ */
+export function getValidKeysForElementType(type: string): string[] | null {
+  const schema = (
+    elementSchemasByType as Record<string, { shape: Record<string, unknown> }>
+  )[type];
+  if (!schema) return null;
+  return Object.keys(schema.shape);
+}
+
+/**
+ * Return the list of valid keys allowed on a condition with the given
+ * `comparator`, or null if `comparator` is not a recognized condition
+ * comparator. Includes `comparator` and `value` along with the inherited
+ * `reference` / `position` keys.
+ */
+export function getValidKeysForComparator(comparator: string): string[] | null {
+  const schema = (
+    conditionSchemasByComparator as Record<
+      string,
+      { shape: Record<string, unknown> }
+    >
+  )[comparator];
+  if (!schema) return null;
+  return Object.keys(schema.shape);
+}
+
+/**
+ * Return the list of valid keys allowed on a stage. Hardcoded rather
+ * than read from `stageSchema.shape` because stageSchema is wrapped in
+ * `altTemplateContext(...).strict().superRefine(...)`, which produces a
+ * `ZodEffects` that doesn't expose `.shape`. Keep in sync with
+ * `stageSchema` above.
+ */
+export function getValidKeysForStage(): string[] {
+  return ["name", "notes", "conditions", "discussion", "duration", "elements"];
+}
+
+/**
+ * Return the list of valid keys allowed on an intro/exit step. Same
+ * `ZodEffects` constraint as `getValidKeysForStage`. Keep in sync with
+ * `introExitStepSchema` above.
+ */
+export function getValidKeysForIntroExitStep(): string[] {
+  return ["name", "notes", "conditions", "elements"];
+}
+
+/**
+ * Return the list of valid keys allowed on a treatment. Reads directly
+ * from `baseTreatmentSchema.shape` (which is a plain `ZodObject` —
+ * `treatmentSchema` is the wrapped form).
+ */
+export function getValidKeysForTreatment(): string[] {
+  return Object.keys(baseTreatmentSchema.shape);
+}
+
+/**
+ * Return the list of valid keys allowed on a discussion. Hardcoded —
+ * `discussionSchema` is a `.strict().superRefine(...)` `ZodEffects`.
+ * Keep in sync with `discussionSchema` above.
+ */
+export function getValidKeysForDiscussion(): string[] {
+  return [
+    "chatType",
+    "showNickname",
+    "showTitle",
+    "showSelfView",
+    "showReportMissing",
+    "showAudioMute",
+    "showVideoMute",
+    "reactionEmojisAvailable",
+    "reactToSelf",
+    "numReactionsPerMessage",
+    "layout",
+    "rooms",
+    "showToPositions",
+    "hideFromPositions",
+    "conditions",
+  ];
+}
+
+/**
+ * Return the list of valid keys allowed on a player block (an item in
+ * a treatment's `groupComposition`). `playerSchema` is a plain
+ * `ZodObject`, so we read `.shape` directly.
+ */
+export function getValidKeysForPlayer(): string[] {
+  return Object.keys(playerSchema.shape);
+}
+
 export const elementSchema = altTemplateContext(
   z.any().superRefine((data, ctx) => {
     const isObject = typeof data === "object" && data !== null;
