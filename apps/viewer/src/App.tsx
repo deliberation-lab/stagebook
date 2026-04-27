@@ -3,13 +3,13 @@ import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
 import {
   TreatmentValidationError,
-  parseTreatmentYaml,
   type ValidationIssue,
 } from "./lib/treatment";
 import { createUrlContentFns } from "./lib/contentFns";
 import {
   exampleCatalog,
   createExampleContentFns,
+  prepareExampleTreatment,
   type ExampleEntry,
 } from "./lib/exampleCatalog";
 import { LandingPage } from "./components/LandingPage";
@@ -115,7 +115,7 @@ export function App() {
     async (entry: ExampleEntry) => {
       const seq = ++loadSeqRef.current;
       try {
-        const treatmentFile = parseTreatmentYaml(entry.yaml);
+        const treatmentFile = prepareExampleTreatment(entry);
         await enterTreatment(
           treatmentFile,
           createExampleContentFns(entry),

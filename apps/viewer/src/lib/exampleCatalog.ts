@@ -1,3 +1,4 @@
+import type { TreatmentFileType } from "stagebook";
 import { parseTreatmentYaml } from "./treatment";
 import { expandTreatmentFile } from "./expandTreatmentFile";
 
@@ -87,6 +88,20 @@ export const exampleCatalog: ExampleEntry[] = buildCatalog(
   yamlByPath,
   textByPath,
 );
+
+/**
+ * Parse + expand the example's YAML the same way the URL load path does
+ * in `loader.ts`. Without expansion, a treatment template with a
+ * `broadcast` axis renders as a single row, so the OverviewPage's
+ * `treatments.length > 1` check fails and the picker collapses to the
+ * single-button "Ready to view" state instead of showing radios for
+ * each broadcasted variant. (Issue #229.)
+ */
+export function prepareExampleTreatment(entry: ExampleEntry): TreatmentFileType {
+  const parsed = parseTreatmentYaml(entry.yaml);
+  const { result } = expandTreatmentFile(parsed);
+  return result;
+}
 
 /**
  * Build `getTextContent` / `getAssetURL` functions for an example

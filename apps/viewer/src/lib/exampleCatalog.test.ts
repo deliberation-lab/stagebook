@@ -3,7 +3,9 @@ import {
   buildCatalog,
   createExampleContentFns,
   exampleCatalog,
+  prepareExampleTreatment,
 } from "./exampleCatalog";
+import { parseTreatmentYaml } from "./treatment";
 
 const SAMPLE_YAML = `
 introSequences:
@@ -164,5 +166,41 @@ describe("exampleCatalog (discovered via import.meta.glob)", () => {
     expect(walkthrough?.prompts["prompts/consent.prompt.md"]).toContain(
       "noResponse",
     );
+  });
+});
+
+describe("prepareExampleTreatment", () => {
+  it("expands template broadcasts so the picker sees multiple treatments (issue #229)", () => {
+    // Regression for #229: App.handleLoadExample previously only parsed
+    // the YAML, leaving template-broadcast rows un-expanded. The
+    // OverviewPage's `treatments.length > 1` check then fell through to
+    // the single-button "Ready to view" state instead of showing the
+    // multi-radio picker the README promises.
+    const walkthrough = exampleCatalog.find(
+      (e) => e.id === "annotated-walkthrough",
+    );
+    if (!walkthrough) throw new Error("annotated-walkthrough missing");
+
+    // Pre-condition: the unexpanded YAML has a single `template:` row
+    // with a broadcast axis — exactly the shape that triggered the bug.
+    const parsed = parseTreatmentYaml(walkthrough.yaml);
+    expect(parsed.treatments.length).toBe(1);
+
+    // After: prepareExampleTreatment fans the broadcast out so the
+    // picker has multiple radios to render.
+    const prepared = prepareExampleTreatment(walkthrough);
+    expect(prepared.treatments.length).toBeGreaterThan(1);
+  });
+
+  it("works for examples without templates (no-op expansion)", () => {
+    // Sanity: examples that don't use templates are still parsed
+    // correctly and produce the same single-treatment result.
+    const [entry] = buildCatalog(
+      { "/root/examples/demo/foo.treatments.yaml": SAMPLE_YAML },
+      {},
+    );
+    const prepared = prepareExampleTreatment(entry);
+    expect(prepared.treatments).toHaveLength(1);
+    expect(prepared.treatments[0]?.name).toBe("Sample treatment title");
   });
 });
