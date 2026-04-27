@@ -2870,6 +2870,258 @@ test("playhead time box is draggable (pointerEvents: auto)", async ({
   expect(pointerEvents).toBe("auto");
 });
 
+test("playhead drag does not auto-scroll the viewport (zoomed in)", async ({
+  mount,
+  page,
+}) => {
+  // Without onDragStart suppressing it, the auto-scroll effect chases the
+  // cursor: drag into the past-90% zone → effect scrolls right → cursor
+  // is still in past-90% of the new viewport → effect scrolls again →
+  // viewportStart runs all the way to its max. With the fix in place,
+  // viewportStart should not change during OR after the drag.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="playhead_no_autoscroll"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+  expect(await readViewportStart(timeline)).toBe(0);
+
+  const timeBox = component
+    .locator('[data-testid="playhead"]')
+    .locator("div")
+    .first();
+  const timeBoxBox = await timeBox.boundingBox();
+  const tlBox = await timeline.boundingBox();
+  if (!timeBoxBox || !tlBox) throw new Error("element not found");
+
+  // Real mouse drag from the time box across to ~95% of the timeline —
+  // well into the past-90% zone where auto-scroll would normally fire.
+  await page.mouse.move(
+    timeBoxBox.x + timeBoxBox.width / 2,
+    timeBoxBox.y + timeBoxBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    tlBox.x + tlBox.width * 0.95,
+    timeBoxBox.y + timeBoxBox.height / 2,
+  );
+  await page.mouse.up();
+
+  // viewportStart must stay at 0 — both during the drag (auto-scroll
+  // suppressed) and after (lastPlayheadRef reset prevents the post-drag
+  // RAF tick from interpreting the drag delta as a "jump"). Poll a short
+  // window to catch the race deterministically.
+  for (let i = 0; i < 5; i++) {
+    expect(await readViewportStart(timeline)).toBe(0);
+    await page.waitForTimeout(50);
+  }
+});
+
+test("playhead drag is clamped to the visible viewport (left edge)", async ({
+  mount,
+  page,
+}) => {
+  // When zoomed in with a non-zero viewportStart, dragging the cursor past
+  // the left edge of the waveform must not send the playhead to t=0
+  // (off-screen). It should clamp at viewportStart so the playhead stays
+  // visible at the left edge.
+  // mockCurrentTime=10 keeps the playhead inside the viewport after we
+  // pan a bit, so it's still rendered (off-screen playheads bail out of
+  // render entirely and the locator can't find them).
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="playhead_clamp_left"
+      selectionType="range"
+      mockDuration={60}
+      mockCurrentTime={10}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  // Pan right so viewportStart > 0 but the playhead at t=10 stays visible.
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 400,
+    deltaY: 0,
+    deltaMode: 0,
+    bubbles: true,
+    cancelable: true,
+  });
+  await expect.poll(() => readViewportStart(timeline)).toBeGreaterThan(0);
+  const vs = await readViewportStart(timeline);
+
+  const playhead = component.locator('[data-testid="playhead"]');
+  const timeBox = playhead.locator("div").first();
+  const timeBoxBox = await timeBox.boundingBox();
+  const tlBox = await timeline.boundingBox();
+  if (!timeBoxBox || !tlBox) throw new Error("element not found");
+
+  // Real mouse drag from the time box, far to the LEFT past the timeline.
+  await page.mouse.move(
+    timeBoxBox.x + timeBoxBox.width / 2,
+    timeBoxBox.y + timeBoxBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(tlBox.x - 200, tlBox.y + 10);
+  await page.mouse.up();
+
+  // After clamping, the playhead's container `left` is `timeToPixel
+  // (viewportStart, ...) === 0`. Poll until the seek+commit has settled.
+  await expect
+    .poll(async () =>
+      playhead.evaluate(
+        (el) => parseFloat((el as HTMLElement).style.left) || 0,
+      ),
+    )
+    .toBeLessThan(2);
+  // viewportStart should also be unchanged by the drag.
+  expect(await readViewportStart(timeline)).toBe(vs);
+});
+
+test("clicking the time ruler seeks the playhead", async ({ mount, page }) => {
+  // Standard NLE convention: a click on the ruler moves the playhead to
+  // that time. Previously the ruler was inert. Uses real mouse events so
+  // the pointercapture / event-routing matches real browser behavior.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ruler_click"
+      selectionType="range"
+      mockDuration={60}
+      mockCurrentTime={0}
+    />,
+  );
+  const ruler = component.locator('[data-testid="time-ruler"]');
+  const playhead = component.locator('[data-testid="playhead"]');
+  await expect(playhead).toBeAttached();
+
+  const rulerBox = await ruler.boundingBox();
+  if (!rulerBox) throw new Error("ruler not found");
+
+  // Click ~50% of the ruler. With duration=60 zoom=1, that lands near 30s
+  // and playhead's `left` should land near rulerBox.width / 2.
+  await page.mouse.click(
+    rulerBox.x + rulerBox.width * 0.5,
+    rulerBox.y + rulerBox.height / 2,
+  );
+
+  await expect
+    .poll(async () =>
+      playhead.evaluate(
+        (el) => parseFloat((el as HTMLElement).style.left) || 0,
+      ),
+    )
+    .toBeGreaterThan(rulerBox.width * 0.4);
+});
+
+test("ruler drag scrubs the playhead", async ({ mount, page }) => {
+  // Pointer-down + move + up on the ruler should continuously update the
+  // playhead time, like dragging the time box does. Uses real mouse events
+  // (not dispatchEvent) so pointer capture / move routing matches real
+  // browser behavior — synthetic events flake under parallel test load.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ruler_drag"
+      selectionType="range"
+      mockDuration={60}
+      mockCurrentTime={0}
+    />,
+  );
+  const ruler = component.locator('[data-testid="time-ruler"]');
+  const playhead = component.locator('[data-testid="playhead"]');
+  const rulerBox = await ruler.boundingBox();
+  if (!rulerBox) throw new Error("ruler not found");
+
+  // Down at 25%, move to 75%, then up.
+  await page.mouse.move(
+    rulerBox.x + rulerBox.width * 0.25,
+    rulerBox.y + rulerBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    rulerBox.x + rulerBox.width * 0.75,
+    rulerBox.y + rulerBox.height / 2,
+  );
+  await page.mouse.up();
+
+  await expect
+    .poll(async () =>
+      playhead.evaluate(
+        (el) => parseFloat((el as HTMLElement).style.left) || 0,
+      ),
+    )
+    .toBeGreaterThan(rulerBox.width * 0.6);
+});
+
+test("ruler drag does not auto-scroll the viewport (zoomed in)", async ({
+  mount,
+}) => {
+  // Same auto-scroll-suppression invariant as the time-box drag, but
+  // entered through the ruler instead of the playhead head.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="ruler_no_autoscroll"
+      selectionType="range"
+      mockDuration={60}
+      mockCurrentTime={0}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+  expect(await readViewportStart(timeline)).toBe(0);
+
+  const ruler = component.locator('[data-testid="time-ruler"]');
+  const rulerBox = await ruler.boundingBox();
+  if (!rulerBox) throw new Error("ruler not found");
+
+  // Click + drag to ~95% of the ruler — well into the past-90% zone.
+  await ruler.dispatchEvent("pointerdown", {
+    clientX: rulerBox.x + rulerBox.width * 0.5,
+    clientY: rulerBox.y + 5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await ruler.dispatchEvent("pointermove", {
+    clientX: rulerBox.x + rulerBox.width * 0.95,
+    clientY: rulerBox.y + 5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await ruler.dispatchEvent("pointerup", {
+    clientX: rulerBox.x + rulerBox.width * 0.95,
+    clientY: rulerBox.y + 5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+
+  expect(await readViewportStart(timeline)).toBe(0);
+});
+
 // -- Trackpad gestures: wheel pan and pinch-to-zoom --
 
 /**

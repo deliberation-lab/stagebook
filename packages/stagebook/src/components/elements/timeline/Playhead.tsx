@@ -27,6 +27,12 @@ export interface PlayheadProps {
   viewportStart: number;
   /** Called during drag to seek to a new time. */
   onSeek: (time: number) => void;
+  /** Called on pointerdown when a drag starts. Lets the parent suppress
+   *  auto-scroll while the user is in manual control of the playhead. */
+  onDragStart?: () => void;
+  /** Called on pointerup / cancel / lostpointercapture — i.e., whenever
+   *  a drag transaction ends, however it ends. */
+  onDragEnd?: () => void;
 }
 
 /**
@@ -49,21 +55,27 @@ export function Playhead({
   zoomLevel,
   viewportStart,
   onSeek,
+  onDragStart,
+  onDragEnd,
 }: PlayheadProps) {
   // All hooks must be called before any early returns (Rules of Hooks).
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore in test environments
-    }
-    isDragging.current = true;
-  }, []);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore in test environments
+      }
+      isDragging.current = true;
+      onDragStart?.();
+    },
+    [onDragStart],
+  );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -82,24 +94,39 @@ export function Playhead({
         zoomLevel,
         viewportStart,
       );
-      const clamped = Math.max(0, Math.min(duration, time));
+      // Clamp drag to the visible viewport so the playhead can't be dragged
+      // off-screen — without this, dragging into the gutter sends it to t=0
+      // (invisible left of viewport when zoomed in) and dragging past the
+      // right edge sends it past viewportEnd (invisible until you pan).
+      const visibleDuration = zoomLevel > 0 ? duration / zoomLevel : duration;
+      const viewportEnd = Math.min(duration, viewportStart + visibleDuration);
+      const lo = Math.max(0, viewportStart);
+      const hi = Math.min(duration, viewportEnd);
+      const clamped = Math.max(lo, Math.min(hi, time));
       onSeek(clamped);
     },
     [duration, width, zoomLevel, viewportStart, onSeek],
   );
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    isDragging.current = false;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      const wasDragging = isDragging.current;
+      isDragging.current = false;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+      if (wasDragging) onDragEnd?.();
+    },
+    [onDragEnd],
+  );
 
   const handlePointerCancel = useCallback(() => {
+    const wasDragging = isDragging.current;
     isDragging.current = false;
-  }, []);
+    if (wasDragging) onDragEnd?.();
+  }, [onDragEnd]);
 
   // Early returns after all hooks
   if (!Number.isFinite(duration) || duration <= 0) return null;
@@ -121,7 +148,13 @@ export function Playhead({
         pointerEvents: "none",
       }}
     >
-      {/* Time box — draggable handle in the ruler area */}
+      {/* Time box — draggable handle in the ruler area. The triangle child
+          hanging off the bottom is the "playhead head" affordance from
+          standard NLE timelines (Premiere, Resolve, etc.) — it visually
+          attaches the box to the line below and reads as "this is the
+          handle of the line." It inherits the box's red color and bubbles
+          pointer events up to the box, so dragging from the triangle works
+          the same as dragging from the box. */}
       <div
         draggable={false}
         onPointerDown={(e) => {
@@ -145,6 +178,24 @@ export function Playhead({
         }}
       >
         {formatTime(currentTime, zoomDecimals(zoomLevel))}
+        <div
+          data-testid="playhead-arrow"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 0,
+            height: 0,
+            borderLeft: "5px solid transparent",
+            borderRight: "5px solid transparent",
+            borderTop: "5px solid var(--stagebook-playhead, #e11d48)",
+            // Inherit auto pointer events so clicks bubble up to the box.
+            pointerEvents: "auto",
+            cursor: "ew-resize",
+          }}
+        />
       </div>
 
       {/* Vertical line — click-through */}
