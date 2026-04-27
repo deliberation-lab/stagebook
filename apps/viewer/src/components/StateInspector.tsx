@@ -39,6 +39,15 @@ interface StateInspectorProps {
   stageIndex: number;
   position: number;
   playerCount: number;
+  /**
+   * Called after every store-mutating action triggered from the inspector
+   * (Clear all state, ×-clear a reference). Components like Timeline read
+   * `initialSelections` from the store once on mount and then own that
+   * data locally, so a store edit alone doesn't update what's rendered —
+   * the Viewer wires this to a `<Stage>` key bump that forces a remount,
+   * letting elements re-read the post-edit store. (Issue #170.)
+   */
+  onResetStage?: () => void;
 }
 
 export function StateInspector({
@@ -47,6 +56,7 @@ export function StateInspector({
   stageIndex,
   position,
   playerCount,
+  onResetStage,
 }: StateInspectorProps) {
   const [showAll, setShowAll] = useState(false);
   const [confirmingClearAll, setConfirmingClearAll] = useState(false);
@@ -87,6 +97,7 @@ export function StateInspector({
               store={store}
               position={position}
               stageIndex={stageIndex}
+              onAfterClear={onResetStage}
             />
           ))}
         </>
@@ -110,6 +121,10 @@ export function StateInspector({
               type="button"
               onClick={() => {
                 store.clearAll();
+                // Remount so components like Timeline re-read the now-empty
+                // store; otherwise local state in mounted elements would
+                // still display the pre-clear values. (Issue #170.)
+                onResetStage?.();
                 setConfirmingClearAll(false);
               }}
               style={clearAllConfirmButtonStyle}
@@ -203,11 +218,15 @@ function ReferenceEditor({
   store,
   position,
   stageIndex,
+  onAfterClear,
 }: {
   reference: string;
   store: ViewerStateStore;
   position: number;
   stageIndex: number;
+  /** Fired after a × clear so the parent can remount the stage and let
+   *  read-once components (e.g. Timeline) pick up the post-delete store. */
+  onAfterClear?: () => void;
 }) {
   let referenceKey: string;
   let path: string[];
@@ -282,20 +301,29 @@ function ReferenceEditor({
   const handleClear = () => {
     if (path.length === 0) {
       store.delete(position, referenceKey);
-      return;
-    }
-    const existing = store.get(position, referenceKey)?.value;
-    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
-      // Nothing to prune at this path — drop the whole entry so `exists` fails
-      store.delete(position, referenceKey);
-      return;
-    }
-    const root = deletePath(existing as Record<string, unknown>, path);
-    if (root === undefined) {
-      store.delete(position, referenceKey);
     } else {
-      store.set(position, referenceKey, root, stageIndex);
+      const existing = store.get(position, referenceKey)?.value;
+      if (
+        !existing ||
+        typeof existing !== "object" ||
+        Array.isArray(existing)
+      ) {
+        // Nothing to prune at this path — drop the whole entry so `exists`
+        // fails.
+        store.delete(position, referenceKey);
+      } else {
+        const root = deletePath(existing as Record<string, unknown>, path);
+        if (root === undefined) {
+          store.delete(position, referenceKey);
+        } else {
+          store.set(position, referenceKey, root, stageIndex);
+        }
+      }
     }
+    // Remount the stage so read-once components (Timeline, etc.) pick up
+    // the post-delete store; without this, local state would still show
+    // the pre-clear values until manual navigation. (Issue #170.)
+    onAfterClear?.();
   };
 
   return (

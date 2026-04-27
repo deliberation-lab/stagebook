@@ -65,6 +65,15 @@ export function Viewer({
   );
 
   const [stageIndex, setStageIndex] = useState(0);
+  // Bumped when the researcher clicks "Reset stage" in the inspector;
+  // included in the <Stage> key below so a bump forces a full remount.
+  // Lets components like Timeline (which read store values once on mount
+  // and then own them locally) re-read after the inspector clears or
+  // overrides a value. (Issue #170.)
+  const [stageResetVersion, setStageResetVersion] = useState(0);
+  const handleResetStage = useCallback(() => {
+    setStageResetVersion((v) => v + 1);
+  }, []);
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -201,6 +210,7 @@ export function Viewer({
             stageIndex={stageIndex}
             position={position}
             playerCount={treatment.playerCount}
+            onResetStage={handleResetStage}
           />
         </aside>
 
@@ -224,7 +234,11 @@ export function Viewer({
           ) : (
             <div ref={stageContainerRef} style={stageContainerStyle}>
               <StagebookProvider value={ctx}>
-                <Stage stage={stageConfig} onSubmit={handleSubmit} />
+                <Stage
+                  key={`stage-${String(stageIndex)}-${String(stageResetVersion)}`}
+                  stage={stageConfig}
+                  onSubmit={handleSubmit}
+                />
               </StagebookProvider>
               <NotesIconsOverlay
                 containerRef={stageContainerRef}
