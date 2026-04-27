@@ -106,6 +106,74 @@ describe("ViewerStateStore", () => {
     });
   });
 
+  describe("delete", () => {
+    it("removes a player-scoped entry so lookup returns []", () => {
+      const store = new ViewerStateStore();
+      store.save("prompt_q1", { value: "yes" }, "player", 0, 0);
+      store.delete(0, "prompt_q1");
+      expect(store.lookup("prompt_q1", 0)).toEqual([]);
+      expect(store.get(0, "prompt_q1")).toBeUndefined();
+    });
+
+    it("removes a shared entry", () => {
+      const store = new ViewerStateStore();
+      store.save("prompt_q1", { value: "yes" }, "shared", 0, 0);
+      store.delete("shared", "prompt_q1");
+      expect(store.lookup("prompt_q1", "shared")).toEqual([]);
+    });
+
+    it("prunes the position bucket when its last entry is removed", () => {
+      const store = new ViewerStateStore();
+      store.save("prompt_q1", { value: "a" }, "player", 0, 0);
+      store.save("prompt_q2", { value: "b" }, "player", 1, 0);
+      store.delete(0, "prompt_q1");
+      const all = store.getAll();
+      expect(all).toHaveLength(1);
+      expect(all[0]?.positionKey).toBe(1);
+    });
+
+    it("is a no-op for missing keys (and does not notify)", () => {
+      const store = new ViewerStateStore();
+      const calls: unknown[] = [];
+      store.onChange(() => calls.push("changed"));
+      store.delete(0, "prompt_missing");
+      expect(calls).toEqual([]);
+    });
+
+    it("notifies listeners on successful delete", () => {
+      const store = new ViewerStateStore();
+      store.save("prompt_q1", { value: "yes" }, "player", 0, 0);
+      const calls: unknown[] = [];
+      store.onChange(() => calls.push("changed"));
+      store.delete(0, "prompt_q1");
+      expect(calls).toEqual(["changed"]);
+    });
+  });
+
+  describe("clearAll", () => {
+    it("wipes all data, submitted flags, and elapsed time", () => {
+      const store = new ViewerStateStore();
+      store.save("prompt_q1", { value: "a" }, "player", 0, 0);
+      store.save("prompt_q2", { value: "b" }, "shared", 0, 1);
+      store.setSubmitted(0, true);
+      store.setElapsedTime(0, 30);
+
+      store.clearAll();
+
+      expect(store.getAll()).toEqual([]);
+      expect(store.getSubmitted(0)).toBe(false);
+      expect(store.getElapsedTime(0)).toBe(0);
+    });
+
+    it("notifies listeners", () => {
+      const store = new ViewerStateStore();
+      const calls: unknown[] = [];
+      store.onChange(() => calls.push("changed"));
+      store.clearAll();
+      expect(calls).toEqual(["changed"]);
+    });
+  });
+
   describe("onChange", () => {
     it("notifies listeners on save", () => {
       const store = new ViewerStateStore();

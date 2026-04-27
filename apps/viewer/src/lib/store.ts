@@ -53,6 +53,30 @@ export class ViewerStateStore {
     return this.data.get(positionKey)?.get(storeKey);
   }
 
+  /**
+   * Remove a single entry. Prunes the position bucket if it becomes empty
+   * so getAll() doesn't surface ghost positions. After deletion, lookup()
+   * returns [] for the key — matching the "never set" case, so condition
+   * checks like `exists` correctly fail.
+   */
+  delete(positionKey: PositionKey, storeKey: string): void {
+    const bucket = this.data.get(positionKey);
+    if (!bucket) return;
+    if (!bucket.delete(storeKey)) return;
+    if (bucket.size === 0) {
+      this.data.delete(positionKey);
+    }
+    this.notify();
+  }
+
+  /** Wipe all stored values, submitted flags, and elapsed time. */
+  clearAll(): void {
+    this.data.clear();
+    this.submitted.clear();
+    this.elapsed.clear();
+    this.notify();
+  }
+
   /** Return all entries across all positions. */
   getAll(): StoreRecord[] {
     const records: StoreRecord[] = [];
