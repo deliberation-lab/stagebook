@@ -136,6 +136,26 @@ export function computeViewportAfterSeek(
  */
 export const PINCH_ZOOM_SENSITIVITY = 0.01;
 
+/** Approximate line height (px) for converting `DOM_DELTA_LINE` deltas. */
+const WHEEL_LINE_PX = 16;
+/** Approximate page height (px) for converting `DOM_DELTA_PAGE` deltas. */
+const WHEEL_PAGE_PX = 800;
+
+/**
+ * Convert a wheel delta to pixels regardless of the event's `deltaMode`.
+ * Trackpads always emit `DOM_DELTA_PIXEL` (0), but some mice and rare
+ * browser configurations emit `DOM_DELTA_LINE` (1) or `DOM_DELTA_PAGE`
+ * (2). Without normalization, our pan/zoom sensitivity is wildly off on
+ * those input devices — a single line tick of `dx=3` would feel like 3
+ * pixels of pan instead of ~48.
+ */
+export function normalizeWheelDelta(delta: number, deltaMode: number): number {
+  if (!Number.isFinite(delta)) return 0;
+  if (deltaMode === 1) return delta * WHEEL_LINE_PX;
+  if (deltaMode === 2) return delta * WHEEL_PAGE_PX;
+  return delta;
+}
+
 /**
  * Apply a single pinch wheel tick to a zoom level. Negative deltaY (pinch
  * out / two-finger swipe up with ctrl) zooms in; positive deltaY zooms out.

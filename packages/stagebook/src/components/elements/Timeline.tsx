@@ -31,6 +31,7 @@ import {
   computeViewportAfterSeek,
   computeViewportAfterZoom,
   isPlayheadPastThreshold,
+  normalizeWheelDelta,
   pinchZoom,
   zoomIn as nextZoomIn,
   zoomOut as nextZoomOut,
@@ -428,12 +429,19 @@ export function Timeline({
       const waveformWidth = Math.max(rect.width - GUTTER_WIDTH, 0);
       if (waveformWidth <= 0) return;
 
+      // Normalize deltas to pixels. Trackpads always report PIXEL mode
+      // (0); some mouse wheels and rare browsers report LINE (1) or
+      // PAGE (2). Without this our pan/pinch sensitivity would silently
+      // become wildly off on those input devices.
+      const dx = normalizeWheelDelta(e.deltaX, e.deltaMode);
+      const dy = normalizeWheelDelta(e.deltaY, e.deltaMode);
+
       // Chromium/Safari report trackpad pinch as wheel + ctrlKey, even
       // without the Control key being physically pressed.
       if (e.ctrlKey) {
         e.preventDefault();
         const currentZoom = zoomLevelRef.current;
-        const newZoom = pinchZoom(currentZoom, e.deltaY);
+        const newZoom = pinchZoom(currentZoom, dy);
         if (newZoom === currentZoom) return;
         // Anchor the zoom on the time under the cursor so it stays put.
         const cursorX = e.clientX - rect.left - GUTTER_WIDTH;
@@ -456,12 +464,12 @@ export function Timeline({
       // pan to) and only when the gesture is unambiguously horizontal —
       // pure vertical scroll passes through to the page.
       if (zoomLevelRef.current <= 1) return;
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (Math.abs(dx) <= Math.abs(dy)) return;
       e.preventDefault();
       setViewportStart(
         computeViewportAfterPan({
           currentViewportStart: viewportStartRef.current,
-          deltaPx: e.deltaX,
+          deltaPx: dx,
           waveformWidthPx: waveformWidth,
           duration: dur,
           zoomLevel: zoomLevelRef.current,

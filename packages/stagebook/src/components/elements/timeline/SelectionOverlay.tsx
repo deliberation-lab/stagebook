@@ -136,11 +136,11 @@ function HandleVisual({
 }) {
   const isStart = handle === "start";
   // The parent handle's CSS box is 8px wide and centered on the boundary
-  // (left:-4 width:8 for start; right:-4 width:8 for end), so the boundary
-  // sits at the parent's INNER edge — boundary = parent's right edge for
-  // a start handle, parent's left edge for an end handle. We anchor every
-  // visual element's inner edge to that point using `right: 4` (start) or
-  // `left: 4` (end), which both resolve to the boundary in container coords.
+  // (`left: -4 width: 8` for start, `right: -4 width: 8` for end). So the
+  // boundary sits at the *center* of the parent box — half the box is
+  // outside the range, half is inside. Anchoring a child with `right: 4`
+  // (start) or `left: 4` (end) — i.e., `HANDLE_HIT_WIDTH / 2` from the
+  // outer edge — places that child's inner edge exactly on the boundary.
   const innerOffset = HANDLE_HIT_WIDTH / 2;
   const innerEdge: React.CSSProperties = isStart
     ? { right: innerOffset }

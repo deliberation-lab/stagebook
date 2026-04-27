@@ -7,6 +7,7 @@ import {
   computeViewportAfterPan,
   clampViewportStart,
   isPlayheadPastThreshold,
+  normalizeWheelDelta,
   pinchZoom,
   zoomIn,
   zoomOut,
@@ -361,5 +362,33 @@ describe("computeViewportAfterPan", () => {
       zoomLevel: 2,
     });
     expect(result).toBe(5);
+  });
+});
+
+describe("normalizeWheelDelta", () => {
+  it("passes pixel-mode deltas through unchanged", () => {
+    expect(normalizeWheelDelta(42, 0)).toBe(42);
+    expect(normalizeWheelDelta(-7.5, 0)).toBe(-7.5);
+  });
+
+  it("scales line-mode deltas to pixels", () => {
+    // Mode 1 (DOM_DELTA_LINE): one line ≈ 16px.
+    expect(normalizeWheelDelta(3, 1)).toBe(48);
+    expect(normalizeWheelDelta(-1, 1)).toBe(-16);
+  });
+
+  it("scales page-mode deltas to pixels", () => {
+    // Mode 2 (DOM_DELTA_PAGE): one page ≈ 800px.
+    expect(normalizeWheelDelta(1, 2)).toBe(800);
+    expect(normalizeWheelDelta(-2, 2)).toBe(-1600);
+  });
+
+  it("returns 0 on non-finite delta", () => {
+    expect(normalizeWheelDelta(Number.NaN, 0)).toBe(0);
+    expect(normalizeWheelDelta(Number.POSITIVE_INFINITY, 1)).toBe(0);
+  });
+
+  it("falls through to pass-through for unknown deltaMode", () => {
+    expect(normalizeWheelDelta(5, 99)).toBe(5);
   });
 });

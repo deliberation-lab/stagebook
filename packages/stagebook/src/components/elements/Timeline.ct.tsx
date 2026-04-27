@@ -3289,3 +3289,43 @@ test("pinch-to-zoom: zoom level is clamped at MIN_ZOOM (1)", async ({
   });
   expect(await readZoomLevel(timeline)).toBe(1);
 });
+
+test("wheel pan: line-mode (deltaMode=1) deltas are normalized to pixels", async ({
+  mount,
+}) => {
+  // Some mice / browsers report wheel deltas in lines (~16px each) rather
+  // than pixels. The handler must normalize these so a small line count
+  // becomes a meaningful pan — otherwise line-wheel users would barely
+  // move when swiping. Without normalization, deltaX=5 → 5/pxPerSec ≈
+  // 0.06s of pan; with normalization, deltaX=5 lines → ~80px → ~1s of pan.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="line_mode"
+      selectionType="range"
+      mockDuration={60}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
+
+  await timeline.dispatchEvent("wheel", {
+    deltaX: 5,
+    deltaY: 0,
+    deltaMode: 1,
+    bubbles: true,
+    cancelable: true,
+  });
+  // 5 lines * 16px ≈ 80px. At zoom 4 / 60s on any reasonable width
+  // (>= 320px waveform), that's >= 0.5s of pan. Without normalization
+  // it would top out at ~0.1s. The 0.5s threshold has comfortable
+  // margin without depending on exact render width. expect.poll keeps
+  // re-reading the attribute until React commits the post-wheel state
+  // (a one-shot read can race the commit on busy CI workers).
+  await expect
+    .poll(() => readViewportStart(timeline))
+    .toBeGreaterThan(0.5);
+});
