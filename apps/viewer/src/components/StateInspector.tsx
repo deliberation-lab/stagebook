@@ -5,6 +5,19 @@ import { ViewerStateStore } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
 
+// Mirrors the read-side guard in stagebook/utils/reference.ts. The viewer
+// writes through these paths, so traversing into prototype slots would let
+// a crafted reference mutate Object.prototype. Defence in depth.
+const DISALLOWED_PATH_SEGMENTS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+function hasUnsafeSegment(path: string[]): boolean {
+  return path.some((seg) => DISALLOWED_PATH_SEGMENTS.has(seg));
+}
+
 /**
  * DOM id used to scroll a specific element's note into view. Encodes the
  * type and name so characters like spaces (which nameSchema permits in
@@ -215,6 +228,23 @@ function ReferenceEditor({
     );
   }
 
+  const unsafe = hasUnsafeSegment(path);
+
+  if (unsafe) {
+    return (
+      <div style={refGroupStyle}>
+        <label style={refLabelStyle}>{reference}</label>
+        <input
+          type="text"
+          value=""
+          disabled
+          placeholder="(unsafe path segment)"
+          style={{ ...refInputStyle, opacity: 0.5 }}
+        />
+      </div>
+    );
+  }
+
   const rawValues = store.lookup(referenceKey, position);
   const values = rawValues
     .map((v) => getNestedValueByPath(v, path))
@@ -228,7 +258,8 @@ function ReferenceEditor({
       store.set(position, referenceKey, newValue, stageIndex);
     } else {
       // Nested path (e.g., prompt → path=["value"]) — preserve existing
-      // object structure and write the value at the correct path
+      // object structure and write the value at the correct path. Use
+      // Object.hasOwn to avoid traversing inherited properties.
       const existing = store.get(position, referenceKey)?.value;
       const obj =
         existing && typeof existing === "object" && !Array.isArray(existing)
@@ -237,7 +268,8 @@ function ReferenceEditor({
       let cursor: Record<string, unknown> = obj;
       for (let i = 0; i < path.length - 1; i++) {
         const seg = path[i];
-        if (typeof cursor[seg] !== "object" || cursor[seg] === null) {
+        const child = Object.hasOwn(cursor, seg) ? cursor[seg] : undefined;
+        if (typeof child !== "object" || child === null) {
           cursor[seg] = {};
         }
         cursor = cursor[seg] as Record<string, unknown>;
@@ -300,6 +332,9 @@ function ReferenceEditor({
  * Returns a new object with the leaf at `path` removed, pruning any
  * parent objects that become empty as a result. Returns `undefined` if
  * the entire root would become empty (signal to delete the entry).
+ *
+ * Defensive: rejects prototype-polluting segments and uses own-property
+ * checks so callers can't reach into Object.prototype via crafted paths.
  */
 function deletePath(
   obj: Record<string, unknown>,
@@ -307,7 +342,8 @@ function deletePath(
 ): Record<string, unknown> | undefined {
   if (path.length === 0) return undefined;
   const [head, ...rest] = path;
-  if (!(head in obj)) return obj;
+  if (DISALLOWED_PATH_SEGMENTS.has(head)) return obj;
+  if (!Object.hasOwn(obj, head)) return obj;
   const next = { ...obj };
   if (rest.length === 0) {
     delete next[head];
