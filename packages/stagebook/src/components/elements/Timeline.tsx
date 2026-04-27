@@ -709,8 +709,7 @@ export function Timeline({
             playheadDraggingRef.current = false;
             // Reset auto-scroll memory so the post-drag RAF tick doesn't
             // see drag_end_time - 0 as a "jump" and snap-to-25%.
-            lastPlayheadRef.current =
-              handleRef.current?.getCurrentTime() ?? 0;
+            lastPlayheadRef.current = handleRef.current?.getCurrentTime() ?? 0;
           }}
         />
       </div>

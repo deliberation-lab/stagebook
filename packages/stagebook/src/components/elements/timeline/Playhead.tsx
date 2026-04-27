@@ -98,8 +98,7 @@ export function Playhead({
       // off-screen — without this, dragging into the gutter sends it to t=0
       // (invisible left of viewport when zoomed in) and dragging past the
       // right edge sends it past viewportEnd (invisible until you pan).
-      const visibleDuration =
-        zoomLevel > 0 ? duration / zoomLevel : duration;
+      const visibleDuration = zoomLevel > 0 ? duration / zoomLevel : duration;
       const viewportEnd = Math.min(duration, viewportStart + visibleDuration);
       const lo = Math.max(0, viewportStart);
       const hi = Math.min(duration, viewportEnd);

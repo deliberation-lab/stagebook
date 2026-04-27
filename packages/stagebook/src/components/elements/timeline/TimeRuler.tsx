@@ -53,7 +53,13 @@ export function TimeRuler({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const localX = clientX - rect.left;
-      const time = pixelToTime(localX, duration, width, zoomLevel, viewportStart);
+      const time = pixelToTime(
+        localX,
+        duration,
+        width,
+        zoomLevel,
+        viewportStart,
+      );
       const visibleDuration = zoomLevel > 0 ? duration / zoomLevel : duration;
       const lo = Math.max(0, viewportStart);
       const hi = Math.min(duration, viewportStart + visibleDuration);
