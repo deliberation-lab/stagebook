@@ -162,12 +162,13 @@ export function Viewer({
             </button>
           )}
           <span style={treatmentNameStyle}>{treatment.name}</span>
+          <span style={headerDividerStyle} aria-hidden="true" />
+          <StageNav
+            steps={steps}
+            currentIndex={stageIndex}
+            onSelect={setStageIndex}
+          />
         </div>
-        <StageNav
-          steps={steps}
-          currentIndex={stageIndex}
-          onSelect={setStageIndex}
-        />
         <TimeScrubber
           currentStep={currentStep}
           elapsedTime={store.getElapsedTime(stageIndex)}
@@ -260,6 +261,15 @@ const headerLeftStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "0.5rem",
+  flexShrink: 0,
+};
+
+const headerDividerStyle: React.CSSProperties = {
+  width: "1px",
+  height: "1rem",
+  backgroundColor: "#e5e7eb",
+  marginLeft: "0.25rem",
+  marginRight: "0.25rem",
 };
 
 const backButtonStyle: React.CSSProperties = {

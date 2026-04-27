@@ -25,11 +25,12 @@ export interface TimelineTrackProps {
   onToggleMute: (nextMuted: boolean) => void;
 }
 
-const GUTTER_WIDTH = 72;
+const GUTTER_WIDTH = 60;
 const MUTE_BUTTON_WIDTH = 22;
 
 /**
- * One row in the timeline: a fixed-width gutter label + a WaveformRenderer.
+ * One row in the timeline: a narrow gutter (mute button) + a WaveformRenderer
+ * with the track label overlaid in its upper-left corner.
  */
 export function TimelineTrack({
   label,
@@ -59,7 +60,7 @@ export function TimelineTrack({
           minWidth: `${String(GUTTER_WIDTH)}px`,
           display: "flex",
           alignItems: "center",
-          paddingRight: "0.5rem",
+          justifyContent: "center",
           borderRight: "1px solid var(--stagebook-border, #e5e7eb)",
         }}
       >
@@ -74,8 +75,6 @@ export function TimelineTrack({
             width: `${String(MUTE_BUTTON_WIDTH)}px`,
             minWidth: `${String(MUTE_BUTTON_WIDTH)}px`,
             height: `${String(MUTE_BUTTON_WIDTH)}px`,
-            marginLeft: "0.25rem",
-            marginRight: "0.25rem",
             padding: 0,
             display: "flex",
             alignItems: "center",
@@ -91,32 +90,41 @@ export function TimelineTrack({
         >
           {muted ? <SpeakerMutedIcon /> : <SpeakerIcon />}
         </button>
-        <div
+      </div>
+      <div style={{ position: "relative" }}>
+        <WaveformRenderer
+          peaks={peaks}
+          peaksVersion={peaksVersion}
+          width={waveformWidth}
+          height={height}
+          startBucket={startBucket}
+          endBucket={endBucket}
+        />
+        <span
           data-testid="track-label"
           style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            fontSize: "0.79rem",
-            color: "var(--stagebook-text-faint, #9ca3af)",
+            position: "absolute",
+            top: "4px",
+            left: "4px",
+            boxSizing: "border-box",
+            padding: "1px 6px",
+            fontSize: "0.7rem",
+            lineHeight: 1.4,
+            color: "var(--stagebook-text-faint, #6b7280)",
+            background: "rgba(255, 255, 255, 0.85)",
+            border: "1px solid var(--stagebook-border, #e5e7eb)",
+            borderRadius: "0.25rem",
             userSelect: "none",
+            pointerEvents: "none",
+            maxWidth: `${String(Math.max(waveformWidth - 8, 0))}px`,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
           }}
         >
           {label}
-        </div>
+        </span>
       </div>
-      <WaveformRenderer
-        peaks={peaks}
-        peaksVersion={peaksVersion}
-        width={waveformWidth}
-        height={height}
-        startBucket={startBucket}
-        endBucket={endBucket}
-      />
     </div>
   );
 }
