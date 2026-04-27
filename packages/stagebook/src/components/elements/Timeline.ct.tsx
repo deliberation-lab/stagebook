@@ -2937,6 +2937,11 @@ test("wheel pan: negative deltaX moves viewportStart back toward zero", async ({
   const timeline = component.locator('[data-testid="timeline"]');
   await component.locator('[data-testid="timeline-zoom-in"]').click();
   await component.locator('[data-testid="timeline-zoom-in"]').click();
+  // Wait for the zoom commit to land in the DOM. Without this, on busy CI
+  // the wheel dispatch can race the commit — our handler reads zoomLevel
+  // from a render-time ref, sees the stale value (1), and bails before
+  // panning anything.
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
 
   // Pan right first so we have room to pan back.
   await timeline.dispatchEvent("wheel", {
@@ -3002,6 +3007,7 @@ test("wheel pan: vertical-dominant wheel does NOT pan (passes through to page)",
   const timeline = component.locator('[data-testid="timeline"]');
   await component.locator('[data-testid="timeline-zoom-in"]').click();
   await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
 
   const before = await readViewportStart(timeline);
   // |deltaY| > |deltaX| → vertical-dominant. Should pass through.
@@ -3031,6 +3037,7 @@ test("wheel pan: clamps at viewport start (cannot pan before t=0)", async ({
   const timeline = component.locator('[data-testid="timeline"]');
   await component.locator('[data-testid="timeline-zoom-in"]').click();
   await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
 
   // Already at viewportStart=0; a leftward swipe must not go negative.
   expect(await readViewportStart(timeline)).toBe(0);
@@ -3059,6 +3066,7 @@ test("wheel pan: clamps at viewport end (cannot pan past duration)", async ({
   const timeline = component.locator('[data-testid="timeline"]');
   await component.locator('[data-testid="timeline-zoom-in"]').click();
   await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
 
   // Pan all the way right.
   await timeline.dispatchEvent("wheel", {
@@ -3134,6 +3142,7 @@ test("pinch-to-zoom: ctrl+wheel with positive deltaY zooms out", async ({
   // Zoom in via the buttons first so there's room to zoom out.
   await component.locator('[data-testid="timeline-zoom-in"]').click();
   await component.locator('[data-testid="timeline-zoom-in"]').click();
+  await expect(timeline).toHaveAttribute("data-zoom-level", "4");
   const before = await readZoomLevel(timeline);
   expect(before).toBe(4);
 
