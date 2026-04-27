@@ -36,6 +36,7 @@ export function StateInspector({
   playerCount,
 }: StateInspectorProps) {
   const [showAll, setShowAll] = useState(false);
+  const [confirmingClearAll, setConfirmingClearAll] = useState(false);
 
   const references = extractStageReferences(
     currentStep.elements as Record<string, unknown>[],
@@ -90,22 +91,37 @@ export function StateInspector({
         <button onClick={() => setShowAll(!showAll)} style={expandButtonStyle}>
           {showAll ? "▾ Hide all state" : "▸ Show all state"}
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (
-              window.confirm(
-                "Clear all stored state (responses, submitted flags, elapsed time)?",
-              )
-            ) {
-              store.clearAll();
-            }
-          }}
-          style={clearAllButtonStyle}
-          title="Wipe all stored state in the viewer"
-        >
-          Clear all state
-        </button>
+        {confirmingClearAll ? (
+          <div style={clearAllConfirmGroupStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                store.clearAll();
+                setConfirmingClearAll(false);
+              }}
+              style={clearAllConfirmButtonStyle}
+              title="Wipe all stored state"
+            >
+              Confirm clear
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingClearAll(false)}
+              style={clearAllCancelButtonStyle}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingClearAll(true)}
+            style={clearAllButtonStyle}
+            title="Wipe all stored state in the viewer"
+          >
+            Clear all state
+          </button>
+        )}
       </div>
 
       {showAll && (
@@ -425,28 +441,24 @@ const refInputStyle: React.CSSProperties = {
   fontSize: "0.8125rem",
 };
 
-const refClearButtonStyle: React.CSSProperties = {
-  padding: "0 0.5rem",
-  border: "1px solid #d1d5db",
-  borderRadius: "0.25rem",
-  background: "white",
-  color: "#6b7280",
-  fontSize: "1rem",
+const refClearButtonBaseStyle: React.CSSProperties = {
+  padding: "0 0.375rem",
+  border: "none",
+  background: "transparent",
+  fontSize: "0.875rem",
   lineHeight: 1,
+};
+
+const refClearButtonStyle: React.CSSProperties = {
+  ...refClearButtonBaseStyle,
+  color: "#9ca3af",
   cursor: "pointer",
 };
 
 const refClearButtonDisabledStyle: React.CSSProperties = {
-  ...{
-    padding: "0 0.5rem",
-    border: "1px solid #e5e7eb",
-    borderRadius: "0.25rem",
-    background: "#f9fafb",
-    color: "#d1d5db",
-    fontSize: "1rem",
-    lineHeight: 1,
-  },
-  cursor: "not-allowed",
+  ...refClearButtonBaseStyle,
+  color: "transparent",
+  cursor: "default",
 };
 
 const emptyStyle: React.CSSProperties = {
@@ -478,6 +490,32 @@ const clearAllButtonStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: "0.25rem",
   color: "#b91c1c",
+  fontSize: "0.75rem",
+  cursor: "pointer",
+  padding: "0.25rem 0.5rem",
+};
+
+const clearAllConfirmGroupStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.25rem",
+};
+
+const clearAllConfirmButtonStyle: React.CSSProperties = {
+  background: "#b91c1c",
+  border: "1px solid #b91c1c",
+  borderRadius: "0.25rem",
+  color: "white",
+  fontSize: "0.75rem",
+  cursor: "pointer",
+  padding: "0.25rem 0.5rem",
+};
+
+const clearAllCancelButtonStyle: React.CSSProperties = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "0.25rem",
+  color: "#6b7280",
   fontSize: "0.75rem",
   cursor: "pointer",
   padding: "0.25rem 0.5rem",
