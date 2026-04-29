@@ -7,7 +7,12 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { TreatmentFileType } from "stagebook";
-import { StagebookProvider, Stage } from "stagebook/components";
+import {
+  StagebookProvider,
+  Stage,
+  ScrollIndicator,
+  useScrollAwareness,
+} from "stagebook/components";
 import { flattenSteps } from "../lib/steps";
 import { ViewerStateStore } from "../lib/store";
 import { createViewerContext } from "../lib/context";
@@ -77,6 +82,13 @@ export function Viewer({
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
+  // `<main>` is the scroll container in the viewer's host-owns-scroll
+  // model (see <Stage scrollMode="host"> below). `useScrollAwareness`
+  // observes it for content growth and produces the indicator visibility
+  // — same UX as Stage's old internal scroll, just hosted by us.
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+  const { showIndicator: showScrollIndicator } =
+    useScrollAwareness(mainScrollRef);
 
   // Clamp stageIndex if the treatment was edited to have fewer stages
   // (e.g. researcher deleted a stage while the preview was open). Without
@@ -215,7 +227,7 @@ export function Viewer({
         </aside>
 
         {/* Main content */}
-        <main style={mainStyle}>
+        <main ref={mainScrollRef} style={mainStyle}>
           {isSubmitted ? (
             <div style={submittedOverlayStyle}>
               <p style={submittedTextStyle}>
@@ -232,19 +244,29 @@ export function Viewer({
               </button>
             </div>
           ) : (
-            <div ref={stageContainerRef} style={stageContainerStyle}>
-              <StagebookProvider value={ctx}>
-                <Stage
-                  key={`stage-${String(stageIndex)}-${String(stageResetVersion)}`}
-                  stage={stageConfig}
-                  onSubmit={handleSubmit}
+            <>
+              <div ref={stageContainerRef} style={stageContainerStyle}>
+                <StagebookProvider value={ctx}>
+                  <Stage
+                    key={`stage-${String(stageIndex)}-${String(stageResetVersion)}`}
+                    stage={stageConfig}
+                    onSubmit={handleSubmit}
+                    scrollMode="host"
+                  />
+                </StagebookProvider>
+                <NotesIconsOverlay
+                  containerRef={stageContainerRef}
+                  currentStep={currentStep}
                 />
-              </StagebookProvider>
-              <NotesIconsOverlay
-                containerRef={stageContainerRef}
-                currentStep={currentStep}
-              />
-            </div>
+              </div>
+              {/* Bottom-of-stage breathing room — see comment on
+                  stageBottomSpacerStyle. aria-hidden because it has no
+                  semantic content. */}
+              <div aria-hidden="true" style={stageBottomSpacerStyle} />
+              {/* The indicator is `position: sticky; bottom: 0`, so it
+                  pins to the bottom of <main> as content scrolls past. */}
+              <ScrollIndicator visible={showScrollIndicator} />
+            </>
           )}
         </main>
       </div>
@@ -346,23 +368,33 @@ const sidebarStyle: React.CSSProperties = {
 
 const mainStyle: React.CSSProperties = {
   flex: 1,
-  // overflow: hidden (not auto) so Stage's own scroll container is the
-  // element that actually scrolls. This is what lets useScrollAwareness
-  // inside Stage see scroll events and content growth — when main was
-  // the scroller, Stage's internal div never overflowed and the scroll
-  // indicator / auto-peek nudge never fired.
-  overflow: "hidden",
+  // The viewer is a host-owns-scroll consumer of Stagebook (see
+  // <Stage scrollMode="host"> in the render): `<main>` is the actual
+  // scroll container, and we mount the publicly exported
+  // `useScrollAwareness` + `<ScrollIndicator>` against it. This lets
+  // the host page flow naturally — the bottom spacer at the end of the
+  // stage actually scrolls into view, which it couldn't when Stage's
+  // own internal div was the scroller.
+  overflow: "auto",
   padding: "1.5rem",
   display: "flex",
-  justifyContent: "center",
+  flexDirection: "column",
+  alignItems: "center",
+  position: "relative",
 };
 
 const stageContainerStyle: React.CSSProperties = {
   position: "relative",
   width: "100%",
-  // Fill main's height so Stage's height: 100% scroll container resolves
-  // to a concrete size and actually overflows when content exceeds it.
-  height: "100%",
+};
+
+// Bottom-of-stage breathing room (#234). Without this, long stages end
+// at a hard scroll-stop and participants have no signal they've reached
+// the end. 8rem matches the annotator's spacer (deliberation-lab/
+// annotator#138) so the visual rhythm is consistent across hosts.
+const stageBottomSpacerStyle: React.CSSProperties = {
+  flexShrink: 0,
+  height: "8rem",
 };
 
 const submittedOverlayStyle: React.CSSProperties = {

@@ -216,6 +216,79 @@ The `Stage` component handles:
 
 If you need lower-level control, you can use the `Element` component directly to render individual elements, or the pure element components (e.g., `Prompt`, `Display`) with manual prop wiring.
 
+### Page Chrome and Scroll Model
+
+Stagebook draws a deliberate line between **measurement instruments** (its job) and **page chrome** (the host's job). Anything that's about how `<Stage>` sits in *your page* — the scroll container, the bottom-of-stage breathing room, sticky headers, branded backgrounds, in-page progress indicators — belongs to the host. This keeps Stage focused on rendering elements consistently while letting platforms decorate freely.
+
+#### Who owns the scroll?
+
+`<Stage>` accepts a `scrollMode` prop:
+
+- **`scrollMode="internal"` (default).** Stage owns its own `overflow: auto` wrapper and renders a `<ScrollIndicator>` inside it. Convenient for hosts that want a fixed-height column with internal scroll out of the box.
+- **`scrollMode="host"`.** Stage drops the internal scroll container, the bottom padding, and the indicator. Content flows naturally; the host decides what scrolls (the page, a `<main>` element, a custom shell) and is free to mount the publicly exported `useScrollAwareness` + `<ScrollIndicator>` against its own ref.
+
+For most hosts, **`host` mode is the better default** — it lets the page flow naturally and integrates with whatever surrounding chrome you already have. Use `internal` only when you genuinely need Stage to be a fixed-height column.
+
+#### Recommended host setup (host mode)
+
+```tsx
+import { useRef } from "react";
+import {
+  Stage,
+  StagebookProvider,
+  ScrollIndicator,
+  useScrollAwareness,
+} from "stagebook/components";
+
+function HostedStage({ stageConfig, context, onSubmit }) {
+  // Whatever element scrolls in your layout — could be <main>, the
+  // window (pass `null`/document.scrollingElement), or a custom shell.
+  const scrollRef = useRef<HTMLElement>(null);
+  const { showIndicator } = useScrollAwareness(scrollRef);
+
+  return (
+    <main ref={scrollRef} style={{ overflow: "auto" }}>
+      <StagebookProvider value={context}>
+        <Stage
+          stage={stageConfig}
+          onSubmit={onSubmit}
+          scrollMode="host"
+        />
+      </StagebookProvider>
+
+      {/* Bottom-of-stage breathing room. ~6–8rem is typical; size to
+          your own footer / page chrome. Without this, long stages end
+          at a hard scroll-stop and participants have no signal they've
+          reached the end. */}
+      <div aria-hidden="true" style={{ height: "8rem" }} />
+
+      {/* Sticky-bottom indicator that auto-shows when content grows
+          off-screen and auto-dismisses when the user scrolls to bottom.
+          Position-sticky inside the scroll container, no extra wiring. */}
+      <ScrollIndicator visible={showIndicator} />
+    </main>
+  );
+}
+```
+
+#### What the host owns vs. what Stage owns
+
+| | Host | Stage |
+|---|---|---|
+| The scroll container (`overflow`) | ✅ | — |
+| Bottom-of-stage breathing room | ✅ | — |
+| Page header / branded chrome / footers | ✅ | — |
+| Layout context (fixed-height vs. min-height page) | ✅ | — |
+| Element rendering (prompts, separators, etc.) | — | ✅ |
+| Per-element max-widths and spacing | — | ✅ |
+| Conditional rendering (time / position / conditions) | — | ✅ |
+| Submission overlay ("waiting for others") | — | ✅ |
+| Discussion two-column layout when `discussion:` is set | — | ✅ |
+
+#### Backward compatibility
+
+`scrollMode` defaults to `"internal"`, so existing integrations are unaffected. Migrate at your own pace: add a host-side scroll container + spacer + `<ScrollIndicator>`, then flip the prop.
+
 ### The Three Phases
 
 The same `StagebookContext` interface works across all three experiment phases. The platform adapts its implementation:

@@ -143,12 +143,43 @@ import { StagebookProvider, type StagebookContext } from "stagebook/components";
 ```tsx
 import { Stage, type StageConfig } from "stagebook/components";
 
-<Stage stage={stageConfig} onSubmit={handleSubmit} />
+<Stage
+  stage={stageConfig}
+  onSubmit={handleSubmit}
+  scrollMode="host"
+/>
 ```
 
 Requires StagebookProvider. Renders a complete stage: lays out elements with conditional rendering (time, position, conditions), handles two-column layout when a discussion is present, and shows a waiting message after submission. **This is the primary rendering API** — prefer `Stage` over manually rendering `Element` components.
 
 `StageConfig` has: `name` (string), `duration?` (number), `elements` (ElementConfig[]), `discussion?` (DiscussionType).
+
+`scrollMode?: "internal" | "host"` (default `"internal"`) — controls who owns the scroll container around Stage's elements. `internal` keeps the existing `overflow: auto` wrapper + internal `<ScrollIndicator>`; `host` drops both, lets content flow naturally, and lets you mount your own scroll container with the publicly exported `useScrollAwareness` + `<ScrollIndicator>`. See [Page Chrome and Scroll Model](./integration-guide.md#page-chrome-and-scroll-model) in the integration guide for the host-mode setup pattern.
+
+### Scroll Awareness
+
+```tsx
+import {
+  useScrollAwareness,
+  ScrollIndicator,
+} from "stagebook/components";
+
+const scrollRef = useRef<HTMLElement>(null);
+const { showIndicator, dismissIndicator } = useScrollAwareness(scrollRef);
+
+return (
+  <main ref={scrollRef} style={{ overflow: "auto" }}>
+    {/* … your stage … */}
+    <ScrollIndicator visible={showIndicator} />
+  </main>
+);
+```
+
+`useScrollAwareness(containerRef, { threshold? })` watches the container for new content appearing below the viewport. If the user is near the bottom (within `threshold` px, default 120) it auto-"peeks" the new content into view; otherwise it sets `showIndicator` to `true` and clears it when the user scrolls to the bottom.
+
+`<ScrollIndicator visible>` is a `position: sticky; bottom: 0` chevron that pulses to draw attention. It auto-renders nothing when `visible` is false, so you can leave it mounted unconditionally.
+
+These are the primitives Stage's `internal` mode uses internally; in `host` mode you mount them yourself against your own scroll container.
 
 ### Element Router
 
