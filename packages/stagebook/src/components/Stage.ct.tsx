@@ -388,3 +388,109 @@ test("shows loading when submitted in single player", async ({ mount }) => {
   );
   await expect(component.locator('[aria-label="Loading"]')).toBeVisible();
 });
+
+// ----------------------------------------------------------------
+// scrollMode: "host" (issue #236)
+// ----------------------------------------------------------------
+//
+// In host mode Stage drops its internal scroll container, the bottom
+// padding, and the indicator. The host is responsible for whatever
+// scrolls (page, `<main>`, custom shell) and may mount the publicly
+// exported `useScrollAwareness` + `<ScrollIndicator>` against its own
+// ref. These tests pin the contract that no internal scroll affordance
+// leaks through when the prop is set.
+
+// MockStageRenderer's outermost rendered element IS the stageContent div
+// (StagebookProvider renders no DOM). When Playwright CT mounts it without
+// a wrapper, `component` becomes that div — and `component.locator(...)`
+// only searches descendants, so a query for `[data-testid="stageContent"]`
+// never matches its own host. Wrap in a plain `<div>` so `component` is
+// an ancestor, matching the pattern used in `Stage.scroll.ct.tsx`.
+async function readStageContentStyle(
+  component: import("@playwright/test").Locator,
+): Promise<{ overflow: string; overflowY: string; paddingBottom: string }> {
+  const el = component.locator('[data-testid="stageContent"]').first();
+  await expect(el).toBeAttached();
+  return el.evaluate((node) => {
+    const cs = getComputedStyle(node);
+    return {
+      overflow: cs.overflow,
+      overflowY: cs.overflowY,
+      paddingBottom: cs.paddingBottom,
+    };
+  });
+}
+
+test('scrollMode "internal" (default) keeps the overflow:auto wrapper', async ({
+  mount,
+}) => {
+  const component = await mount(
+    <div>
+      <MockStageRenderer stage={simpleStage} />
+    </div>,
+  );
+  const style = await readStageContentStyle(component);
+  // overflow shorthand reports "auto" / "auto" on a `overflow: auto` div.
+  expect(style.overflow).toBe("auto");
+});
+
+test('scrollMode "host" drops overflow on the stageContent wrapper', async ({
+  mount,
+}) => {
+  const component = await mount(
+    <div>
+      <MockStageRenderer stage={simpleStage} scrollMode="host" />
+    </div>,
+  );
+  const style = await readStageContentStyle(component);
+  // No internal scroll — host owns it.
+  expect(style.overflow).toBe("visible");
+  expect(style.overflowY).toBe("visible");
+});
+
+test('scrollMode "host" drops the internal bottom padding', async ({
+  mount,
+}) => {
+  // Stage's `paddingBottom: 0.5rem` is layout chrome that belongs to the
+  // host. In host mode it goes away — hosts are expected to add their
+  // own bottom-of-stage breathing room (see #234).
+  const component = await mount(
+    <div>
+      <MockStageRenderer stage={simpleStage} scrollMode="host" />
+    </div>,
+  );
+  const style = await readStageContentStyle(component);
+  expect(style.paddingBottom).toBe("0px");
+});
+
+test('scrollMode "host" does not render the internal ScrollIndicator', async ({
+  mount,
+}) => {
+  const component = await mount(
+    <div>
+      <MockStageRenderer stage={simpleStage} scrollMode="host" />
+    </div>,
+  );
+  // The ScrollIndicator carries data-testid="scroll-indicator" — assert
+  // it's never mounted (regardless of visibility, it shouldn't be in
+  // the tree at all in host mode).
+  await expect(
+    component.locator('[data-testid="scroll-indicator"]'),
+  ).toHaveCount(0);
+});
+
+test('scrollMode "host" still renders all elements correctly', async ({
+  mount,
+}) => {
+  // Sanity that the layout change doesn't break content rendering — the
+  // stage should still produce its prompts, separators, and submit
+  // button just like internal mode.
+  const component = await mount(
+    <div>
+      <MockStageRenderer stage={simpleStage} scrollMode="host" />
+    </div>,
+  );
+  await expect(component).toContainText("Mock content");
+  await expect(component.locator("hr")).toBeVisible();
+  await expect(component).toContainText("Continue");
+});

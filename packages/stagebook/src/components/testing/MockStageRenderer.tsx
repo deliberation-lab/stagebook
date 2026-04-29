@@ -29,6 +29,9 @@ export interface MockStageRendererProps {
   advanceStage?: () => void;
   /** Opaque stage id — for the gate's latch-reset logic. */
   stageId?: string;
+  /** Forwards to `<Stage scrollMode={...}>`. Default `"internal"` so
+   *  existing tests are unaffected. (Issue #236.) */
+  scrollMode?: "internal" | "host";
 }
 
 /** Wrap a value at a nested path, e.g. wrapAtPath("yes", ["value"]) → { value: "yes" } */
@@ -65,6 +68,7 @@ export function MockStageRenderer({
   stateValues = {},
   advanceStage,
   stageId,
+  scrollMode,
 }: MockStageRendererProps) {
   const flatValues = buildFlatValues(stateValues);
 
@@ -114,7 +118,11 @@ export function MockStageRenderer({
 
   return (
     <StagebookProvider value={mockContext}>
-      <Stage stage={stage} onSubmit={() => {}} />
+      <Stage
+        stage={stage}
+        onSubmit={() => {}}
+        scrollMode={scrollMode}
+      />
     </StagebookProvider>
   );
 }

@@ -46,6 +46,22 @@ export interface StageConfig {
 export interface StageProps {
   stage: StageConfig;
   onSubmit: () => void;
+  /**
+   * Who owns the scroll container?
+   *
+   * - `"internal"` (default, current behavior): Stage wraps its elements
+   *   in an `overflow: auto` div, calls `useScrollAwareness` on it, and
+   *   renders the `<ScrollIndicator>` itself. Convenient for hosts that
+   *   want a fixed-height column with internal scroll out of the box.
+   * - `"host"`: Stage drops the internal scroll container, the bottom
+   *   padding, and the indicator. Content flows naturally; the host
+   *   decides what scrolls (e.g. the page, a `<main>`, a custom shell)
+   *   and is free to mount `useScrollAwareness` + `<ScrollIndicator>`
+   *   against its own ref. Lets hosts add bottom-of-stage breathing
+   *   room (#234) and decorate around Stage without fighting an
+   *   internal scroller. (Issue #236.)
+   */
+  scrollMode?: "internal" | "host";
 }
 
 function WrappedElement({
@@ -145,13 +161,23 @@ function positionAllowsDiscussion(
   return true;
 }
 
-export function Stage({ stage, onSubmit }: StageProps) {
+export function Stage({
+  stage,
+  onSubmit,
+  scrollMode = "internal",
+}: StageProps) {
   const ctx = useStagebookContext();
   const { isSubmitted, playerCount, position, resolve, renderDiscussion } = ctx;
 
   const showDiscussion = positionAllowsDiscussion(stage.discussion, position);
 
-  // Scroll awareness — shows indicator when content overflows
+  // In "host" mode the host owns the scroll container; Stage's outer
+  // wrappers become semantic groupings without overflow, and the host
+  // is responsible for mounting `useScrollAwareness` + `ScrollIndicator`
+  // against its own ref. We still call the hooks unconditionally so hook
+  // order stays stable (they no-op on null refs); the refs just don't
+  // get attached in host mode.
+  const isHostScroll = scrollMode === "host";
   const discussionContentRef = useRef<HTMLDivElement>(null);
   const singleColumnRef = useRef<HTMLDivElement>(null);
   const { showIndicator: showDiscussionScrollIndicator } =
@@ -202,22 +228,25 @@ export function Stage({ stage, onSubmit }: StageProps) {
           {renderDiscussion(stage.discussion)}
         </div>
 
-        {/* Elements column — scrollable independently.
+        {/* Elements column — scrollable independently in `internal` mode.
             flex: "1 1 20rem" lets it share space in row mode (40vw preferred)
             but stretch to full width when the container wraps to column. */}
         <div
-          ref={discussionContentRef}
+          ref={isHostScroll ? null : discussionContentRef}
           data-testid="stageContent"
           style={{
             flex: "1 1 20rem",
             maxWidth: "48rem",
-            overflowY: "auto",
-            scrollBehavior: "smooth",
             alignSelf: "stretch",
+            ...(isHostScroll
+              ? {}
+              : { overflowY: "auto", scrollBehavior: "smooth" }),
           }}
         >
           {elementsColumn}
-          <ScrollIndicator visible={showDiscussionScrollIndicator} />
+          {!isHostScroll && (
+            <ScrollIndicator visible={showDiscussionScrollIndicator} />
+          )}
         </div>
       </div>
     );
@@ -238,11 +267,15 @@ export function Stage({ stage, onSubmit }: StageProps) {
                     data-testid="stageContent"
                     style={{
                       display: "flex",
-                      height: "100%",
                       width: "100%",
                       flexDirection: "column",
-                      paddingBottom: "0.5rem",
-                      overflow: "auto",
+                      ...(isHostScroll
+                        ? {}
+                        : {
+                            height: "100%",
+                            paddingBottom: "0.5rem",
+                            overflow: "auto",
+                          }),
                     }}
                   >
                     {elementsColumn}
@@ -269,19 +302,25 @@ export function Stage({ stage, onSubmit }: StageProps) {
           playerCount={playerCount}
         >
           <div
-            ref={singleColumnRef}
+            ref={isHostScroll ? null : singleColumnRef}
             data-testid="stageContent"
             style={{
               display: "flex",
-              height: "100%",
               width: "100%",
               flexDirection: "column",
-              paddingBottom: "0.5rem",
-              overflow: "auto",
+              ...(isHostScroll
+                ? {}
+                : {
+                    height: "100%",
+                    paddingBottom: "0.5rem",
+                    overflow: "auto",
+                  }),
             }}
           >
             {elementsColumn}
-            <ScrollIndicator visible={showSingleColumnScrollIndicator} />
+            {!isHostScroll && (
+              <ScrollIndicator visible={showSingleColumnScrollIndicator} />
+            )}
           </div>
         </SubmissionConditionalRender>
       </PlaybackProvider>
