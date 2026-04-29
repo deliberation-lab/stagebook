@@ -85,6 +85,23 @@ async function growContent(container: Locator, height = 200): Promise<void> {
   }, height);
 }
 
+// Like primeScrollState("top") but DOES NOT dispatch a scroll event —
+// used to set up overflow without registering user engagement, so we can
+// test the "user hasn't scrolled yet" branch of the hook.
+async function seedOverflowWithoutScroll(
+  container: Locator,
+  height = 1000,
+): Promise<void> {
+  await container.evaluate((el, h) => {
+    const pad = document.createElement("div");
+    pad.style.height = `${h}px`;
+    pad.style.width = "100%";
+    pad.style.flex = "0 0 auto";
+    pad.setAttribute("data-seed-pad", "1");
+    el.appendChild(pad);
+  }, height);
+}
+
 async function scrollToBottom(container: Locator): Promise<void> {
   await container.evaluate((el) => {
     el.scrollTop = el.scrollHeight;
@@ -191,4 +208,42 @@ test("dismissed indicator does not re-fire on subsequent mutations at the same s
   await expect(
     component.locator('[data-testid="scroll-indicator"]'),
   ).toHaveCount(0);
+});
+
+test("no auto-peek on first growth before user has scrolled", async ({
+  mount,
+}) => {
+  // Auto-peek used to fire on a fresh page load whenever async content
+  // pushed scrollHeight past the viewport — even though the user hadn't
+  // engaged with the content yet. The hook now gates peek on a real
+  // scroll event having fired on the container; this is the regression
+  // test for that gate.
+  const component = await mount(
+    <div style={WRAPPER_STYLE}>
+      <MockStageRenderer stage={staticStage} />
+    </div>,
+  );
+  const container = component.locator('[data-testid="stageContent"]');
+  await expect(container).toBeVisible();
+
+  // Push scrollHeight past clientHeight WITHOUT dispatching a scroll
+  // event — the user hasn't engaged at all.
+  await seedOverflowWithoutScroll(container);
+  await settleHook(component.page());
+  // First post-init growth: would have triggered peek under the old
+  // logic (wasAtBottomRef defaults to true, isAtBottom returns true on
+  // a not-yet-scrolled small container, so wasAtBottomNow=true).
+  await growContent(container);
+  await settleHook(component.page());
+
+  // The cue is the indicator, not a peek scroll.
+  await expect(
+    component.locator('[data-testid="scroll-indicator"]'),
+  ).toBeVisible();
+
+  // And scrollTop has not been animated — no peek happened.
+  // (peekAmount tops out at 150px; allow a tiny tolerance for any future
+  // animation fudge but expect it to be effectively 0.)
+  const scrollTop = await container.evaluate((el) => el.scrollTop);
+  expect(scrollTop).toBeLessThan(2);
 });

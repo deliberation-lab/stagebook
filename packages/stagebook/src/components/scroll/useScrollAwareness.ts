@@ -15,6 +15,15 @@ export function useScrollAwareness(
   const prevScrollHeightRef = useRef(0);
   const wasAtBottomRef = useRef(true);
   const isInitializedRef = useRef(false);
+  // Auto-peek scrolling is meant to keep an *engaged* user oriented when
+  // new content arrives — e.g., a participant who scrolled to the
+  // bottom of a discussion to read the latest, then sees a new message.
+  // It should NOT fire on fresh page load, when the user hasn't read the
+  // top yet but the container is technically "at bottom" because content
+  // happens to fit in the viewport (or hasn't fully loaded). This flag
+  // gates peek on actual user scroll engagement; the indicator branch
+  // is unaffected.
+  const hasUserScrolledRef = useRef(false);
 
   const checkAtBottom = useCallback(() => {
     const container = containerRef.current;
@@ -33,6 +42,7 @@ export function useScrollAwareness(
     if (!container) return undefined;
 
     const handleScroll = () => {
+      hasUserScrolledRef.current = true;
       wasAtBottomRef.current = checkAtBottom();
       if (showIndicator && wasAtBottomRef.current) {
         setShowIndicator(false);
@@ -63,6 +73,15 @@ export function useScrollAwareness(
           return;
         }
 
+        // Nothing to peek or indicate if everything still fits in the
+        // viewport. Spares us from cueing on growths that don't push
+        // content below the fold (e.g. a header reflow inside short
+        // content).
+        if (currentScrollHeight <= container.clientHeight) {
+          prevScrollHeightRef.current = currentScrollHeight;
+          return;
+        }
+
         const wasAtBottomNow =
           wasAtBottomRef.current ||
           isAtBottom(
@@ -73,8 +92,15 @@ export function useScrollAwareness(
           );
         const heightDelta = currentScrollHeight - prevScrollHeight;
 
-        if (wasAtBottomNow) {
-          // User was at bottom — "peek" scroll to show top of new content
+        if (wasAtBottomNow && hasUserScrolledRef.current) {
+          // User was near bottom AND has scrolled at least once — a
+          // meaningful "I've read this and want to keep up with new
+          // content" signal. Peek the new content into view.
+          //
+          // Without the engagement gate, async content arriving on
+          // first paint triggers a peek before the user has read the
+          // top — disorienting and unwanted. (Reported observation
+          // from the viewer migration.)
           const peekAmount = Math.min(heightDelta, 150);
           const startScrollTop = scrollTop;
           const duration = 900;
@@ -95,7 +121,10 @@ export function useScrollAwareness(
 
           setTimeout(() => requestAnimationFrame(animateScroll), 50);
         } else {
-          // User was not at bottom — show indicator
+          // Either user isn't near the bottom, or they haven't engaged
+          // yet (no peek without engagement). Either way, content now
+          // overflows — surface the "more below" indicator so it's
+          // discoverable.
           setShowIndicator(true);
         }
       }
