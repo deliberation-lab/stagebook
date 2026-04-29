@@ -369,3 +369,146 @@ test.describe("List Sorter", () => {
     await expect(component).toContainText("Albus Dumbledore");
   });
 });
+
+// ================================================================
+// Multiple Choice option order (shuffleOptions vs source order)
+// ================================================================
+//
+// Pins the contract that:
+//   - `shuffleOptions: true` produces a non-source-order rendering
+//     while keeping the same option set
+//   - the shuffled order is captured at first render and remains
+//     stable across re-renders (the user's randomized labels don't
+//     reshuffle on every parent state change)
+//   - omitting `shuffleOptions` preserves yaml-declared order, even
+//     when that order is intentionally non-alphabetical (e.g. mixed
+//     numeric and string labels)
+//
+// Used by deliberation-empirica's cypress 01 omnibus (now retiring);
+// this duplicates the assertions upstream so the upstream contract
+// is locked in. (Issue #232.)
+
+const SHUFFLE_OPTIONS = [
+  "alpha",
+  "bravo",
+  "charlie",
+  "delta",
+  "echo",
+  "foxtrot",
+  "golf",
+  "hotel",
+] as const;
+
+const shuffledMultipleChoice = {
+  metadata: {
+    name: "projects/example/shuffled.md",
+    type: "multipleChoice" as const,
+    shuffleOptions: true,
+  },
+  body: "# Pick one",
+  responseItems: [...SHUFFLE_OPTIONS],
+};
+
+const customOrderOptions = [
+  "0",
+  "0.5",
+  "3",
+  "4",
+  "5.5",
+  "six",
+  "7",
+  "8",
+] as const;
+
+const customOrderMultipleChoice = {
+  metadata: {
+    name: "projects/example/customOrder.md",
+    type: "multipleChoice" as const,
+  },
+  body: "# Pick one",
+  responseItems: [...customOrderOptions],
+};
+
+async function readRadioOrder(
+  component: import("@playwright/test").Locator,
+): Promise<string[]> {
+  return component
+    .locator('input[type="radio"]')
+    .evaluateAll((nodes) =>
+      nodes.map((n) => (n as HTMLInputElement).value ?? ""),
+    );
+}
+
+test.describe("Multiple Choice option order", () => {
+  test("shuffleOptions: true produces a different order with the same set", async ({
+    mount,
+  }) => {
+    const component = await mount(
+      <Prompt
+        {...shuffledMultipleChoice}
+        name="testShuffle"
+        value={undefined}
+        progressLabel="game_0_shuffle"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const order = await readRadioOrder(component);
+    // Same set membership.
+    expect([...order].sort()).toEqual([...SHUFFLE_OPTIONS].sort());
+    // Different from the source order. With 8 options, the chance of a
+    // shuffle happening to land in source order is 1/40320 — vanishingly
+    // small flake risk.
+    expect(order).not.toEqual([...SHUFFLE_OPTIONS]);
+  });
+
+  test("shuffled order is stable across re-renders (no reshuffle on update)", async ({
+    mount,
+  }) => {
+    const component = await mount(
+      <Prompt
+        {...shuffledMultipleChoice}
+        name="testShuffleStable"
+        value={undefined}
+        progressLabel="game_0_shuffle_stable"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const firstOrder = await readRadioOrder(component);
+    // Re-mount with the same props (different `value`) — the rendered
+    // order must match what was captured on first render.
+    await component.update(
+      <Prompt
+        {...shuffledMultipleChoice}
+        name="testShuffleStable"
+        value="alpha"
+        progressLabel="game_0_shuffle_stable"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const secondOrder = await readRadioOrder(component);
+    expect(secondOrder).toEqual(firstOrder);
+  });
+
+  test("without shuffleOptions, options render in declared yaml order", async ({
+    mount,
+  }) => {
+    // Custom order: "0", "0.5", "3", "4", "5.5", "six", "7", "8" — not
+    // alphabetical, not numeric. Pins the contract that the rendering
+    // preserves source declaration order rather than re-sorting.
+    const component = await mount(
+      <Prompt
+        {...customOrderMultipleChoice}
+        name="testYamlOrder"
+        value={undefined}
+        progressLabel="game_0_yaml_order"
+        save={() => {}}
+        getElapsedTime={() => 0}
+      />,
+    );
+    const order = await readRadioOrder(component);
+    expect(order).toEqual([...customOrderOptions]);
+  });
+});

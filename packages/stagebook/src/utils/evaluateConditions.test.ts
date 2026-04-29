@@ -362,4 +362,181 @@ describe("evaluateConditions", () => {
       ),
     ).toBe(true);
   });
+
+  // ----- Positional comparators by name (issue #232) -----
+  //
+  // `position: shared`, `position: "0"`, `position: "1"` are host-resolver
+  // concerns — stagebook itself doesn't know what "shared" or numeric
+  // positions mean, it just forwards the position string through to the
+  // host's `resolve(reference, position)` callback. These tests pin the
+  // forwarding contract (so deliberation-empirica-style hosts can rely on
+  // it) and confirm that once values come back, the comparator runs with
+  // default `all` semantics — every returned value must satisfy.
+
+  // A position-aware resolver that returns different values for the same
+  // reference depending on the position string. Modeled on the kind of
+  // resolver a multi-position host would supply.
+  const resolveByPosition = (
+    table: Record<string, Record<string, unknown[]>>,
+  ) => {
+    return (reference: string, position?: string) => {
+      const key = position ?? "__default";
+      return table[reference]?.[key] ?? [];
+    };
+  };
+
+  test("position: shared — forwards the string and uses the resolved value", () => {
+    const resolve = resolveByPosition({
+      "prompt.flag": {
+        shared: ["yes"],
+        "0": ["no"],
+        "1": ["maybe"],
+      },
+    });
+    // Resolving with `position: "shared"` returns ["yes"], which equals "yes".
+    expect(
+      evaluateConditions(
+        [
+          {
+            reference: "prompt.flag",
+            position: "shared",
+            comparator: "equals",
+            value: "yes",
+          },
+        ],
+        resolve,
+      ),
+    ).toBe(true);
+  });
+
+  test("position: shared — failure case (shared value doesn't match)", () => {
+    const resolve = resolveByPosition({
+      "prompt.flag": {
+        shared: ["no"],
+        "0": ["yes"],
+      },
+    });
+    expect(
+      evaluateConditions(
+        [
+          {
+            reference: "prompt.flag",
+            position: "shared",
+            comparator: "equals",
+            value: "yes",
+          },
+        ],
+        resolve,
+      ),
+    ).toBe(false);
+  });
+
+  test("position: 0 — resolves to the position-0 player's value", () => {
+    const resolve = resolveByPosition({
+      "prompt.q": {
+        "0": ["red"],
+        "1": ["blue"],
+      },
+    });
+    expect(
+      evaluateConditions(
+        [
+          {
+            reference: "prompt.q",
+            position: "0",
+            comparator: "equals",
+            value: "red",
+          },
+        ],
+        resolve,
+      ),
+    ).toBe(true);
+    // Failure case: position 0's value is "red", not "blue".
+    expect(
+      evaluateConditions(
+        [
+          {
+            reference: "prompt.q",
+            position: "0",
+            comparator: "equals",
+            value: "blue",
+          },
+        ],
+        resolve,
+      ),
+    ).toBe(false);
+  });
+
+  test("position: 1 — resolves to the position-1 player's value", () => {
+    const resolve = resolveByPosition({
+      "prompt.q": {
+        "0": ["red"],
+        "1": ["blue"],
+      },
+    });
+    expect(
+      evaluateConditions(
+        [
+          {
+            reference: "prompt.q",
+            position: "1",
+            comparator: "equals",
+            value: "blue",
+          },
+        ],
+        resolve,
+      ),
+    ).toBe(true);
+    expect(
+      evaluateConditions(
+        [
+          {
+            reference: "prompt.q",
+            position: "1",
+            comparator: "equals",
+            value: "red",
+          },
+        ],
+        resolve,
+      ),
+    ).toBe(false);
+  });
+
+  test("position string is forwarded to resolver verbatim (spy)", () => {
+    // Hosts implement `resolve` and can interpret any position string —
+    // stagebook's only contract is to pass it through. Verify with a spy.
+    const calls: { reference: string; position: string | undefined }[] = [];
+    const resolve = (reference: string, position?: string) => {
+      calls.push({ reference, position });
+      return ["x"];
+    };
+    evaluateConditions(
+      [
+        {
+          reference: "prompt.q",
+          position: "shared",
+          comparator: "equals",
+          value: "x",
+        },
+        {
+          reference: "prompt.q",
+          position: "0",
+          comparator: "equals",
+          value: "x",
+        },
+        {
+          reference: "prompt.q",
+          // position omitted — resolver receives undefined.
+          comparator: "equals",
+          value: "x",
+        },
+      ],
+      resolve,
+    );
+    expect(calls).toEqual([
+      { reference: "prompt.q", position: "shared" },
+      { reference: "prompt.q", position: "0" },
+      { reference: "prompt.q", position: undefined },
+    ]);
+  });
 });

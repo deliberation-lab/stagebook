@@ -143,6 +143,113 @@ test("timed stage shows elements at elapsed=0", async ({ mount }) => {
   await expect(component.locator("button")).toHaveCount(0);
 });
 
+// Time-advancing tests pin the show-after / hide-after branches that were
+// only covered by deliberation-empirica's cypress 01 omnibus. (Issue #232.)
+
+test("displayTime: element appears after elapsed >= displayTime", async ({
+  mount,
+}) => {
+  const stage: StageConfig = {
+    name: "DisplayTimeOnly",
+    duration: 60,
+    elements: [
+      {
+        type: "prompt",
+        file: "projects/example/delayed.md",
+        displayTime: 3,
+      },
+    ],
+  };
+  const component = await mount(
+    <MockStageRenderer stage={stage} elapsedTime={0} />,
+  );
+  await expect(component).not.toContainText(
+    "Mock content for projects/example/delayed.md",
+  );
+  // Advance to exactly displayTime — the boundary is `elapsed < displayTime`,
+  // so at elapsed === displayTime the element MUST be visible.
+  await component.update(<MockStageRenderer stage={stage} elapsedTime={3} />);
+  await expect(component).toContainText(
+    "Mock content for projects/example/delayed.md",
+  );
+  // And stays visible after.
+  await component.update(<MockStageRenderer stage={stage} elapsedTime={10} />);
+  await expect(component).toContainText(
+    "Mock content for projects/example/delayed.md",
+  );
+});
+
+test("hideTime: element disappears after elapsed > hideTime", async ({
+  mount,
+}) => {
+  const stage: StageConfig = {
+    name: "HideTimeOnly",
+    duration: 60,
+    elements: [
+      {
+        type: "prompt",
+        file: "projects/example/early.md",
+        hideTime: 3,
+      },
+    ],
+  };
+  const component = await mount(
+    <MockStageRenderer stage={stage} elapsedTime={0} />,
+  );
+  await expect(component).toContainText(
+    "Mock content for projects/example/early.md",
+  );
+  // hideTime check is `elapsed > hideTime`, so at elapsed === hideTime the
+  // element is still rendered…
+  await component.update(<MockStageRenderer stage={stage} elapsedTime={3} />);
+  await expect(component).toContainText(
+    "Mock content for projects/example/early.md",
+  );
+  // …and at elapsed > hideTime it disappears.
+  await component.update(<MockStageRenderer stage={stage} elapsedTime={5} />);
+  await expect(component).not.toContainText(
+    "Mock content for projects/example/early.md",
+  );
+});
+
+test("displayTime works for elements inside a discussion stage", async ({
+  mount,
+}) => {
+  // Mirrors cypress 01 lines 750–753 (a `displayTime` prompt that appears
+  // after the discussion-stage starts).
+  const stage: StageConfig = {
+    name: "DiscussionWithDelayed",
+    duration: 600,
+    discussion: {
+      chatType: "video",
+      showNickname: true,
+      showTitle: true,
+    },
+    elements: [
+      { type: "prompt", file: "projects/example/intro.md" },
+      {
+        type: "prompt",
+        file: "projects/example/late.md",
+        displayTime: 5,
+      },
+    ],
+  };
+  const component = await mount(
+    <MockStageRenderer stage={stage} elapsedTime={0} />,
+  );
+  // intro.md is unconditional, late.md isn't visible yet.
+  await expect(component).toContainText(
+    "Mock content for projects/example/intro.md",
+  );
+  await expect(component).not.toContainText(
+    "Mock content for projects/example/late.md",
+  );
+  await component.update(<MockStageRenderer stage={stage} elapsedTime={5} />);
+  await expect(component).toContainText(
+    "Mock content for projects/example/late.md",
+  );
+});
+
 // ----------------------------------------------------------------
 // Position-based visibility
 // ----------------------------------------------------------------
