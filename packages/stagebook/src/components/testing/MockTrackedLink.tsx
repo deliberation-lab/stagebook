@@ -5,10 +5,7 @@
  * `totalTimeAwaySeconds` (issue #232).
  */
 import React, { useState } from "react";
-import {
-  TrackedLink,
-  type TrackedLinkProps,
-} from "../elements/TrackedLink.js";
+import { TrackedLink, type TrackedLinkProps } from "../elements/TrackedLink.js";
 
 export function MockTrackedLink(props: Omit<TrackedLinkProps, "save">) {
   const [saves, setSaves] = useState<{ key: string; value: unknown }[]>([]);
