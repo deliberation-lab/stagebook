@@ -118,11 +118,7 @@ export function MockStageRenderer({
 
   return (
     <StagebookProvider value={mockContext}>
-      <Stage
-        stage={stage}
-        onSubmit={() => {}}
-        scrollMode={scrollMode}
-      />
+      <Stage stage={stage} onSubmit={() => {}} scrollMode={scrollMode} />
     </StagebookProvider>
   );
 }
