@@ -707,10 +707,17 @@ const leafConditionSchema = z.discriminatedUnion("comparator", [
 // `conditionNodeSchema` recursively; the outer `altTemplateContext`
 // wrapper preserves `template:` invocation support at any tree level.
 //
-// `OPERATOR_KEYS` is exported so the typo-detection superRefine in
-// `conditionsSchema` can show "did you mean `all`?" suggestions; keep
-// it in sync with the operator branches in the union below.
-export const OPERATOR_KEYS = ["all", "any", "none"] as const;
+// `OPERATOR_KEYS` is the source-of-truth list of boolean-tree
+// operator names, used by the typo-detection superRefine in
+// `conditionsSchema` (below) and by the walker in
+// `validateReferences.ts`. Defined in `conditionOperators.ts` to
+// avoid an import cycle: `treatment.ts` imports
+// `validateReferences.ts` for the cross-stage reference walker, so
+// the shared list has to live in a third module both can import
+// from. Re-exported here as part of the schemas package's public
+// surface.
+export { OPERATOR_KEYS, type OperatorKey } from "./conditionOperators.js";
+import { OPERATOR_KEYS } from "./conditionOperators.js";
 
 export const conditionNodeSchema: z.ZodType = z.lazy(() =>
   altTemplateContext(

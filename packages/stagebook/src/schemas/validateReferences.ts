@@ -21,7 +21,10 @@
 
 import { getReferenceKeyAndPath } from "../utils/reference.js";
 import { compare, type Comparator } from "../utils/compare.js";
-import { OPERATOR_KEYS } from "./treatment.js";
+// Imported from a sibling module (not `./treatment.js`) to avoid an
+// import cycle — `treatment.ts` imports this file for the cross-stage
+// reference walker.
+import { OPERATOR_KEYS } from "./conditionOperators.js";
 
 /** Structured issue emitted by the walker. Translated to zod issues by the
  *  caller. `path` is relative to the top-level treatment file. */

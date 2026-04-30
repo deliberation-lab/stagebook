@@ -70,15 +70,34 @@ const resolvedLeafConditionSchema = z
 // or a leaf. After template fill, the same boolean tree is what
 // runtime/component code sees — no template placeholders, no string
 // shorthand quirks, just the structured form.
-const resolvedConditionNodeSchema: z.ZodType = z.lazy(() =>
-  z.union([
-    z.object({ all: z.array(resolvedConditionNodeSchema).nonempty() }).strict(),
-    z.object({ any: z.array(resolvedConditionNodeSchema).nonempty() }).strict(),
-    z
-      .object({ none: z.array(resolvedConditionNodeSchema).nonempty() })
-      .strict(),
-    resolvedLeafConditionSchema,
-  ]),
+//
+// The TS type is declared explicitly and threaded into `z.ZodType`'s
+// type parameter so `z.infer<typeof resolvedConditionSchema>`
+// resolves to the structured union rather than `any`. zod can't infer
+// the type from a `z.lazy(...)` body on its own — without the
+// annotation, every external consumer of `ResolvedConditionType`
+// would silently lose type safety.
+type ResolvedLeafCondition = z.infer<typeof resolvedLeafConditionSchema>;
+export type ResolvedConditionNode =
+  | { all: ResolvedConditionNode[] }
+  | { any: ResolvedConditionNode[] }
+  | { none: ResolvedConditionNode[] }
+  | ResolvedLeafCondition;
+
+const resolvedConditionNodeSchema: z.ZodType<ResolvedConditionNode> = z.lazy(
+  () =>
+    z.union([
+      z
+        .object({ all: z.array(resolvedConditionNodeSchema).nonempty() })
+        .strict(),
+      z
+        .object({ any: z.array(resolvedConditionNodeSchema).nonempty() })
+        .strict(),
+      z
+        .object({ none: z.array(resolvedConditionNodeSchema).nonempty() })
+        .strict(),
+      resolvedLeafConditionSchema,
+    ]),
 );
 
 // Backward-compat alias: `resolvedConditionSchema` previously meant a
