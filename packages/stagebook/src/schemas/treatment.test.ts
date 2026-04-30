@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
   referenceSchema,
   conditionSchema,
+  conditionsSchema,
   discussionSchema,
   elementsSchema,
   elementSchema,
@@ -1473,4 +1474,189 @@ test("introExitStepSchema rejects percentAgreement with a non-numeric comparator
     elements: [{ type: "submitButton" }],
   });
   expect(result.success).toBe(false);
+});
+
+// ----------- Boolean condition tree (#235) ------------
+
+const leaf = (value: string) => ({
+  reference: "prompt.q",
+  comparator: "equals" as const,
+  value,
+});
+
+test("conditionsSchema accepts the legacy flat-array form (backward compat)", () => {
+  const result = conditionsSchema.safeParse([leaf("a"), leaf("b")]);
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema accepts an `all:` operator at the root", () => {
+  const result = conditionsSchema.safeParse({
+    all: [leaf("a"), leaf("b")],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema accepts an `any:` operator at the root", () => {
+  const result = conditionsSchema.safeParse({
+    any: [leaf("a"), leaf("b")],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema accepts a `none:` operator at the root", () => {
+  const result = conditionsSchema.safeParse({
+    none: [leaf("a"), leaf("b")],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema accepts a single leaf at the root (no array)", () => {
+  const result = conditionsSchema.safeParse(leaf("a"));
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema accepts nested operators", () => {
+  const result = conditionsSchema.safeParse({
+    all: [{ any: [leaf("a"), leaf("b")] }, { none: [leaf("c")] }, leaf("d")],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema accepts deeply nested operators", () => {
+  // 3-deep nesting: all -> any -> none -> leaf
+  const result = conditionsSchema.safeParse({
+    all: [{ any: [{ none: [leaf("a")] }, leaf("b")] }],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("conditionsSchema rejects empty `all:` array", () => {
+  const result = conditionsSchema.safeParse({ all: [] });
+  expect(result.success).toBe(false);
+});
+
+test("conditionsSchema rejects empty `any:` array", () => {
+  const result = conditionsSchema.safeParse({ any: [] });
+  expect(result.success).toBe(false);
+});
+
+test("conditionsSchema rejects empty `none:` array", () => {
+  const result = conditionsSchema.safeParse({ none: [] });
+  expect(result.success).toBe(false);
+});
+
+test("conditionsSchema rejects extra keys on operator object", () => {
+  // `.strict()` on the operator branches should reject
+  // `{all: [...], reference: ...}` etc. as ambiguous shapes.
+  const result = conditionsSchema.safeParse({
+    all: [leaf("a")],
+    reference: "prompt.q",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("conditionsSchema suggests `all` for `al:` typo", () => {
+  const result = conditionsSchema.safeParse({ al: [leaf("a")] });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find((i) =>
+      i.message.includes('Did you mean "all"'),
+    );
+    expect(issue).toBeDefined();
+  }
+});
+
+test("conditionsSchema suggests `any` for `anny:` typo", () => {
+  const result = conditionsSchema.safeParse({ anny: [leaf("a")] });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find((i) =>
+      i.message.includes('Did you mean "any"'),
+    );
+    expect(issue).toBeDefined();
+  }
+});
+
+test("conditionsSchema suggests `none` for `nones:` typo", () => {
+  const result = conditionsSchema.safeParse({ nones: [leaf("a")] });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find((i) =>
+      i.message.includes('Did you mean "none"'),
+    );
+    expect(issue).toBeDefined();
+  }
+});
+
+test("conditionsSchema doesn't false-positive a leaf as a typo", () => {
+  // A leaf has `reference` and `comparator` keys — the typo heuristic
+  // should skip it (no "did you mean ..." for `reference`).
+  const result = conditionsSchema.safeParse(leaf("a"));
+  expect(result.success).toBe(true);
+});
+
+test("stageSchema accepts boolean-tree conditions", () => {
+  const result = stageSchema.safeParse({
+    name: "stage1",
+    duration: 60,
+    conditions: {
+      any: [
+        {
+          reference: "prompt.consent",
+          position: 0,
+          comparator: "equals",
+          value: "yes",
+        },
+        {
+          reference: "prompt.consent",
+          position: 1,
+          comparator: "equals",
+          value: "yes",
+        },
+      ],
+    },
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("validateConditionRules recurses into operator branches (game-stage forbidSelfPosition)", () => {
+  // A nested `any:` containing a leaf without `position` (default
+  // "player") should be rejected by the game-stage rule.
+  const result = stageSchema.safeParse({
+    name: "stage1",
+    duration: 60,
+    conditions: {
+      any: [
+        {
+          reference: "prompt.q",
+          comparator: "equals",
+          value: "yes",
+          // position omitted — defaults to "player", forbidden at
+          // game-stage level
+        },
+      ],
+    },
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find((i) =>
+      i.message.includes("cross-client position"),
+    );
+    expect(issue).toBeDefined();
+  }
+});
+
+test("conditionSchema (single node) accepts a leaf", () => {
+  // Backward-compat: `conditionSchema` previously meant a leaf; it
+  // now means any tree node (leaf or operator). Existing leaf inputs
+  // still validate.
+  const result = conditionSchema.safeParse(leaf("a"));
+  expect(result.success).toBe(true);
+});
+
+test("conditionSchema (single node) accepts an operator node", () => {
+  const result = conditionSchema.safeParse({ all: [leaf("a")] });
+  expect(result.success).toBe(true);
 });

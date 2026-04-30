@@ -23,7 +23,99 @@ conditions:
     value: 15
 ```
 
-For OR logic, create multiple elements with different conditions.
+## Boolean operators: `all`, `any`, `none`
+
+When you need OR or NOR logic, wrap conditions in an operator-keyed object. The flat-array form above is sugar for `all:` — these two are equivalent:
+
+```yaml
+# Implicit all (sugar)
+conditions:
+  - reference: prompt.a
+    comparator: equals
+    value: yes
+  - reference: prompt.b
+    comparator: exists
+
+# Explicit all
+conditions:
+  all:
+    - { reference: prompt.a, comparator: equals, value: yes }
+    - { reference: prompt.b, comparator: exists }
+```
+
+Use `any:` for OR, `none:` for NOR (none of these are true):
+
+```yaml
+# Show element if either participant's previous answer was "yes"
+conditions:
+  any:
+    - {
+        reference: prompt.changedMind,
+        position: 0,
+        comparator: equals,
+        value: yes,
+      }
+    - {
+        reference: prompt.changedMind,
+        position: 1,
+        comparator: equals,
+        value: yes,
+      }
+```
+
+```yaml
+# Render fallback message when nobody hit the threshold
+conditions:
+  none:
+    - {
+        reference: prompt.familiarity,
+        position: 0,
+        comparator: isAtLeast,
+        value: 50,
+      }
+    - {
+        reference: prompt.familiarity,
+        position: 1,
+        comparator: isAtLeast,
+        value: 50,
+      }
+```
+
+Operators nest. Mix freely:
+
+```yaml
+# (P1 disagrees OR P2 disagrees) AND timer hasn't overflowed
+conditions:
+  all:
+    - any:
+        - {
+            reference: prompt.consensus,
+            position: 0,
+            comparator: equals,
+            value: disagree,
+          }
+        - {
+            reference: prompt.consensus,
+            position: 1,
+            comparator: equals,
+            value: disagree,
+          }
+    - { reference: prompt.discussion_overflow, comparator: doesNotExist }
+```
+
+### Three-valued logic — what happens before data arrives
+
+Each leaf condition can be **true**, **false**, or **unknown** (data not yet recorded). Operators propagate "unknown" so fallback elements gated on `none:` don't render prematurely:
+
+| Operator | True when            | False when           |
+| -------- | -------------------- | -------------------- |
+| `all`    | every child is true  | any child is false   |
+| `any`    | any child is true    | every child is false |
+| `none`   | every child is false | any child is true    |
+
+If neither row applies (because some children are still "unknown"), the operator itself is unknown — at the rendering boundary, that collapses to "don't show yet." The most common place this matters: a `none:` block whose children all reference data nobody has answered yet stays hidden until at least one answer arrives, instead of rendering as if "no one matched."
+
+For OR logic on a single reference (across positions, comparators, etc.), `any:` is usually clearer than creating separate elements. For NOR, `none:` replaces the De Morgan trick of stacking negated comparators (`doesNotEqual`, `doesNotInclude`, `isNotOneOf`).
 
 **Visibility-field interaction.** When an element also has `displayTime`, `hideTime`, `showToPositions`, or `hideFromPositions` set, all of those fields combine with `conditions` using implicit AND — the element is visible only when every visibility field that's set evaluates to "show." See [Element visibility](elements.md#visibility) for the full picture.
 

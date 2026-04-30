@@ -540,3 +540,394 @@ describe("evaluateConditions", () => {
     ]);
   });
 });
+
+// --------------- Boolean tree (#235) ---------------
+
+describe("evaluateConditions — boolean tree (#235)", () => {
+  // Resolver helper: looks up reference name in a fixture map; returns
+  // an empty array for unknown references so the leaf evaluator's
+  // "no data → undefined" path triggers.
+  const makeResolve =
+    (data: Record<string, unknown[]>) =>
+    (reference: string): unknown[] =>
+      data[reference] ?? [];
+
+  describe("array form (implicit all)", () => {
+    test("empty array returns true (no gate)", () => {
+      expect(evaluateConditions([], makeResolve({}))).toBe(true);
+    });
+
+    test("single leaf in array", () => {
+      const resolve = makeResolve({ "prompt.q": ["yes"] });
+      expect(
+        evaluateConditions(
+          [{ reference: "prompt.q", comparator: "equals", value: "yes" }],
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("multiple leaves AND together", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["x"],
+        "prompt.b": ["y"],
+      });
+      expect(
+        evaluateConditions(
+          [
+            { reference: "prompt.a", comparator: "equals", value: "x" },
+            { reference: "prompt.b", comparator: "equals", value: "y" },
+          ],
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("any leaf failing makes the array false", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["x"],
+        "prompt.b": ["wrong"],
+      });
+      expect(
+        evaluateConditions(
+          [
+            { reference: "prompt.a", comparator: "equals", value: "x" },
+            { reference: "prompt.b", comparator: "equals", value: "y" },
+          ],
+          resolve,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("all operator", () => {
+    test("all children true → true", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["x"],
+        "prompt.b": ["y"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            all: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("any child false → false", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["x"],
+        "prompt.b": ["wrong"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            all: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+
+    test("all data missing → undefined → false at boundary", () => {
+      // No data resolved for either reference. Each leaf is undefined
+      // (tri-state). `all` over [undefined, undefined] is undefined,
+      // which collapses to false at the public boundary.
+      const resolve = makeResolve({});
+      expect(
+        evaluateConditions(
+          {
+            all: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("any operator", () => {
+    test("at least one child true → true", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["wrong"],
+        "prompt.b": ["y"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            any: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("all children false → false", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["wrong"],
+        "prompt.b": ["wrong"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            any: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+
+    test("all children unknown → undefined → false at boundary", () => {
+      const resolve = makeResolve({});
+      expect(
+        evaluateConditions(
+          {
+            any: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("none operator (the case that requires tri-state)", () => {
+    test("all children false → true", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["wrong"],
+        "prompt.b": ["wrong"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            none: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("any child true → false", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["x"],
+        "prompt.b": ["wrong"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            none: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+
+    test("all children unknown → undefined → false (tri-state guard)", () => {
+      // This is the pivotal test: with two-valued logic, `none:` over
+      // unknown leaves would return true (no children are explicitly
+      // true), causing fallback elements to render before any
+      // participant has answered. Tri-state semantics catch this — the
+      // unknown propagates through `none` and collapses to false at the
+      // boundary.
+      const resolve = makeResolve({});
+      expect(
+        evaluateConditions(
+          {
+            none: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+
+    test("one child known false, one unknown → undefined → false", () => {
+      const resolve = makeResolve({ "prompt.a": ["wrong"] });
+      expect(
+        evaluateConditions(
+          {
+            none: [
+              { reference: "prompt.a", comparator: "equals", value: "x" },
+              { reference: "prompt.b", comparator: "equals", value: "y" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("nested operator unknown propagation", () => {
+    test("all containing none-of-unknowns → undefined → false at boundary", () => {
+      // Outer `all` should see the inner `none: [unknown, unknown]` as
+      // undefined (not true), so the overall result is undefined → false.
+      // If the inner `none` had two-valued semantics, this would
+      // incorrectly evaluate to true (no children true → none = true →
+      // all = true).
+      const resolve = makeResolve({});
+      expect(
+        evaluateConditions(
+          {
+            all: [
+              {
+                none: [
+                  { reference: "prompt.a", comparator: "equals", value: "x" },
+                ],
+              },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+
+    test("any containing all with one known-true and one unknown", () => {
+      // Inner `all` has [true, unknown] → undefined. Outer `any` has
+      // [undefined] → undefined → boundary false. The known-true child
+      // inside the inner `all` does not "leak out" because the
+      // surrounding `all` didn't reach a definitive answer.
+      const resolve = makeResolve({ "prompt.a": ["x"] });
+      expect(
+        evaluateConditions(
+          {
+            any: [
+              {
+                all: [
+                  { reference: "prompt.a", comparator: "equals", value: "x" },
+                  { reference: "prompt.b", comparator: "equals", value: "y" },
+                ],
+              },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("nested operators", () => {
+    test("(A or B) and C", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["wrong"],
+        "prompt.b": ["yes"],
+        "prompt.c": ["go"],
+      });
+      expect(
+        evaluateConditions(
+          {
+            all: [
+              {
+                any: [
+                  { reference: "prompt.a", comparator: "equals", value: "yes" },
+                  { reference: "prompt.b", comparator: "equals", value: "yes" },
+                ],
+              },
+              { reference: "prompt.c", comparator: "equals", value: "go" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("array root with nested operator inside", () => {
+      const resolve = makeResolve({
+        "prompt.a": ["yes"],
+        "prompt.b": ["no"],
+        "prompt.c": ["yes"],
+      });
+      // Top-level array (implicit all): each item must hold.
+      // Item 1: leaf "prompt.a == yes" → true
+      // Item 2: any of (b == yes, c == yes) → c == yes → true
+      // overall true.
+      expect(
+        evaluateConditions(
+          [
+            { reference: "prompt.a", comparator: "equals", value: "yes" },
+            {
+              any: [
+                { reference: "prompt.b", comparator: "equals", value: "yes" },
+                { reference: "prompt.c", comparator: "equals", value: "yes" },
+              ],
+            },
+          ],
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("none containing nested all", () => {
+      // `none` of [all(A,B), C] — true when neither (A and B) nor C
+      // holds.
+      const resolve = makeResolve({
+        "prompt.a": ["yes"],
+        "prompt.b": ["no"], // (a and b) is false
+        "prompt.c": ["no"], // c is false
+      });
+      expect(
+        evaluateConditions(
+          {
+            none: [
+              {
+                all: [
+                  { reference: "prompt.a", comparator: "equals", value: "yes" },
+                  { reference: "prompt.b", comparator: "equals", value: "yes" },
+                ],
+              },
+              { reference: "prompt.c", comparator: "equals", value: "yes" },
+            ],
+          },
+          resolve,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("single leaf at root", () => {
+    test("single leaf object (not in array) — true case", () => {
+      const resolve = makeResolve({ "prompt.q": ["yes"] });
+      expect(
+        evaluateConditions(
+          { reference: "prompt.q", comparator: "equals", value: "yes" },
+          resolve,
+        ),
+      ).toBe(true);
+    });
+
+    test("single leaf object — false case", () => {
+      const resolve = makeResolve({ "prompt.q": ["no"] });
+      expect(
+        evaluateConditions(
+          { reference: "prompt.q", comparator: "equals", value: "yes" },
+          resolve,
+        ),
+      ).toBe(false);
+    });
+  });
+});

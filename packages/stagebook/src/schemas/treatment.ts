@@ -672,26 +672,81 @@ const conditionIsNotOneOfSchema = baseConditionSchema
   })
   .strict();
 
-export const conditionSchema = altTemplateContext(
-  z.discriminatedUnion("comparator", [
-    conditionExistsSchema,
-    conditionDoesNotExistSchema,
-    conditionEqualsSchema,
-    conditionDoesNotEqualSchema,
-    conditionIsAboveSchema,
-    conditionIsBelowSchema,
-    conditionIsAtLeastSchema,
-    conditionIsAtMostSchema,
-    conditionHasLengthAtLeastSchema,
-    conditionHasLengthAtMostSchema,
-    conditionIncludesSchema,
-    conditionDoesNotIncludeSchema,
-    conditionMatchesSchema,
-    conditionDoesNotMatchSchema,
-    conditionIsOneOfSchema,
-    conditionIsNotOneOfSchema,
-  ]),
+// Leaf form of a condition: an object with a `comparator` plus the
+// reference/position/value triple. This is what the boolean tree's
+// `all`/`any`/`none` operator branches eventually bottom out at.
+const leafConditionSchema = z.discriminatedUnion("comparator", [
+  conditionExistsSchema,
+  conditionDoesNotExistSchema,
+  conditionEqualsSchema,
+  conditionDoesNotEqualSchema,
+  conditionIsAboveSchema,
+  conditionIsBelowSchema,
+  conditionIsAtLeastSchema,
+  conditionIsAtMostSchema,
+  conditionHasLengthAtLeastSchema,
+  conditionHasLengthAtMostSchema,
+  conditionIncludesSchema,
+  conditionDoesNotIncludeSchema,
+  conditionMatchesSchema,
+  conditionDoesNotMatchSchema,
+  conditionIsOneOfSchema,
+  conditionIsNotOneOfSchema,
+]);
+
+// Recursive boolean-tree node (#235). A condition is either:
+//   - an `all: [...]`, `any: [...]`, or `none: [...]` operator node
+//     whose children are themselves nodes (recurses), or
+//   - a leaf (`comparator`-typed condition object).
+// The operator branches are `.strict()` so combinations like
+// `{all: [...], reference: ...}` fail loudly. `.nonempty()` rejects
+// `all: []` etc. — vacuous truth on an empty operator is an
+// author-error shape worth catching at preflight.
+//
+// `z.lazy` is required because the operator schemas reference
+// `conditionNodeSchema` recursively; the outer `altTemplateContext`
+// wrapper preserves `template:` invocation support at any tree level.
+//
+// `OPERATOR_KEYS` is the source-of-truth list of boolean-tree
+// operator names, used by the typo-detection superRefine in
+// `conditionsSchema` (below) and by the walker in
+// `validateReferences.ts`. Defined in `conditionOperators.ts` to
+// avoid an import cycle: `treatment.ts` imports
+// `validateReferences.ts` for the cross-stage reference walker, so
+// the shared list has to live in a third module both can import
+// from. Re-exported here as part of the schemas package's public
+// surface.
+export { OPERATOR_KEYS, type OperatorKey } from "./conditionOperators.js";
+import { OPERATOR_KEYS } from "./conditionOperators.js";
+
+export const conditionNodeSchema: z.ZodType = z.lazy(() =>
+  altTemplateContext(
+    z.union([
+      z
+        .object({
+          all: z.array(conditionNodeSchema).nonempty(),
+        })
+        .strict(),
+      z
+        .object({
+          any: z.array(conditionNodeSchema).nonempty(),
+        })
+        .strict(),
+      z
+        .object({
+          none: z.array(conditionNodeSchema).nonempty(),
+        })
+        .strict(),
+      leafConditionSchema,
+    ]),
+  ),
 );
+
+// Backward-compat alias: `conditionSchema` previously meant "a single
+// condition object." It now means "any node in the boolean tree" (leaf
+// or operator). Existing callers that expect a leaf still work for
+// leaf inputs; new callers can pass operator nodes too.
+export const conditionSchema = conditionNodeSchema;
 
 // Comparators that compare numeric magnitudes — the only ones that make
 // sense with `position: percentAgreement`, where the referenced value is
@@ -776,10 +831,17 @@ function validateTimelineSources(
 }
 
 /**
- * Apply cross-cutting rules to a list of conditions (stage-level or
- * element-level). Adds zod issues for each violation found; called from
- * stage/intro-exit superRefines so we can point issue paths at the
- * condition's actual location in the parent object.
+ * Apply cross-cutting rules to a condition tree (stage-level or
+ * element-level). Adds zod issues for each violation found; called
+ * from stage/intro-exit superRefines so we can point issue paths at
+ * the condition's actual location in the parent object.
+ *
+ * Walks the boolean tree (#235): if `conditions` is an array, treats
+ * it as the implicit-`all` sugar; if it's an `{all|any|none: [...]}`
+ * operator object, recurses through the children; if it's a leaf, the
+ * per-leaf rules apply directly. Templates (`{template: ...}` nodes)
+ * are skipped — they're checked after expansion against the resolved
+ * shape, not pre-expansion.
  */
 function validateConditionRules(
   conditions: unknown,
@@ -787,63 +849,155 @@ function validateConditionRules(
   ctx: z.RefinementCtx,
   options: { contextLabel: string; forbidSelfPosition: boolean },
 ): void {
-  if (!Array.isArray(conditions)) return;
-  conditions.forEach((rawCondition: unknown, idx: number) => {
-    if (!rawCondition || typeof rawCondition !== "object") return;
-    const c = rawCondition as {
-      position?: unknown;
-      comparator?: unknown;
-      value?: unknown;
-    };
+  if (conditions === undefined || conditions === null) return;
 
-    // `percentAgreement` aggregates the referenced values and compares
-    // the agreement percentage against `value`. Non-numeric comparators
-    // (equals, includes, matches, …) silently produce wrong results.
-    if (
-      c.position === "percentAgreement" &&
-      typeof c.comparator === "string" &&
-      !PERCENT_AGREEMENT_NUMERIC_COMPARATORS.has(c.comparator)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...pathPrefix, idx, "comparator"],
-        message: `position: percentAgreement requires a numeric comparator (isAbove, isBelow, isAtLeast, isAtMost) — got "${c.comparator}". The comparator is applied to the percentage of agreement, not the raw response.`,
+  // Implicit-all sugar: a top-level array iterates each child as a
+  // sibling node (no `all` index in the path).
+  if (Array.isArray(conditions)) {
+    conditions.forEach((child, idx) => {
+      validateConditionRules(child, [...pathPrefix, idx], ctx, options);
+    });
+    return;
+  }
+
+  if (typeof conditions !== "object") return;
+  const node = conditions as Record<string, unknown>;
+
+  // Operator nodes: recurse into their children, scoping the path
+  // prefix with the operator key + child index.
+  for (const op of OPERATOR_KEYS) {
+    const children = node[op];
+    if (Array.isArray(children)) {
+      children.forEach((child, idx) => {
+        validateConditionRules(child, [...pathPrefix, op, idx], ctx, options);
       });
+      return;
     }
+  }
 
-    // Game-stage conditions must evaluate identically on every client or
-    // they'll desync (one player skips, the other renders). The default
-    // position is "player", which reads this participant's own data — so
-    // we reject both missing and explicitly "player".
-    if (
-      options.forbidSelfPosition &&
-      (c.position === undefined ||
-        (typeof c.position === "string" &&
-          GAME_STAGE_FORBIDDEN_POSITIONS.has(c.position)))
-    ) {
-      const shown =
-        c.position === undefined
-          ? "(default: player)"
-          : `"${String(c.position)}"`;
+  // Skip template invocations — content unknown until expansion.
+  if ("template" in node) return;
+
+  // Leaf condition: apply the per-leaf rules. The path prefix already
+  // points at the condition's location.
+  const c = node as {
+    position?: unknown;
+    comparator?: unknown;
+    value?: unknown;
+  };
+
+  // `percentAgreement` aggregates the referenced values and compares
+  // the agreement percentage against `value`. Non-numeric comparators
+  // (equals, includes, matches, …) silently produce wrong results.
+  if (
+    c.position === "percentAgreement" &&
+    typeof c.comparator === "string" &&
+    !PERCENT_AGREEMENT_NUMERIC_COMPARATORS.has(c.comparator)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [...pathPrefix, "comparator"],
+      message: `position: percentAgreement requires a numeric comparator (isAbove, isBelow, isAtLeast, isAtMost) — got "${c.comparator}". The comparator is applied to the percentage of agreement, not the raw response.`,
+    });
+  }
+
+  // Game-stage conditions must evaluate identically on every client or
+  // they'll desync (one player skips, the other renders). The default
+  // position is "player", which reads this participant's own data — so
+  // we reject both missing and explicitly "player".
+  if (
+    options.forbidSelfPosition &&
+    (c.position === undefined ||
+      (typeof c.position === "string" &&
+        GAME_STAGE_FORBIDDEN_POSITIONS.has(c.position)))
+  ) {
+    const shown =
+      c.position === undefined
+        ? "(default: player)"
+        : `"${String(c.position)}"`;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [...pathPrefix, "position"],
+      message: `${options.contextLabel} conditions must use a cross-client position (shared, all, any, percentAgreement, or a numeric index) — got ${shown}. Per-player positions would let one participant skip the stage while the other renders it.`,
+    });
+  }
+}
+
+// Field-level conditions schema (#235): accepts either a flat array
+// (sugar for `all: [...]`) or a single node (operator or leaf).
+//
+// The pre-validation `superRefine` runs first to catch the most common
+// authoring mistake — typos in operator-keyed nodes — before zod's
+// union dispatch turns them into a confusing "didn't match any branch"
+// error. Without this, writing `al: [...]` or `ANY: [...]` produces a
+// pile of schema-mismatch errors instead of "did you mean `all`?".
+const conditionsRawSchema = z
+  .union([z.array(conditionNodeSchema).nonempty(), conditionNodeSchema], {
+    required_error:
+      "Expected an array of conditions, or an `all`/`any`/`none` operator object, or a single condition.",
+    invalid_type_error:
+      "Expected an array of conditions, or an `all`/`any`/`none` operator object, or a single condition.",
+  })
+  .superRefine((data, ctx) => {
+    // Pre-scan for operator-key typos on object inputs only. If the
+    // user wrote a single object (not an array) and its keys look like
+    // a near-miss for `all`/`any`/`none`, emit a hint *before* the
+    // union's per-branch errors swamp the output.
+    if (Array.isArray(data) || data === null || typeof data !== "object") {
+      return;
+    }
+    const keys = Object.keys(data);
+    if (keys.length !== 1) return;
+    const key = keys[0];
+    if ((OPERATOR_KEYS as readonly string[]).includes(key)) return;
+    // Skip leaf conditions (have `comparator`) and template invocations
+    // (have `template`).
+    if (key === "comparator" || key === "template" || key === "reference") {
+      return;
+    }
+    // Heuristic: lowercase prefix overlap with an operator. Catches
+    // `al`, `ALL`, `any:`, `nones`, etc.
+    const lower = key.toLowerCase();
+    const suggestion = OPERATOR_KEYS.find(
+      (op) =>
+        op.startsWith(lower) ||
+        lower.startsWith(op) ||
+        levenshtein(op, lower) <= 1,
+    );
+    if (suggestion) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: [...pathPrefix, idx, "position"],
-        message: `${options.contextLabel} conditions must use a cross-client position (shared, all, any, percentAgreement, or a numeric index) — got ${shown}. Per-player positions would let one participant skip the stage while the other renders it.`,
+        path: [],
+        message: `Unrecognized condition operator "${key}". Did you mean "${suggestion}"? Boolean operators are "all", "any", and "none".`,
       });
     }
   });
+
+export const conditionsSchema = altTemplateContext(conditionsRawSchema);
+
+// One-edit Levenshtein distance — small enough to inline rather than
+// pull in a dependency. Used by the typo heuristic above.
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 1) return 2;
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[a.length][b.length];
 }
 
-export const conditionsSchema = altTemplateContext(
-  z
-    .array(conditionSchema, {
-      required_error:
-        "Expected an array for `conditions`. Make sure each item starts with a dash (`-`) in YAML.",
-      invalid_type_error:
-        "Expected an array for `conditions`. Make sure each item starts with a dash (`-`) in YAML.",
-    })
-    .nonempty(),
-);
 export type ConditionType = z.infer<typeof conditionSchema>;
 
 // ------------------ Players ------------------ //
@@ -852,12 +1006,12 @@ export const playerSchema = z
   .object({
     position: positionSchema,
     title: z.string().max(25).optional(),
-    conditions: z
-      .array(conditionSchema, {
-        invalid_type_error:
-          "Expected an array for `conditions`. Make sure each item starts with a dash (`-`) in YAML.",
-      })
-      .optional(),
+    // Use `conditionsSchema` so player-block eligibility conditions
+    // accept the same forms as every other condition site (#235):
+    // flat array (implicit `all`), or `all`/`any`/`none` operator
+    // node, or a single leaf. Existing flat-array authored conditions
+    // continue to validate unchanged.
+    conditions: conditionsSchema.optional(),
   })
   .strict();
 export type PlayerType = z.infer<typeof playerSchema>;

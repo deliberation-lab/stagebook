@@ -933,6 +933,180 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
   });
 });
 
+describe("Rule 2 with boolean-tree operators (#235)", () => {
+  // Rule 2's per-leaf simulation is sound only when the leaf is reached
+  // without traversing `any:` or `none:`. Inside those operators a
+  // single non-true leaf doesn't doom the tree (a sibling can carry
+  // it). The implementation gates Rule 2 on a path-traversal check.
+
+  test("flat-array (implicit-all) leaf still triggers Rule 2 — backward compat", () => {
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          conditions: [
+            {
+              reference: "prompt.q",
+              comparator: "equals",
+              value: "yes",
+              position: "shared",
+            },
+          ],
+          elements: [
+            { type: "prompt", name: "q", file: "q.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find((i) =>
+      /always skip the stage at load/i.test(i.message),
+    );
+    expect(hit).toBeDefined();
+  });
+
+  test("explicit `all:` operator leaf still triggers Rule 2 (`all` is equivalent to flat array)", () => {
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          conditions: {
+            all: [
+              {
+                reference: "prompt.q",
+                comparator: "equals",
+                value: "yes",
+                position: "shared",
+              },
+            ],
+          } as unknown as Record<string, unknown>[],
+          elements: [
+            { type: "prompt", name: "q", file: "q.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find((i) =>
+      /always skip the stage at load/i.test(i.message),
+    );
+    expect(hit).toBeDefined();
+  });
+
+  test("leaf inside `any:` does NOT trigger Rule 2 (sibling can carry the operator)", () => {
+    // `any: [{equals: yes}, {equals: yes}]` evaluates to undefined at
+    // load (both children unknown), but a sibling becoming true would
+    // flip the operator true. Rule 2's per-leaf simulation can't see
+    // the sibling, so it conservatively skips this case rather than
+    // false-positiving.
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          conditions: {
+            any: [
+              {
+                reference: "prompt.q",
+                comparator: "equals",
+                value: "yes",
+                position: "shared",
+              },
+              {
+                reference: "prompt.r",
+                comparator: "equals",
+                value: "yes",
+                position: "shared",
+              },
+            ],
+          } as unknown as Record<string, unknown>[],
+          elements: [
+            { type: "prompt", name: "q", file: "q.prompt.md" },
+            { type: "prompt", name: "r", file: "r.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find((i) =>
+      /always skip the stage at load/i.test(i.message),
+    );
+    expect(hit).toBeUndefined();
+  });
+
+  test("leaf inside `none:` does NOT trigger Rule 2", () => {
+    // Same reasoning: `none: [{equals: yes}]` is the canonical
+    // "render-until-somebody-answers" pattern; the leaf isn't true at
+    // load but the operator wraps the semantics.
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          conditions: {
+            none: [
+              {
+                reference: "prompt.q",
+                comparator: "equals",
+                value: "yes",
+                position: "shared",
+              },
+            ],
+          } as unknown as Record<string, unknown>[],
+          elements: [
+            { type: "prompt", name: "q", file: "q.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find((i) =>
+      /always skip the stage at load/i.test(i.message),
+    );
+    expect(hit).toBeUndefined();
+  });
+
+  test("leaf inside nested `all > any` does NOT trigger Rule 2 (path traverses non-all operator)", () => {
+    const file = baseFile({
+      gameStages: [
+        {
+          name: "s1",
+          duration: 60,
+          conditions: {
+            all: [
+              {
+                any: [
+                  {
+                    reference: "prompt.q",
+                    comparator: "equals",
+                    value: "yes",
+                    position: "shared",
+                  },
+                ],
+              },
+            ],
+          } as unknown as Record<string, unknown>[],
+          elements: [
+            { type: "prompt", name: "q", file: "q.prompt.md" },
+            { type: "submitButton" },
+          ],
+        },
+      ],
+    });
+    const issues = validateTreatmentFileReferences(file);
+    const hit = issues.find((i) =>
+      /always skip the stage at load/i.test(i.message),
+    );
+    expect(hit).toBeUndefined();
+  });
+});
+
 describe("treatmentFileSchema surfaces walker issues via superRefine (red-squiggle path)", () => {
   test("forward reference produces a zod issue whose path targets the reference", () => {
     const file = baseFile({
