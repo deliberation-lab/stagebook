@@ -71,38 +71,39 @@ const resolvedLeafConditionSchema = z
 // runtime/component code sees — no template placeholders, no string
 // shorthand quirks, just the structured form.
 //
-// The TS type is declared explicitly and threaded into `z.ZodType`'s
-// type parameter so `z.infer<typeof resolvedConditionSchema>`
-// resolves to the structured union rather than `any`. zod can't infer
-// the type from a `z.lazy(...)` body on its own — without the
-// annotation, every external consumer of `ResolvedConditionType`
-// would silently lose type safety.
-type ResolvedLeafCondition = z.infer<typeof resolvedLeafConditionSchema>;
-export type ResolvedConditionNode =
-  | { all: ResolvedConditionNode[] }
-  | { any: ResolvedConditionNode[] }
-  | { none: ResolvedConditionNode[] }
-  | ResolvedLeafCondition;
-
-const resolvedConditionNodeSchema: z.ZodType<ResolvedConditionNode> = z.lazy(
-  () =>
-    z.union([
-      z
-        .object({ all: z.array(resolvedConditionNodeSchema).nonempty() })
-        .strict(),
-      z
-        .object({ any: z.array(resolvedConditionNodeSchema).nonempty() })
-        .strict(),
-      z
-        .object({ none: z.array(resolvedConditionNodeSchema).nonempty() })
-        .strict(),
-      resolvedLeafConditionSchema,
-    ]),
+// The schema itself is untyped (`z.ZodType`) because the leaf's
+// `reference` field uses `referenceSchema`, which transforms a dotted
+// string into a string[] path — input and output types differ, and
+// `z.ZodType<T>` parameterized on a single type would force them
+// equal and break the dts build. The structural TS type
+// `ResolvedConditionNode` is exported separately for consumers that
+// want to type-narrow against the union; `ResolvedConditionType`
+// stays as a backward-compat alias.
+const resolvedConditionNodeSchema: z.ZodType = z.lazy(() =>
+  z.union([
+    z.object({ all: z.array(resolvedConditionNodeSchema).nonempty() }).strict(),
+    z.object({ any: z.array(resolvedConditionNodeSchema).nonempty() }).strict(),
+    z
+      .object({ none: z.array(resolvedConditionNodeSchema).nonempty() })
+      .strict(),
+    resolvedLeafConditionSchema,
+  ]),
 );
 
 // Backward-compat alias: `resolvedConditionSchema` previously meant a
 // single leaf; it now means any node in the tree (leaf or operator).
 const resolvedConditionSchema = resolvedConditionNodeSchema;
+
+// Structural TS type for the resolved boolean tree. Exposed so
+// consumers (host components, custom evaluators) can type their
+// `conditions` props as `ResolvedConditionNode | ResolvedConditionNode[]`
+// rather than falling through to `any` from the lazy schema.
+export type ResolvedConditionLeaf = z.infer<typeof resolvedLeafConditionSchema>;
+export type ResolvedConditionNode =
+  | { all: ResolvedConditionNode[] }
+  | { any: ResolvedConditionNode[] }
+  | { none: ResolvedConditionNode[] }
+  | ResolvedConditionLeaf;
 
 // Field-level shape: array (implicit-`all` sugar) or a single node.
 // Mirrors `conditionsSchema` in treatment.ts.
@@ -224,4 +225,8 @@ export type ResolvedTreatmentType = z.infer<typeof resolvedTreatmentSchema>;
 // ----------------------------------------------------------------
 
 export { resolvedConditionSchema, resolvedConditionsSchema };
-export type ResolvedConditionType = z.infer<typeof resolvedConditionSchema>;
+// `ResolvedConditionType` previously inferred from the leaf-only
+// schema; now aliases the structural tree type so consumers keep type
+// safety. (`z.infer` on the recursive `z.ZodType` lazy widens to
+// `any` — see the comment above `resolvedConditionNodeSchema`.)
+export type ResolvedConditionType = ResolvedConditionNode;
