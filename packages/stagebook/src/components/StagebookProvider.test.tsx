@@ -206,15 +206,29 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     unmount();
   });
 
-  test("forwards an unknown scope string to get unchanged", () => {
-    // Host-call discipline only — useResolve is a thin wrapper, it
-    // doesn't second-guess the position string. Schema validation is
-    // the place that constrains author-written values; runtime
-    // forwarding stays straightforward.
+  test("forwards `all` scope to get (display.position: all is still kept)", () => {
+    // `display.position` (and trackedLink/qualtrics urlParams via
+    // `positionSelectorSchema`) still allow `"all"` after #238 —
+    // only condition leaves were narrowed. The runtime forwards
+    // `"all"` verbatim to the host's get().
     const get = vi.fn(() => []);
     const ctx = createMockContext({ get });
 
     const { unmount } = renderUseResolve("prompt.q1", ctx, "all");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
+    unmount();
+  });
+
+  test("normalizes `any` scope to `all` before forwarding to get", () => {
+    // `display.position: "any"` and `"all"` share the same storage
+    // shape (one value per participant); the "any-of" semantics is
+    // applied at the consumer. Stagebook normalizes here so hosts
+    // only need to handle `"all"`.
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "any");
 
     expect(get).toHaveBeenCalledWith("prompt_q1", "all");
     unmount();

@@ -45,8 +45,9 @@ The `scope` parameter determines whose state to read:
 | `"player"` or omitted    | Current participant's player state             |
 | `"shared"`               | Shared/game state                              |
 | `"0"`, `"1"`, `"2"`, ... | Specific participant by slot index (as string) |
+| `"all"`                  | Array with one value per participant           |
 
-After #238, stagebook only sends those scopes. The pre-#238 aggregator scopes (`"all"`, `"any"`, `"percentAgreement"`) were removed: cross-player aggregation now lives in the boolean-tree operators (`all:` / `any:` / `none:` from #235) at the schema layer, and stagebook's resolver fans out to per-slot reads internally rather than asking the host to aggregate. Hosts may keep accepting the legacy scopes defensively, but they're unreachable from a validated treatment file.
+After #238, stagebook only sends those four scopes. `"all"` is still reachable through `display.position: "all"` and `trackedLink` / `qualtrics` `urlParams[].position: "all"` — these uses of position weren't narrowed by #238 (only condition leaves were). Stagebook normalizes `display.position: "any"` to `"all"` before calling `get()` (the storage shape is the same — host returns one value per participant; whether "any value satisfies" is decided at the consumer). The pre-#238 aggregator value `"percentAgreement"` was removed entirely and is unreachable from a validated treatment.
 
 ### Reactivity
 

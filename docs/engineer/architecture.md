@@ -7,11 +7,12 @@ Stagebook display components need to do four things: read experiment state, writ
 ```typescript
 interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", or a numeric string for a
-  // specific slot index. After #238, stagebook never sends the
-  // pre-existing aggregator scopes ("all", "any", "percentAgreement");
-  // hosts may still accept them defensively but they're unreachable
-  // through stagebook's own resolve path.
+  // scope: "player" (default), "shared", "all" (one value per
+  // participant), or a numeric string for a specific slot index.
+  // Stagebook normalizes display.position: "any" to "all" before
+  // calling get() — both have the same storage shape. The pre-#238
+  // aggregator value "percentAgreement" was removed entirely and is
+  // unreachable.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key

@@ -16,12 +16,12 @@ import {
 
 export interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", or a numeric string for a
-  // specific slot index. After #238, `position` on a condition leaf
-  // is a pure read selector and these are the only values stagebook
-  // forwards. Hosts may still accept legacy aggregator scopes
-  // (`"all"`, `"any"`, `"percentAgreement"`) for backward compat with
-  // pre-#238 callers, but stagebook itself never sends them.
+  // scope: "player" (default), "shared", a numeric string for a
+  // specific slot index, or "all" (return one value per participant).
+  // Stagebook's resolver normalizes `display.position: "any"` to
+  // `"all"` before reaching here, so hosts only need to handle the
+  // four scopes above. The pre-#238 aggregator value
+  // `"percentAgreement"` was removed entirely and is unreachable.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
@@ -137,13 +137,16 @@ export function StagebookProvider({
         console.error(`Invalid reference: "${reference}"`);
         return [];
       }
-      // After #238 `position` on a condition leaf is a pure read
-      // selector — `"shared"`, `"player"`, or a numeric slot index
-      // (passed as a string). The cross-player aggregator values
-      // (`"any"`, `"percentAgreement"`) are gone, so the previous
-      // normalization to `"all"` is no longer needed: the position is
-      // forwarded to the host's `get()` verbatim.
-      const rawValues = value.get(referenceKey, position);
+      // After #238, *condition* leaves only emit `"shared"` /
+      // `"player"` / numeric-slot positions. But other DSL sites still
+      // use `positionSelectorSchema`, which kept `"all"` and `"any"`
+      // — `display.position`, `trackedLink.urlParams[].position`, and
+      // `qualtrics.urlParams[].position` all read via `resolve()` and
+      // can pass `"all"` or `"any"` here. Storage scope is the same
+      // for both (the host returns one value per participant), so we
+      // normalize `"any"` to `"all"` before calling the host.
+      const storageScope = position === "any" ? "all" : position;
+      const rawValues = value.get(referenceKey, storageScope);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))
         .filter((v) => v !== undefined);
