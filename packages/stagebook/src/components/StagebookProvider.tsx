@@ -16,8 +16,12 @@ import {
 
 export interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", "all", or a numeric string
-  // for a specific position.
+  // scope: "player" (default), "shared", a numeric string for a
+  // specific slot index, or "all" (return one value per participant).
+  // Stagebook's resolver normalizes `display.position: "any"` to
+  // `"all"` before reaching here, so hosts only need to handle the
+  // four scopes above. The pre-#238 aggregator value
+  // `"percentAgreement"` was removed entirely and is unreachable.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
@@ -133,13 +137,15 @@ export function StagebookProvider({
         console.error(`Invalid reference: "${reference}"`);
         return [];
       }
-      // "any" and "percentAgreement" are evaluation semantics applied
-      // downstream in evaluateCondition. The platform's get() only needs
-      // to know the storage scope, so we normalize both to "all" here.
-      const storageScope =
-        position === "any" || position === "percentAgreement"
-          ? "all"
-          : position;
+      // After #238, *condition* leaves only emit `"shared"` /
+      // `"player"` / numeric-slot positions. But other DSL sites still
+      // use `positionSelectorSchema`, which kept `"all"` and `"any"`
+      // — `display.position`, `trackedLink.urlParams[].position`, and
+      // `qualtrics.urlParams[].position` all read via `resolve()` and
+      // can pass `"all"` or `"any"` here. Storage scope is the same
+      // for both (the host returns one value per participant), so we
+      // normalize `"any"` to `"all"` before calling the host.
+      const storageScope = position === "any" ? "all" : position;
       const rawValues = value.get(referenceKey, storageScope);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))

@@ -7,8 +7,12 @@ Stagebook display components need to do four things: read experiment state, writ
 ```typescript
 interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", "all", "any", "percentAgreement",
-  // or a numeric string for a specific position.
+  // scope: "player" (default), "shared", "all" (one value per
+  // participant), or a numeric string for a specific slot index.
+  // Stagebook normalizes display.position: "any" to "all" before
+  // calling get() — both have the same storage shape. The pre-#238
+  // aggregator value "percentAgreement" was removed entirely and is
+  // unreachable.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
@@ -38,7 +42,10 @@ interface StagebookContext {
   renderDiscussion?: (config: DiscussionType) => React.ReactNode;
   renderSharedNotepad?: (config: { padName: string }) => React.ReactNode;
   renderTalkMeter?: () => React.ReactNode;
-  renderSurvey?: (config: { surveyName: string; onComplete: (results: unknown) => void }) => React.ReactNode;
+  renderSurvey?: (config: {
+    surveyName: string;
+    onComplete: (results: unknown) => void;
+  }) => React.ReactNode;
 }
 ```
 
@@ -56,7 +63,7 @@ The platform provides the StagebookProvider context. Stagebook handles everythin
 
 ## How reading works
 
-Every element that reads experiment state does so through a **reference string** — a DSL concept like `prompt.myQuestion`, `survey.bigFive.result.score`, or `urlParams.condition`. Internally, the `StagebookProvider` converts these reference strings into flat storage keys and navigated paths (e.g., `prompt.myQuestion` → key `prompt_myQuestion`, path `["value"]`), calls the platform's `get()` to fetch raw stored values, then extracts the requested path from each result. The result is an array because some scopes (`"all"`, `"any"`) return one value per participant. Components don't need to know the details — they call `resolve()` (via `useResolve`) and get extracted values back.
+Every element that reads experiment state does so through a **reference string** — a DSL concept like `prompt.myQuestion`, `survey.bigFive.result.score`, or `urlParams.condition`. Internally, the `StagebookProvider` converts these reference strings into flat storage keys and navigated paths (e.g., `prompt.myQuestion` → key `prompt_myQuestion`, path `["value"]`), calls the platform's `get()` to fetch raw stored values, then extracts the requested path from each result. The result is always an array — typically a single-element array, but the contract returns an array so platforms can handle multi-value lookups uniformly. Components don't need to know the details — they call `resolve()` (via `useResolve`) and get extracted values back.
 
 The platform's `get()` is a simple key-value lookup — it doesn't need to understand the DSL reference syntax or the internal record structure. It returns exactly what was passed to `save()`.
 
@@ -65,7 +72,11 @@ The platform's `get()` is a simple key-value lookup — it doesn't need to under
 Every element that saves a participant response computes a storage key from the element type and name, and saves a record containing the response value plus metadata:
 
 ```jsx
-save(`prompt_${name}`, { value: answer, stageTimeElapsed: getElapsedTime() }, "player");
+save(
+  `prompt_${name}`,
+  { value: answer, stageTimeElapsed: getElapsedTime() },
+  "player",
+);
 ```
 
 The `scope` parameter ("player" or "shared") handles the case where a prompt is shared across participants (saved to group state) vs individual (saved to player state). The platform decides what these scopes mean in its storage model.
@@ -74,11 +85,11 @@ The `scope` parameter ("player" or "shared") handles the case where a prompt is 
 
 Components call `getElapsedTime()` and get seconds. They call `submit()` and the step advances. The platform's implementation varies by phase:
 
-| Phase | `getElapsedTime()` | `submit()` |
-|-------|-------------------|------------|
-| Intro (solo, async) | `Date.now()` relative to step start | Advance to next step |
-| Game (group, sync) | Server-synchronized timer | Signal readiness, wait for all |
-| Exit (solo, async) | `Date.now()` relative to step start | Advance to next step |
+| Phase               | `getElapsedTime()`                  | `submit()`                     |
+| ------------------- | ----------------------------------- | ------------------------------ |
+| Intro (solo, async) | `Date.now()` relative to step start | Advance to next step           |
+| Game (group, sync)  | Server-synchronized timer           | Signal readiness, wait for all |
+| Exit (solo, async)  | `Date.now()` relative to step start | Advance to next step           |
 
 Components don't need to know which phase they're in.
 
@@ -95,12 +106,12 @@ Stagebook provides `useTextContent(path)` — a hook that wraps `getTextContent`
 
 Some elements depend on external services. Stagebook validates config, manages layout, and handles conditional rendering — but the platform supplies the actual component:
 
-| Slot | When used | What the platform provides |
-|------|-----------|---------------------------|
-| `renderDiscussion` | Stage has `discussion` block | Video call or text chat component |
-| `renderSurvey` | `type: "survey"` element | Survey UI component that calls `onComplete(results)` |
-| `renderSharedNotepad` | `type: "sharedNotepad"` or `shared: true` prompt | Collaborative text editor |
-| `renderTalkMeter` | `type: "talkMeter"` element | Speaking time display |
+| Slot                  | When used                                        | What the platform provides                           |
+| --------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `renderDiscussion`    | Stage has `discussion` block                     | Video call or text chat component                    |
+| `renderSurvey`        | `type: "survey"` element                         | Survey UI component that calls `onComplete(results)` |
+| `renderSharedNotepad` | `type: "sharedNotepad"` or `shared: true` prompt | Collaborative text editor                            |
+| `renderTalkMeter`     | `type: "talkMeter"` element                      | Speaking time display                                |
 
 All slots are optional. If not provided, the element renders nothing.
 
@@ -114,8 +125,8 @@ Stagebook ships a default stylesheet (`stagebook/styles`) with CSS custom proper
 
 ```css
 :root {
-  --stagebook-primary: #7c3aed;    /* change blue to purple */
-  --stagebook-danger: #b91c1c;     /* darker red */
+  --stagebook-primary: #7c3aed; /* change blue to purple */
+  --stagebook-danger: #b91c1c; /* darker red */
 }
 ```
 
@@ -123,7 +134,7 @@ Component layout (padding, flex, positioning) uses inline styles and is not over
 
 ### Opt-in host typography (`stagebook/host-typography`)
 
-Stagebook components render correctly on any host without extra CSS, but the *host's* own bare-tag pages (settings, permissions, attention checks, etc.) inherit whatever reset the host has (Tailwind preflight, no-preflight, normalize.css, nothing). That's how two apps using stagebook end up with noticeably different `<h1>` / `<img>` / `<a>` rendering on pages that don't use stagebook components.
+Stagebook components render correctly on any host without extra CSS, but the _host's_ own bare-tag pages (settings, permissions, attention checks, etc.) inherit whatever reset the host has (Tailwind preflight, no-preflight, normalize.css, nothing). That's how two apps using stagebook end up with noticeably different `<h1>` / `<img>` / `<a>` rendering on pages that don't use stagebook components.
 
 `stagebook/host-typography` is an opt-in stylesheet that provides a small preflight-like baseline on **bare tags only**: a universal box-model reset of `box-sizing: border-box` and `border: 0 solid`, `img/video { max-width: 100% }`, a heading type scale, zero `margin-block` on `p/ul/ol/h*`, and `a` styled from `--stagebook-link`. No class selectors — nothing that targets stagebook's own components.
 

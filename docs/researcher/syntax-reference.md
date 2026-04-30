@@ -5,9 +5,9 @@ A concise, precise reference for the Stagebook experiment description language. 
 ## 1. Top-Level Structure
 
 ```yaml
-templates:       # optional: array of template definitions
-introSequences:  # required: array of intro sequence objects
-treatments:      # required: array of treatment objects
+templates: # optional: array of template definitions
+introSequences: # required: array of intro sequence objects
+treatments: # required: array of treatment objects
 ```
 
 ## 2. Primitives
@@ -36,18 +36,18 @@ Content types: `introSequence`, `introSequences`, `elements`, `element`, `stage`
 
 ## 4. References
 
-| Pattern | Example |
-|---------|---------|
-| `prompt.<name>` | `prompt.topicVote` |
+| Pattern                      | Example                                |
+| ---------------------------- | -------------------------------------- |
+| `prompt.<name>`              | `prompt.topicVote`                     |
 | `survey.<name>.result.<key>` | `survey.TIPI.result.normAgreeableness` |
-| `submitButton.<name>.<path>` | `submitButton.confirm.time` |
-| `qualtrics.<name>.<path>` | `qualtrics.exit.sessionId` |
-| `trackedLink.<name>.<path>` | `trackedLink.signup.events` |
-| `urlParams.<key>` | `urlParams.PROLIFIC_PID` |
-| `connectionInfo.<key>` | `connectionInfo.country` |
-| `browserInfo.<key>` | `browserInfo.language` |
-| `participantInfo.<field>` | `participantInfo.name` |
-| `discussion.<field>` | `discussion.cumulativeSpeakingTime` |
+| `submitButton.<name>.<path>` | `submitButton.confirm.time`            |
+| `qualtrics.<name>.<path>`    | `qualtrics.exit.sessionId`             |
+| `trackedLink.<name>.<path>`  | `trackedLink.signup.events`            |
+| `urlParams.<key>`            | `urlParams.PROLIFIC_PID`               |
+| `connectionInfo.<key>`       | `connectionInfo.country`               |
+| `browserInfo.<key>`          | `browserInfo.language`                 |
+| `participantInfo.<field>`    | `participantInfo.name`                 |
+| `discussion.<field>`         | `discussion.cumulativeSpeakingTime`    |
 
 ## 5. Conditions
 
@@ -55,34 +55,34 @@ Content types: `introSequence`, `introSequences`, `elements`, `element`, `stage`
 conditions:
   - reference: <reference string>
     comparator: <comparator>
-    value: <expected value>     # omit for exists/doesNotExist
-    position: <position>        # optional
+    value: <expected value> # omit for exists/doesNotExist
+    position: <position> # optional
 ```
 
 **Comparators:** `exists`, `doesNotExist`, `equals`, `doesNotEqual`, `isAbove`, `isBelow`, `isAtLeast`, `isAtMost`, `hasLengthAtLeast`, `hasLengthAtMost`, `includes`, `doesNotInclude`, `matches`, `doesNotMatch`, `isOneOf`, `isNotOneOf`.
 
-**Position values:** `player` (default), `shared`, `all`, `any`, `percentAgreement`, or integer index.
+**Position values:** `player` (default), `shared`, or integer slot index. (After #238, `position` is a pure read selector. Cross-player aggregation lives in the `all:` / `any:` / `none:` boolean-tree operators — see [Conditions](conditions.md).)
 
 ## 6. Elements
 
 All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`.
 
-| Type | Key Fields |
-|------|-----------|
-| `prompt` | `file` (required), `shared?` |
-| `display` | `reference` (required), `position?` (default: `player`) |
-| `submitButton` | `buttonText?` (default: "Next") |
-| `timer` | `startTime?`, `endTime?`, `warnTimeRemaining?` |
-| `separator` | `style?` (`thin`, `regular`, `thick`) |
-| `audio` | `file` (required) |
-| `image` | `file` (required), `width?` |
-| `mediaPlayer` | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?` |
-| `timeline` | `source` (required, name of a sibling `mediaPlayer`), `name` (required), `selectionType` (required, `range` or `point`), `selectionScope?` (default `all`), `multiSelect?` (default `false`), `showWaveform?` (default `true`), `trackLabels?` |
-| `survey` | `surveyName` (required) |
-| `qualtrics` | `url` (required), `urlParams?` |
-| `trackedLink` | `name` (required), `url` (required), `displayText` (required), `helperText?`, `urlParams?` |
-| `sharedNotepad` | _(no extra fields)_ |
-| `talkMeter` | _(no extra fields)_ |
+| Type            | Key Fields                                                                                                                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`        | `file` (required), `shared?`                                                                                                                                                                                                                   |
+| `display`       | `reference` (required), `position?` (default: `player`)                                                                                                                                                                                        |
+| `submitButton`  | `buttonText?` (default: "Next")                                                                                                                                                                                                                |
+| `timer`         | `startTime?`, `endTime?`, `warnTimeRemaining?`                                                                                                                                                                                                 |
+| `separator`     | `style?` (`thin`, `regular`, `thick`)                                                                                                                                                                                                          |
+| `audio`         | `file` (required)                                                                                                                                                                                                                              |
+| `image`         | `file` (required), `width?`                                                                                                                                                                                                                    |
+| `mediaPlayer`   | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?`                                                |
+| `timeline`      | `source` (required, name of a sibling `mediaPlayer`), `name` (required), `selectionType` (required, `range` or `point`), `selectionScope?` (default `all`), `multiSelect?` (default `false`), `showWaveform?` (default `true`), `trackLabels?` |
+| `survey`        | `surveyName` (required)                                                                                                                                                                                                                        |
+| `qualtrics`     | `url` (required), `urlParams?`                                                                                                                                                                                                                 |
+| `trackedLink`   | `name` (required), `url` (required), `displayText` (required), `helperText?`, `urlParams?`                                                                                                                                                     |
+| `sharedNotepad` | _(no extra fields)_                                                                                                                                                                                                                            |
+| `talkMeter`     | _(no extra fields)_                                                                                                                                                                                                                            |
 
 **Shorthand:** bare string → `{ type: "prompt", file: "<string>", name: "<string>" }`.
 
@@ -104,8 +104,8 @@ If you see flat waveforms in the timeline despite audio playing, check the brows
 gameStages:
   - name: <name>
     duration: <seconds>
-    discussion: <discussion object>  # optional
-    elements: [...]                   # required, nonempty
+    discussion: <discussion object> # optional
+    elements: [...] # required, nonempty
 ```
 
 Time bounds on elements (`displayTime`, `hideTime`, `startTime`, `endTime`) must not exceed stage `duration`.
@@ -120,9 +120,9 @@ discussion:
   # text-only: reactionEmojisAvailable?, reactToSelf?, numReactionsPerMessage?
   # video-only: showSelfView?, showReportMissing?, showAudioMute?, showVideoMute?
   # video-only: rooms? or layout?
-  showToPositions: [0, 1]     # optional
-  hideFromPositions: [2]      # optional
-  conditions: [...]           # optional
+  showToPositions: [0, 1] # optional
+  hideFromPositions: [2] # optional
+  conditions: [...] # optional
 ```
 
 ## 9. Intro/Exit Steps
@@ -132,13 +132,13 @@ introSequences:
   - name: <name>
     introSteps:
       - name: <name>
-        elements: [...]     # no duration, no position-based visibility
+        elements: [...] # no duration, no position-based visibility
 
 treatments:
   - name: <name>
     exitSequence:
       - name: <name>
-        elements: [...]     # no shared prompts
+        elements: [...] # no shared prompts
 ```
 
 Constraints: no `shared` prompts, no `position`/`showToPositions`/`hideFromPositions` on elements in intro steps. Exit steps disallow `shared` prompts.
@@ -149,12 +149,12 @@ Constraints: no `shared` prompts, no `position`/`showToPositions`/`hideFromPosit
 treatments:
   - name: <name>
     playerCount: <integer>
-    groupComposition:       # optional
+    groupComposition: # optional
       - position: 0
         title: "Role A"
         conditions: [...]
-    gameStages: [...]       # required, nonempty
-    exitSequence: [...]     # optional
+    gameStages: [...] # required, nonempty
+    exitSequence: [...] # optional
 ```
 
 Position indices in `showToPositions`, `hideFromPositions`, `groupComposition`, and discussion `rooms` must be < `playerCount`.
@@ -166,10 +166,11 @@ Three sections separated by `---`:
 ```markdown
 ---
 type: multipleChoice | openResponse | noResponse | listSorter | slider
-name: My Prompt         # optional — human-readable identifier
+name: My Prompt # optional — human-readable identifier
 ---
-Markdown body text
----
+
+## Markdown body text
+
 - Response option 1
 - Response option 2
 ```

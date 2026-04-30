@@ -546,8 +546,15 @@ export type ReferenceType = z.infer<typeof referenceSchema>;
 const baseConditionSchema = z
   .object({
     reference: referenceSchema,
-    position: z // todo: superrefine this somewhere so that it only exists in game stages, not in intro or exit steps
-      .enum(["shared", "player", "all", "any", "percentAgreement"])
+    // `position` on a condition leaf is a pure read selector (#238):
+    // where to read the referenced value from. Cross-player aggregation
+    // (`all` / `any`) lives in the boolean-tree operators (#235); the
+    // numeric `percentAgreement` aggregator was pulled out entirely
+    // (no migration — see issue #238 for context). The game-stage
+    // `forbidSelfPosition` rule (below) still rejects default/explicit
+    // `player` at the game-stage level for the same desync reason.
+    position: z
+      .enum(["shared", "player"])
       .or(z.number().nonnegative().int())
       .optional(),
   })
@@ -748,16 +755,6 @@ export const conditionNodeSchema: z.ZodType = z.lazy(() =>
 // leaf inputs; new callers can pass operator nodes too.
 export const conditionSchema = conditionNodeSchema;
 
-// Comparators that compare numeric magnitudes — the only ones that make
-// sense with `position: percentAgreement`, where the referenced value is
-// the *percentage of agreement* rather than the raw response.
-const PERCENT_AGREEMENT_NUMERIC_COMPARATORS = new Set([
-  "isAbove",
-  "isBelow",
-  "isAtLeast",
-  "isAtMost",
-]);
-
 // Positions that are forbidden on game-stage-level conditions because
 // they would evaluate to a different result on each participant's client
 // — causing one participant to skip a stage while the other renders it.
@@ -886,25 +883,12 @@ function validateConditionRules(
     value?: unknown;
   };
 
-  // `percentAgreement` aggregates the referenced values and compares
-  // the agreement percentage against `value`. Non-numeric comparators
-  // (equals, includes, matches, …) silently produce wrong results.
-  if (
-    c.position === "percentAgreement" &&
-    typeof c.comparator === "string" &&
-    !PERCENT_AGREEMENT_NUMERIC_COMPARATORS.has(c.comparator)
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [...pathPrefix, "comparator"],
-      message: `position: percentAgreement requires a numeric comparator (isAbove, isBelow, isAtLeast, isAtMost) — got "${c.comparator}". The comparator is applied to the percentage of agreement, not the raw response.`,
-    });
-  }
-
   // Game-stage conditions must evaluate identically on every client or
   // they'll desync (one player skips, the other renders). The default
   // position is "player", which reads this participant's own data — so
-  // we reject both missing and explicitly "player".
+  // we reject both missing and explicitly "player". After #238 the
+  // cross-client read selectors are `shared` or a numeric slot index;
+  // cross-player aggregation lives in the boolean-tree operators (#235).
   if (
     options.forbidSelfPosition &&
     (c.position === undefined ||
@@ -918,7 +902,7 @@ function validateConditionRules(
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [...pathPrefix, "position"],
-      message: `${options.contextLabel} conditions must use a cross-client position (shared, all, any, percentAgreement, or a numeric index) — got ${shown}. Per-player positions would let one participant skip the stage while the other renders it.`,
+      message: `${options.contextLabel} conditions must use a cross-client position (shared, or a numeric slot index) — got ${shown}. Per-player positions would let one participant skip the stage while the other renders it. For per-player aggregation, wrap leaves in an \`all:\` or \`any:\` operator with explicit slot-index leaves.`,
     });
   }
 }
@@ -1574,7 +1558,10 @@ export const stageSchema = altTemplateContext(
       }
 
       // Stage-level conditions (#183): forbid per-player positions on
-      // game stages (would desync), validate percentAgreement threshold.
+      // game stages (would desync). After #238 the only cross-cutting
+      // rule is `forbidSelfPosition` — `position` is a pure read
+      // selector now (no more aggregator/percentAgreement values to
+      // pair-check against the comparator).
       validateConditionRules(data.conditions, ["conditions"], ctx, {
         contextLabel: "Game-stage",
         forbidSelfPosition: true,
@@ -1584,8 +1571,10 @@ export const stageSchema = altTemplateContext(
       const elements = data.elements as Record<string, unknown>[];
 
       // Element-level conditions in game stages: elements render per
-      // player, so per-player positions are fine here. Only the
-      // percentAgreement-needs-numeric-comparator rule applies.
+      // player, so per-player positions are fine here. After #238
+      // there are no per-leaf cross-cutting rules to apply at the
+      // element level — the call is kept as a hook for future rules
+      // and parity with the stage-level walker.
       elements.forEach((element, elementIndex) => {
         if (element && typeof element === "object") {
           validateConditionRules(
@@ -1649,9 +1638,10 @@ export const introExitStepSchema = altTemplateContext(
     .strict()
     .superRefine((data, ctx) => {
       // Intro/exit steps are per-participant, so per-player positions
-      // are fine here — no desync concern. Just enforce the
-      // percentAgreement-needs-numeric-comparator rule on step-level
-      // and element-level conditions.
+      // are fine here — no desync concern. After #238 there are no
+      // per-leaf cross-cutting rules left here either; the call is
+      // kept as a hook for future rules and so the walker still
+      // recurses through operator nodes consistently.
       validateConditionRules(data.conditions, ["conditions"], ctx, {
         contextLabel: "Intro/exit step",
         forbidSelfPosition: false,
@@ -1678,9 +1668,8 @@ export const introExitStepSchema = altTemplateContext(
 );
 // Intro/exit step conditions intentionally allow any `position` value —
 // these steps are per-participant, so per-player positions don't desync.
-// The superRefine above still enforces the `percentAgreement → numeric
-// comparator` rule. The original TODO about position-value restriction
-// was superseded by #183; if we later want to forbid `showToPositions` /
+// The original TODO about position-value restriction was superseded by
+// #183; if we later want to forbid `showToPositions` /
 // `hideFromPositions` on intro/exit elements (they render for one
 // participant so those fields are no-ops), it belongs here.
 export type IntroExitStepType = z.infer<typeof introExitStepSchema>;

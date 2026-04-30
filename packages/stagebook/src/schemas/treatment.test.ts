@@ -406,6 +406,11 @@ test("treatment accepts an optional notes field with Markdown", () => {
 // ----------- Discussion Schema with conditions ------------
 
 test("discussion with conditions is valid", () => {
+  // After #238, condition leaves use a slot-index `position` instead
+  // of the dropped aggregator `"all"`. The boolean-tree operators
+  // (#235) handle fan-out across players; this single-leaf example
+  // keeps the original intent (gate the discussion on a specific
+  // player's prompt response).
   const discussion = {
     chatType: "text",
     showNickname: true,
@@ -414,7 +419,7 @@ test("discussion with conditions is valid", () => {
       {
         reference: "prompt.setupChoice",
         comparator: "equals",
-        position: "all",
+        position: 0,
         value: "HTML",
       },
     ],
@@ -433,7 +438,7 @@ test("discussion with multiple conditions is valid", () => {
       {
         reference: "prompt.setupChoice",
         comparator: "equals",
-        position: "all",
+        position: 0,
         value: "HTML",
       },
       {
@@ -1310,6 +1315,31 @@ test("stage reports one issue per mismatched timeline (not a single aggregated e
 // ----------- Stage-level conditions (#183) -----------
 
 test("stageSchema accepts stage-level conditions with a cross-client position", () => {
+  // After #238, the stage-level cross-client positions are `shared`
+  // and a numeric slot index. The dropped aggregator value `"all"`
+  // would now be rewritten as an `all:` operator with explicit
+  // slot-index leaves (covered separately below).
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "survey.continueVote.responses.keepGoing",
+        comparator: "equals",
+        value: "yes",
+        position: "shared",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  if (!result.success) console.log(result.error.issues);
+  expect(result.success).toBe(true);
+});
+
+test("stageSchema rejects stage-level conditions with the dropped aggregator position 'all' (#238)", () => {
+  // `position: "all"` is no longer a valid leaf value — fan-out
+  // moved to the boolean-tree operators (#235). Authors migrate via
+  // `all: [{position: 0, ...}, {position: 1, ...}]`.
   const result = stageSchema.safeParse({
     name: "r2",
     duration: 120,
@@ -1321,6 +1351,70 @@ test("stageSchema accepts stage-level conditions with a cross-client position", 
         position: "all",
       },
     ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+});
+
+test("stageSchema rejects stage-level conditions with the dropped aggregator position 'any' (#238)", () => {
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "survey.continueVote.responses.keepGoing",
+        comparator: "equals",
+        value: "yes",
+        position: "any",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+});
+
+test("stageSchema rejects stage-level conditions with the dropped aggregator position 'percentAgreement' (#238)", () => {
+  // `percentAgreement` was pulled out entirely — no migration; a
+  // future countables/aggregates family will cover its use cases.
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "survey.continueVote.responses.keepGoing",
+        comparator: "isAtLeast",
+        value: 60,
+        position: "percentAgreement",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+});
+
+test("stageSchema accepts the boolean-tree migration of `position: all` — `all:` operator with explicit slot-index leaves", () => {
+  // The mechanical migration recipe documented in #238: for
+  // `playerCount: 2`, `position: all` becomes `all: [{position: 0},
+  // {position: 1}]`. This test pins the recipe schema-validates.
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: {
+      all: [
+        {
+          reference: "survey.continueVote.responses.keepGoing",
+          comparator: "equals",
+          value: "yes",
+          position: 0,
+        },
+        {
+          reference: "survey.continueVote.responses.keepGoing",
+          comparator: "equals",
+          value: "yes",
+          position: 1,
+        },
+      ],
+    },
     elements: [{ type: "submitButton" }],
   });
   if (!result.success) console.log(result.error.issues);
@@ -1390,48 +1484,13 @@ test("introExitStepSchema allows stage-level conditions with any position, inclu
   expect(result.success).toBe(true);
 });
 
-test("stageSchema rejects percentAgreement with a non-numeric comparator", () => {
-  const result = stageSchema.safeParse({
-    name: "r2",
-    duration: 120,
-    conditions: [
-      {
-        reference: "survey.continueVote.responses.keepGoing",
-        comparator: "equals",
-        value: "yes",
-        position: "percentAgreement",
-      },
-    ],
-    elements: [{ type: "submitButton" }],
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const issue = result.error.issues.find(
-      (i) => i.path.join(".") === "conditions.0.comparator",
-    );
-    expect(issue?.message).toMatch(/percentAgreement.*numeric comparator/);
-  }
-});
-
-test("stageSchema accepts percentAgreement with isAtLeast and a numeric threshold", () => {
-  const result = stageSchema.safeParse({
-    name: "r2",
-    duration: 120,
-    conditions: [
-      {
-        reference: "survey.vote.result.normPosition",
-        comparator: "isAtLeast",
-        value: 50,
-        position: "percentAgreement",
-      },
-    ],
-    elements: [{ type: "submitButton" }],
-  });
-  if (!result.success) console.log(result.error.issues);
-  expect(result.success).toBe(true);
-});
-
-test("stageSchema still rejects element-level percentAgreement with a non-numeric comparator", () => {
+test("stageSchema rejects element-level conditions with the dropped position 'percentAgreement' (#238)", () => {
+  // `percentAgreement` was the numeric-aggregate read selector before
+  // #238; it was pulled out entirely (no migration). Element-level
+  // conditions, like stage-level, now reject it as an invalid enum
+  // value. Authors with existing percentAgreement conditions need to
+  // either rewrite as explicit per-player checks or drop the
+  // condition pending the future countables/aggregates family.
   const result = stageSchema.safeParse({
     name: "r2",
     duration: 120,
@@ -1442,8 +1501,8 @@ test("stageSchema still rejects element-level percentAgreement with a non-numeri
         conditions: [
           {
             reference: "survey.vote.result.x",
-            comparator: "equals",
-            value: "yes",
+            comparator: "isAtLeast",
+            value: 60,
             position: "percentAgreement",
           },
         ],
@@ -1452,28 +1511,68 @@ test("stageSchema still rejects element-level percentAgreement with a non-numeri
     ],
   });
   expect(result.success).toBe(false);
-  if (!result.success) {
-    const issue = result.error.issues.find(
-      (i) => i.path.join(".") === "elements.0.conditions.0.comparator",
-    );
-    expect(issue).toBeDefined();
-  }
 });
 
-test("introExitStepSchema rejects percentAgreement with a non-numeric comparator", () => {
+test("introExitStepSchema rejects the dropped position 'percentAgreement' (#238)", () => {
   const result = introExitStepSchema.safeParse({
     name: "debrief",
     conditions: [
       {
         reference: "survey.feedback.result.x",
-        comparator: "equals",
-        value: "yes",
+        comparator: "isAtLeast",
+        value: 60,
         position: "percentAgreement",
       },
     ],
     elements: [{ type: "submitButton" }],
   });
   expect(result.success).toBe(false);
+});
+
+test("introExitStepSchema rejects the dropped aggregator positions 'all' / 'any' (#238)", () => {
+  for (const dropped of ["all", "any"] as const) {
+    const result = introExitStepSchema.safeParse({
+      name: "debrief",
+      conditions: [
+        {
+          reference: "prompt.q",
+          comparator: "equals",
+          value: "yes",
+          position: dropped,
+        },
+      ],
+      elements: [{ type: "submitButton" }],
+    });
+    expect(result.success).toBe(false);
+  }
+});
+
+test("game-stage forbidSelfPosition error message points at the boolean-tree migration recipe (#238)", () => {
+  // The error message that fires when an author writes a per-player
+  // position on a game stage now suggests the `all:` / `any:` operator
+  // migration rather than mentioning the dropped aggregator values.
+  const result = stageSchema.safeParse({
+    name: "r2",
+    duration: 120,
+    conditions: [
+      {
+        reference: "prompt.vote",
+        comparator: "equals",
+        value: "yes",
+        position: "player",
+      },
+    ],
+    elements: [{ type: "submitButton" }],
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "conditions.0.position",
+    );
+    expect(issue?.message).toMatch(/cross-client position \(shared/);
+    expect(issue?.message).not.toMatch(/percentAgreement/);
+    expect(issue?.message).toMatch(/`all:` or `any:` operator/);
+  }
 });
 
 // ----------- Boolean condition tree (#235) ------------
