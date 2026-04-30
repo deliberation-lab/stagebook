@@ -522,6 +522,59 @@ Displays cumulative speaking time for each participant. Only meaningful in video
 - type: talkMeter
 ```
 
+## Time fields and reference frames
+
+Several element fields are measured in seconds, but they don't all share the same reference frame. Knowing which frame a field uses matters when you mix them — most often when a `mediaPlayer` is timed against the stage clock.
+
+### Stage-relative time
+
+Measured in seconds from when the **stage** started.
+
+| Field             | Element     | Says                                          |
+| ----------------- | ----------- | --------------------------------------------- |
+| `displayTime`     | any element | Show after this many seconds into the stage   |
+| `hideTime`        | any element | Hide after this many seconds into the stage   |
+| `timer.startTime` | `timer`     | When the timer's progress bar starts counting |
+| `timer.endTime`   | `timer`     | When the timer's progress bar reaches 100%    |
+
+### Media-relative time
+
+Measured in seconds from the beginning of the **media file**.
+
+| Field                 | Element       | Says                                       |
+| --------------------- | ------------- | ------------------------------------------ |
+| `mediaPlayer.startAt` | `mediaPlayer` | Position in the clip where playback begins |
+| `mediaPlayer.stopAt`  | `mediaPlayer` | Position in the clip where playback pauses |
+
+### Durations (no frame)
+
+Lengths of intervals, not points in time. They have no reference frame.
+
+| Field                      | Element       | Says                                        |
+| -------------------------- | ------------- | ------------------------------------------- |
+| `stage.duration`           | stage         | How long the stage lasts                    |
+| `mediaPlayer.stepDuration` | `mediaPlayer` | How much each "step" key advances           |
+| `timer.warnTimeRemaining`  | `timer`       | Seconds-from-end at which the bar turns red |
+
+### Bridging the two frames: `syncToStageTime`
+
+When `mediaPlayer.syncToStageTime: true` is set, the player's playback position is locked to stage elapsed time — the two frames coincide. With sync on, the player's controls are not used (they're forbidden by the schema), and a stage second always corresponds to a media second.
+
+### Combining frames on one element
+
+A `mediaPlayer` element using both frames at once:
+
+```yaml
+- type: mediaPlayer
+  url: https://example.com/clip.mp4
+  displayTime: 5 # stage time: appear 5s into the stage
+  hideTime: 60 # stage time: hide 55s later
+  startAt: 30 # media time: begin playback 30s into the clip
+  stopAt: 90 # media time: pause 60s of clip later
+```
+
+Reading top to bottom: the player appears 5s after the stage begins and hides 55s of stage time later. While visible, the clip plays from media-time 30s toward media-time 90s — that's 60s of clip targeted in 55s of stage time, so the element hides before `stopAt` is reached. Either widen the visibility window or set `syncToStageTime: true` to lock the two clocks together.
+
 ## Timing and Visibility Examples
 
 Show a submit button after 10 seconds:
