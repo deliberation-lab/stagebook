@@ -22,12 +22,12 @@ The platform needs two scopes of state:
 
 Stagebook components write state under predictable keys:
 
-| Key pattern | Written by | Value shape |
-|-------------|-----------|-------------|
-| `prompt_<name>` | Prompt element | `{ value, stageTimeElapsed, ...metadata }` |
-| `submitButton_<name>` | Submit button | `{ time: elapsedSeconds }` |
-| `survey_<name>` | Survey element | Survey-specific response object |
-| `trackedLink_<name>` | Tracked link | `{ events: [...], totalTimeAwaySeconds, ... }` |
+| Key pattern           | Written by     | Value shape                                    |
+| --------------------- | -------------- | ---------------------------------------------- |
+| `prompt_<name>`       | Prompt element | `{ value, stageTimeElapsed, ...metadata }`     |
+| `submitButton_<name>` | Submit button  | `{ time: elapsedSeconds }`                     |
+| `survey_<name>`       | Survey element | Survey-specific response object                |
+| `trackedLink_<name>`  | Tracked link   | `{ events: [...], totalTimeAwaySeconds, ... }` |
 
 ### Read Patterns
 
@@ -40,14 +40,13 @@ Stagebook handles DSL reference parsing and nested path extraction internally �
 
 The `scope` parameter determines whose state to read:
 
-| Scope | Behavior |
-|-------|----------|
-| `"player"` or omitted | Current participant's player state |
-| `"shared"` | Shared/game state |
-| `"0"`, `"1"`, `"2"`, ... | Specific participant by position index (as string) |
-| `"all"` | Array with one value per participant |
-| `"any"` | Array with one value per participant (conditions check if any satisfy) |
-| `"percentAgreement"` | Array with one value per participant (conditions compute consensus %) |
+| Scope                    | Behavior                                       |
+| ------------------------ | ---------------------------------------------- |
+| `"player"` or omitted    | Current participant's player state             |
+| `"shared"`               | Shared/game state                              |
+| `"0"`, `"1"`, `"2"`, ... | Specific participant by slot index (as string) |
+
+After #238, stagebook only sends those scopes. The pre-#238 aggregator scopes (`"all"`, `"any"`, `"percentAgreement"`) were removed: cross-player aggregation now lives in the boolean-tree operators (`all:` / `any:` / `none:` from #235) at the schema layer, and stagebook's resolver fans out to per-slot reads internally rather than asking the host to aggregate. Hosts may keep accepting the legacy scopes defensively, but they're unreachable from a validated treatment file.
 
 ### Reactivity
 
@@ -67,6 +66,7 @@ State must survive page refreshes. If a participant disconnects and reconnects, 
 Some reference namespaces require the platform to collect and store data that Stagebook components don't produce. If your treatment files use conditions or displays referencing these namespaces, the platform must populate them in player state during onboarding:
 
 **`connectionInfo.*`** — Network metadata collected during consent/onboarding:
+
 - `connectionInfo.country` — ISO country code (e.g., from IP geolocation)
 - `connectionInfo.timezone` — IP-based timezone
 - `connectionInfo.isKnownVpn` — whether the IP is on a known VPN list
@@ -74,6 +74,7 @@ Some reference namespaces require the platform to collect and store data that St
 The platform stores this under the key `connectionInfo` in player state. Internally, Stagebook's `resolve("connectionInfo.country")` calls `get("connectionInfo")` and traverses `.country`.
 
 **`browserInfo.*`** — Client-side browser information:
+
 - `browserInfo.screenWidth`, `browserInfo.screenHeight` — screen resolution
 - `browserInfo.language` — browser language (e.g., `en-US`)
 - `browserInfo.userAgent` — raw user-agent string
@@ -81,6 +82,7 @@ The platform stores this under the key `connectionInfo` in player state. Interna
 The platform stores this under the key `browserInfo` in player state.
 
 **`participantInfo.*`** — Participant attributes:
+
 - `participantInfo.name` — nickname entered during onboarding
 - `participantInfo.sampleId` — identifier from recruiting platform
 
@@ -91,6 +93,7 @@ If these namespaces are not populated, conditions referencing them will evaluate
 ### Browser Compatibility
 
 Stagebook components are tested against modern browsers. The platform should verify browser compatibility during onboarding, before loading the experiment. Minimum supported versions:
+
 - Chrome >= 89
 - Edge >= 89
 - Firefox >= 89
@@ -112,14 +115,40 @@ Stagebook internally protects against unstable callback identities (it stores th
 The simplest way to get stable references is to wrap each method in `useCallback` (or define it outside the render, or on a class) and memoize the final context object with `useMemo`:
 
 ```tsx
-const save = useCallback((key, value, scope) => { /* ... */ }, [/* store deps */]);
-const get = useCallback((key, scope) => { /* ... */ }, [/* store deps */]);
+const save = useCallback(
+  (key, value, scope) => {
+    /* ... */
+  },
+  [
+    /* store deps */
+  ],
+);
+const get = useCallback(
+  (key, scope) => {
+    /* ... */
+  },
+  [
+    /* store deps */
+  ],
+);
 const getTextContent = useCallback((path) => fetch(resolve(path)), []);
 
-const ctx = useMemo<StagebookContext>(() => ({
-  get, save, getTextContent, getAssetURL, getElapsedTime, submit,
-  progressLabel, playerId, position, playerCount, isSubmitted,
-}), [get, save, getTextContent, /* ... */]);
+const ctx = useMemo<StagebookContext>(
+  () => ({
+    get,
+    save,
+    getTextContent,
+    getAssetURL,
+    getElapsedTime,
+    submit,
+    progressLabel,
+    playerId,
+    position,
+    playerCount,
+    isSubmitted,
+  }),
+  [get, save, getTextContent /* ... */],
+);
 
 return <StagebookProvider value={ctx}>{children}</StagebookProvider>;
 ```
@@ -137,6 +166,7 @@ The platform manages the progression through intro steps, game stages, and exit 
 Each intro step displays its elements and waits for the participant to click a submit button (or complete a Qualtrics survey, or finish a video). There is no timer — participants proceed at their own pace.
 
 The platform must:
+
 - Track which intro step the participant is currently on
 - Provide a `submit()` function that advances to the next step
 - Track the start time of each step (for `getElapsedTime()` — use `Date.now()`)
@@ -150,6 +180,7 @@ The platform must:
 2. **Auto-generated storage keys.** When a `prompt` element has no explicit `name`, Stagebook derives a storage key of the form `prompt_<progressLabel>_<file-metadata-name>`. Two steps sharing the same `progressLabel` will therefore derive the same storage key for a given prompt file — the second participant response silently overwrites the first with no error surfaced to the participant.
 
 Recommended schemes:
+
 - `"intro_<index>_<slug>"` for intro steps
 - `"game_<stageIndex>_<slug>"` for game stages
 - `"exit_<index>_<slug>"` for exit steps
@@ -161,6 +192,7 @@ Collisions are difficult to detect after the fact because the saved-record metad
 All participants in a group move through game stages together. Each stage has a `duration` in seconds.
 
 The platform must:
+
 - **Start a server-authoritative timer** when the stage begins
 - **Auto-advance** when the timer expires, regardless of submission status
 - **Track submissions**: when a participant calls `submit()`, record their readiness
@@ -182,6 +214,7 @@ Same as intro steps, but occur after the game. Participants proceed at their own
 ### Phase Transitions
 
 The platform controls the transition between phases:
+
 1. Participant completes all intro steps → enters lobby/waiting room
 2. Group is formed → game begins (stage 0)
 3. Game completes all stages → exit sequence begins
@@ -190,6 +223,7 @@ The platform controls the transition between phases:
 ### Handling Disconnection
 
 When a participant disconnects during a game stage:
+
 - The timer continues (stages don't pause)
 - On reconnection, the participant resumes at the current stage with the correct elapsed time
 - If a video element was playing, it should resume at the correct position
@@ -219,29 +253,29 @@ Two responsibilities that only the host can handle:
 
 1. **Submit for every player, not just self.** A dropout whose client never fires the advance call would otherwise hang the stage until the duration timer expires. Recommended:
 
-    ```ts
-    advanceStage: () => {
-      const target = currentStageId;
-      players.forEach((p) => {
-        if (p.stage?.id === target && !p.stage.get("submit")) {
-          p.stage.set("submit", true);
-        }
-      });
-    }
-    ```
+   ```ts
+   advanceStage: () => {
+     const target = currentStageId;
+     players.forEach((p) => {
+       if (p.stage?.id === target && !p.stage.get("submit")) {
+         p.stage.set("submit", true);
+       }
+     });
+   };
+   ```
 
 2. **Ensure condition data is hydrated consistently across clients before the provider mounts.** Stagebook evaluates conditions from `context.get()` results; if client A sees the data and client B doesn't, they'll make different advance decisions. Hosts with staged-attribute stores (e.g., Tajriba) should gate the `<StagebookProvider>` mount on full hydration and show a host-level loading UI during transitions.
 
 #### What stagebook handles vs. what the host handles
 
-| | Stagebook | Host |
-|---|---|---|
-| Evaluating conditions | ✅ | |
-| Latching so `advanceStage` fires once per stage | ✅ | |
-| Submitting for every player | | ✅ |
-| Cross-client stage-ID coordination during advance | | ✅ |
-| Force-submit for disconnected players | | ✅ |
-| Hydration sentinel / atomic store snapshot | | ✅ |
+|                                                   | Stagebook | Host |
+| ------------------------------------------------- | --------- | ---- |
+| Evaluating conditions                             | ✅        |      |
+| Latching so `advanceStage` fires once per stage   | ✅        |      |
+| Submitting for every player                       |           | ✅   |
+| Cross-client stage-ID coordination during advance |           | ✅   |
+| Force-submit for disconnected players             |           | ✅   |
+| Hydration sentinel / atomic store snapshot        |           | ✅   |
 
 ---
 
@@ -252,10 +286,12 @@ The platform must assign participants to groups (treatments) and positions withi
 ### Inputs
 
 From the treatment file:
+
 - `treatments[].playerCount` — how many participants per group
 - `treatments[].groupComposition[].conditions` — eligibility criteria for each position (optional)
 
 From the batch configuration (platform-specific):
+
 - Which treatments to run
 - Payoff weights (for optimizing assignment across treatments)
 
@@ -274,6 +310,7 @@ Given a pool of waiting participants who have completed intro steps, the platfor
 ### Lobby/Waiting
 
 Between intro completion and game start, participants wait in a lobby. The platform should:
+
 - Show a waiting indicator
 - Periodically run the assignment algorithm as new participants complete intro
 - Debounce the algorithm (don't run on every arrival — wait a few seconds for the cohort to stabilize)
@@ -281,6 +318,7 @@ Between intro completion and game start, participants wait in a lobby. The platf
 ### Position Assignment
 
 Once a group is formed, each participant is assigned a position (0, 1, 2, ...). This position is:
+
 - Stored in player state (`position`)
 - Available via `StagebookContext.position`
 - Used by `showToPositions`, `hideFromPositions`, and `groupComposition` throughout the game
@@ -318,6 +356,7 @@ Returns a URL that the browser can use to display an image, play audio, or embed
 ### `getTextContent(path: string): Promise<string>`
 
 Returns the text content of a file (typically prompt markdown). The platform handles:
+
 - **Resolution**: Resolve path relative to treatment file location
 - **Fetching**: HTTP request, filesystem read, or bundled import
 - **Caching**: Prompt files don't change during a study — cache aggressively
@@ -333,6 +372,7 @@ These features are not required by Stagebook's rendering layer but are necessary
 ### Platform Consent
 
 Before any experiment interaction, participants must provide informed consent. The platform should:
+
 - Display an IRB-approved consent form appropriate to the participant's jurisdiction
 - Record consent with a timestamp
 - Allow the researcher to specify custom consent addenda
@@ -341,6 +381,7 @@ Before any experiment interaction, participants must provide informed consent. T
 ### Equipment Checks
 
 For studies involving video or audio:
+
 - Request camera/microphone permissions
 - Verify video quality (sufficient resolution, frame rate)
 - Verify audio input (microphone produces signal) and output (speakers/headphones work)
@@ -354,6 +395,7 @@ Check that the participant's browser meets minimum requirements. Stagebook's `Br
 ### Participant Identity
 
 Collect or verify a participant identifier:
+
 - Self-reported nickname (for display during discussions)
 - Platform-assigned ID (from URL parameters, e.g., `PROLIFIC_PID`)
 - Custom ID instructions (platform-specific onboarding)
@@ -369,6 +411,7 @@ Stagebook uses render slots for elements tightly coupled to external services. T
 Required for `discussion` elements with `chatType: "video"` or `"audio"`.
 
 The platform must:
+
 - Create a call room when a discussion stage starts
 - Connect all participants in the group (or subsets, for breakout rooms)
 - Handle custom layouts (grid-based feed placement per position)
@@ -386,6 +429,7 @@ Provide via: `renderDiscussion(config)` on StagebookProvider.
 Required for `discussion` elements with `chatType: "text"`.
 
 The platform must:
+
 - Provide a real-time message feed visible to all group participants
 - Support emoji reactions (configurable set)
 - Display sender nicknames or positions
@@ -398,6 +442,7 @@ Provide via: `renderDiscussion(config)` on StagebookProvider (same slot as video
 Required for `sharedNotepad` elements and `shared: true` open response prompts.
 
 The platform must:
+
 - Provide a collaborative text editor
 - Sync edits in real-time across all participants
 - Support default text initialization
@@ -412,6 +457,7 @@ Provide via: `renderSharedNotepad(config)` on StagebookProvider.
 Required for `talkMeter` elements.
 
 The platform must:
+
 - Detect which participant is speaking (requires audio analysis)
 - Track cumulative speaking time per participant
 - Display the results
@@ -427,6 +473,7 @@ Stagebook does not define a data export format, but experiments need to produce 
 ### Per-Participant Science Data
 
 All state written by Stagebook components during the experiment:
+
 - Prompt responses (with timestamps and metadata)
 - Survey results
 - Submit button timing
@@ -434,6 +481,7 @@ All state written by Stagebook components during the experiment:
 - Discussion metrics
 
 Plus platform-collected data:
+
 - Consent records
 - Equipment check results
 - Connection history (online/offline events)
@@ -463,6 +511,7 @@ JSONL (newline-delimited JSON) is recommended for streaming compatibility. Each 
 ## 8. Pre-Registration (optional)
 
 For pre-registered studies, the platform should:
+
 - Snapshot the treatment configuration at game start (before any participant interaction)
 - Include a hash of the treatment for integrity verification
 - Push to a pre-registration repository before the experiment begins
@@ -472,17 +521,17 @@ For pre-registered studies, the platform should:
 
 ## Platform Complexity by Use Case
 
-| Feature | Solo survey tool | VS Code preview | Full multiplayer platform |
-|---------|-----------------|-----------------|--------------------------|
-| State management | React state | Mock state | Distributed reactive store |
-| Stage orchestration | Step sequencing | Step sequencing | Timer + sync + submission |
-| Group formation | N/A | N/A | Constraint satisfaction |
-| Content delivery | Local files | Workspace files | CDN |
-| Consent | Optional | N/A | Required |
-| Equipment checks | N/A | N/A | Required for video |
-| Video calls | N/A | N/A | Required |
-| Text chat | N/A | N/A | Required |
-| Data export | Simple JSON | N/A | JSONL + GitHub push |
-| Pre-registration | N/A | N/A | Recommended |
+| Feature             | Solo survey tool | VS Code preview | Full multiplayer platform  |
+| ------------------- | ---------------- | --------------- | -------------------------- |
+| State management    | React state      | Mock state      | Distributed reactive store |
+| Stage orchestration | Step sequencing  | Step sequencing | Timer + sync + submission  |
+| Group formation     | N/A              | N/A             | Constraint satisfaction    |
+| Content delivery    | Local files      | Workspace files | CDN                        |
+| Consent             | Optional         | N/A             | Required                   |
+| Equipment checks    | N/A              | N/A             | Required for video         |
+| Video calls         | N/A              | N/A             | Required                   |
+| Text chat           | N/A              | N/A             | Required                   |
+| Data export         | Simple JSON      | N/A             | JSONL + GitHub push        |
+| Pre-registration    | N/A              | N/A             | Recommended                |
 
 A minimal Stagebook integration (solo, no video, local content) requires only: React state for `get`/`save`, step sequencing for `submit`, `Date.now()` for `getElapsedTime`, and local file reading for `getTextContent`. Everything else is additive.

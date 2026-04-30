@@ -183,33 +183,38 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     unmount();
   });
 
-  test("passes scope through to get", () => {
+  test("passes 'shared' scope through to get verbatim", () => {
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "shared");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "shared");
+    unmount();
+  });
+
+  test("passes a numeric slot-index scope through to get verbatim", () => {
+    // After #238, condition leaves can target a specific slot via a
+    // numeric position (rendered to string at this boundary). The
+    // host's get() receives the string unchanged.
+    const get = vi.fn(() => []);
+    const ctx = createMockContext({ get });
+
+    const { unmount } = renderUseResolve("prompt.q1", ctx, "0");
+
+    expect(get).toHaveBeenCalledWith("prompt_q1", "0");
+    unmount();
+  });
+
+  test("forwards an unknown scope string to get unchanged", () => {
+    // Host-call discipline only — useResolve is a thin wrapper, it
+    // doesn't second-guess the position string. Schema validation is
+    // the place that constrains author-written values; runtime
+    // forwarding stays straightforward.
     const get = vi.fn(() => []);
     const ctx = createMockContext({ get });
 
     const { unmount } = renderUseResolve("prompt.q1", ctx, "all");
-
-    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
-    unmount();
-  });
-
-  test("normalizes 'any' scope to 'all' before calling get", () => {
-    // The platform's get() shouldn't need to understand condition
-    // evaluation semantics — "any" is a downstream concern.
-    const get = vi.fn(() => []);
-    const ctx = createMockContext({ get });
-
-    const { unmount } = renderUseResolve("prompt.q1", ctx, "any");
-
-    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
-    unmount();
-  });
-
-  test("normalizes 'percentAgreement' scope to 'all' before calling get", () => {
-    const get = vi.fn(() => []);
-    const ctx = createMockContext({ get });
-
-    const { unmount } = renderUseResolve("prompt.q1", ctx, "percentAgreement");
 
     expect(get).toHaveBeenCalledWith("prompt_q1", "all");
     unmount();
@@ -227,13 +232,17 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
   });
 
   test("resolves across multiple raw values", () => {
+    // Hosts can return multiple values for any scope (e.g. an
+    // append-only store); the resolve hook unwraps each via the
+    // declared path. Using a numeric slot index here as a
+    // representative read selector.
     const get = vi.fn(() => [
       { value: "a", step: "s0" },
       { value: "b", step: "s1" },
     ]);
     const ctx = createMockContext({ get });
 
-    const { result, unmount } = renderUseResolve("prompt.q1", ctx, "all");
+    const { result, unmount } = renderUseResolve("prompt.q1", ctx, "0");
 
     expect(result.current).toEqual(["a", "b"]);
     unmount();

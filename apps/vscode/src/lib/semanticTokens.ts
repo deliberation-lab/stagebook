@@ -46,12 +46,16 @@ const contentTypeSet = new Set([
 
 const separatorStyles = new Set(["thin", "thick", "regular"]);
 
+// Position keyword values that should be highlighted as enum tokens.
+// `all` and `any` remain valid on `display.position` (the
+// `positionSelectorSchema` still accepts them; that's a render concern,
+// not a condition aggregator). `percentAgreement` was removed entirely
+// in #238 — it's no longer accepted on any field.
 const enumValues = new Set([
   "shared",
   "player",
   "all",
   "any",
-  "percentAgreement",
   "text",
   "audio",
   "video",

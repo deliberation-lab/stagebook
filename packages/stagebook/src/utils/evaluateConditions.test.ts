@@ -77,8 +77,21 @@ describe("evaluateCondition", () => {
     });
   });
 
-  describe("position: any", () => {
-    test("passes if at least one value satisfies", () => {
+  // After #238, `position` on a condition leaf is a pure read selector
+  // — `"shared"`, `"player"` (default), or a numeric slot index.
+  // Cross-player aggregation (`all`/`any`) lives in the boolean-tree
+  // operators (#235); the numeric `percentAgreement` aggregator was
+  // pulled out entirely (no migration). These tests pin that the leaf
+  // evaluator no longer special-cases the dropped values: an `"any"` or
+  // `"percentAgreement"` string passed in (e.g. by a host that bypasses
+  // the schema) falls through to the default read-selector path, which
+  // ANDs `compare(value, comparator, expected)` across the resolved
+  // values rather than running the deprecated aggregation.
+  describe("dropped position values fall through to default semantics", () => {
+    test("'any' as a position string no longer fans out — every value must satisfy", () => {
+      // Pre-#238: `position: any` was true if ANY value matched.
+      // Post-#238: with two non-matching values and one matching, the
+      // default read-selector AND-semantics rejects the leaf.
       expect(
         evaluateCondition(
           {
@@ -89,55 +102,15 @@ describe("evaluateCondition", () => {
           },
           ["no", "no", "yes"],
         ),
-      ).toBe(true);
-    });
-
-    test("fails if no values satisfy", () => {
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "any",
-            comparator: "equals",
-            value: "yes",
-          },
-          ["no", "no", "no"],
-        ),
       ).toBe(false);
     });
 
-    test("passes with single satisfying value", () => {
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "any",
-            comparator: "isAbove",
-            value: 50,
-          },
-          [10, 20, 75],
-        ),
-      ).toBe(true);
-    });
-
-    test("fails on empty array (no value to satisfy)", () => {
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "any",
-            comparator: "equals",
-            value: "yes",
-          },
-          [],
-        ),
-      ).toBe(false);
-    });
-  });
-
-  describe("position: percentAgreement", () => {
-    test("80% agreement meets isAtLeast 80", () => {
-      // 4 out of 5 agree → 80%
+    test("'percentAgreement' as a position string no longer aggregates — comparator runs against each raw value", () => {
+      // Pre-#238: `position: percentAgreement` compared the consensus
+      // percentage (here 80) against the threshold. Post-#238 the
+      // comparator is applied to the raw values directly: "yes"
+      // isAtLeast 80 is undefined (string vs number), so the leaf's
+      // tri-state collapses to false at the public boundary.
       expect(
         evaluateCondition(
           {
@@ -148,96 +121,7 @@ describe("evaluateCondition", () => {
           },
           ["yes", "yes", "yes", "yes", "no"],
         ),
-      ).toBe(true);
-    });
-
-    test("60% agreement fails isAtLeast 80", () => {
-      // 3 out of 5 agree → 60%
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "percentAgreement",
-            comparator: "isAtLeast",
-            value: 80,
-          },
-          ["yes", "yes", "yes", "no", "no"],
-        ),
       ).toBe(false);
-    });
-
-    test("100% agreement", () => {
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "percentAgreement",
-            comparator: "equals",
-            value: 100,
-          },
-          ["yes", "yes", "yes"],
-        ),
-      ).toBe(true);
-    });
-
-    test("undefined values count toward total but not toward agreement", () => {
-      // 2 defined "yes" out of 4 total (2 undefined) → 50%
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "percentAgreement",
-            comparator: "isAtLeast",
-            value: 50,
-          },
-          ["yes", "yes", undefined, undefined],
-        ),
-      ).toBe(true);
-    });
-
-    test("all undefined returns false", () => {
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "percentAgreement",
-            comparator: "isAtLeast",
-            value: 50,
-          },
-          [undefined, undefined],
-        ),
-      ).toBe(false);
-    });
-
-    test("case insensitive agreement", () => {
-      // "Yes" and "yes" should count as the same response
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "percentAgreement",
-            comparator: "equals",
-            value: 100,
-          },
-          ["Yes", "yes", "YES"],
-        ),
-      ).toBe(true);
-    });
-
-    test("response values matching Object.prototype keys count correctly", () => {
-      // Regression: the counts map must not inherit from Object.prototype,
-      // or responses like "constructor" produce NaN counts.
-      expect(
-        evaluateCondition(
-          {
-            reference: "prompt.q1",
-            position: "percentAgreement",
-            comparator: "equals",
-            value: 100,
-          },
-          ["constructor", "constructor", "constructor"],
-        ),
-      ).toBe(true);
     });
   });
 

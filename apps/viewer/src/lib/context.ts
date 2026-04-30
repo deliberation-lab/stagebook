@@ -45,10 +45,17 @@ export function createViewerContext(
   return {
     get(key: string, scope?: string): unknown[] {
       const mapped = mapPosition(scope, position);
+      // After #238, stagebook only sends `"player"` (default) →
+      // current position, `"shared"`, or a numeric slot index. The
+      // legacy `"all"` aggregator scope is no longer reachable from
+      // a validated treatment file; we keep the fallback to
+      // `store.lookup(key)` (no position filter) defensively for
+      // hosts that hand-build a get() call themselves.
       if (typeof mapped === "number" || mapped === "shared") {
         return store.lookup(key, mapped);
       }
-      // "all" → return from all player positions
+      // Defensive fallback for hand-built scopes outside the
+      // narrowed enum.
       return store.lookup(key);
     },
 

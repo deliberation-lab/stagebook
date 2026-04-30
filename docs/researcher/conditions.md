@@ -233,40 +233,48 @@ discussion.cumulativeSpeakingTime
 
 ## Position Modifier
 
-When using conditions on display elements, you can reference data from other participants:
+`position` is a **read selector** — it tells stagebook which player's data to look up for a given reference:
 
-| Value              | Meaning                                                    |
-| ------------------ | ---------------------------------------------------------- |
-| _(omitted)_        | Current participant (same as `player`)                     |
-| `player`           | Current participant                                        |
-| `shared`           | Shared records (e.g., `shared: true` prompts)              |
-| `0`, `1`, `2`, ... | Specific participant by position index                     |
-| `all`              | Every participant must satisfy the condition               |
-| `any`              | At least one participant must satisfy the condition        |
-| `percentAgreement` | Compare the largest consensus percentage against the value |
+| Value              | Meaning                                       |
+| ------------------ | --------------------------------------------- |
+| _(omitted)_        | Current participant (same as `player`)        |
+| `player`           | Current participant                           |
+| `shared`           | Shared records (e.g., `shared: true` prompts) |
+| `0`, `1`, `2`, ... | Specific participant by position index        |
+
+**Cross-player aggregation lives in the boolean tree, not in `position`.** The pre-#238 values `all`, `any`, and `percentAgreement` were removed: they conflated "which player to read from" with "how to combine results across players." Combining is now the job of the `all:` / `any:` / `none:` operators ([Boolean operators](#boolean-operators-all-any-none)). `percentAgreement` was pulled out entirely; a future countables/aggregates family will replace it.
 
 ### Examples
 
-Show a submit button only when all participants have answered:
+Show a submit button only when both players in a 2-player study have answered:
 
 ```yaml
 - type: submitButton
   conditions:
-    - reference: prompt.topic_vote
-      position: all
-      comparator: exists
+    all:
+      - reference: prompt.topic_vote
+        position: 0
+        comparator: exists
+      - reference: prompt.topic_vote
+        position: 1
+        comparator: exists
 ```
 
-Show content when 80%+ agree:
+Show content if either player chose "yes":
 
 ```yaml
 - type: prompt
-  file: game/consensus_reached.prompt.md
+  file: game/either_yes.prompt.md
   conditions:
-    - reference: prompt.topic_vote
-      position: percentAgreement
-      comparator: isAtLeast
-      value: 80
+    any:
+      - reference: prompt.topic_vote
+        position: 0
+        comparator: equals
+        value: yes
+      - reference: prompt.topic_vote
+        position: 1
+        comparator: equals
+        value: yes
 ```
 
 Display another participant's response:
@@ -391,10 +399,15 @@ gameStages:
   - name: round2
     duration: 300
     conditions:
-      - reference: survey.continueVote.result.keepGoing
-        comparator: equals
-        value: "yes"
-        position: all
+      all:
+        - reference: survey.continueVote.result.keepGoing
+          comparator: equals
+          value: "yes"
+          position: 0
+        - reference: survey.continueVote.result.keepGoing
+          comparator: equals
+          value: "yes"
+          position: 1
     elements:
       - type: prompt
         file: round2.prompt.md
@@ -412,7 +425,7 @@ gameStages:
     conditions:
       - reference: submitButton.speedSubmit
         comparator: doesNotExist
-        position: all
+        position: shared
     elements:
       - type: submitButton
         name: speedSubmit
@@ -420,27 +433,14 @@ gameStages:
 
 ### Position rules
 
-Game-stage conditions must evaluate **identically on every client** or the stage desyncs (one participant skips while the other renders). Stagebook rejects per-player positions at preflight for game stages:
+Game-stage conditions must evaluate **identically on every client** or the stage desyncs (one participant skips while the other renders). `position` after #238 is a pure read selector — `shared` and numeric slot indices are cross-client (every client reads the same value); the default `player` reads the current participant's own data and is rejected at game-stage level.
 
-| Context            | Default / `player`       | `shared` / `all` / `any` / `percentAgreement` / index |
-| ------------------ | ------------------------ | ----------------------------------------------------- |
-| Game stages        | ❌ rejected at preflight | ✅                                                    |
-| Intro / exit steps | ✅                       | ✅                                                    |
+| Context            | Default / `player`       | `shared` / numeric index |
+| ------------------ | ------------------------ | ------------------------ |
+| Game stages        | ❌ rejected at preflight | ✅                       |
+| Intro / exit steps | ✅                       | ✅                       |
 
 Intro and exit steps run per-participant, so any position is fine there — including the default.
-
-### `percentAgreement` needs a numeric comparator
-
-`percentAgreement` aggregates all players' values and compares the _percentage of agreement_ against a threshold. Preflight now enforces that the comparator is one of `isAbove`, `isBelow`, `isAtLeast`, `isAtMost` — the ones that actually compare numbers.
-
-```yaml
-# At least 60% of the group agreed on some value
-conditions:
-  - reference: survey.vote.result.choice
-    comparator: isAtLeast
-    value: 60
-    position: percentAgreement
-```
 
 ### Host requirements
 
@@ -477,7 +477,7 @@ OK:
 conditions:
   - reference: submitButton.speedSubmit
     comparator: doesNotExist # true against undefined → stage renders
-    position: all
+    position: shared
 ```
 
 Rejected at preflight:
@@ -486,7 +486,7 @@ Rejected at preflight:
 conditions:
   - reference: submitButton.speedSubmit
     comparator: exists # false against undefined → always skips
-    position: all
+    position: shared
 ```
 
 This rule only applies to stage-level conditions. Element-level conditions, `display.reference`, `urlParams`, and discussion conditions all have "wait for data to arrive" semantics where false-at-load is the standard pattern (e.g., a submit button that appears only after the prompt is answered).

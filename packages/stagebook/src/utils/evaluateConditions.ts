@@ -66,20 +66,25 @@ function isNoneNode(n: unknown): n is { none: ConditionNode[] } {
  * is available (so operators above can know the leaf is "unknown"
  * rather than "false"); returns `true`/`false` otherwise.
  *
- * Position semantics (kept identical to the pre-#235 behavior):
- *   - `percentAgreement` — compute the fraction of definedValues that
- *     match the modal value, compare against `value`.
- *   - `any` — true if any value satisfies the comparator; undefined if
- *     no value satisfies and at least one is unknown; else false.
- *   - default (`all` / numeric / `shared` / `player`) — true if every
- *     value satisfies; undefined if all-known children include any
- *     compare-undefined; else false.
+ * After #238, `position` on a leaf is a pure read selector
+ * (`"shared"` / `"player"` / numeric slot index, default `"player"`).
+ * The host's `resolve(reference, position)` callback returns the
+ * relevant value(s) for that selector. Cross-player aggregation
+ * (`all` / `any`) lives in the boolean-tree operators (#235);
+ * `percentAgreement` was pulled out entirely.
+ *
+ * Semantics: every returned value must satisfy the comparator; the
+ * loop short-circuits on a definite false, propagates undefined when
+ * any compare returns undefined and no compare returned false. In
+ * practice the host's resolve typically returns a single-element
+ * array for a read selector — the loop handles the multi-value case
+ * defensively without changing the contract.
  */
 function evaluateLeafTriState(
   condition: Condition,
   referenceValues: unknown[],
 ): TriState {
-  const { position, comparator, value } = condition;
+  const { comparator, value } = condition;
 
   // No values resolved at all — `doesNotExist` is satisfied
   // (explicit absence assertion); every other comparator can't
@@ -88,40 +93,6 @@ function evaluateLeafTriState(
     return comparator === "doesNotExist" ? true : undefined;
   }
 
-  if (position === "percentAgreement") {
-    // Use a null-prototype object so response values like "constructor"
-    // or "toString" don't collide with inherited properties.
-    const counts = Object.create(null) as Record<string, number>;
-    const definedValues = referenceValues.filter((val) => val !== undefined);
-    if (definedValues.length === 0) return undefined;
-    definedValues.forEach((val) => {
-      const cleanValue =
-        typeof val === "string"
-          ? val.toLowerCase().trim()
-          : `${val as string | number | boolean}`;
-      counts[cleanValue] = (counts[cleanValue] || 0) + 1;
-    });
-    const maxCount = Math.max(...Object.values(counts));
-    const result = compare(
-      (maxCount / referenceValues.length) * 100,
-      comparator as Comparator,
-      value,
-    );
-    return result === undefined ? undefined : result;
-  }
-
-  if (position === "any") {
-    let anyUnknown = false;
-    for (const val of referenceValues) {
-      const r = compare(val, comparator as Comparator, value);
-      if (r === true) return true;
-      if (r === undefined) anyUnknown = true;
-    }
-    return anyUnknown ? undefined : false;
-  }
-
-  // Default ("all" / numeric / shared / player) — every value must
-  // satisfy; short-circuit on a definite false.
   let anyUnknown = false;
   for (const val of referenceValues) {
     const r = compare(val, comparator as Comparator, value);

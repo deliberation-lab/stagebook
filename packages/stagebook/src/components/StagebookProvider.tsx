@@ -16,8 +16,12 @@ import {
 
 export interface StagebookContext {
   // Look up raw stored values by storage key.
-  // scope: "player" (default), "shared", "all", or a numeric string
-  // for a specific position.
+  // scope: "player" (default), "shared", or a numeric string for a
+  // specific slot index. After #238, `position` on a condition leaf
+  // is a pure read selector and these are the only values stagebook
+  // forwards. Hosts may still accept legacy aggregator scopes
+  // (`"all"`, `"any"`, `"percentAgreement"`) for backward compat with
+  // pre-#238 callers, but stagebook itself never sends them.
   get(key: string, scope?: string): unknown[];
 
   // Write state under a DSL-derived key
@@ -133,14 +137,13 @@ export function StagebookProvider({
         console.error(`Invalid reference: "${reference}"`);
         return [];
       }
-      // "any" and "percentAgreement" are evaluation semantics applied
-      // downstream in evaluateCondition. The platform's get() only needs
-      // to know the storage scope, so we normalize both to "all" here.
-      const storageScope =
-        position === "any" || position === "percentAgreement"
-          ? "all"
-          : position;
-      const rawValues = value.get(referenceKey, storageScope);
+      // After #238 `position` on a condition leaf is a pure read
+      // selector — `"shared"`, `"player"`, or a numeric slot index
+      // (passed as a string). The cross-player aggregator values
+      // (`"any"`, `"percentAgreement"`) are gone, so the previous
+      // normalization to `"all"` is no longer needed: the position is
+      // forwarded to the host's `get()` verbatim.
+      const rawValues = value.get(referenceKey, position);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))
         .filter((v) => v !== undefined);

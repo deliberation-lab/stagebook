@@ -149,12 +149,13 @@ templates:
                   comparator: exists
               notes: |
                 Conditional element — only appears once *both* players
-                have answered the "changed mind" question. We check each
-                position explicitly because the resolver filters out
-                undefined values before comparison: `position: all` with
-                `exists` would fire as soon as a single player
-                responded. Conditions AND together, so this prompt only
-                becomes visible when both references are defined.
+                have answered the "changed mind" question. After #238,
+                `position` is a pure read selector (numeric slot, or
+                `shared` / `player`); the cross-player aggregator
+                values are gone. The flat-array form here AND-combines
+                two per-slot leaves, which is the canonical way to
+                express "both players have data." For OR semantics use
+                the `any:` operator from #235.
 
             - type: submitButton
 
@@ -215,7 +216,6 @@ introSequences:
             surveyName: TIPI
             name: pre_TIPI
             notes: Platform-coupled survey element — the host platform renders the Ten-Item Personality Inventory. Skeleton placeholder in the viewer.
-
 
 # Two treatments are generated from one template by broadcasting over
 # the `d0` axis below. The viewer offers them side-by-side in the

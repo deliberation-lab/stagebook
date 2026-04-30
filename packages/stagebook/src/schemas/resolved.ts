@@ -33,8 +33,12 @@ import {
 const resolvedLeafConditionSchema = z
   .object({
     reference: referenceSchema,
+    // `position` is a pure read selector after #238 — `all`/`any`
+    // moved to the boolean-tree operators (#235), `percentAgreement`
+    // was pulled out entirely. Mirrors `baseConditionSchema.position`
+    // in treatment.ts.
     position: z
-      .enum(["shared", "player", "all", "any", "percentAgreement"])
+      .enum(["shared", "player"])
       .or(z.number().nonnegative().int())
       .optional(),
     comparator: z.enum([
