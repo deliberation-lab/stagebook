@@ -25,6 +25,8 @@ conditions:
 
 For OR logic, create multiple elements with different conditions.
 
+**Visibility-field interaction.** When an element also has `displayTime`, `hideTime`, `showToPositions`, or `hideFromPositions` set, all of those fields combine with `conditions` using implicit AND — the element is visible only when every visibility field that's set evaluates to "show." See [Element visibility](elements.md#visibility) for the full picture.
+
 ## Reference Strings
 
 References point to data collected earlier in the experiment. The format is `type.name.path`:
@@ -141,14 +143,14 @@ discussion.cumulativeSpeakingTime
 
 When using conditions on display elements, you can reference data from other participants:
 
-| Value | Meaning |
-|-------|---------|
-| _(omitted)_ | Current participant (same as `player`) |
-| `player` | Current participant |
-| `shared` | Shared records (e.g., `shared: true` prompts) |
-| `0`, `1`, `2`, ... | Specific participant by position index |
-| `all` | Every participant must satisfy the condition |
-| `any` | At least one participant must satisfy the condition |
+| Value              | Meaning                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| _(omitted)_        | Current participant (same as `player`)                     |
+| `player`           | Current participant                                        |
+| `shared`           | Shared records (e.g., `shared: true` prompts)              |
+| `0`, `1`, `2`, ... | Specific participant by position index                     |
+| `all`              | Every participant must satisfy the condition               |
+| `any`              | At least one participant must satisfy the condition        |
 | `percentAgreement` | Compare the largest consensus percentage against the value |
 
 ### Examples
@@ -188,48 +190,48 @@ Display another participant's response:
 
 ### Existence
 
-| Comparator | Description | Value |
-|------------|-------------|-------|
-| `exists` | Reference is defined | _(none)_ |
+| Comparator     | Description            | Value    |
+| -------------- | ---------------------- | -------- |
+| `exists`       | Reference is defined   | _(none)_ |
 | `doesNotExist` | Reference is undefined | _(none)_ |
 
 ### Equality
 
-| Comparator | Description | Value Type |
-|------------|-------------|------------|
-| `equals` | Strict equality | string, number, or boolean |
+| Comparator     | Description        | Value Type                 |
+| -------------- | ------------------ | -------------------------- |
+| `equals`       | Strict equality    | string, number, or boolean |
 | `doesNotEqual` | Not strictly equal | string, number, or boolean |
 
 ### Numeric
 
-| Comparator | Description | Value Type |
-|------------|-------------|------------|
-| `isAbove` | Strictly greater than | number |
-| `isBelow` | Strictly less than | number |
-| `isAtLeast` | Greater than or equal | number |
-| `isAtMost` | Less than or equal | number |
+| Comparator  | Description           | Value Type |
+| ----------- | --------------------- | ---------- |
+| `isAbove`   | Strictly greater than | number     |
+| `isBelow`   | Strictly less than    | number     |
+| `isAtLeast` | Greater than or equal | number     |
+| `isAtMost`  | Less than or equal    | number     |
 
 ### String Length
 
-| Comparator | Description | Value Type |
-|------------|-------------|------------|
-| `hasLengthAtLeast` | String length >= value | integer |
-| `hasLengthAtMost` | String length <= value | integer |
+| Comparator         | Description            | Value Type |
+| ------------------ | ---------------------- | ---------- |
+| `hasLengthAtLeast` | String length >= value | integer    |
+| `hasLengthAtMost`  | String length <= value | integer    |
 
 ### String Content
 
-| Comparator | Description | Value Type |
-|------------|-------------|------------|
-| `includes` | Contains substring | string |
-| `doesNotInclude` | Does not contain substring | string |
-| `matches` | Matches regular expression | string (regex) |
-| `doesNotMatch` | Does not match regex | string (regex) |
+| Comparator       | Description                | Value Type     |
+| ---------------- | -------------------------- | -------------- |
+| `includes`       | Contains substring         | string         |
+| `doesNotInclude` | Does not contain substring | string         |
+| `matches`        | Matches regular expression | string (regex) |
+| `doesNotMatch`   | Does not match regex       | string (regex) |
 
 ### Set Membership
 
-| Comparator | Description | Value Type |
-|------------|-------------|------------|
-| `isOneOf` | Value is in the array | array of string/number |
+| Comparator   | Description               | Value Type             |
+| ------------ | ------------------------- | ---------------------- |
+| `isOneOf`    | Value is in the array     | array of string/number |
 | `isNotOneOf` | Value is not in the array | array of string/number |
 
 ## Using Conditions for Group Assignment
@@ -328,16 +330,16 @@ gameStages:
 
 Game-stage conditions must evaluate **identically on every client** or the stage desyncs (one participant skips while the other renders). Stagebook rejects per-player positions at preflight for game stages:
 
-| Context | Default / `player` | `shared` / `all` / `any` / `percentAgreement` / index |
-|---|---|---|
-| Game stages | ❌ rejected at preflight | ✅ |
-| Intro / exit steps | ✅ | ✅ |
+| Context            | Default / `player`       | `shared` / `all` / `any` / `percentAgreement` / index |
+| ------------------ | ------------------------ | ----------------------------------------------------- |
+| Game stages        | ❌ rejected at preflight | ✅                                                    |
+| Intro / exit steps | ✅                       | ✅                                                    |
 
 Intro and exit steps run per-participant, so any position is fine there — including the default.
 
 ### `percentAgreement` needs a numeric comparator
 
-`percentAgreement` aggregates all players' values and compares the *percentage of agreement* against a threshold. Preflight now enforces that the comparator is one of `isAbove`, `isBelow`, `isAtLeast`, `isAtMost` — the ones that actually compare numbers.
+`percentAgreement` aggregates all players' values and compares the _percentage of agreement_ against a threshold. Preflight now enforces that the comparator is one of `isAbove`, `isBelow`, `isAtLeast`, `isAtMost` — the ones that actually compare numbers.
 
 ```yaml
 # At least 60% of the group agreed on some value
@@ -375,21 +377,23 @@ Referencing a stage that hasn't run yet is rejected. External references (`urlPa
 
 ### No always-skip-at-load — stage-level conditions only
 
-A stage-level condition that references its *own* stage's data (early-termination pattern) must be authored so `compare(undefined, comparator, value) === true` — otherwise the stage evaluates false at mount and always skips itself, which is almost always a forgotten `doesNotExist`.
+A stage-level condition that references its _own_ stage's data (early-termination pattern) must be authored so `compare(undefined, comparator, value) === true` — otherwise the stage evaluates false at mount and always skips itself, which is almost always a forgotten `doesNotExist`.
 
 OK:
+
 ```yaml
 conditions:
   - reference: submitButton.speedSubmit
-    comparator: doesNotExist   # true against undefined → stage renders
+    comparator: doesNotExist # true against undefined → stage renders
     position: all
 ```
 
 Rejected at preflight:
+
 ```yaml
 conditions:
   - reference: submitButton.speedSubmit
-    comparator: exists         # false against undefined → always skips
+    comparator: exists # false against undefined → always skips
     position: all
 ```
 
