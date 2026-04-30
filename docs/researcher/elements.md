@@ -30,9 +30,11 @@ Five fields control when and to whom an element is rendered: `displayTime`, `hid
 
 `mediaPlayer.startAt` and `mediaPlayer.stopAt` are different — they're measured in seconds from the beginning of the **media file**. See [`syncToStageTime`](#media-player) for the mechanism that bridges the two frames when you need them aligned.
 
-### Intro and exit steps
+### Intro steps
 
-Intro and exit steps run per-participant, before group assignment. Position is meaningless there, so `showToPositions` and `hideFromPositions` aren't allowed on elements inside intro or exit steps — the validator rejects them at preflight. `displayTime`, `hideTime`, and `conditions` work the same as in game stages.
+Intro steps run per-participant, before group assignment. Position is meaningless there, so `showToPositions` and `hideFromPositions` aren't allowed on elements inside intro steps — the validator rejects them at preflight. `displayTime`, `hideTime`, and `conditions` work the same as in game stages.
+
+Exit steps run after the game stages, when position assignment is already known, so position-based visibility works there the same as in game stages.
 
 ### Combining all four mechanisms
 

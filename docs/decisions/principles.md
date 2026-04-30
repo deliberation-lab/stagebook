@@ -5,7 +5,7 @@ from a sequence of related decisions about the Stagebook DSL — the YAML
 treatment files, prompt files, condition expressions, and references that
 researchers author. It synthesises the rationales recorded in individual
 issues and ADRs, written so contributors can answer "why does Stagebook do
-this _this way_?" without re-deriving the answer from scratch.
+it _this way_?" without re-deriving the answer from scratch.
 
 It's the companion to per-decision ADRs in this directory. ADRs record
 individual decisions; this document synthesises the recurring patterns.
