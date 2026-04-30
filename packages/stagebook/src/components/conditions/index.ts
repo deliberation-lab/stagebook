@@ -10,6 +10,7 @@ export {
   ConditionsConditionalRender,
   type ConditionsConditionalRenderProps,
   type Condition,
+  type ConditionNode,
 } from "./ConditionsConditionalRender.js";
 export {
   SubmissionConditionalRender,

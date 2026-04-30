@@ -27,7 +27,10 @@ import {
 // Resolved condition — no template placeholders in values
 // ----------------------------------------------------------------
 
-const resolvedConditionSchema = z
+// Leaf shape of a resolved condition: reference + comparator + optional
+// value, no template placeholders. Boolean-tree operators (#235) are
+// described separately below.
+const resolvedLeafConditionSchema = z
   .object({
     reference: referenceSchema,
     position: z
@@ -63,7 +66,33 @@ const resolvedConditionSchema = z
   })
   .strict();
 
-const resolvedConditionsSchema = z.array(resolvedConditionSchema).optional();
+// Recursive resolved-condition node: an `all`/`any`/`none` operator,
+// or a leaf. After template fill, the same boolean tree is what
+// runtime/component code sees — no template placeholders, no string
+// shorthand quirks, just the structured form.
+const resolvedConditionNodeSchema: z.ZodType = z.lazy(() =>
+  z.union([
+    z.object({ all: z.array(resolvedConditionNodeSchema).nonempty() }).strict(),
+    z.object({ any: z.array(resolvedConditionNodeSchema).nonempty() }).strict(),
+    z
+      .object({ none: z.array(resolvedConditionNodeSchema).nonempty() })
+      .strict(),
+    resolvedLeafConditionSchema,
+  ]),
+);
+
+// Backward-compat alias: `resolvedConditionSchema` previously meant a
+// single leaf; it now means any node in the tree (leaf or operator).
+const resolvedConditionSchema = resolvedConditionNodeSchema;
+
+// Field-level shape: array (implicit-`all` sugar) or a single node.
+// Mirrors `conditionsSchema` in treatment.ts.
+const resolvedConditionsSchema = z
+  .union([
+    z.array(resolvedConditionNodeSchema).nonempty(),
+    resolvedConditionNodeSchema,
+  ])
+  .optional();
 
 // ----------------------------------------------------------------
 // Resolved element — concrete type union, no placeholders

@@ -21,6 +21,7 @@
 
 import { getReferenceKeyAndPath } from "../utils/reference.js";
 import { compare, type Comparator } from "../utils/compare.js";
+import { OPERATOR_KEYS } from "./treatment.js";
 
 /** Structured issue emitted by the walker. Translated to zod issues by the
  *  caller. `path` is relative to the top-level treatment file. */
@@ -65,6 +66,54 @@ const STAGE_PRODUCED_REF_TYPES = new Set([
   "timeline",
   "trackedLink",
 ]);
+
+/**
+ * Walk a `conditions:` value (#235) and yield each leaf condition with
+ * its absolute path. Handles all three shapes the boolean tree accepts:
+ *
+ *   - Array (sugar for implicit `all`): yields each child's leaves with
+ *     the array index in the path.
+ *   - Operator object (`{all|any|none: [...]}`): recurses into the
+ *     children, scoping the path with the operator key + child index.
+ *   - Leaf (anything with `comparator`, or a non-operator/template
+ *     object): yields itself.
+ *
+ * Template invocations (`{template: ...}`) are skipped — content
+ * unknown until expansion. The walker is "best-effort" because it
+ * runs pre-validation (`superRefine` input is partially-valid), so
+ * malformed shapes are silently dropped rather than throwing.
+ */
+function* walkConditionLeaves(
+  conditions: unknown,
+  pathPrefix: (string | number)[],
+): Generator<{ leaf: Record<string, unknown>; path: (string | number)[] }> {
+  if (conditions === undefined || conditions === null) return;
+
+  if (Array.isArray(conditions)) {
+    for (let i = 0; i < conditions.length; i++) {
+      yield* walkConditionLeaves(conditions[i], [...pathPrefix, i]);
+    }
+    return;
+  }
+
+  if (!isRecord(conditions)) return;
+  const node = conditions;
+
+  for (const op of OPERATOR_KEYS) {
+    const children = node[op];
+    if (Array.isArray(children)) {
+      for (let i = 0; i < children.length; i++) {
+        yield* walkConditionLeaves(children[i], [...pathPrefix, op, i]);
+      }
+      return;
+    }
+  }
+
+  // Template invocation — skip until expansion.
+  if ("template" in node) return;
+
+  yield { leaf: node, path: pathPrefix };
+}
 
 /**
  * Main entrypoint — given a parsed treatment-file tree, walks every reference
@@ -261,34 +310,31 @@ function validateTreatment({
   const groupComposition = toArray(treatment.groupComposition);
   groupComposition.forEach((player, playerIdx) => {
     if (!isRecord(player)) return;
-    const conditions = toArray(player.conditions);
-    conditions.forEach((cond, condIdx) => {
-      if (!isRecord(cond)) return;
-      const ref = cond.reference;
-      if (typeof ref !== "string") return;
-      const site = {
-        reference: ref,
-        kind: "groupComposition" as const,
-        path: [
-          ...treatmentPath,
-          "groupComposition",
-          playerIdx,
-          "conditions",
-          condIdx,
-          "reference",
-        ],
-      };
+    const conditionsBase = [
+      ...treatmentPath,
+      "groupComposition",
+      playerIdx,
+      "conditions",
+    ];
+    for (const { leaf, path } of walkConditionLeaves(
+      player.conditions,
+      conditionsBase,
+    )) {
+      const ref = leaf.reference;
+      if (typeof ref !== "string") continue;
       applyRules({
-        site,
+        site: {
+          reference: ref,
+          kind: "groupComposition" as const,
+          path: [...path, "reference"],
+        },
         enclosingRank: RANK_GROUP_COMPOSITION,
         producedAt,
         issues,
-        // groupComposition's rule: target must be intro-phase or external.
-        // Pass intro keys as the only valid phase.
         allowedProducerRanks: new Set([RANK_INTRO]),
         globalProducedKeys,
       });
-    });
+    }
   });
 
   // Game stages
@@ -309,22 +355,18 @@ function validateTreatment({
     // Discussion conditions nested under the stage
     const discussion = stage.discussion;
     if (isRecord(discussion)) {
-      const discConds = toArray(discussion.conditions);
-      discConds.forEach((cond, condIdx) => {
-        if (!isRecord(cond)) return;
-        const ref = cond.reference;
-        if (typeof ref !== "string") return;
+      for (const { leaf, path } of walkConditionLeaves(discussion.conditions, [
+        ...stagePath,
+        "discussion",
+        "conditions",
+      ])) {
+        const ref = leaf.reference;
+        if (typeof ref !== "string") continue;
         applyRules({
           site: {
             reference: ref,
             kind: "discussionCondition",
-            path: [
-              ...stagePath,
-              "discussion",
-              "conditions",
-              condIdx,
-              "reference",
-            ],
+            path: [...path, "reference"],
           },
           enclosingRank: rank,
           producedAt,
@@ -332,7 +374,7 @@ function validateTreatment({
           phaseLabel: "game stage",
           globalProducedKeys,
         });
-      });
+      }
     }
   });
 
@@ -372,6 +414,10 @@ interface RefSite {
  *  urlParam refs. Discussion conditions are handled separately at the
  *  stage walker (they live on `stage.discussion.conditions`, not on an
  *  element).
+ *
+ *  Conditions can be a flat array (implicit `all`), an `all`/`any`/`none`
+ *  operator object, or a single leaf — `walkConditionLeaves` flattens
+ *  the tree and yields each leaf with its absolute path.
  */
 function enumerateStepSites(
   step: unknown,
@@ -381,20 +427,21 @@ function enumerateStepSites(
   if (!isRecord(step)) return sites;
 
   // Stage-level conditions
-  const stepConditions = toArray(step.conditions);
-  stepConditions.forEach((cond, condIdx) => {
-    if (!isRecord(cond)) return;
-    const ref = cond.reference;
-    if (typeof ref !== "string") return;
+  for (const { leaf, path } of walkConditionLeaves(step.conditions, [
+    ...stepPath,
+    "conditions",
+  ])) {
+    const ref = leaf.reference;
+    if (typeof ref !== "string") continue;
     sites.push({
       reference: ref,
       kind: "stageCondition",
-      path: [...stepPath, "conditions", condIdx, "reference"],
+      path: [...path, "reference"],
       comparator:
-        typeof cond.comparator === "string" ? cond.comparator : undefined,
-      value: cond.value,
+        typeof leaf.comparator === "string" ? leaf.comparator : undefined,
+      value: leaf.value,
     });
-  });
+  }
 
   // Element-level sites
   const elements = toArray(step.elements);
@@ -404,17 +451,18 @@ function enumerateStepSites(
     const elemType = element.type;
 
     // conditions on any element
-    const elemConditions = toArray(element.conditions);
-    elemConditions.forEach((cond, condIdx) => {
-      if (!isRecord(cond)) return;
-      const ref = cond.reference;
-      if (typeof ref !== "string") return;
+    for (const { leaf, path } of walkConditionLeaves(element.conditions, [
+      ...elemPath,
+      "conditions",
+    ])) {
+      const ref = leaf.reference;
+      if (typeof ref !== "string") continue;
       sites.push({
         reference: ref,
         kind: "elementCondition",
-        path: [...elemPath, "conditions", condIdx, "reference"],
+        path: [...path, "reference"],
       });
-    });
+    }
 
     // display element: its own top-level `reference` field
     if (elemType === "display" && typeof element.reference === "string") {
@@ -546,10 +594,26 @@ function applyRules({
 
   // Rule 2 — stage-level "always-skip at load". Only applies to
   // stageCondition sites whose reference points at the *current* stage.
+  //
+  // Restriction (#235): the per-leaf simulation is only sound when the
+  // leaf is reached without traversing an `any:` or `none:` operator.
+  // Inside those operators a single non-true leaf doesn't doom the
+  // tree (a sibling can carry the operator to true), so flagging it
+  // would false-positive on perfectly valid authoring patterns. `all:`
+  // is equivalent to the flat-array sugar, so leaves inside `all:` are
+  // fair game.
+  //
+  // A future improvement: full tree simulation that replaces every
+  // current-stage leaf with `compare(undefined, …)` and evaluates the
+  // whole tri-state tree, flagging only when the result is strictly
+  // not-true. For now the conservative path-check below avoids
+  // false-positives at the cost of missing some legitimate
+  // always-skip-at-load patterns inside `any:`/`none:`.
   if (
     site.kind === "stageCondition" &&
     producerRank === enclosingRank &&
-    site.comparator !== undefined
+    site.comparator !== undefined &&
+    !pathTraversesNonAllOperator(site.path)
   ) {
     const result = compare(
       undefined,
@@ -563,6 +627,15 @@ function applyRules({
       });
     }
   }
+}
+
+/** True if the path passes through an `any:` or `none:` operator key
+ *  (not `all:`, since `all:` is semantically equivalent to the flat
+ *  array sugar). Used to gate Rule 2 (always-skip-at-load) so leaves
+ *  nested inside `any`/`none` operators don't false-positive — a
+ *  single non-true leaf there can be carried to true by siblings. */
+function pathTraversesNonAllOperator(path: (string | number)[]): boolean {
+  return path.some((seg) => seg === "any" || seg === "none");
 }
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ export {
   evaluateCondition,
   evaluateConditions,
   type Condition,
+  type ConditionNode,
 } from "./evaluateConditions.js";
 export {
   getReferencedAssets,

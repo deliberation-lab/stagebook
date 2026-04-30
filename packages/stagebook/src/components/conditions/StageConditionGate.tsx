@@ -3,18 +3,29 @@ import React, { useEffect, useRef } from "react";
 import { useStagebookContext } from "../StagebookProvider.js";
 import { evaluateConditions } from "../../utils/evaluateConditions.js";
 import { Loading } from "../form/Loading.js";
-import type { Condition } from "./ConditionsConditionalRender.js";
+import type {
+  Condition,
+  ConditionNode,
+} from "./ConditionsConditionalRender.js";
 
 export interface StageConditionGateProps {
   /**
-   * Stage-level conditions from the treatment DSL (#183). When all
-   * conditions evaluate to `true`, children render normally. When any
-   * condition is `false`, stagebook asks the host to advance the stage
-   * via `context.advanceStage` (falling back to `submit`).
+   * Stage-level conditions from the treatment DSL (#183). When the
+   * condition tree evaluates to `true`, children render normally;
+   * when it evaluates to `false`, stagebook asks the host to advance
+   * the stage via `context.advanceStage` (falling back to `submit`).
+   *
+   * Accepts the full #235 boolean-tree shape: a flat array (implicit
+   * `all`), an `all`/`any`/`none` operator node, a single leaf, or
+   * undefined (no gate).
    */
-  conditions?: Condition[];
+  conditions?: ConditionNode[] | ConditionNode;
   children: React.ReactNode;
 }
+
+// Re-export `Condition` for consumers that still type against the
+// leaf-only form. Backward-compat — new code should use ConditionNode.
+export type { Condition };
 
 /**
  * Wraps a stage's render body and evaluates stage-level conditions.
@@ -54,7 +65,14 @@ export function StageConditionGate({
     advanceFiredRef.current = false;
   }
 
-  const hasConditions = !!conditions && conditions.length > 0;
+  // `conditions` accepts the full boolean-tree shape — a flat array
+  // (implicit `all`), an operator node, or a single leaf. The "no gate"
+  // case is a missing field or an empty array; everything else is a
+  // real condition tree to evaluate.
+  const hasConditions =
+    conditions !== undefined &&
+    conditions !== null &&
+    !(Array.isArray(conditions) && conditions.length === 0);
   const allMet = hasConditions ? evaluateConditions(conditions, resolve) : true;
 
   useEffect(() => {

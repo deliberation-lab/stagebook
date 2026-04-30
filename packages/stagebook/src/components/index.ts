@@ -84,6 +84,7 @@ export {
   ConditionsConditionalRender,
   type ConditionsConditionalRenderProps,
   type Condition,
+  type ConditionNode,
   SubmissionConditionalRender,
   type SubmissionConditionalRenderProps,
 } from "./conditions/index.js";
