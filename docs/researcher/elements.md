@@ -26,9 +26,7 @@ Five fields control when and to whom an element is rendered: `displayTime`, `hid
 
 ### Time reference frame
 
-`displayTime` and `hideTime` are measured in seconds from when the **stage** started, not from when the participant entered the study. They share their frame of reference with `stage.duration` and `timer.startTime` / `timer.endTime`.
-
-`mediaPlayer.startAt` and `mediaPlayer.stopAt` are different — they're measured in seconds from the beginning of the **media file**. See [`syncToStageTime`](#media-player) for the mechanism that bridges the two frames when you need them aligned.
+`displayTime` and `hideTime` are measured in seconds from when the stage started. See [Time fields and reference frames](#time-fields-and-reference-frames) for the full picture, including how stage-frame fields relate to `mediaPlayer`'s media-frame fields and how `syncToStageTime` bridges the two when you need them aligned.
 
 ### Intro steps
 
@@ -528,37 +526,39 @@ Several element fields are measured in seconds, but they don't all share the sam
 
 ### Stage-relative time
 
-Measured in seconds from when the **stage** started.
+Measured in seconds from when the **stage** started. (All fields below are top-level keys on their element type — the Element column says where each lives.)
 
-| Field             | Element     | Says                                          |
-| ----------------- | ----------- | --------------------------------------------- |
-| `displayTime`     | any element | Show after this many seconds into the stage   |
-| `hideTime`        | any element | Hide after this many seconds into the stage   |
-| `timer.startTime` | `timer`     | When the timer's progress bar starts counting |
-| `timer.endTime`   | `timer`     | When the timer's progress bar reaches 100%    |
+| Field         | Element     | Says                                          |
+| ------------- | ----------- | --------------------------------------------- |
+| `displayTime` | any element | Show after this many seconds into the stage   |
+| `hideTime`    | any element | Hide after this many seconds into the stage   |
+| `startTime`   | `timer`     | When the timer's progress bar starts counting |
+| `endTime`     | `timer`     | When the timer's progress bar reaches 100%    |
+| `duration`    | stage       | How long the stage lasts                      |
 
 ### Media-relative time
 
 Measured in seconds from the beginning of the **media file**.
 
-| Field                 | Element       | Says                                       |
-| --------------------- | ------------- | ------------------------------------------ |
-| `mediaPlayer.startAt` | `mediaPlayer` | Position in the clip where playback begins |
-| `mediaPlayer.stopAt`  | `mediaPlayer` | Position in the clip where playback pauses |
+| Field     | Element       | Says                                       |
+| --------- | ------------- | ------------------------------------------ |
+| `startAt` | `mediaPlayer` | Position in the clip where playback begins |
+| `stopAt`  | `mediaPlayer` | Position in the clip where playback pauses |
 
 ### Durations (no frame)
 
-Lengths of intervals, not points in time. They have no reference frame.
+Lengths of intervals, not points in time — they have no reference frame.
 
-| Field                      | Element       | Says                                        |
-| -------------------------- | ------------- | ------------------------------------------- |
-| `stage.duration`           | stage         | How long the stage lasts                    |
-| `mediaPlayer.stepDuration` | `mediaPlayer` | How much each "step" key advances           |
-| `timer.warnTimeRemaining`  | `timer`       | Seconds-from-end at which the bar turns red |
+| Field               | Element       | Says                                        |
+| ------------------- | ------------- | ------------------------------------------- |
+| `stepDuration`      | `mediaPlayer` | How much each "step" key advances           |
+| `warnTimeRemaining` | `timer`       | Seconds-from-end at which the bar turns red |
+
+(`stage.duration` doubles as a duration but is listed in the stage-relative table since it also bounds the stage clock.)
 
 ### Bridging the two frames: `syncToStageTime`
 
-When `mediaPlayer.syncToStageTime: true` is set, the player's playback position is locked to stage elapsed time — the two frames coincide. With sync on, the player's controls are not used (they're forbidden by the schema), and a stage second always corresponds to a media second.
+When `mediaPlayer.syncToStageTime: true` is set, the player performs a one-time seek on mount: the clip is positioned at `startAt + (current stage elapsed time)` so that, if the participant lets the clip play through, a stage-second corresponds to a media-second from that moment forward. There's no continuous re-sync after mount — if the clip pauses or buffers, the alignment drifts. The schema enforces that `controls` cannot be set when `syncToStageTime: true`, since participant scrubbing would also break alignment.
 
 ### Combining frames on one element
 
@@ -573,7 +573,7 @@ A `mediaPlayer` element using both frames at once:
   stopAt: 90 # media time: pause 60s of clip later
 ```
 
-Reading top to bottom: the player appears 5s after the stage begins and hides 55s of stage time later. While visible, the clip plays from media-time 30s toward media-time 90s — that's 60s of clip targeted in 55s of stage time, so the element hides before `stopAt` is reached. Either widen the visibility window or set `syncToStageTime: true` to lock the two clocks together.
+Reading top to bottom: the player appears 5s after the stage begins and hides 55s of stage time later. While visible, the clip plays from media-time 30s toward media-time 90s — that's 60 seconds of clip targeted in only 55 seconds of stage time, so the element hides before `stopAt` is reached. Widening the visibility window (e.g. `hideTime: 65`) lets the clip reach `stopAt`. Setting `syncToStageTime: true` instead would have the clip mount at media-time `(stage elapsed at mount) + 30 = 35` and play through to media-time 90 right as the element hides at stage-time 60 — but only if the participant lets it play through uninterrupted.
 
 ## Timing and Visibility Examples
 
