@@ -121,7 +121,36 @@ For OR logic on a single reference (across positions, comparators, etc.), `any:`
 
 ## Reference Strings
 
-References point to data collected earlier in the experiment. The format is `type.name.path`:
+References point to data collected earlier in the experiment. The dotted form uses one of two grammars depending on the source:
+
+- **Named sources** (`prompt`, `survey`, `submitButton`, `qualtrics`, `timeline`, `trackedLink`, `discussion`): `source.name(.path...)` — `name` is required, `path` is optional.
+- **External sources** (`urlParams`, `connectionInfo`, `browserInfo`, `participantInfo`): `source.path...` — no `name`, `path` is required.
+
+```yaml
+- reference: prompt.familiarity         # named source: source.name
+- reference: survey.TIPI.responses.q1   # named source: source.name.path...
+- reference: urlParams.condition        # external source: source.path...
+```
+
+After #240, references can also be written in **structured form** — preferred in new code, especially when you need to override the implicit defaults the dotted form bakes in (e.g. addressing the `debugMessages` field on a prompt's saved record instead of the default `value`):
+
+```yaml
+- reference:
+    source: prompt
+    name: familiarity
+    path: [value]            # explicit; same as the dotted `prompt.familiarity`
+
+- reference:
+    source: prompt
+    name: familiarity
+    path: [debugMessages]    # newly possible — addresses other saved fields
+
+- reference:
+    source: urlParams
+    path: [condition]
+```
+
+Both forms parse to the same internal shape; either is accepted at every reference site (conditions, `display.reference`, `trackedLink`/`qualtrics` `urlParams[].reference`).
 
 ### Prompt Responses
 
@@ -227,9 +256,11 @@ You can also check that a minimum number of selections have been made:
 ### Discussion Metrics
 
 ```
-discussion.discussionFailed
-discussion.cumulativeSpeakingTime
+discussion.<name>.discussionFailed
+discussion.<name>.cumulativeSpeakingTime
 ```
+
+`<name>` is the `name:` of the discussion block on the stage. After #240 the storage namespace is `discussion_<name>`, so a per-discussion lookup needs the name segment between `discussion` and the metric path. Available metrics depend on the host platform's discussion implementation.
 
 ## Position Modifier
 

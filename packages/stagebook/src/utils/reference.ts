@@ -1,3 +1,8 @@
+import {
+  parseDottedReference,
+  type ReferenceType,
+} from "../schemas/reference.js";
+
 // Path segments that traverse into Object.prototype are rejected to prevent
 // accidental exposure of inherited properties (e.g. `constructor`) via
 // arbitrary reference strings. Read-only today, but the viewer's
@@ -24,55 +29,48 @@ export interface ReferenceKeyAndPath {
   path: string[];
 }
 
-export function getReferenceKeyAndPath(reference: string): ReferenceKeyAndPath {
-  const segments = reference.split(".");
-  const [type, ...rest] = segments;
-  let name: string | undefined;
-  let path: string[] = [];
-  let referenceKey: string | undefined;
+// Per-named-source default `path` applied when the reference omits one.
+// Today only `prompt` has a non-empty default (`["value"]`) — other named
+// sources read the whole stored record. The implicit prompt default is kept
+// for backward compatibility (#240); new code should write the path
+// explicitly.
+const NAMED_SOURCE_DEFAULTS: Record<string, string[]> = {
+  prompt: ["value"],
+};
 
-  if (["survey", "submitButton", "qualtrics", "timeline"].includes(type)) {
-    [name, ...path] = rest;
-    referenceKey = `${type}_${name}`;
-  } else if (type === "prompt") {
-    [name] = rest;
-    referenceKey = `${type}_${name}`;
-    path = ["value"];
-  } else if (type === "trackedLink") {
-    [name, ...path] = rest;
-    referenceKey = `trackedLink_${name}`;
-  } else if (
-    ["urlParams", "connectionInfo", "browserInfo", "participantInfo"].includes(
-      type,
-    )
-  ) {
-    if (rest.length === 0) {
-      throw new Error(`Reference ${reference} is missing a path segment.`);
-    }
-    path = rest;
-    referenceKey = type;
-  } else if (type === "discussion") {
-    [name, ...path] = rest;
-    referenceKey = name;
+/**
+ * Resolve a reference (string-shorthand or structured) into its storage key
+ * and path-into-the-record. Storage-key conventions (#240):
+ *
+ *   - **Named sources** — `<source>_<name>`. After #240 this includes
+ *     `discussion_<name>` (was a bare `<name>` before — hosts that read
+ *     or write the discussion bucket need to rename their key).
+ *   - **External sources** — `<source>` (singleton).
+ *
+ * `path` is the user-supplied path, or the per-named-source default when
+ * omitted (only `prompt` has one today: `["value"]`).
+ */
+export function getReferenceKeyAndPath(
+  reference: string | ReferenceType,
+): ReferenceKeyAndPath {
+  let ref: ReferenceType;
+  if (typeof reference === "string") {
+    const parsed = parseDottedReference(reference);
+    if (!parsed.ok) throw new Error(parsed.message);
+    ref = parsed.value;
   } else {
-    throw new Error(`Invalid reference type: ${type}`);
+    ref = reference;
   }
-
-  if (
-    !referenceKey ||
-    (!name &&
-      [
-        "survey",
-        "submitButton",
-        "qualtrics",
-        "timeline",
-        "prompt",
-        "trackedLink",
-        "discussion",
-      ].includes(type))
-  ) {
-    throw new Error(`Reference ${reference} is missing a name segment.`);
+  if ("name" in ref) {
+    // The default only applies when `path` is *omitted*. Writing `path: []`
+    // explicitly opts out of the default and addresses the whole stored
+    // record — the rule-of-least-surprise reading for "I gave you an
+    // explicit path." Defensive copy so callers can't mutate either the
+    // shared `NAMED_SOURCE_DEFAULTS` array or the caller's input ref.
+    return {
+      referenceKey: `${ref.source}_${ref.name}`,
+      path: [...(ref.path ?? NAMED_SOURCE_DEFAULTS[ref.source] ?? [])],
+    };
   }
-
-  return { referenceKey, path };
+  return { referenceKey: ref.source, path: [...ref.path] };
 }

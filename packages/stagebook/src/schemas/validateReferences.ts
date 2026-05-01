@@ -21,10 +21,31 @@
 
 import { getReferenceKeyAndPath } from "../utils/reference.js";
 import { compare, type Comparator } from "../utils/compare.js";
-// Imported from a sibling module (not `./treatment.js`) to avoid an
-// import cycle — `treatment.ts` imports this file for the cross-stage
-// reference walker.
+// `OPERATOR_KEYS` is in its own module to avoid a `treatment.ts ↔
+// validateReferences.ts` import cycle. The reference helpers below come
+// from `./reference.ts` for the same reason.
 import { OPERATOR_KEYS } from "./conditionOperators.js";
+import {
+  parseDottedReference,
+  formatReference,
+  type ReferenceType,
+} from "./reference.js";
+
+/** Normalize a raw reference value (string or structured) into the
+ *  structured form. Returns null if the input is malformed — callers skip
+ *  malformed refs since they're a different class of error (caught by
+ *  schema validation, not the walker).
+ */
+function normalizeReference(input: unknown): ReferenceType | null {
+  if (typeof input === "string") {
+    const parsed = parseDottedReference(input);
+    return parsed.ok ? parsed.value : null;
+  }
+  if (input && typeof input === "object" && "source" in input) {
+    return input as ReferenceType;
+  }
+  return null;
+}
 
 /** Structured issue emitted by the walker. Translated to zod issues by the
  *  caller. `path` is relative to the top-level treatment file. */
@@ -323,8 +344,8 @@ function validateTreatment({
       player.conditions,
       conditionsBase,
     )) {
-      const ref = leaf.reference;
-      if (typeof ref !== "string") continue;
+      const ref = normalizeReference(leaf.reference);
+      if (ref === null) continue;
       applyRules({
         site: {
           reference: ref,
@@ -363,8 +384,8 @@ function validateTreatment({
         "discussion",
         "conditions",
       ])) {
-        const ref = leaf.reference;
-        if (typeof ref !== "string") continue;
+        const ref = normalizeReference(leaf.reference);
+        if (ref === null) continue;
         applyRules({
           site: {
             reference: ref,
@@ -404,7 +425,8 @@ function validateTreatment({
 // ---------------------------------------------------------------------------
 
 interface RefSite {
-  reference: string;
+  /** The reference, normalized to its structured form (#240). */
+  reference: ReferenceType;
   kind: ReferenceKind;
   path: (string | number)[];
   /** Stage-level conditions only: needed for Rule 2 simulation. */
@@ -434,8 +456,8 @@ function enumerateStepSites(
     ...stepPath,
     "conditions",
   ])) {
-    const ref = leaf.reference;
-    if (typeof ref !== "string") continue;
+    const ref = normalizeReference(leaf.reference);
+    if (ref === null) continue;
     sites.push({
       reference: ref,
       kind: "stageCondition",
@@ -458,8 +480,8 @@ function enumerateStepSites(
       ...elemPath,
       "conditions",
     ])) {
-      const ref = leaf.reference;
-      if (typeof ref !== "string") continue;
+      const ref = normalizeReference(leaf.reference);
+      if (ref === null) continue;
       sites.push({
         reference: ref,
         kind: "elementCondition",
@@ -468,12 +490,15 @@ function enumerateStepSites(
     }
 
     // display element: its own top-level `reference` field
-    if (elemType === "display" && typeof element.reference === "string") {
-      sites.push({
-        reference: element.reference,
-        kind: "displayReference",
-        path: [...elemPath, "reference"],
-      });
+    if (elemType === "display") {
+      const ref = normalizeReference(element.reference);
+      if (ref !== null) {
+        sites.push({
+          reference: ref,
+          kind: "displayReference",
+          path: [...elemPath, "reference"],
+        });
+      }
     }
 
     // trackedLink / qualtrics: each urlParams entry can carry a reference
@@ -481,8 +506,8 @@ function enumerateStepSites(
       const urlParams = toArray(element.urlParams);
       urlParams.forEach((param, paramIdx) => {
         if (!isRecord(param)) return;
-        const ref = param.reference;
-        if (typeof ref !== "string") return;
+        const ref = normalizeReference(param.reference);
+        if (ref === null) return;
         sites.push({
           reference: ref,
           kind: "urlParam",
@@ -532,7 +557,7 @@ function applyRules({
    *  a typo (e.g. `timeline.storySegment2` vs `timeline.storySegment`). */
   globalProducedKeys?: Set<string>;
 }): void {
-  // Try to parse the reference.
+  // Try to derive the storage key from the (already normalised) ref.
   let referenceKey: string;
   try {
     ({ referenceKey } = getReferenceKeyAndPath(site.reference));
@@ -541,9 +566,11 @@ function applyRules({
     return;
   }
 
-  // Determine the reference's "type" (first segment). External types
-  // always validate; stage-produced types go through the producer check.
-  const refType = site.reference.split(".")[0];
+  // Render the ref back to its dotted form for error messages.
+  const refStr = formatReference(site.reference);
+  // Determine the source. External sources always validate; stage-produced
+  // sources go through the producer check.
+  const refType = site.reference.source;
   if (!STAGE_PRODUCED_REF_TYPES.has(refType)) return;
 
   // Look up the producer rank. If the key isn't produced anywhere in the
@@ -559,7 +586,7 @@ function applyRules({
       const phase = phaseLabel ?? "stage";
       issues.push({
         path: site.path,
-        message: `Reference "${site.reference}" points at data produced by a later phase (game or exit) than this ${phase}. Forward references across phases are always falsy at runtime — move the reference or reorder the flow.`,
+        message: `Reference "${refStr}" points at data produced by a later phase (game or exit) than this ${phase}. Forward references across phases are always falsy at runtime — move the reference or reorder the flow.`,
       });
       return;
     }
@@ -570,7 +597,7 @@ function applyRules({
     if (globalProducedKeys && !globalProducedKeys.has(referenceKey)) {
       issues.push({
         path: site.path,
-        message: `Reference "${site.reference}" doesn't match any ${refType} element in the treatment. Check the name — no element produces the storage key "${referenceKey}".`,
+        message: `Reference "${refStr}" doesn't match any ${refType} element in the treatment. Check the name — no element produces the storage key "${referenceKey}".`,
       });
     }
     return;
@@ -580,7 +607,7 @@ function applyRules({
   if (allowedProducerRanks && !allowedProducerRanks.has(producerRank)) {
     issues.push({
       path: site.path,
-      message: `groupComposition condition references "${site.reference}", which is produced by a game or exit stage. groupComposition is evaluated before any stage runs — it can only reference intro-phase data or external values (urlParams, participantInfo, …).`,
+      message: `groupComposition condition references "${refStr}", which is produced by a game or exit stage. groupComposition is evaluated before any stage runs — it can only reference intro-phase data or external values (urlParams, participantInfo, …).`,
     });
     return;
   }
@@ -590,7 +617,7 @@ function applyRules({
     const phase = phaseLabel ?? "stage";
     issues.push({
       path: site.path,
-      message: `Reference "${site.reference}" points at data produced by a later ${phase} (rank ${String(producerRank)}) than the one this condition/reference belongs to (rank ${String(enclosingRank)}). Forward references are always falsy at runtime — reorder the stages or move the reference.`,
+      message: `Reference "${refStr}" points at data produced by a later ${phase} (rank ${String(producerRank)}) than the one this condition/reference belongs to (rank ${String(enclosingRank)}). Forward references are always falsy at runtime — reorder the stages or move the reference.`,
     });
     return;
   }
@@ -626,7 +653,7 @@ function applyRules({
     if (result !== true) {
       issues.push({
         path: site.path,
-        message: `Stage-level condition on "${site.reference}" will always skip the stage at load. This references the current stage's data, which is undefined at mount, and compare(undefined, "${site.comparator}", …) is not true. Did you mean \`comparator: doesNotExist\` (the usual pattern for ending a stage once a value arrives)?`,
+        message: `Stage-level condition on "${refStr}" will always skip the stage at load. This references the current stage's data, which is undefined at mount, and compare(undefined, "${site.comparator}", …) is not true. Did you mean \`comparator: doesNotExist\` (the usual pattern for ending a stage once a value arrives)?`,
       });
     }
   }

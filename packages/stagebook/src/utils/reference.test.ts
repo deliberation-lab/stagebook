@@ -73,15 +73,15 @@ describe("getReferenceKeyAndPath", () => {
     expect(result.path).toEqual([]);
   });
 
-  test("discussion reference", () => {
+  test("discussion reference (now namespaced as `discussion_<name>` per #240)", () => {
     const result = getReferenceKeyAndPath("discussion.main.messageCount");
-    expect(result.referenceKey).toBe("main");
+    expect(result.referenceKey).toBe("discussion_main");
     expect(result.path).toEqual(["messageCount"]);
   });
 
   test("throws on invalid reference type", () => {
     expect(() => getReferenceKeyAndPath("duck.quack")).toThrow(
-      "Invalid reference type: duck",
+      'Invalid reference source "duck"',
     );
   });
 
@@ -89,20 +89,76 @@ describe("getReferenceKeyAndPath", () => {
     expect(() => getReferenceKeyAndPath("survey")).toThrow();
   });
 
-  test("throws on missing path segment for nested namespaces", () => {
-    // Keeps runtime parsing consistent with referenceSchema, which requires
-    // at least one path segment for these flat-namespace references.
+  test("throws on missing path segment for external sources", () => {
+    // External-source references require at least one path segment.
     expect(() => getReferenceKeyAndPath("participantInfo")).toThrow(
-      "missing a path segment",
+      "A path must be provided",
     );
     expect(() => getReferenceKeyAndPath("connectionInfo")).toThrow(
-      "missing a path segment",
+      "A path must be provided",
     );
     expect(() => getReferenceKeyAndPath("browserInfo")).toThrow(
-      "missing a path segment",
+      "A path must be provided",
     );
     expect(() => getReferenceKeyAndPath("urlParams")).toThrow(
-      "missing a path segment",
+      "A path must be provided",
+    );
+  });
+
+  // ----- Structured form (#240) -----
+
+  test("structured named reference: prompt with no path defaults to ['value']", () => {
+    const result = getReferenceKeyAndPath({
+      source: "prompt",
+      name: "myQuestion",
+    });
+    expect(result.referenceKey).toBe("prompt_myQuestion");
+    expect(result.path).toEqual(["value"]);
+  });
+
+  test("structured named reference: prompt with explicit override path", () => {
+    // The new capability — write `path: [debugMessages]` to address other
+    // fields on the prompt record beyond the implicit `value`.
+    const result = getReferenceKeyAndPath({
+      source: "prompt",
+      name: "myQuestion",
+      path: ["debugMessages"],
+    });
+    expect(result.referenceKey).toBe("prompt_myQuestion");
+    expect(result.path).toEqual(["debugMessages"]);
+  });
+
+  test("structured named reference: discussion uses the discussion_<name> namespace", () => {
+    const result = getReferenceKeyAndPath({
+      source: "discussion",
+      name: "lobby",
+    });
+    expect(result.referenceKey).toBe("discussion_lobby");
+    expect(result.path).toEqual([]);
+  });
+
+  test("structured external reference: urlParams", () => {
+    const result = getReferenceKeyAndPath({
+      source: "urlParams",
+      path: ["condition"],
+    });
+    expect(result.referenceKey).toBe("urlParams");
+    expect(result.path).toEqual(["condition"]);
+  });
+
+  test("string and structured forms produce equivalent output", () => {
+    expect(getReferenceKeyAndPath("survey.TIPI.responses.q1")).toEqual(
+      getReferenceKeyAndPath({
+        source: "survey",
+        name: "TIPI",
+        path: ["responses", "q1"],
+      }),
+    );
+    expect(getReferenceKeyAndPath("urlParams.PROLIFIC_PID")).toEqual(
+      getReferenceKeyAndPath({
+        source: "urlParams",
+        path: ["PROLIFIC_PID"],
+      }),
     );
   });
 });

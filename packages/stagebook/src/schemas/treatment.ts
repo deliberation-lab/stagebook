@@ -1,6 +1,32 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { z } from "zod";
 import { validateTreatmentFileReferences } from "./validateReferences.js";
+import { nameSchema, type NameType } from "./primitives.js";
+import {
+  namedSourceEnum,
+  externalSourceEnum,
+  referenceSchema,
+  type ReferenceType,
+  type NamedReferenceType,
+  type ExternalReferenceType,
+  type NamedSource,
+  type ExternalSource,
+} from "./reference.js";
+
+// Re-exports so consumers' existing imports from `./treatment.js` keep
+// working after the reference machinery moved to its own module (#240).
+export { nameSchema, type NameType };
+export {
+  namedSourceEnum,
+  externalSourceEnum,
+  referenceSchema,
+  type ReferenceType,
+  type NamedReferenceType,
+  type ExternalReferenceType,
+  type NamedSource,
+  type ExternalSource,
+};
+export { parseDottedReference, formatReference } from "./reference.js";
 
 // TODO: used by regex validation in conditionMatchesSchema — wire up or remove
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -37,20 +63,7 @@ function containsFieldPlaceholder(value: string): boolean {
   return FIELD_PLACEHOLDER_PATTERN.test(value);
 }
 
-// Names should have properties:
-// max length: 64 characters
-// min length: 1 character
-// allowed characters: a-z, A-Z, 0-9, -, _, and space
-// Todo: allow template fields in a name
-export const nameSchema = z
-  .string()
-  .min(1, "Name is required")
-  .max(64)
-  .regex(/^(?:[a-zA-Z0-9 _-]|\$\{[a-zA-Z0-9_]+\})+$/, {
-    message:
-      "Name must be alphanumeric, cannot have special characters, with optional template fields in the format ${fieldname}",
-  });
-export type NameType = z.infer<typeof nameSchema>;
+// `nameSchema` is defined in `./primitives.js` and re-exported above.
 
 // `https?://path` — accepted by both browserUrlSchema and fileSchema.
 // `asset://path` — accepted only by fileSchema (resolved via host's
@@ -532,71 +545,7 @@ function altTemplateContext<T extends z.ZodTypeAny>(baseSchema: T) {
   });
 }
 
-// ------------------ References ------------------ //
-
-export const referenceSchema = z
-  .string()
-  .transform((str) => str.split("."))
-  .superRefine((arr, ctx) => {
-    const [givenType] = arr; // destructure first element
-    let name;
-    let path;
-    switch (givenType) {
-      case "survey":
-      case "submitButton":
-      case "qualtrics":
-        [, name, ...path] = arr;
-        if (path.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A path must be provided, e.g. '${givenType}.${name}.object.selectors.here'`,
-            path: [],
-          });
-        }
-        if (name === undefined || name.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A name must be provided, e.g. '${givenType}.elementName.object.selectors.here'`,
-            path: [],
-          });
-        }
-        break;
-      case "discussion":
-      case "prompt":
-      case "timeline":
-      case "trackedLink":
-        [, name] = arr;
-        if (name === undefined || name.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A name must be provided, e.g. '${givenType}.elementName'`,
-            path: [],
-          });
-        }
-        break;
-      case "urlParams":
-      case "connectionInfo":
-      case "browserInfo":
-      case "participantInfo":
-        [, ...path] = arr;
-        if (path.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A path must be provided, e.g. '${givenType}.object.selectors.here'.`,
-            path: [],
-          });
-        }
-        break;
-      default:
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Invalid reference type "${givenType}", need to be in form of a valid reference type such as 'survey', 'submitButton', 'qualtrics', 'discussion', 'participantInfo', 'prompt', 'timeline', 'trackedLink', 'urlParams', 'connectionInfo', or 'browserInfo' followed by a . and name or path.`,
-          path: [],
-        });
-    }
-  });
-
-export type ReferenceType = z.infer<typeof referenceSchema>;
+// References live in `./reference.js` (#240) and are re-exported above.
 
 // --------------- Conditions --------------- //
 
@@ -1372,16 +1321,8 @@ export const validComparators = [
 ] as const;
 
 export const validReferenceTypes = [
-  "survey",
-  "submitButton",
-  "qualtrics",
-  "prompt",
-  "trackedLink",
-  "urlParams",
-  "connectionInfo",
-  "browserInfo",
-  "participantInfo",
-  "discussion",
+  ...namedSourceEnum.options,
+  ...externalSourceEnum.options,
 ] as const;
 
 // ------------------ Schema introspection ------------------ //

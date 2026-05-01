@@ -36,24 +36,41 @@ Content types: `introSequence`, `introSequences`, `elements`, `element`, `stage`
 
 ## 4. References
 
+A reference identifies a value somewhere in the study state. Two forms (#240): the dotted-string sugar and the structured object form. Both are accepted at every reference site (conditions, `display.reference`, `trackedLink`/`qualtrics` `urlParams[].reference`); both parse to the same internal shape.
+
+**String shorthand (the common form):**
+
 | Pattern                      | Example                                |
 | ---------------------------- | -------------------------------------- |
 | `prompt.<name>`              | `prompt.topicVote`                     |
-| `survey.<name>.result.<key>` | `survey.TIPI.result.normAgreeableness` |
+| `survey.<name>.<path...>`    | `survey.TIPI.responses.q1`             |
 | `submitButton.<name>.<path>` | `submitButton.confirm.time`            |
 | `qualtrics.<name>.<path>`    | `qualtrics.exit.sessionId`             |
 | `trackedLink.<name>.<path>`  | `trackedLink.signup.events`            |
+| `timeline.<name>(.<path>)`   | `timeline.story.0.start`               |
+| `discussion.<name>(.<path>)` | `discussion.lobby.messageCount`        |
 | `urlParams.<key>`            | `urlParams.PROLIFIC_PID`               |
 | `connectionInfo.<key>`       | `connectionInfo.country`               |
 | `browserInfo.<key>`          | `browserInfo.language`                 |
 | `participantInfo.<field>`    | `participantInfo.name`                 |
-| `discussion.<field>`         | `discussion.cumulativeSpeakingTime`    |
+
+**Structured form** (#240 — preferred in new code):
+
+```yaml
+reference:
+  source: prompt | survey | submitButton | qualtrics | timeline | trackedLink | discussion |
+          urlParams | connectionInfo | browserInfo | participantInfo
+  name: <element name>      # required for named sources, forbidden for external sources
+  path: [<segments>...]     # optional; per-source default applies when omitted
+```
+
+`prompt` references default to `path: [value]` when omitted (the participant's saved answer). Other named sources read the whole stored record by default. The structured form lets you override the implicit default — e.g. `path: [debugMessages]` to address other fields on a prompt's saved record.
 
 ## 5. Conditions
 
 ```yaml
 conditions:
-  - reference: <reference string>
+  - reference: <reference> # string sugar OR { source, name?, path? }
     comparator: <comparator>
     value: <expected value> # omit for exists/doesNotExist
     position: <position> # optional
