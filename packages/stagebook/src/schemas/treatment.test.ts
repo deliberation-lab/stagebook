@@ -2029,6 +2029,27 @@ test("element: type 'survey' still accepted with a one-time deprecation warning"
   }
 });
 
+test("element: survey deprecation warning escapes newlines/quotes in surveyName", async () => {
+  const { vi } = await import("vitest");
+  const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    const result = elementSchema.safeParse({
+      type: "survey",
+      surveyName: 'has\nnewline and "quotes"',
+    });
+    expect(result.success).toBe(true);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const message = warnSpy.mock.calls[0][0] as string;
+    // The message stays a single line — no raw newlines from the user input.
+    expect(message.split("\n")).toHaveLength(1);
+    // JSON.stringify escapes the embedded quote → \" and the newline → \\n.
+    expect(message).toContain('\\"quotes\\"');
+    expect(message).toContain("\\n");
+  } finally {
+    warnSpy.mockRestore();
+  }
+});
+
 test("validElementTypes does not include talkMeter or sharedNotepad", async () => {
   const { validElementTypes } = await import("./treatment.js");
   expect(validElementTypes).not.toContain("talkMeter");
