@@ -268,8 +268,19 @@ function ReferenceEditor({
   const values = rawValues
     .map((v) => getNestedValueByPath(v, path))
     .filter((v) => v !== undefined);
-  const currentValue = values[0] !== undefined ? String(values[0]) : "";
+  const firstValue = values[0];
   const isSet = values.length > 0;
+  // Compound (object/array) values: pretty-print as JSON in a read-only
+  // textarea so they render as e.g. `[{"start": 8.158, "end": 13.314}]`
+  // instead of `[object Object]`. Editing compound values via the inspector
+  // would require JSON parsing per keystroke (#169 explicitly punted on
+  // that); for compound writes use "Show all state" or the ✕ clear.
+  const isCompound = firstValue !== null && typeof firstValue === "object";
+  const currentValue = !isSet
+    ? ""
+    : isCompound
+      ? JSON.stringify(firstValue, null, 2)
+      : String(firstValue);
 
   const handleChange = (newValue: string) => {
     if (path.length === 0) {
@@ -330,13 +341,23 @@ function ReferenceEditor({
     <div style={refGroupStyle}>
       <label style={refLabelStyle}>{reference}</label>
       <div style={refInputRowStyle}>
-        <input
-          type="text"
-          value={currentValue}
-          onChange={(e) => handleChange(e.target.value)}
-          placeholder="(not set)"
-          style={refInputStyle}
-        />
+        {isCompound ? (
+          <textarea
+            value={currentValue}
+            readOnly
+            rows={Math.min(currentValue.split("\n").length, 10)}
+            title="Compound value — edit via 'Show all state' or clear with ×"
+            style={refTextareaStyle}
+          />
+        ) : (
+          <input
+            type="text"
+            value={currentValue}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder="(not set)"
+            style={refInputStyle}
+          />
+        )}
         <button
           type="button"
           onClick={handleClear}
@@ -503,6 +524,16 @@ const refInputStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: "0.25rem",
   fontSize: "0.8125rem",
+};
+
+const refTextareaStyle: React.CSSProperties = {
+  ...refInputStyle,
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  fontSize: "0.75rem",
+  lineHeight: 1.4,
+  resize: "vertical",
+  background: "#f9fafb",
+  color: "#374151",
 };
 
 const refClearButtonBaseStyle: React.CSSProperties = {
