@@ -5,9 +5,9 @@ describe("expandAndValidate", () => {
   describe("valid expansion", () => {
     it("returns no diagnostics when the expanded treatment is valid", () => {
       const src = `templates:
-  - templateName: myStage
+  - name: myStage
     contentType: stage
-    templateContent:
+    content:
       name: stage1
       duration: 300
       elements:
@@ -39,9 +39,9 @@ treatments:
       // field substitution the expanded stage has duration: -1, which is
       // invalid per durationSchema.
       const src = `templates:
-  - templateName: badStage
+  - name: badStage
     contentType: stage
-    templateContent:
+    content:
       name: stage1
       duration: \${duration}
       elements:
@@ -71,9 +71,9 @@ treatments:
       // a number is required. The diagnostic should land on the expanded
       // duration: line in result.yaml.
       const src = `templates:
-  - templateName: badStage
+  - name: badStage
     contentType: stage
-    templateContent:
+    content:
       name: stage1
       duration: \${duration}
       elements:
@@ -114,8 +114,8 @@ treatments:
   describe("expansion errors", () => {
     it("returns the expansion error and no diagnostics when expansion fails", () => {
       const src = `templates:
-  - templateName: myStage
-    templateContent:
+  - name: myStage
+    content:
       name: stage1
 treatments:
   - name: study1
@@ -150,9 +150,9 @@ treatments:
         )
         .join("\n");
       const src = `templates:
-  - templateName: manyStage
+  - name: manyStage
     contentType: stage
-    templateContent:
+    content:
       name: \${topic}_stage
       duration: \${duration}
       elements:

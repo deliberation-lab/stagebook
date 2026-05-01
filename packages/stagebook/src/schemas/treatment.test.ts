@@ -14,6 +14,7 @@ import {
   stageSchema,
   timelineSchema,
   promptSchema,
+  templateSchema,
   treatmentFileSchema,
   urlSchema,
 } from "./treatment.js";
@@ -259,9 +260,9 @@ test("validate entire file", () => {
   const fileJson = {
     templates: [
       {
-        templateName: "template1",
+        name: "template1",
         contentType: "element",
-        templateContent: {
+        content: {
           type: "prompt",
           name: "namedPrompt",
           file: "projects/example/testDisplay00.prompt.md",
@@ -1757,5 +1758,152 @@ test("conditionSchema (single node) accepts a leaf", () => {
 
 test("conditionSchema (single node) accepts an operator node", () => {
   const result = conditionSchema.safeParse({ all: [leaf("a")] });
+  expect(result.success).toBe(true);
+});
+
+// ----------- Template Schema (#244) ------------
+//
+// Templates are now `{ name, contentType, notes?, content }` with a required
+// contentType that dispatches the content through one of the named per-type
+// schemas. The fuzzy-match fallback (`templateContentSchema`) and the
+// `contentType: "other"` escape hatch are gone — every template body
+// validates against an explicit schema.
+
+test("template: missing contentType is rejected", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    content: { name: "s1", duration: 10, elements: [{ type: "submitButton" }] },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("template: contentType 'other' is rejected", () => {
+  const result = templateSchema.safeParse({
+    name: "myThing",
+    contentType: "other",
+    content: { anything: 1 },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("template: typo'd contentType is rejected", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    contentType: "stagez",
+    content: { name: "s1" },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("template: legacy `templateName` key is rejected as unrecognized", () => {
+  const result = templateSchema.safeParse({
+    // Both `name:` (the new field) and `templateName:` (the legacy field)
+    // present. The new field satisfies `nameSchema`; the legacy field must
+    // be rejected by `.strict()` for this assertion to be meaningful.
+    name: "myStage",
+    templateName: "myStage",
+    contentType: "stage",
+    content: { name: "s1", duration: 10, elements: [{ type: "submitButton" }] },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("template: legacy `templateContent` key is rejected as unrecognized", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    contentType: "stage",
+    templateContent: {
+      name: "s1",
+      duration: 10,
+      elements: [{ type: "submitButton" }],
+    },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("template: legacy `templateDesc` key is rejected as unrecognized", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    contentType: "stage",
+    templateDesc: "a description",
+    content: { name: "s1", duration: 10, elements: [{ type: "submitButton" }] },
+  });
+  expect(result.success).toBe(false);
+});
+
+test("template: contentType 'stage' validates a stage body", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    contentType: "stage",
+    content: { name: "s1", duration: 10, elements: [{ type: "submitButton" }] },
+  });
+  expect(result.success).toBe(true);
+});
+
+test("template: contentType 'stage' rejects an invalid stage body, with the contentType named in the error", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    contentType: "stage",
+    content: { name: "s1" }, // missing duration + elements
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(result.error.issues[0].path[0]).toBe("content");
+    expect(result.error.issues[0].message).toContain("'stage'");
+  }
+});
+
+test("template: contentType 'discussion' validates a discussion body", () => {
+  const result = templateSchema.safeParse({
+    name: "lobby",
+    contentType: "discussion",
+    content: { chatType: "text", showNickname: true, showTitle: false },
+  });
+  expect(result.success).toBe(true);
+});
+
+test("template: contentType 'conditions' validates a condition array", () => {
+  const result = templateSchema.safeParse({
+    name: "wantsToProceed",
+    contentType: "conditions",
+    content: [{ reference: "prompt.q1", comparator: "equals", value: "yes" }],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("template: contentType 'introSteps' validates an intro-steps array", () => {
+  const result = templateSchema.safeParse({
+    name: "warmup",
+    contentType: "introSteps",
+    content: [{ name: "step1", elements: [{ type: "submitButton" }] }],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("template: contentType 'groupComposition' validates a player array", () => {
+  const result = templateSchema.safeParse({
+    name: "twoSides",
+    contentType: "groupComposition",
+    content: [{ position: 0 }, { position: 1 }],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("template: contentType 'broadcastAxisValues' validates an axis-values array", () => {
+  const result = templateSchema.safeParse({
+    name: "topics",
+    contentType: "broadcastAxisValues",
+    content: [{ topic: "a" }, { topic: "b" }],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("template: notes field is accepted", () => {
+  const result = templateSchema.safeParse({
+    name: "myStage",
+    contentType: "stage",
+    notes: "Reusable two-person discussion stage.",
+    content: { name: "s1", duration: 10, elements: [{ type: "submitButton" }] },
+  });
   expect(result.success).toBe(true);
 });

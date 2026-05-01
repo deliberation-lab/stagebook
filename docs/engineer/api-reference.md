@@ -19,7 +19,7 @@ All schemas are [Zod](https://zod.dev/) objects. Use `.safeParse(data)` for vali
 | `referenceSchema` | Reference string validator (parses and validates `type.name.path`) |
 | `introSequenceSchema` | Intro sequence with named steps |
 | `introExitStepSchema` | Single intro or exit step |
-| `templateSchema` | Template definition (templateName, contentType, templateContent) |
+| `templateSchema` | Template definition (name, contentType, content) |
 | `templateContextSchema` | Template usage (template, fields, broadcast) |
 
 ### Prompt File

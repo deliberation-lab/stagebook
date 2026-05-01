@@ -173,7 +173,7 @@ export function validateTreatmentFileReferences(
   }
   for (const tmpl of templates) {
     if (!isRecord(tmpl)) continue;
-    collectKeysFromAny(tmpl.templateContent, globalProducedKeys);
+    collectKeysFromAny(tmpl.content, globalProducedKeys);
   }
 
   // Intro sequences: validate each sequence in isolation for within-sequence
@@ -657,7 +657,7 @@ function collectStepKeys(step: unknown): Set<string> {
 }
 
 /** Recursively collect every storage key that appears anywhere under
- *  `node`. Used for templates, where the `templateContent` can be a bare
+ *  `node`. Used for templates, where the `content` can be a bare
  *  element, a list of elements, a stage-shaped object, etc. We walk all
  *  sub-values rather than trying to shape-check against `contentType`,
  *  because template shapes are flexible and we just want "every key that

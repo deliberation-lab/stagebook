@@ -8,9 +8,7 @@ import { computeBroadcastSize, fillTemplates } from "./fillTemplates.js";
 // ----------------------------------------------------------------
 
 test("template context without broadcast returns 1", () => {
-  const templates = [
-    { templateName: "simple", templateContent: { val: "${x}" } },
-  ];
+  const templates = [{ name: "simple", content: { val: "${x}" } }];
 
   const size = computeBroadcastSize({
     obj: { template: "simple", fields: { x: "hello" } },
@@ -20,7 +18,7 @@ test("template context without broadcast returns 1", () => {
 });
 
 test("single broadcast dimension returns its length", () => {
-  const templates = [{ templateName: "t", templateContent: { val: "${v}" } }];
+  const templates = [{ name: "t", content: { val: "${v}" } }];
 
   const size = computeBroadcastSize({
     obj: {
@@ -33,9 +31,7 @@ test("single broadcast dimension returns its length", () => {
 });
 
 test("multiple broadcast dimensions returns cartesian product", () => {
-  const templates = [
-    { templateName: "t", templateContent: { A: "${A}", B: "${B}" } },
-  ];
+  const templates = [{ name: "t", content: { A: "${A}", B: "${B}" } }];
 
   const size = computeBroadcastSize({
     obj: {
@@ -52,7 +48,7 @@ test("multiple broadcast dimensions returns cartesian product", () => {
 
 test("three broadcast dimensions multiplies all", () => {
   const templates = [
-    { templateName: "t", templateContent: { a: "${a}", b: "${b}", c: "${c}" } },
+    { name: "t", content: { a: "${a}", b: "${b}", c: "${c}" } },
   ];
 
   const size = computeBroadcastSize({
@@ -74,7 +70,7 @@ test("three broadcast dimensions multiplies all", () => {
 // ----------------------------------------------------------------
 
 test("array of template contexts sums broadcast sizes", () => {
-  const templates = [{ templateName: "t", templateContent: { val: "${v}" } }];
+  const templates = [{ name: "t", content: { val: "${v}" } }];
 
   const size = computeBroadcastSize({
     obj: [
@@ -93,7 +89,7 @@ test("array of template contexts sums broadcast sizes", () => {
 });
 
 test("array mixing broadcast and non-broadcast contexts", () => {
-  const templates = [{ templateName: "t", templateContent: { val: "${v}" } }];
+  const templates = [{ name: "t", content: { val: "${v}" } }];
 
   const size = computeBroadcastSize({
     obj: [
@@ -114,10 +110,10 @@ test("array mixing broadcast and non-broadcast contexts", () => {
 
 test("broadcast dimension from template reference counts correctly", () => {
   const templates = [
-    { templateName: "t", templateContent: { A: "${A}", B: "${B}" } },
+    { name: "t", content: { A: "${A}", B: "${B}" } },
     {
-      templateName: "broadcastList",
-      templateContent: [{ A: "A0" }, { A: "A1" }, { A: "A2" }],
+      name: "broadcastList",
+      content: [{ A: "A0" }, { A: "A1" }, { A: "A2" }],
     },
   ];
 
@@ -147,7 +143,7 @@ test("plain object without template returns 1", () => {
 });
 
 test("single-item broadcast dimension returns 1", () => {
-  const templates = [{ templateName: "t", templateContent: { val: "${v}" } }];
+  const templates = [{ name: "t", content: { val: "${v}" } }];
 
   const size = computeBroadcastSize({
     obj: {
@@ -162,8 +158,8 @@ test("single-item broadcast dimension returns 1", () => {
 test("matches fillTemplates output length", () => {
   const templates = [
     {
-      templateName: "rating",
-      templateContent: {
+      name: "rating",
+      content: {
         name: "rate_${dimension}",
         A: "${A}",
       },
@@ -190,8 +186,8 @@ test("matches fillTemplates output length", () => {
 
 test("throws when broadcast dimension resolves to non-array", () => {
   const templates = [
-    { templateName: "t", templateContent: { val: "${v}" } },
-    { templateName: "notAnArray", templateContent: { v: "oops" } },
+    { name: "t", content: { val: "${v}" } },
+    { name: "notAnArray", content: { v: "oops" } },
   ];
 
   expect(() =>

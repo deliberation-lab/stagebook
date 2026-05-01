@@ -290,9 +290,9 @@ describe("getReferencedAssets — structural walk", () => {
     const tree = {
       templates: [
         {
-          templateName: "introTpl",
+          name: "introTpl",
           contentType: "elements",
-          templateContent: [{ type: "image", file: "templated/img.png" }],
+          content: [{ type: "image", file: "templated/img.png" }],
         },
       ],
       introSequences: [],

@@ -200,10 +200,14 @@ export function extractYamlErrors(source: string): YamlError[] {
 }
 
 interface TemplateInfo {
-  templateName: string;
   templateIndex: number;
   /** Number of items this template expands into (>1 for broadcast). */
   expandedCount: number;
+}
+
+interface TemplateRecord {
+  name: string;
+  content?: unknown;
 }
 
 /**
@@ -220,14 +224,14 @@ function isTemplateContext(obj: unknown): obj is { template: string } {
 
 /**
  * Count how many items a template context expands into.
- * Base count is 1 for object templateContent, or templateContent.length
- * for array templateContent. Multiplied by broadcast dimensions.
+ * Base count is 1 for object content, or content.length
+ * for array content. Multiplied by broadcast dimensions.
  */
 function countExpandedItems(
   context: Record<string, unknown>,
-  templateContent: unknown,
+  content: unknown,
 ): number {
-  const baseCount = Array.isArray(templateContent) ? templateContent.length : 1;
+  const baseCount = Array.isArray(content) ? content.length : 1;
 
   const broadcast = context.broadcast;
   if (!broadcast || typeof broadcast !== "object" || Array.isArray(broadcast)) {
@@ -248,14 +252,14 @@ function countExpandedItems(
  *
  * If the path goes through an expanded template context, the returned
  * path points into the template definition instead (e.g.
- * `["templates", 0, "templateContent", "elements", 0, "file"]`).
+ * `["templates", 0, "content", "elements", 0, "file"]`).
  *
  * If no remapping is needed, returns the original path unchanged.
  */
 export function remapErrorPath(
   errorPath: (string | number)[],
   originalObj: Record<string, unknown>,
-  templates: { templateName: string; templateContent?: unknown }[],
+  templates: TemplateRecord[],
 ): (string | number)[] {
   const path = [...errorPath];
   let current: unknown = originalObj;
@@ -290,12 +294,7 @@ export function remapErrorPath(
           ) {
             // This expanded index came from this template
             const remaining = path.slice(i + 1);
-            return [
-              "templates",
-              info.templateIndex,
-              "templateContent",
-              ...remaining,
-            ];
+            return ["templates", info.templateIndex, "content", ...remaining];
           }
 
           expandedIndex += expandedCount;
@@ -334,16 +333,15 @@ export function remapErrorPath(
 
 function resolveTemplate(
   context: { template: string },
-  templates: { templateName: string; templateContent?: unknown }[],
+  templates: TemplateRecord[],
 ): TemplateInfo | null {
-  const idx = templates.findIndex((t) => t.templateName === context.template);
+  const idx = templates.findIndex((t) => t.name === context.template);
   if (idx === -1) return null;
   return {
-    templateName: context.template,
     templateIndex: idx,
     expandedCount: countExpandedItems(
       context as unknown as Record<string, unknown>,
-      templates[idx].templateContent,
+      templates[idx].content,
     ),
   };
 }

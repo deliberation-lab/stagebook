@@ -8,9 +8,9 @@ Templates are defined in the `templates` section of your treatment file:
 
 ```yaml
 templates:
-  - templateName: topicStage
+  - name: topicStage
     contentType: stage
-    templateContent:
+    content:
       name: ${topicName}_discussion
       duration: 300
       discussion:
@@ -25,10 +25,10 @@ templates:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `templateName` | yes | Unique identifier |
-| `contentType` | recommended | What the template produces: `element`, `elements`, `stage`, `stages`, `treatment`, `treatments`, `introSequence`, `introExitStep`, `exitSteps`, `condition`, `reference`, `player`, or `other` |
-| `templateDesc` | no | Human-readable description |
-| `templateContent` | yes | The YAML structure to instantiate |
+| `name` | yes | Unique identifier |
+| `contentType` | yes | What the template produces. One of: `element`, `elements`, `stage`, `stages`, `treatment`, `treatments`, `introSequence`, `introSequences`, `introExitStep`, `introSteps`, `exitSteps`, `condition`, `conditions`, `reference`, `player`, `groupComposition`, `discussion`, `broadcastAxisValues` |
+| `notes` | no | Researcher-facing comments (one-liner or multi-line) |
+| `content` | yes | The YAML structure to instantiate |
 
 ## Using Templates
 
@@ -51,7 +51,7 @@ This produces two stages with different topic names substituted throughout.
 Placeholders use the `${fieldName}` syntax. They can appear in string values, as standalone values (replaced with objects or arrays), or embedded within larger strings:
 
 ```yaml
-templateContent:
+content:
   name: ${prefix}_study           # embedded in a string
   file: ${promptFile}             # standalone (can be any type)
   message: "Hello ${name}!"       # embedded in a string
@@ -91,9 +91,9 @@ Templates can reference other templates:
 
 ```yaml
 templates:
-  - templateName: outerTemplate
+  - name: outerTemplate
     contentType: treatment
-    templateContent:
+    content:
       name: ${treatmentName}
       playerCount: 2
       gameStages:
@@ -101,9 +101,9 @@ templates:
           fields:
             topic: ${topicName}
 
-  - templateName: innerStage
+  - name: innerStage
     contentType: stage
-    templateContent:
+    content:
       name: ${topic}_stage
       duration: 300
       elements:
@@ -119,9 +119,9 @@ A broadcast axis can itself be a template reference:
 
 ```yaml
 templates:
-  - templateName: topicList
-    contentType: other
-    templateContent:
+  - name: topicList
+    contentType: broadcastAxisValues
+    content:
       - topicName: immigration
       - topicName: healthcare
       - topicName: education

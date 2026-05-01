@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { z } from "zod";
-import type { ZodIssue } from "zod";
 import { validateTreatmentFileReferences } from "./validateReferences.js";
 
 // TODO: used by regex validation in conditionMatchesSchema — wire up or remove
@@ -402,8 +401,6 @@ const templateFieldKeysSchema = z
   })
   .min(1)
   .superRefine((val, ctx) => {
-    //we do not want all template content data to default to template broadcast axis values schema,
-    //so we add this conditon to have the closest match be elementSchema in templateContentSchema if field 'type' is used
     if (val == "type") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -419,7 +416,7 @@ const templateBroadcastAxisNameSchema = z.string().regex(/^d\d+$/, {
   message: "String must start with 'd' followed by a nonnegative integer",
 });
 
-const templateBroadcastAxisValuesSchema: z.ZodType = z.lazy(() =>
+export const templateBroadcastAxisValuesSchema: z.ZodType = z.lazy(() =>
   z
     .array(templateFieldsSchema)
     .nonempty()
@@ -1432,7 +1429,7 @@ export const elementSchema = altTemplateContext(
     if (!result.success) {
       //promptShorthandSchema is a special case where we expect a string
       //But there are 0 key mismatches as a result of this for whatever object
-      //is input, messes up matching logic in templateContentSchema
+      //is input
       if (!hasTypeKey && isObject && schemaToUse === promptShorthandSchema) {
         // If we expected a string (promptShorthand) but got an object instead
         // Add one error per key
@@ -2029,196 +2026,35 @@ export const treatmentsSchema = altTemplateContext(
 );
 
 // ------------------ Template Schemas ------------------ //
-export const templateContentSchema = z.any().superRefine((data, ctx) => {
-  const schemas = [
-    { schema: introSequenceSchema, name: "Intro Sequence" },
-    { schema: introSequencesSchema, name: "Intro Sequences" },
-    { schema: elementsSchema, name: "Elements" },
-    { schema: elementSchema, name: "Element" },
-    { schema: stageSchema, name: "Stage" },
-    { schema: stagesSchema, name: "Stages" },
-    { schema: treatmentSchema, name: "Treatment" },
-    { schema: treatmentsSchema, name: "Treatments" },
-    { schema: referenceSchema, name: "Reference" },
-    { schema: conditionSchema, name: "Condition" },
-    { schema: playerSchema, name: "Player" },
-    // specify intro step or exit step, not both
-    { schema: introExitStepSchema, name: "Intro Exit Step" },
-    { schema: exitStepsSchema, name: "Exit Steps" },
-    //commented out for now, matches too many schemas
-    {
-      schema: templateBroadcastAxisValuesSchema,
-      name: "Template Broadcast Axis Values",
-    },
-  ];
 
-  let bestSchemaResult = null;
-  let fewestUnmatchedKeys = Infinity;
+// Whole-treatment groupComposition (an array of player blocks). Exposed as
+// a contentType so a complete group config can be templated as one unit.
+export const groupCompositionSchema = z.array(playerSchema).nonempty();
 
-  // console.log("\n\n------------------\n\n");
+export const contentTypeEnum = z.enum([
+  "introSequence",
+  "introSequences",
+  "elements",
+  "element",
+  "stage",
+  "stages",
+  "treatment",
+  "treatments",
+  "reference",
+  "condition",
+  "conditions",
+  "player",
+  "groupComposition",
+  "introExitStep",
+  "introSteps",
+  "exitSteps",
+  "discussion",
+  "broadcastAxisValues",
+]);
 
-  interface Issue {
-    code: string;
-    path: (string | number)[];
-    keys?: string[];
-  }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ValidationResult {
-    error: {
-      issues: Issue[];
-    };
-  }
+export type ContentType = z.infer<typeof contentTypeEnum>;
 
-  for (const { schema, name } of schemas) {
-    const result = schema.safeParse(data);
-
-    if (result.success) {
-      console.log(`Schema "${name}" matched successfully.`);
-      return;
-    } else {
-      // console.log(`Schema "${name}" failed with errors:`, result.error.issues);
-
-      // Check if the root type was valid by looking for type-related issues.
-      const rootTypeError = result.error.issues.find(
-        (issue: Issue) =>
-          issue.code === "invalid_type" && issue.path.length === 0,
-      );
-      if (rootTypeError) {
-        // console.log(`Schema "${name}" skipped due to invalid root type.`);
-        continue; // Skip schemas with invalid root types.
-      }
-
-      // Check if the errors indicate a missing or invalid discriminator key
-      const discriminatorIssue = result.error.issues.find(
-        (issue: Issue) =>
-          issue.code === "invalid_union_discriminator" &&
-          issue.path.length === 1,
-      );
-
-      const promptShorthandIssue = result.error.issues.find(
-        (issue: ZodIssue) =>
-          issue.code === "invalid_type" &&
-          issue.expected === "string" &&
-          issue.received === "object" &&
-          issue.message ===
-            "promptShorthandSchema expects a string, but received object.",
-      );
-
-      if (discriminatorIssue !== undefined) {
-        // console.log(`Schema "${name}" skipped due to missing or invalid union discriminator.`);
-        continue;
-      }
-
-      // Count the total number of unrecognized keys
-      const unmatchedKeysCount = result.error.issues
-        .filter((issue: Issue) => issue.code === "unrecognized_keys")
-        .reduce(
-          (sum: number, issue: Issue) =>
-            sum + (issue.keys ? issue.keys.length : 0),
-          0,
-        );
-
-      if (unmatchedKeysCount < fewestUnmatchedKeys) {
-        if (promptShorthandIssue) {
-          continue;
-        }
-        fewestUnmatchedKeys = unmatchedKeysCount;
-        bestSchemaResult = { result, name };
-      }
-    }
-  }
-
-  if (bestSchemaResult) {
-    console.log(
-      `Best schema match is "${bestSchemaResult.name}" with ${fewestUnmatchedKeys} unmatched keys.`,
-    );
-    bestSchemaResult.result.error.issues.forEach((issue: ZodIssue) => {
-      ctx.addIssue({
-        ...issue,
-        path: issue.path,
-        message: `Closest schema match: ${bestSchemaResult.name}. ${issue.message}`,
-      });
-    });
-  } else {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "No schema matched the provided data.",
-    });
-  }
-});
-
-//update templateSchema so that content types are defined as a field for easier matching of
-//templateContent data to their respective schemas
-//contentType is optional for now, but will be required in the future
-export const templateSchema = z
-  .object({
-    templateName: nameSchema,
-    contentType: z
-      .enum([
-        "introSequence",
-        "introSequences",
-        "elements",
-        "element",
-        "stage",
-        "stages",
-        "treatment",
-        "treatments",
-        "reference",
-        "condition",
-        "player",
-        "introExitStep",
-        "exitSteps",
-        "other",
-      ])
-      .optional(),
-    templateDesc: z.string().optional(),
-    notes: z.string().optional(),
-    templateContent: z.any(),
-  })
-  .strict()
-  .superRefine((data, ctx) => {
-    if (!data.contentType) {
-      const res = templateContentSchema.safeParse(data.templateContent);
-      if (!res.success) {
-        res.error.issues.forEach((issue) =>
-          ctx.addIssue({
-            ...issue,
-            path: ["templateContent", ...issue.path],
-          }),
-        );
-      }
-
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "contentType field is required. Please specify a valid content type. Valid content types are 'introSequence', 'introSequences', 'elements', 'element', 'stage', 'stages', 'treatment', 'treatments', 'reference', 'condition', 'player', 'introExitStep', or 'exitSteps'.",
-      });
-
-      return;
-    } else if (data.contentType === "other") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "contentType 'other' cannot be validated. Only use when custom content is required that does not match any of the other defined content types. Please use at your own discretion.",
-      });
-      return;
-    }
-
-    const result = matchContentType(data.contentType).safeParse(
-      data.templateContent,
-    );
-    if (!result.success) {
-      result.error.issues.forEach((issue) =>
-        ctx.addIssue({
-          ...issue,
-          path: ["templateContent", ...issue.path],
-          message: `Invalid template content for content type '${data.contentType}': ${issue.message}`,
-        }),
-      );
-    }
-  });
-
-export function matchContentType(contentType: string) {
+export function matchContentType(contentType: ContentType): z.ZodTypeAny {
   switch (contentType) {
     case "introSequence":
       return introSequenceSchema;
@@ -2240,16 +2076,52 @@ export function matchContentType(contentType: string) {
       return referenceSchema;
     case "condition":
       return conditionSchema;
+    case "conditions":
+      return conditionsSchema;
     case "player":
       return playerSchema;
+    case "groupComposition":
+      return groupCompositionSchema;
     case "introExitStep":
       return introExitStepSchema;
+    case "introSteps":
+      return introStepsSchema;
     case "exitSteps":
       return exitStepsSchema;
-    default:
-      throw new Error(`Unknown content type: ${contentType}`);
+    case "discussion":
+      return discussionSchema;
+    case "broadcastAxisValues":
+      return templateBroadcastAxisValuesSchema;
+    default: {
+      // Belt-and-suspenders: TS guarantees exhaustiveness over `ContentType`,
+      // but the function is exported and could be called from JS with an
+      // arbitrary string. Fail loudly rather than returning `undefined`.
+      const _exhaustive: never = contentType;
+      throw new Error(`Unknown contentType: ${String(_exhaustive)}`);
+    }
   }
 }
+
+export const templateSchema = z
+  .object({
+    name: nameSchema,
+    contentType: contentTypeEnum,
+    notes: z.string().optional(),
+    content: z.any(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const result = matchContentType(data.contentType).safeParse(data.content);
+    if (!result.success) {
+      result.error.issues.forEach((issue) =>
+        ctx.addIssue({
+          ...issue,
+          path: ["content", ...issue.path],
+          message: `Invalid content for contentType '${data.contentType}': ${issue.message}`,
+        }),
+      );
+    }
+  });
 
 export type TemplateType = z.infer<typeof templateSchema>;
 

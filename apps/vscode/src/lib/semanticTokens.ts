@@ -39,9 +39,14 @@ const contentTypeSet = new Set([
   "treatments",
   "reference",
   "condition",
+  "conditions",
   "player",
+  "groupComposition",
   "introExitStep",
+  "introSteps",
   "exitSteps",
+  "discussion",
+  "broadcastAxisValues",
 ]);
 
 const separatorStyles = new Set(["thin", "thick", "regular"]);
@@ -70,8 +75,6 @@ const sectionKeys = new Set([
   "templates",
   "exitSequence",
   "groupComposition",
-  "templateName",
-  "templateContent",
   "contentType",
   "broadcast",
   "discussion",
@@ -226,18 +229,8 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
     }
   }
 
-  function walkNode(
-    node: unknown,
-    keyName?: string,
-    freeformTemplateContent = false,
-  ): void {
+  function walkNode(node: unknown, keyName?: string): void {
     if (isMap(node)) {
-      // A template whose `contentType` is `"other"` (explicitly freeform) or
-      // unknown can carry arbitrary keys inside `templateContent`. We can't
-      // prove a stray `notes:` in there is a researcher note, so highlight
-      // gets suppressed for that subtree only.
-      const templateContentIsFreeform = isFreeformTemplate(node);
-
       for (const pair of node.items) {
         if (!isPair(pair)) continue;
 
@@ -253,9 +246,7 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
         }
 
         // `notes:` — researcher-facing commentary; render in comment color.
-        // Skipped when we're inside a freeform templateContent (see above).
         if (
-          !freeformTemplateContent &&
           isScalar(key) &&
           typeof key.value === "string" &&
           key.value === "notes" &&
@@ -348,48 +339,16 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             emitTemplateVarTokens(scalarSrc.offset, scalarSrc.text);
           }
 
-          // Recurse into the value — switch the freeform flag on when we
-          // descend into the templateContent of a freeform template.
-          const childFreeform =
-            freeformTemplateContent ||
-            (templateContentIsFreeform && k === "templateContent");
-          walkNode(value, String(k), childFreeform);
+          walkNode(value, String(k));
         } else {
-          walkNode(value, undefined, freeformTemplateContent);
+          walkNode(value);
         }
       }
     } else if (isSeq(node)) {
       for (const item of node.items) {
-        walkNode(item, keyName, freeformTemplateContent);
+        walkNode(item, keyName);
       }
     }
-  }
-
-  /**
-   * Detect whether a YAML map is a template whose `templateContent` should
-   * be treated as freeform — either `contentType: other` or `contentType`
-   * is missing (which the stagebook validator tolerates for custom shapes).
-   * Used to suppress `notes:` highlighting inside that subtree.
-   */
-  function isFreeformTemplate(node: unknown): boolean {
-    if (!isMap(node)) return false;
-    let hasTemplateName = false;
-    let contentType: string | undefined;
-    for (const pair of node.items) {
-      if (!isPair(pair)) continue;
-      if (!isScalar(pair.key) || typeof pair.key.value !== "string") continue;
-      const k = pair.key.value;
-      if (k === "templateName") hasTemplateName = true;
-      if (
-        k === "contentType" &&
-        isScalar(pair.value) &&
-        typeof pair.value.value === "string"
-      ) {
-        contentType = pair.value.value;
-      }
-    }
-    if (!hasTemplateName) return false;
-    return contentType === undefined || contentType === "other";
   }
 
   walkNode(doc.contents);

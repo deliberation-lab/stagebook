@@ -17,11 +17,10 @@ describe("resolved schemas strip researcher `notes`", () => {
   const authoringYaml = {
     templates: [
       {
-        templateName: "tpl_with_notes",
-        templateDesc: "A template",
+        name: "tpl_with_notes",
         notes: "Template rationale for researchers.",
         contentType: "stage" as const,
-        templateContent: {
+        content: {
           name: "tpl_stage",
           duration: 30,
           elements: [

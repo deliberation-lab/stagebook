@@ -139,7 +139,7 @@ All schemas export corresponding TypeScript types (e.g., `TreatmentType`, `Stage
 | ----------------------------------------------- | ------------------------------------------------------------------ |
 | `fillTemplates({ obj, templates })`             | Expand all template references and validate no placeholders remain |
 | `expandTemplate({ templates, context })`        | Expand a single template context with fields and broadcast         |
-| `substituteFields({ templateContent, fields })` | Replace `${key}` placeholders with values                          |
+| `substituteFields({ content, fields })`         | Replace `${key}` placeholders with values                          |
 
 ## Documentation
 

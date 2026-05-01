@@ -119,9 +119,9 @@ treatments:
   describe("template content validation", () => {
     it("validates template content based on contentType", () => {
       const src = `templates:
-  - templateName: myStage
+  - name: myStage
     contentType: stage
-    templateContent:
+    content:
       name: stage1
       duration: -1
       elements:
@@ -198,9 +198,9 @@ treatments:
 
     it("accepts file with only templates (introSequences and treatments are optional)", () => {
       const src = `templates:
-  - templateName: myStage
+  - name: myStage
     contentType: stage
-    templateContent:
+    content:
       name: stage1
       duration: 300
       elements:

@@ -204,8 +204,8 @@ playerCount: 3`;
 describe("remapErrorPath", () => {
   const templates = [
     {
-      templateName: "myStage",
-      templateContent: {
+      name: "myStage",
+      content: {
         name: "stage1",
         duration: 300,
         elements: [{ type: "prompt", file: "bad/path.md" }],
@@ -246,7 +246,7 @@ describe("remapErrorPath", () => {
       expect(result).toEqual([
         "templates",
         0,
-        "templateContent",
+        "content",
         "elements",
         0,
         "file",
@@ -268,7 +268,7 @@ describe("remapErrorPath", () => {
         original,
         templates,
       );
-      expect(result).toEqual(["templates", 0, "templateContent", "duration"]);
+      expect(result).toEqual(["templates", 0, "content", "duration"]);
     });
   });
 
@@ -300,7 +300,7 @@ describe("remapErrorPath", () => {
       expect(result).toEqual([
         "templates",
         0,
-        "templateContent",
+        "content",
         "elements",
         0,
         "file",
@@ -331,7 +331,7 @@ describe("remapErrorPath", () => {
       expect(result).toEqual([
         "templates",
         0,
-        "templateContent",
+        "content",
         "elements",
         0,
         "file",
@@ -385,12 +385,12 @@ describe("remapErrorPath", () => {
     it("remaps to the correct template when multiple templates appear in sequence", () => {
       const twoTemplates = [
         {
-          templateName: "stageA",
-          templateContent: { name: "a", elements: [] },
+          name: "stageA",
+          content: { name: "a", elements: [] },
         },
         {
-          templateName: "stageB",
-          templateContent: { name: "b", elements: [] },
+          name: "stageB",
+          content: { name: "b", elements: [] },
         },
       ];
       const original = {
@@ -407,7 +407,7 @@ describe("remapErrorPath", () => {
         original,
         twoTemplates,
       );
-      expect(result).toEqual(["templates", 1, "templateContent", "name"]);
+      expect(result).toEqual(["templates", 1, "content", "name"]);
     });
   });
 
@@ -439,7 +439,7 @@ describe("remapErrorPath", () => {
       expect(result).toEqual([
         "templates",
         0,
-        "templateContent",
+        "content",
         "elements",
         0,
         "file",
@@ -448,12 +448,12 @@ describe("remapErrorPath", () => {
   });
 });
 
-describe("remapErrorPath — array templateContent", () => {
-  it("accounts for array templateContent expanding into multiple siblings", () => {
+describe("remapErrorPath — array content", () => {
+  it("accounts for array content expanding into multiple siblings", () => {
     const arrayTemplates = [
       {
-        templateName: "twoElements",
-        templateContent: [
+        name: "twoElements",
+        content: [
           { type: "prompt", file: "q1.prompt.md" },
           { type: "separator" },
         ],
@@ -494,8 +494,8 @@ describe("remapErrorPath — array templateContent", () => {
   it("remaps errors within array-expanded template content", () => {
     const arrayTemplates = [
       {
-        templateName: "twoElements",
-        templateContent: [
+        name: "twoElements",
+        content: [
           { type: "prompt", file: "q1.prompt.md" },
           { type: "separator" },
         ],
@@ -521,7 +521,7 @@ describe("remapErrorPath — array templateContent", () => {
       original,
       arrayTemplates,
     );
-    expect(result).toEqual(["templates", 0, "templateContent", "type"]);
+    expect(result).toEqual(["templates", 0, "content", "type"]);
   });
 });
 
