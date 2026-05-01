@@ -635,7 +635,11 @@ describe("keyToAction", () => {
       expect(
         keyToAction(
           enterEvent,
-          ctx({ selectionType: "point", activeIndex: null, currentPoint: null }),
+          ctx({
+            selectionType: "point",
+            activeIndex: null,
+            currentPoint: null,
+          }),
         ),
       ).toEqual({ type: "createPointAtPlayhead" });
     });
@@ -670,9 +674,9 @@ describe("keyToAction", () => {
     });
 
     it("returns beginRangeAtPlayhead in range mode even when a range is selected", () => {
-      expect(
-        keyToAction(enterEvent, ctx({ selectionType: "range" })),
-      ).toEqual({ type: "beginRangeAtPlayhead" });
+      expect(keyToAction(enterEvent, ctx({ selectionType: "range" }))).toEqual({
+        type: "beginRangeAtPlayhead",
+      });
     });
 
     it("ignores auto-repeat keydowns (e.repeat=true) in both modes", () => {
@@ -694,9 +698,7 @@ describe("keyToAction", () => {
 
     it("ignores Enter with any modifier (reserved for future bindings)", () => {
       const point = ctx({ selectionType: "point", activeIndex: null });
-      expect(
-        keyToAction({ ...enterEvent, shiftKey: true }, point),
-      ).toBe(null);
+      expect(keyToAction({ ...enterEvent, shiftKey: true }, point)).toBe(null);
       expect(keyToAction({ ...enterEvent, ctrlKey: true }, point)).toBe(null);
       expect(keyToAction({ ...enterEvent, metaKey: true }, point)).toBe(null);
       expect(keyToAction({ ...enterEvent, altKey: true }, point)).toBe(null);
