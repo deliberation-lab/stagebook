@@ -85,7 +85,7 @@ getReferenceKeyAndPath("entryUrl.params.condition");
 // { referenceKey: "entryUrl", path: ["params", "condition"] }
 ```
 
-Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `timeline`, `discussion`, `entryUrl`, `connectionInfo`, `browserInfo`, `participantInfo`. (`urlParams` was renamed to `entryUrl` in #246.)
+Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `timeline`, `discussion`, `entryUrl`, `connectionInfo`, `browserInfo`, `participantInfo`. (`urlParams` was renamed to `entryUrl` in #246.) `entryUrl` references must use the `params` subpath, e.g. `entryUrl.params.condition` — bare `entryUrl.<key>` is rejected.
 
 ### `getNestedValueByPath(obj, path?)`
 

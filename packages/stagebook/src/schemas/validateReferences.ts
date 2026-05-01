@@ -607,7 +607,7 @@ function applyRules({
   if (allowedProducerRanks && !allowedProducerRanks.has(producerRank)) {
     issues.push({
       path: site.path,
-      message: `groupComposition condition references "${refStr}", which is produced by a game or exit stage. groupComposition is evaluated before any stage runs — it can only reference intro-phase data or external values (entryUrl, participantInfo, …).`,
+      message: `groupComposition condition references "${refStr}", which is produced by a game or exit stage. groupComposition is evaluated before any stage runs — it can only reference intro-phase data or external values (entryUrl.params.*, participantInfo.*, …).`,
     });
     return;
   }
