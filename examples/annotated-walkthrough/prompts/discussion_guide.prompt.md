@@ -16,5 +16,3 @@ You can also jot points in the shared notepad — both of you can edit it
 at the same time.
 
 The **End discussion** button will appear after one minute.
-
----

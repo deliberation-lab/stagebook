@@ -206,7 +206,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           </p>
         );
       }
-      const { metadata, body, responseItems } = parsed.data;
+      const { metadata, body, responseItems, sliderPoints } = parsed.data;
       const promptName =
         element.name ?? `${progressLabel}_${metadata.name ?? element.file}`;
 
@@ -220,6 +220,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           metadata={metadata}
           body={body}
           responseItems={responseItems}
+          sliderPoints={sliderPoints}
           name={promptName}
           file={element.file}
           shared={element.shared}

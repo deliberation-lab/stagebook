@@ -26,11 +26,10 @@ All schemas are [Zod](https://zod.dev/) objects. Use `.safeParse(data)` for vali
 
 | Export | Description |
 |--------|-------------|
-| `promptFileSchema` | Parses raw markdown → `{ metadata, body, responseItems }` with full validation |
-| `metadataTypeSchema` | Prompt metadata field types (name, type, rows, min/max, etc.) |
-| `metadataRefineSchema` | Cross-field metadata rules (e.g., slider requires min/max/interval) |
-| `metadataLogicalSchema` | Alias for `metadataRefineSchema` (name field is optional, no filename matching) |
-| `validateSliderLabels(metadata, items)` | Checks labelPts length matches response item count |
+| `promptFileSchema` | Parses raw markdown → `{ metadata, body, responseItems, sliderPoints }` with full validation |
+| `promptMetadataSchema` | Discriminated-union schema for the YAML frontmatter (one strict branch per `type:`) |
+| `metadataTypeSchema` / `metadataRefineSchema` / `metadataLogicalSchema` | Back-compat aliases for `promptMetadataSchema` (#243 — the parallel pre-refine pair was unified into one schema) |
+| `validateSliderLabels(metadata, items)` | No-op shim retained for back-compat — slider points and labels share the same body lines after #243, so this check is structurally impossible to fail |
 
 ### Types
 
@@ -200,7 +199,7 @@ Requires StagebookProvider. Dispatches to the appropriate element component base
 | `RadioGroup` | `options`, `value`, `onChange`, `label?` |
 | `CheckboxGroup` | `options`, `value`, `onChange`, `label?` |
 | `TextArea` | `value`, `onChange`, `rows?`, `minLength?`, `maxLength?`, `showCharacterCount?`, `onDebugMessage?` |
-| `Slider` | `min`, `max`, `interval`, `value?`, `onChange`, `labelPts?`, `labels?` |
+| `Slider` | `min`, `max`, `interval`, `value?`, `onChange`, `labelPts?` (parallel to `labels?`, sourced from `promptFileSchema.parse(...).sliderPoints` after #243), `labels?` |
 | `ListSorter` | `items`, `onChange` |
 | `Markdown` | `text`, `resolveURL?` |
 

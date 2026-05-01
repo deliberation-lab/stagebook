@@ -39,7 +39,8 @@ export function MockSurveyStage() {
     submit: () => {},
     getAssetURL: (path: string) => `https://mock-cdn.test/${path}`,
     getTextContent: () =>
-      Promise.resolve("---\nname: mock\ntype: noResponse\n---\nMock\n---\n"),
+      // After #243 noResponse files are two-section.
+      Promise.resolve("---\nname: mock\ntype: noResponse\n---\nMock\n"),
     progressLabel: "game_0_SurveyStage",
     playerId: "test-player",
     position: 0,

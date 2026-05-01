@@ -1,10 +1,10 @@
 # Prompt Files
 
-Prompts are Markdown files with three sections separated by lines of three or more dashes (`---`):
+Prompts are Markdown files with two or three sections separated by lines of three or more dashes (`---`):
 
-1. **Metadata** — YAML frontmatter defining the prompt type and behavior
-2. **Body** — Markdown-formatted text displayed to the participant
-3. **Responses** — Response options (format depends on type)
+1. **Metadata** — YAML frontmatter defining the prompt type and behavior.
+2. **Body** — Markdown-formatted text displayed to the participant.
+3. **Responses** — Response options (format depends on type). Required for `multipleChoice`, `openResponse`, `listSorter`, `slider`. **Omitted entirely for `noResponse`** (#243 — `noResponse` files are two-section).
 
 ## Example
 
@@ -24,6 +24,8 @@ type: multipleChoice
 ```
 
 ## Metadata Fields
+
+Each per-type schema is `.strict()` (#243) — unknown frontmatter keys (typos like `tytle:`, `placholder:`, `interavl:`) are rejected at preflight.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -45,8 +47,8 @@ type: multipleChoice
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `select` | `"single"` or `"multiple"` | Radio buttons (default) or checkboxes |
-| `shuffleOptions` | boolean | Randomize option order before display |
+| `select` | `"single"` or `"multiple"` | Radio buttons (default: `single`) or checkboxes. The legacy `"undefined"` enum value was removed in #243 — omit the field for the default. |
+| `shuffle` | boolean | Randomize option order before display. (Renamed from `shuffleOptions:` in #243.) |
 | `layout` | `"vertical"` or `"horizontal"` | Option layout direction (default: `vertical`) |
 
 **`slider`:**
@@ -55,14 +57,17 @@ type: multipleChoice
 |-------|------|-------------|
 | `min` | number | **Required.** Minimum slider value |
 | `max` | number | **Required.** Maximum slider value (must be > min) |
-| `interval` | number | **Required.** Step size (min + interval must be <= max) |
-| `labelPts` | number[] | Positions where tick marks and labels appear |
+| `interval` | number | **Required.** Step size (min + interval must be ≤ max) |
 
-When `labelPts` is specified, the number of entries must match the number of response items.
+Slider tick labels live in the body's response section (#243), not in the frontmatter — see [Slider](#slider) below. The legacy `labelPts:` frontmatter field was removed.
 
-**`noResponse`:** No type-specific fields. The responses section should be empty.
+**`noResponse`:** No type-specific fields. The file has only two sections (frontmatter + body) — no trailing `---` and no third section.
 
-**`listSorter`:** No type-specific fields. Response items are the list to be reordered.
+**`listSorter`:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `shuffle` | boolean | Randomize item order on first render |
 
 ## Body Section
 
@@ -74,11 +79,11 @@ Images use paths relative to the asset repository root:
 ![diagram](shared/question_diagram.png)
 ```
 
-**Note:** You cannot use `---` as a horizontal rule in the body since it's used as the section delimiter. Use `***` or `___` instead.
+**Note:** You cannot use `---` as a horizontal rule in the body since it's used as the section delimiter. Use `***` or `___` instead — both render identically to `---` in any markdown viewer.
 
 ## Response Section
 
-The format depends on the prompt type:
+Per-type marker enforcement (#243): each type accepts exactly one of `-` or `>` for response lines. Mixing the wrong marker for the type is a preflight error.
 
 ### Multiple Choice / List Sorter
 
@@ -100,19 +105,21 @@ Placeholder text prefixed with `> `:
 
 ### Slider
 
-Labels for tick marks, prefixed with `- `:
+Slider tick labels are inline `- <number>(: <label>)?` lines (#243). The number is the slider point; the label (if present, after the first colon) is what the participant sees beneath the tick. Bare numbers default to using the number as the label.
 
 ```markdown
-- Strongly Disagree
-- Disagree
-- Neutral
-- Agree
-- Strongly Agree
+- 0: Strongly Disagree
+- 25
+- 50: Neutral
+- 75
+- 100: Strongly Agree
 ```
+
+Mixed labeled and unlabeled points are valid. Labels can themselves contain colons — everything after the first colon is the label.
 
 ### No Response
 
-Leave the section empty (or blank lines).
+`noResponse` files don't have a response section at all. Drop the trailing `---` and the third section entirely.
 
 ## Prompt Types in Detail
 
@@ -121,7 +128,7 @@ Leave the section empty (or blank lines).
 ```markdown
 ---
 type: multipleChoice
-shuffleOptions: true
+shuffle: true
 ---
 
 What is your favorite color?
@@ -197,18 +204,17 @@ type: slider
 min: 0
 max: 100
 interval: 1
-labelPts: [0, 25, 50, 75, 100]
 ---
 
 How much do you agree with the following statement?
 
 ---
 
-- Strongly Disagree
-- Disagree
-- Neutral
-- Agree
-- Strongly Agree
+- 0: Strongly Disagree
+- 25
+- 50: Neutral
+- 75
+- 100: Strongly Agree
 ```
 
 ### List Sorter
@@ -216,6 +222,7 @@ How much do you agree with the following statement?
 ```markdown
 ---
 type: listSorter
+shuffle: true
 ---
 
 Drag the following items into your preferred order:
@@ -231,7 +238,7 @@ Drag the following items into your preferred order:
 
 ### No Response
 
-Use for informational text that doesn't collect a response:
+Use for informational text that doesn't collect a response. Two-section file (no trailing `---`):
 
 ```markdown
 ---
@@ -241,7 +248,4 @@ type: noResponse
 Please read the following instructions carefully before proceeding.
 
 The study will take approximately 15 minutes.
-
----
-
 ```

@@ -1,5 +1,7 @@
 // Parsed prompt fixtures for testing.
-// These mirror the structure returned by promptFileSchema.parse().
+// These mirror the structure returned by promptFileSchema.parse() — every
+// fixture includes `sliderPoints` (empty for non-slider types) so consumers
+// can spread the fixture into <Prompt {...fixture} /> without special-casing.
 
 import type { MetadataType } from "../../../schemas/promptFile.js";
 
@@ -17,6 +19,7 @@ We need to decide whether to use Markdown or HTML for storing deliberation topic
 
 _Which format is better for this task?_`,
   responseItems: ["Markdown", "HTML"],
+  sliderPoints: [],
 };
 
 export const multipleChoiceMultiple = {
@@ -27,6 +30,7 @@ export const multipleChoiceMultiple = {
   } as MetadataType,
   body: "# Which colors indicate a strong magical field?",
   responseItems: ["Octarine", "Hooloovoo", "Ultrablack", "Ulfire", "Plaid"],
+  sliderPoints: [],
 };
 
 export const openResponse = {
@@ -39,6 +43,7 @@ export const openResponse = {
 
 _Are there any other reasons you can think of for choosing one or the other?_`,
   responseItems: ["Please enter your response here."],
+  sliderPoints: [],
 };
 
 export const openResponseWithLimits = {
@@ -51,6 +56,7 @@ export const openResponseWithLimits = {
   } as MetadataType,
   body: "# Please write a response between 50 and 200 characters.",
   responseItems: ["Enter your response here."],
+  sliderPoints: [],
 };
 
 export const noResponse = {
@@ -62,6 +68,7 @@ export const noResponse = {
 
 We need to decide whether to use Markdown or HTML. _Discuss why markdown is the best._`,
   responseItems: [],
+  sliderPoints: [],
 };
 
 export const slider = {
@@ -71,10 +78,13 @@ export const slider = {
     min: 0,
     max: 100,
     interval: 1,
-    labelPts: [0, 20, 50, 80, 100],
   } as MetadataType,
   body: "# How warm is your love for avocados?",
   responseItems: ["Very cold", "Chilly", "Tolerable", "Warm", "Super Hot"],
+  // After #243 slider points live in the body alongside their labels.
+  // The fixture shape mirrors `promptFileSchema.parse()` output, so
+  // points and labels arrive as parallel arrays.
+  sliderPoints: [0, 20, 50, 80, 100],
 };
 
 export const listSorter = {
@@ -90,4 +100,5 @@ export const listSorter = {
     "Albus Dumbledore",
     "Severus Snape",
   ],
+  sliderPoints: [],
 };
