@@ -64,7 +64,11 @@ describe("selectionsReducer", () => {
       expect(sels[1]?.start).toBe(30);
     });
 
-    it("replaces existing when multiSelect is false (new is later)", () => {
+    it("preserves existing when multiSelect is false (new is later)", () => {
+      // Single-select rule: a CREATE_RANGE dispatch is rejected if a range
+      // already exists. The user must explicitly delete the existing range
+      // to make a new one. Visual feedback (pulse, footer hint) lives at
+      // the call sites; the reducer is the authoritative gate.
       let state = emptyState();
       state = selectionsReducer(state, {
         type: "CREATE_RANGE",
@@ -77,38 +81,34 @@ describe("selectionsReducer", () => {
         type: "CREATE_RANGE",
         start: 30,
         end: 40,
-        track: undefined,
-        multiSelect: false,
-      });
-      expect(state.selections).toEqual([{ start: 30, end: 40 }]);
-    });
-
-    it("replaces existing when multiSelect is false (new is EARLIER)", () => {
-      // Regression: previously the reducer kept the latest-by-time selection,
-      // not the newly-created one. Creating an earlier range incorrectly kept
-      // the older later range.
-      let state = emptyState();
-      state = selectionsReducer(state, {
-        type: "CREATE_RANGE",
-        start: 30,
-        end: 40,
-        track: undefined,
-        multiSelect: false,
-      });
-      state = selectionsReducer(state, {
-        type: "CREATE_RANGE",
-        start: 5,
-        end: 10,
         track: undefined,
         multiSelect: false,
       });
       expect(state.selections).toEqual([{ start: 5, end: 10 }]);
     });
 
-    it("multiSelect=false: new range is not blocked by existing range overlap", () => {
-      // Previously, createRange clamped against the existing range even
-      // when multiSelect=false, which could prevent creation entirely if
-      // the new range was fully enclosed by an existing one.
+    it("preserves existing when multiSelect is false (new is EARLIER)", () => {
+      let state = emptyState();
+      state = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 30,
+        end: 40,
+        track: undefined,
+        multiSelect: false,
+      });
+      state = selectionsReducer(state, {
+        type: "CREATE_RANGE",
+        start: 5,
+        end: 10,
+        track: undefined,
+        multiSelect: false,
+      });
+      expect(state.selections).toEqual([{ start: 30, end: 40 }]);
+    });
+
+    it("multiSelect=false: rejects a new range that overlaps existing", () => {
+      // A second CREATE_RANGE in single-select mode is always rejected
+      // regardless of whether the proposed range overlaps the existing one.
       let state = emptyState();
       state = selectionsReducer(state, {
         type: "CREATE_RANGE",
@@ -124,7 +124,7 @@ describe("selectionsReducer", () => {
         track: undefined,
         multiSelect: false,
       });
-      expect(state.selections).toEqual([{ start: 20, end: 40 }]);
+      expect(state.selections).toEqual([{ start: 0, end: 60 }]);
     });
 
     it("includes track field in scope=track mode", () => {

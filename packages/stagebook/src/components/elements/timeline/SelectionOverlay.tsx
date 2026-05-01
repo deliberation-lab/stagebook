@@ -22,9 +22,9 @@ export interface SelectionOverlayProps {
   selectionScope: "track" | "all";
   /** Number of tracks (for track-mode hit testing). */
   channelCount: number;
-  /** Whether multiple selections are allowed. When false, new selections
-   *  replace existing ones — the drag preview should not clamp against
-   *  ranges that are about to be replaced. */
+  /** Whether multiple selections are allowed. When false (single-select),
+   *  any "create" gesture (click, drag, Enter) is a no-op once a range
+   *  exists; the user must explicitly delete to replace. */
   multiSelect: boolean;
   /** Current selections from reducer state. */
   selections: TimelineValue;
@@ -72,6 +72,16 @@ export interface SelectionOverlayProps {
    *  range growing while the Enter key is held. Cleared by Timeline on
    *  keyup or blur. */
   keyboardRangePreview?: { start: number; end: number; track?: number } | null;
+  /** Pulse trigger for blocked range-create attempts. The overlay renders a
+   *  brief outline glow on the ranges identified by `indices`, restarting
+   *  whenever `token` changes (via React `key`). Owned by Timeline so both
+   *  click-drag (via `onBlockedCreate`) and Enter trigger the same effect. */
+  pulseTrigger?: { token: number; indices: number[] } | null;
+  /** Called when the user attempted to create a range but it was blocked
+   *  by single-select-with-existing-range. The parent is expected to
+   *  trigger a `pulseTrigger` update so feedback shows up on the existing
+   *  range(s). */
+  onBlockedCreate?: (indices: number[]) => void;
 }
 
 const DRAG_DEAD_ZONE_PX = 4;
@@ -228,6 +238,8 @@ export function SelectionOverlay({
   onEndDrag,
   onRequestFocus,
   keyboardRangePreview = null,
+  pulseTrigger = null,
+  onBlockedCreate,
 }: SelectionOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -396,9 +408,11 @@ export function SelectionOverlay({
           if (!multiSelect && hasExistingRange) {
             // No range creation here, but still request focus so arrow /
             // Delete / Ctrl-Z keep working after the click (Timeline's
-            // container is what owns the keyboard listeners).
+            // container is what owns the keyboard listeners). Pulse the
+            // existing range so the user sees why the click did nothing.
             if (activeIndex !== null) onDeselect();
             onRequestFocus();
+            onBlockedCreate?.(selections.map((_, i) => i));
           } else {
             // Pick a width that's at least CLICK_CREATED_RANGE_SEC AND at
             // least CLICK_CREATED_RANGE_MIN_PX wide on screen — for long
@@ -428,8 +442,18 @@ export function SelectionOverlay({
         const start = Math.min(drag.startTime, time);
         const end = Math.max(drag.startTime, time);
         if (end - start > 0) {
-          onCreateRange(start, end, track);
-          onRequestFocus();
+          // Single-select with an existing range is blocked — the reducer
+          // would no-op the dispatch anyway, but skip it explicitly so the
+          // pulse callback fires and we don't push a phantom undo snapshot.
+          const hasExistingRange =
+            isRangeArray(selections) && selections.length > 0;
+          if (!multiSelect && hasExistingRange) {
+            onBlockedCreate?.(selections.map((_, i) => i));
+            onRequestFocus();
+          } else {
+            onCreateRange(start, end, track);
+            onRequestFocus();
+          }
         }
         setDragPreview(null);
       }
@@ -457,6 +481,7 @@ export function SelectionOverlay({
       onCreateRange,
       onEndDrag,
       onRequestFocus,
+      onBlockedCreate,
       releasePointer,
     ],
   );
@@ -810,6 +835,50 @@ export function SelectionOverlay({
     );
   };
 
+  // Pulse overlays for blocked range-create attempts. Renders a brief
+  // outline glow on each existing range identified by `pulseTrigger.indices`.
+  // The `key` includes `pulseTrigger.token` so each blocked attempt
+  // remounts the element and restarts the animation.
+  const renderBlockedPulses = () => {
+    if (!pulseTrigger || pulseTrigger.indices.length === 0) return null;
+    if (!isRangeArray(selections)) return null;
+    return pulseTrigger.indices.map((idx) => {
+      const r = selections[idx];
+      if (!r) return null;
+      const x1 = timeToPixel(
+        r.start,
+        duration,
+        width,
+        zoomLevel,
+        viewportStart,
+      );
+      const x2 = timeToPixel(r.end, duration, width, zoomLevel, viewportStart);
+      const left = Math.min(x1, x2);
+      const pulseWidth = Math.abs(x2 - x1);
+      const top =
+        selectionScope === "track" && r.track !== undefined
+          ? r.track * trackHeight
+          : 0;
+      const pulseHeight = selectionScope === "track" ? trackHeight : height;
+      return (
+        <div
+          key={`pulse-${String(pulseTrigger.token)}-${String(idx)}`}
+          data-testid="range-blocked-pulse"
+          style={{
+            position: "absolute",
+            left: `${String(left)}px`,
+            top: `${String(top)}px`,
+            width: `${String(pulseWidth)}px`,
+            height: `${String(pulseHeight)}px`,
+            pointerEvents: "none",
+            borderRadius: 2,
+            animation: "stagebookRangeBlockedPulse 600ms ease-out",
+          }}
+        />
+      );
+    });
+  };
+
   // Live preview while Enter is held for press-and-hold range creation
   // (#268 fix). Mirrors the click-drag preview style. Unlike the click
   // path, we don't clamp against existing ranges here — the keyup commit
@@ -896,9 +965,23 @@ export function SelectionOverlay({
         pointerEvents: "auto",
       }}
     >
+      <style>{`
+        @keyframes stagebookRangeBlockedPulse {
+          0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+          30% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.55); }
+          100% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          @keyframes stagebookRangeBlockedPulse {
+            0%, 100% { background: rgba(220, 38, 38, 0); }
+            30% { background: rgba(220, 38, 38, 0.25); }
+          }
+        }
+      `}</style>
       {selectionType === "range" ? renderRanges() : renderPoints()}
       {renderDragPreview()}
       {renderKeyboardRangePreview()}
+      {renderBlockedPulses()}
     </div>
   );
 }
