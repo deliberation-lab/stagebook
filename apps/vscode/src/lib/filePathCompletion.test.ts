@@ -14,10 +14,10 @@ describe("parseFilePathCompletionContext", () => {
     expect(ctx!.valueStart).toBe("  - file: ".length);
   });
 
-  it("triggers on `url:` for mediaPlayer — the whole point of this change", () => {
-    const ctx = parseFilePathCompletionContext("      url: videos/intro");
+  it("triggers on `file:` for mediaPlayer (renamed from `url:` in #249)", () => {
+    const ctx = parseFilePathCompletionContext("      file: videos/intro");
     expect(ctx).not.toBeNull();
-    expect(ctx!.field).toBe("url");
+    expect(ctx!.field).toBe("file");
     expect(ctx!.partial).toBe("videos/intro");
   });
 
@@ -57,8 +57,8 @@ describe("parseFilePathCompletionContext", () => {
 
   it("picks the rightmost field when multiple appear on the same line", () => {
     // Inline/flow YAML — rare but valid.
-    const ctx = parseFilePathCompletionContext("{ name: x, url: videos/y ");
-    expect(ctx!.field).toBe("url");
+    const ctx = parseFilePathCompletionContext("{ name: x, file: videos/y ");
+    expect(ctx!.field).toBe("file");
     expect(ctx!.partial).toBe("videos/y ");
   });
 
@@ -68,7 +68,7 @@ describe("parseFilePathCompletionContext", () => {
   });
 
   it("reports valueStart as the column right after whitespace", () => {
-    const line = "    url:   vids/";
+    const line = "    file:   vids/";
     const ctx = parseFilePathCompletionContext(line);
     expect(ctx!.valueStart).toBe(line.indexOf("vids/"));
     expect(ctx!.partial).toBe("vids/");
@@ -94,7 +94,7 @@ describe("buildCompletionGlob", () => {
 describe("ASSET_GLOB", () => {
   it("includes the common local video container formats", () => {
     // The whole reason this glob exists is so local video file references
-    // (mediaPlayer.url) surface in completions + quick-fixes.
+    // (mediaPlayer.file) surface in completions + quick-fixes.
     expect(ASSET_GLOB).toContain("mp4");
     expect(ASSET_GLOB).toContain("webm");
     expect(ASSET_GLOB).toContain("mov");

@@ -16,7 +16,8 @@ import {
   promptSchema,
   templateSchema,
   treatmentFileSchema,
-  urlSchema,
+  browserUrlSchema,
+  fileSchema,
 } from "./treatment.js";
 
 // ----------- Reference Schema ------------
@@ -498,7 +499,7 @@ test("discussion with invalid condition is invalid", () => {
 test("mediaPlayer: minimal valid config (url only)", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "https://youtu.be/QC8iQqtG0hg",
+    file: "https://youtu.be/QC8iQqtG0hg",
   });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
@@ -507,76 +508,211 @@ test("mediaPlayer: minimal valid config (url only)", () => {
 test("mediaPlayer: relative path url is valid", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
   });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
 });
 
-test("mediaPlayer: asset:// url is valid (platform-provided)", () => {
-  // mediaPlayer.url is z.string() (accepts relative paths too), so any
-  // string passes here — the real schema-level gate on `asset://` lives
-  // in `urlSchema` and is covered below.
+test("mediaPlayer: asset:// file is valid (platform-provided)", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "asset://group_recordings/training_video.mp4",
+    file: "asset://group_recordings/training_video.mp4",
   });
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
 });
 
-// --- urlSchema (used by qualtrics.url and trackedLink.url, #188) ---
+// --- browserUrlSchema (used by qualtrics.url and trackedLink.url, #249) ---
+//
+// Browser-direct URL fields: the browser navigates / loads the iframe at
+// this URL. http(s)://… only — `asset://` is rejected because the browser
+// has no way to resolve it on a direct load (the host's `getAssetURL()`
+// resolver runs platform-side, unreachable from a browser-direct path).
 
-test("urlSchema accepts https://", () => {
-  expect(urlSchema.safeParse("https://example.com/foo").success).toBe(true);
+test("browserUrlSchema accepts https://", () => {
+  expect(browserUrlSchema.safeParse("https://example.com/foo").success).toBe(
+    true,
+  );
 });
 
-test("urlSchema accepts http://", () => {
-  expect(urlSchema.safeParse("http://example.com/foo").success).toBe(true);
+test("browserUrlSchema accepts http://", () => {
+  expect(browserUrlSchema.safeParse("http://example.com/foo").success).toBe(
+    true,
+  );
 });
 
-test("urlSchema accepts asset:// with a host and path", () => {
+test("browserUrlSchema rejects asset:// (now fileSchema-only)", () => {
   expect(
-    urlSchema.safeParse("asset://group_recordings/training.mp4").success,
-  ).toBe(true);
+    browserUrlSchema.safeParse("asset://group_recordings/training.mp4").success,
+  ).toBe(false);
 });
 
-test("urlSchema accepts case-insensitive asset scheme", () => {
-  expect(urlSchema.safeParse("ASSET://clip.mp4").success).toBe(true);
+test("browserUrlSchema rejects ftp:// and other non-allowed protocols", () => {
+  expect(browserUrlSchema.safeParse("ftp://example.com/clip.mp4").success).toBe(
+    false,
+  );
+  expect(browserUrlSchema.safeParse("javascript:alert(1)").success).toBe(false);
+  expect(browserUrlSchema.safeParse("file:///etc/passwd").success).toBe(false);
 });
 
-test("urlSchema rejects bare `asset://` with no host or path", () => {
-  expect(urlSchema.safeParse("asset://").success).toBe(false);
+test("browserUrlSchema rejects non-URL strings", () => {
+  expect(browserUrlSchema.safeParse("not a url").success).toBe(false);
+  expect(browserUrlSchema.safeParse("").success).toBe(false);
 });
 
-test("urlSchema rejects ftp:// and other non-allowed protocols", () => {
-  expect(urlSchema.safeParse("ftp://example.com/clip.mp4").success).toBe(false);
-  expect(urlSchema.safeParse("javascript:alert(1)").success).toBe(false);
-  expect(urlSchema.safeParse("file:///etc/passwd").success).toBe(false);
+test("browserUrlSchema rejects opaque-scheme URLs without //", () => {
+  expect(browserUrlSchema.safeParse("https:example.com").success).toBe(false);
+  expect(browserUrlSchema.safeParse("http:foo").success).toBe(false);
 });
 
-test("urlSchema rejects non-URL strings", () => {
-  expect(urlSchema.safeParse("not a url").success).toBe(false);
-  expect(urlSchema.safeParse("").success).toBe(false);
+test("browserUrlSchema rejects http(s):// with an empty host", () => {
+  expect(browserUrlSchema.safeParse("https://").success).toBe(false);
+  expect(browserUrlSchema.safeParse("http://").success).toBe(false);
 });
 
-test("urlSchema rejects opaque-scheme URLs without //", () => {
-  // `new URL()` accepts these, but downstream consumers expect the
-  // hierarchical `scheme://` form.
-  expect(urlSchema.safeParse("https:example.com").success).toBe(false);
-  expect(urlSchema.safeParse("http:foo").success).toBe(false);
-  expect(urlSchema.safeParse("asset:clip.mp4").success).toBe(false);
+// --- fileSchema (used by every `file:` field in the schema, #249) ---
+//
+// File fields are platform-resolved: the host's loader handles relative
+// paths (relative to the treatment file's directory), `asset://` URIs
+// (via `getAssetURL()`), and bare `https?://` URLs (passed straight to
+// the browser).
+
+test("fileSchema accepts a relative path", () => {
+  expect(fileSchema.safeParse("prompts/foo.prompt.md").success).toBe(true);
+  expect(fileSchema.safeParse("clips/intro.mp4").success).toBe(true);
 });
 
-test("urlSchema rejects http(s):// with an empty host", () => {
-  expect(urlSchema.safeParse("https://").success).toBe(false);
-  expect(urlSchema.safeParse("http://").success).toBe(false);
+test("fileSchema accepts asset:// URIs", () => {
+  expect(fileSchema.safeParse("asset://clips/clip1.mp4").success).toBe(true);
+  expect(fileSchema.safeParse("ASSET://clip.mp4").success).toBe(true);
+});
+
+test("fileSchema accepts http(s):// URLs", () => {
+  expect(fileSchema.safeParse("https://cdn.example.com/clip.mp4").success).toBe(
+    true,
+  );
+  expect(fileSchema.safeParse("http://example.com/x.png").success).toBe(true);
+});
+
+test("fileSchema rejects an empty string", () => {
+  expect(fileSchema.safeParse("").success).toBe(false);
+});
+
+test("fileSchema rejects a whitespace-only string", () => {
+  expect(fileSchema.safeParse("   ").success).toBe(false);
+  expect(fileSchema.safeParse("\t\n").success).toBe(false);
+});
+
+test("fileSchema rejects an absolute path", () => {
+  // Absolute paths can't be resolved against the treatment file's directory —
+  // POSIX-relative is the contract for relative-form paths.
+  expect(fileSchema.safeParse("/etc/passwd").success).toBe(false);
+});
+
+test("fileSchema rejects backslash-separated (Windows-style) paths", () => {
+  // The host loader expects POSIX paths; a backslash slipping through would
+  // resolve to a different file on Windows than on POSIX hosts.
+  expect(fileSchema.safeParse("shared\\clip.mp4").success).toBe(false);
+  expect(fileSchema.safeParse("\\\\server\\share\\x.mp4").success).toBe(false);
+  expect(fileSchema.safeParse("a/b\\c").success).toBe(false);
+});
+
+test("fileSchema rejects opaque-scheme variants (no //)", () => {
+  expect(fileSchema.safeParse("asset:clip.mp4").success).toBe(false);
+  expect(fileSchema.safeParse("https:cdn.example.com/x").success).toBe(false);
+});
+
+test("fileSchema rejects bare `asset://` with no host or path", () => {
+  expect(fileSchema.safeParse("asset://").success).toBe(false);
+});
+
+test("fileSchema rejects `https://` with an empty host", () => {
+  expect(fileSchema.safeParse("https://").success).toBe(false);
+});
+
+test("fileSchema rejects unsupported schemes (ftp:, mailto:)", () => {
+  expect(fileSchema.safeParse("ftp://example.com/x").success).toBe(false);
+  expect(fileSchema.safeParse("mailto:foo@bar.com").success).toBe(false);
+  expect(fileSchema.safeParse("file:///etc/passwd").success).toBe(false);
+});
+
+// --- elementBaseSchema no longer carries `file:` (#249) ---
+
+test("element: stray `file:` on a separator (no file: in its schema) is rejected", () => {
+  const result = elementSchema.safeParse({
+    type: "separator",
+    file: "stray.txt",
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(
+      result.error.issues.some((i) => i.code === "unrecognized_keys"),
+    ).toBe(true);
+  }
+});
+
+test("element: stray `file:` on a submitButton is rejected", () => {
+  const result = elementSchema.safeParse({
+    type: "submitButton",
+    file: "stray.txt",
+  });
+  expect(result.success).toBe(false);
+});
+
+// --- mediaPlayer.file rename (#249) ---
+
+test("mediaPlayer: legacy `url:` field is rejected as unrecognized", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    url: "clip.mp4",
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(
+      result.error.issues.some((i) => i.code === "unrecognized_keys"),
+    ).toBe(true);
+  }
+});
+
+test("mediaPlayer: missing `file:` is rejected", () => {
+  const result = mediaPlayerSchema.safeParse({ type: "mediaPlayer" });
+  expect(result.success).toBe(false);
+});
+
+test("mediaPlayer: malformed captionsFile (asset: with no //) is rejected", () => {
+  const result = mediaPlayerSchema.safeParse({
+    type: "mediaPlayer",
+    file: "clip.mp4",
+    captionsFile: "asset:cap.vtt",
+  });
+  expect(result.success).toBe(false);
+});
+
+// --- qualtrics.url / trackedLink.url stricter (#249) ---
+
+test("qualtrics: asset:// url is rejected (browser-direct only)", () => {
+  const result = elementSchema.safeParse({
+    type: "qualtrics",
+    url: "asset://external/survey",
+  });
+  expect(result.success).toBe(false);
+});
+
+test("trackedLink: asset:// url is rejected (browser-direct only)", () => {
+  const result = elementSchema.safeParse({
+    type: "trackedLink",
+    name: "external_form",
+    url: "asset://external/form",
+    displayText: "Open form",
+  });
+  expect(result.success).toBe(false);
 });
 
 test("mediaPlayer: full config with all fields", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/interview.mp4",
+    file: "shared/interview.mp4",
     name: "coding_video",
     playVideo: true,
     playAudio: true,
@@ -602,7 +738,7 @@ test("mediaPlayer: full config with all fields", () => {
 test("mediaPlayer: startAt/stopAt/stepDuration accept ${field} placeholders", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/interview.mp4",
+    file: "shared/interview.mp4",
     startAt: "${clipStart}",
     stopAt: "${clipEnd}",
     stepDuration: "${stepSize}",
@@ -617,7 +753,7 @@ test("mediaPlayer: stopAt <= startAt check skipped when either is a placeholder"
   // so we must parse through elementSchema to exercise it.
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/interview.mp4",
+    file: "shared/interview.mp4",
     startAt: 100,
     stopAt: "${clipEnd}",
   });
@@ -628,7 +764,7 @@ test("mediaPlayer: stopAt <= startAt IS rejected when both are concrete numbers"
   // Sanity check: the cross-field check still fires when both values are numbers.
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/interview.mp4",
+    file: "shared/interview.mp4",
     startAt: 100,
     stopAt: 50,
   });
@@ -641,17 +777,10 @@ test("mediaPlayer: stopAt <= startAt IS rejected when both are concrete numbers"
   }
 });
 
-test("mediaPlayer: missing url is invalid", () => {
-  const result = mediaPlayerSchema.safeParse({
-    type: "mediaPlayer",
-  });
-  expect(result.success).toBe(false);
-});
-
 test("mediaPlayer: negative startAt is invalid", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     startAt: -5,
   });
   expect(result.success).toBe(false);
@@ -660,7 +789,7 @@ test("mediaPlayer: negative startAt is invalid", () => {
 test("mediaPlayer: stopAt of zero is invalid (must be positive)", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     stopAt: 0,
   });
   expect(result.success).toBe(false);
@@ -669,7 +798,7 @@ test("mediaPlayer: stopAt of zero is invalid (must be positive)", () => {
 test("mediaPlayer: unknown fields are rejected (strict)", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     unknownField: true,
   });
   expect(result.success).toBe(false);
@@ -678,7 +807,7 @@ test("mediaPlayer: unknown fields are rejected (strict)", () => {
 test("mediaPlayer: controls with unknown keys are rejected (strict)", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     controls: { playPause: true, unknownControl: true },
   });
   expect(result.success).toBe(false);
@@ -687,7 +816,7 @@ test("mediaPlayer: controls with unknown keys are rejected (strict)", () => {
 test("mediaPlayer: zero startAt is valid (nonnegative)", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     startAt: 0,
   });
   if (!result.success) console.log(result.error.message);
@@ -697,7 +826,7 @@ test("mediaPlayer: zero startAt is valid (nonnegative)", () => {
 test("mediaPlayer: stepDuration must be positive", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     stepDuration: 0,
   });
   expect(result.success).toBe(false);
@@ -705,7 +834,7 @@ test("mediaPlayer: stepDuration must be positive", () => {
 
 test("elementsSchema accepts type: mediaPlayer", () => {
   const result = elementsSchema.safeParse([
-    { type: "mediaPlayer", url: "shared/footage.mp4" },
+    { type: "mediaPlayer", file: "shared/footage.mp4" },
   ]);
   if (!result.success) console.log(result.error.message);
   expect(result.success).toBe(true);
@@ -714,7 +843,7 @@ test("elementsSchema accepts type: mediaPlayer", () => {
 test("mediaPlayer: stopAt must be greater than startAt", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     startAt: 30,
     stopAt: 10,
   });
@@ -724,7 +853,7 @@ test("mediaPlayer: stopAt must be greater than startAt", () => {
 test("mediaPlayer: startAt equal to stopAt is invalid", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     startAt: 30,
     stopAt: 30,
   });
@@ -734,7 +863,7 @@ test("mediaPlayer: startAt equal to stopAt is invalid", () => {
 test("mediaPlayer: startAt < stopAt is valid", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     startAt: 10,
     stopAt: 90,
   });
@@ -745,7 +874,7 @@ test("mediaPlayer: startAt < stopAt is valid", () => {
 test("mediaPlayer: playback 'once' is valid", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     playback: "once",
   });
   if (!result.success) console.log(result.error.message);
@@ -755,7 +884,7 @@ test("mediaPlayer: playback 'once' is valid", () => {
 test("mediaPlayer: playback 'manual' is valid", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     playback: "manual",
   });
   if (!result.success) console.log(result.error.message);
@@ -765,7 +894,7 @@ test("mediaPlayer: playback 'manual' is valid", () => {
 test("mediaPlayer: playback rejects invalid value", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     playback: "loop",
   });
   expect(result.success).toBe(false);
@@ -774,7 +903,7 @@ test("mediaPlayer: playback rejects invalid value", () => {
 test("mediaPlayer: playback is optional (omitted in schema, component defaults to 'once')", () => {
   const result = mediaPlayerSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
   });
   expect(result.success).toBe(true);
   if (result.success) {
@@ -785,7 +914,7 @@ test("mediaPlayer: playback is optional (omitted in schema, component defaults t
 test("mediaPlayer: playback 'once' with controls is invalid", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     playback: "once",
     controls: { playPause: true },
   });
@@ -795,7 +924,7 @@ test("mediaPlayer: playback 'once' with controls is invalid", () => {
 test("mediaPlayer: playback 'once' with syncToStageTime is invalid", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     playback: "once",
     syncToStageTime: true,
   });
@@ -805,7 +934,7 @@ test("mediaPlayer: playback 'once' with syncToStageTime is invalid", () => {
 test("mediaPlayer: playback 'manual' with controls is valid", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "shared/footage.mp4",
+    file: "shared/footage.mp4",
     playback: "manual",
     controls: { playPause: true },
   });
@@ -874,7 +1003,7 @@ test("intro step with mediaPlayer submitOnComplete auto-submits (no submitButton
       elements: [
         {
           type: "mediaPlayer",
-          url: "shared/intro.mp4",
+          file: "shared/intro.mp4",
           submitOnComplete: true,
         },
       ],
@@ -888,7 +1017,7 @@ test("intro step with mediaPlayer without submitOnComplete requires submitButton
   const result = introStepsSchema.safeParse([
     {
       name: "watch_video",
-      elements: [{ type: "mediaPlayer", url: "shared/intro.mp4" }],
+      elements: [{ type: "mediaPlayer", file: "shared/intro.mp4" }],
     },
   ]);
   if (!result.success) console.log(result.error.message);
@@ -1072,7 +1201,7 @@ test("elementsSchema accepts type: timeline", () => {
 
 test("elementsSchema accepts timeline alongside mediaPlayer", () => {
   const result = elementsSchema.safeParse([
-    { type: "mediaPlayer", url: "shared/interview.mp4", name: "coding_video" },
+    { type: "mediaPlayer", file: "shared/interview.mp4", name: "coding_video" },
     {
       type: "timeline",
       source: "coding_video",
@@ -1100,7 +1229,7 @@ test("stage accepts a timeline whose source matches a sibling mediaPlayer.name",
     name: "coding",
     duration: 60,
     elements: [
-      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      { type: "mediaPlayer", file: "v.mp4", name: "interview" },
       {
         type: "timeline",
         source: "interview",
@@ -1118,7 +1247,7 @@ test("stage rejects a timeline whose source doesn't match any mediaPlayer.name",
     name: "coding",
     duration: 60,
     elements: [
-      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      { type: "mediaPlayer", file: "v.mp4", name: "interview" },
       {
         type: "timeline",
         source: "typo_video",
@@ -1167,7 +1296,7 @@ test("stage with an unnamed mediaPlayer distinguishes 'none named' from 'none at
     name: "coding",
     duration: 60,
     elements: [
-      { type: "mediaPlayer", url: "v.mp4" }, // no name
+      { type: "mediaPlayer", file: "v.mp4" }, // no name
       {
         type: "timeline",
         source: "missing",
@@ -1191,7 +1320,7 @@ test("stage skips source validation when source is a ${field} placeholder", () =
     name: "coding",
     duration: 60,
     elements: [
-      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      { type: "mediaPlayer", file: "v.mp4", name: "interview" },
       {
         type: "timeline",
         source: "${playerName}",
@@ -1209,8 +1338,8 @@ test("stage allows multiple timelines pointing at different mediaPlayers", () =>
     name: "review",
     duration: 120,
     elements: [
-      { type: "mediaPlayer", url: "a.mp4", name: "clip_a" },
-      { type: "mediaPlayer", url: "b.mp4", name: "clip_b" },
+      { type: "mediaPlayer", file: "a.mp4", name: "clip_a" },
+      { type: "mediaPlayer", file: "b.mp4", name: "clip_b" },
       {
         type: "timeline",
         source: "clip_a",
@@ -1239,7 +1368,7 @@ test("intro/exit step also rejects a timeline whose source doesn't match a sibli
     elements: [
       {
         type: "mediaPlayer",
-        url: "asset://recordings/sample.mp4",
+        file: "asset://recordings/sample.mp4",
         name: "practiceStory",
       },
       {
@@ -1269,7 +1398,7 @@ test("intro/exit step accepts a matching timeline source", () => {
     elements: [
       {
         type: "mediaPlayer",
-        url: "asset://recordings/sample.mp4",
+        file: "asset://recordings/sample.mp4",
         name: "practiceStory",
       },
       {
@@ -1290,7 +1419,7 @@ test("stage reports one issue per mismatched timeline (not a single aggregated e
     name: "coding",
     duration: 60,
     elements: [
-      { type: "mediaPlayer", url: "v.mp4", name: "interview" },
+      { type: "mediaPlayer", file: "v.mp4", name: "interview" },
       {
         type: "timeline",
         source: "bogus_a",
@@ -1956,7 +2085,7 @@ test("element: missing `type` discriminator is rejected", () => {
 test("element: mediaPlayer cross-field rule (stopAt > startAt) still applies", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "clip.mp4",
+    file: "clip.mp4",
     startAt: 10,
     stopAt: 5,
   });
@@ -1973,7 +2102,7 @@ test("element: mediaPlayer cross-field rule (stopAt > startAt) still applies", (
 test("element: mediaPlayer playback 'once' + syncToStageTime still rejected", () => {
   const result = elementSchema.safeParse({
     type: "mediaPlayer",
-    url: "clip.mp4",
+    file: "clip.mp4",
     playback: "once",
     syncToStageTime: true,
   });

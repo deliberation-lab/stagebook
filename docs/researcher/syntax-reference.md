@@ -65,7 +65,7 @@ conditions:
 
 ## 6. Elements
 
-All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`.
+All elements accept: `name?`, `notes?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`. (`file?` is per-type — only `prompt`, `audio`, `image`, `mediaPlayer` accept it; see #249.)
 
 | Type            | Key Fields                                                                                                                                                                                                                                     |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -76,7 +76,7 @@ All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `s
 | `separator`     | `style?` (`thin`, `regular`, `thick`)                                                                                                                                                                                                          |
 | `audio`         | `file` (required)                                                                                                                                                                                                                              |
 | `image`         | `file` (required), `width?`                                                                                                                                                                                                                    |
-| `mediaPlayer`   | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?`                                                |
+| `mediaPlayer`   | `file` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?`                                              |
 | `timeline`      | `source` (required, name of a sibling `mediaPlayer`), `name` (required), `selectionType` (required, `range` or `point`), `selectionScope?` (default `all`), `multiSelect?` (default `false`), `showWaveform?` (default `true`), `trackLabels?` |
 | `survey`        | `surveyName` (required) — _deprecated; pending removal once a module-reuse pattern lands. Prefer prompt-based patterns._                                                                                                                       |
 | `qualtrics`     | `url` (required), `urlParams?`                                                                                                                                                                                                                 |

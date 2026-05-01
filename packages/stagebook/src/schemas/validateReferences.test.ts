@@ -607,7 +607,7 @@ describe("Unknown-reference detection", () => {
           elements: [
             {
               type: "mediaPlayer",
-              url: "asset://x.mp4",
+              file: "asset://x.mp4",
               name: "story",
             },
             {

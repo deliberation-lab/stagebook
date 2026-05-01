@@ -35,9 +35,12 @@ describe("getValidKeysForElementType", () => {
 
   it("includes per-type keys (mediaPlayer)", () => {
     const keys = getValidKeysForElementType("mediaPlayer");
-    expect(keys).toContain("url");
+    expect(keys).toContain("file");
+    expect(keys).toContain("captionsFile");
     expect(keys).toContain("startAt");
     expect(keys).toContain("stopAt");
+    // `url:` was renamed to `file:` in #249.
+    expect(keys).not.toContain("url");
   });
 
   it("returns null for an unknown type", () => {
@@ -166,7 +169,7 @@ describe("safeParseTreatmentFile — element unrecognized keys", () => {
     );
     expect(issue).toBeDefined();
     expect(issue!.message).toBe(
-      "Unrecognized key 'survyName' on element of type 'survey'. Did you mean 'surveyName'? Valid keys: name, notes, file, displayTime, hideTime, showToPositions, hideFromPositions, conditions, tags, type, surveyName",
+      "Unrecognized key 'survyName' on element of type 'survey'. Did you mean 'surveyName'? Valid keys: name, notes, displayTime, hideTime, showToPositions, hideFromPositions, conditions, tags, type, surveyName",
     );
 
     const params = (issue as { params?: UnrecognizedKeyIssueParams }).params;

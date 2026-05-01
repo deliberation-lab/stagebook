@@ -89,17 +89,17 @@ describe("getReferencedAssets — element type allowlist", () => {
     });
   });
 
-  test("mediaPlayer.url and mediaPlayer.captionsFile are both collected", () => {
+  test("mediaPlayer.file and mediaPlayer.captionsFile are both collected", () => {
     const tree = treatmentWithElements([
       {
         type: "mediaPlayer",
-        url: "videos/intro.mp4",
+        file: "videos/intro.mp4",
         captionsFile: "videos/intro.vtt",
       },
     ]);
     const assets = getReferencedAssets(tree);
     expect(assets.map((a) => ({ path: a.path, field: a.field }))).toEqual([
-      { path: "videos/intro.mp4", field: "url" },
+      { path: "videos/intro.mp4", field: "file" },
       { path: "videos/intro.vtt", field: "captionsFile" },
     ]);
     expect(assets.every((a) => a.elementType === "mediaPlayer")).toBe(true);
@@ -143,17 +143,17 @@ describe("getReferencedAssets — exclusions", () => {
     expect(getReferencedAssets(tree)).toEqual([]);
   });
 
-  test("excludes mediaPlayer.url when the value is a full https URL", () => {
+  test("excludes mediaPlayer.file when the value is a full https URL", () => {
     const tree = treatmentWithElements([
-      { type: "mediaPlayer", url: "https://example.com/foo.mp4" },
+      { type: "mediaPlayer", file: "https://example.com/foo.mp4" },
     ]);
     expect(getReferencedAssets(tree)).toEqual([]);
   });
 
   test("excludes full http and protocol-relative URLs", () => {
     const tree = treatmentWithElements([
-      { type: "mediaPlayer", url: "http://example.com/a.mp4" },
-      { type: "mediaPlayer", url: "//cdn.example.com/b.mp4" },
+      { type: "mediaPlayer", file: "http://example.com/a.mp4" },
+      { type: "mediaPlayer", file: "//cdn.example.com/b.mp4" },
     ]);
     expect(getReferencedAssets(tree)).toEqual([]);
   });
@@ -162,7 +162,7 @@ describe("getReferencedAssets — exclusions", () => {
     const tree = treatmentWithElements([
       {
         type: "mediaPlayer",
-        url: "asset://group_recordings/training_video.mp4",
+        file: "asset://group_recordings/training_video.mp4",
       },
       { type: "image", file: "asset://diagrams/flow.png" },
       { type: "audio", file: "asset://stings/intro.mp3" },
@@ -172,17 +172,17 @@ describe("getReferencedAssets — exclusions", () => {
 
   test("is case-insensitive on the asset:// scheme", () => {
     const tree = treatmentWithElements([
-      { type: "mediaPlayer", url: "ASSET://clip.mp4" },
-      { type: "mediaPlayer", url: "Asset://clip.mp4" },
+      { type: "mediaPlayer", file: "ASSET://clip.mp4" },
+      { type: "mediaPlayer", file: "Asset://clip.mp4" },
     ]);
     expect(getReferencedAssets(tree)).toEqual([]);
   });
 
   test("excludes malformed opaque `asset:` form too (no //)", () => {
     // Guard against an `asset:clip.mp4` slipping through as a "local
-    // file" when `urlSchema` would have rejected it upstream.
+    // file" when `fileSchema` would have rejected it upstream.
     const tree = treatmentWithElements([
-      { type: "mediaPlayer", url: "asset:clip.mp4" },
+      { type: "mediaPlayer", file: "asset:clip.mp4" },
       { type: "image", file: "asset:diagram.png" },
     ]);
     expect(getReferencedAssets(tree)).toEqual([]);
@@ -191,7 +191,7 @@ describe("getReferencedAssets — exclusions", () => {
   test("excludes empty string paths", () => {
     const tree = treatmentWithElements([
       { type: "image", file: "" },
-      { type: "mediaPlayer", url: "", captionsFile: "" },
+      { type: "mediaPlayer", file: "", captionsFile: "" },
     ]);
     expect(getReferencedAssets(tree)).toEqual([]);
   });
@@ -308,7 +308,7 @@ describe("getReferencedAssets — structural walk", () => {
     const tree = treatmentWithElements([
       {
         type: "mediaPlayer",
-        url: "https://example.com/foo.mp4",
+        file: "https://example.com/foo.mp4",
         captionsFile: "captions/foo.vtt",
       },
     ]);
@@ -320,18 +320,18 @@ describe("getReferencedAssets — structural walk", () => {
     });
   });
 
-  test("order within a single element follows field-declaration order (url before captionsFile)", () => {
+  test("order within a single element follows field-declaration order (file before captionsFile)", () => {
     const tree = treatmentWithElements([
       {
-        // Author wrote captionsFile first, url second — utility order is
+        // Author wrote captionsFile first, file second — utility order is
         // governed by the allowlist table, not YAML key order.
         captionsFile: "cap.vtt",
-        url: "video.mp4",
+        file: "video.mp4",
         type: "mediaPlayer",
       },
     ]);
     const assets = getReferencedAssets(tree);
-    expect(assets.map((a) => a.field)).toEqual(["url", "captionsFile"]);
+    expect(assets.map((a) => a.field)).toEqual(["file", "captionsFile"]);
   });
 
   test("omits elementName when the element has no name", () => {
@@ -349,7 +349,7 @@ describe("getReferencedAssets — structural walk", () => {
     const tree = treatmentWithElements([
       {
         type: "mediaPlayer",
-        url: "videos/x.mp4",
+        file: "videos/x.mp4",
         captionsFile: "videos/x.vtt",
       },
     ]);
@@ -361,7 +361,7 @@ describe("getReferencedAssets — structural walk", () => {
       0,
       "elements",
       0,
-      "url",
+      "file",
     ]);
     expect(assets[1].pathInTree).toEqual([
       "treatments",
