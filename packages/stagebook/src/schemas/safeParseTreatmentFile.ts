@@ -135,7 +135,7 @@ function getAtPath(root: unknown, path: (string | number)[]): unknown {
  * - discussion  : … "discussion"
  * - player      : … "groupComposition" <n>
  *
- * NOT recognized today: `templateContent` paths. Unrecognized keys
+ * NOT recognized today: template `content` paths. Unrecognized keys
  * inside a template body fall through to the `unknown` bucket and
  * surface with a bare "Unrecognized key 'X'." (no key list, no
  * suggestion). Resolving these would require walking back up the path

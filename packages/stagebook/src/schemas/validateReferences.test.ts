@@ -672,9 +672,9 @@ describe("Unknown-reference detection", () => {
     const file = {
       templates: [
         {
-          templateName: "storyStage",
+          name: "storyStage",
           contentType: "stage",
-          templateContent: {
+          content: {
             name: "templated",
             duration: 60,
             elements: [

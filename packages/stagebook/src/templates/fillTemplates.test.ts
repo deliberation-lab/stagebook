@@ -6,9 +6,8 @@ import { fillTemplates, getUnresolvedFields } from "./fillTemplates.js";
 test("template with simple object field", () => {
   const templates = [
     {
-      templateName: "simple_object",
-      templateDesc: "string and object substitution",
-      templateContent: {
+      name: "simple_object",
+      content: {
         field1Key: "${f1}",
         field2Key: "${f2}",
         field3Key: "Adding ${f1} in a string succeeds!",
@@ -43,9 +42,8 @@ test("template with simple object field", () => {
 test("template with simple list field", () => {
   const templates = [
     {
-      templateName: "simple_list",
-      templateDesc: "string and object substitution",
-      templateContent: ["${f1}", "${f2}", "Adding ${f1} in a string succeeds!"],
+      name: "simple_list",
+      content: ["${f1}", "${f2}", "Adding ${f1} in a string succeeds!"],
     },
   ];
 
@@ -76,9 +74,8 @@ test("template with simple list field", () => {
 test("template with simple string field", () => {
   const templates = [
     {
-      templateName: "simple_string",
-      templateDesc: "string and object substitution",
-      templateContent: "Adding ${f1} in a string succeeds!",
+      name: "simple_string",
+      content: "Adding ${f1} in a string succeeds!",
     },
   ];
 
@@ -98,9 +95,8 @@ test("template with simple string field", () => {
 test("nested templates", () => {
   const templates = [
     {
-      templateName: "outer",
-      templateDesc: "Contains a nested template",
-      templateContent: {
+      name: "outer",
+      content: {
         field1Key: "${f1}",
         field2Key: "${f2}",
         fields1and2Keys: "${f1}_${f2}",
@@ -115,9 +111,8 @@ test("nested templates", () => {
       },
     },
     {
-      templateName: "inner",
-      templateDesc: "Used within another template",
-      templateContent: {
+      name: "inner",
+      content: {
         field4Key: "${f4}",
         field5Key: "${f5}",
       },
@@ -157,8 +152,8 @@ test("nested templates", () => {
 test("template with broadcast", () => {
   const templates = [
     {
-      templateName: "simple",
-      templateContent: {
+      name: "simple",
+      content: {
         name: "${name}",
         Aval: "${A}",
         Bval: "${B}",
@@ -193,12 +188,12 @@ test("template with broadcast", () => {
 test("template with broadcast merging to array", () => {
   const templates = [
     {
-      templateName: "inner",
-      templateContent: { name: "${name}" },
+      name: "inner",
+      content: { name: "${name}" },
     },
     {
-      templateName: "outer",
-      templateContent: {
+      name: "outer",
+      content: {
         arrayOfInnersAndOthers: [
           {
             template: "inner",
@@ -230,16 +225,16 @@ test("template with broadcast merging to array", () => {
 test("template with broadcast array from another template", () => {
   const templates = [
     {
-      templateName: "simple",
-      templateContent: {
+      name: "simple",
+      content: {
         name: "${name}",
         Aval: "${A}",
         Bval: "${B}",
       },
     },
     {
-      templateName: "broadcastList",
-      templateContent: [{ A: "A0" }, { A: "A1" }, { A: "A2" }],
+      name: "broadcastList",
+      content: [{ A: "A0" }, { A: "A1" }, { A: "A2" }],
     },
   ];
 
@@ -270,8 +265,8 @@ test("template with broadcast array from another template", () => {
 test("template with list and broadcast returns properly", () => {
   const templates = [
     {
-      templateName: "listTemplate",
-      templateContent: [
+      name: "listTemplate",
+      content: [
         { outerIndex: "${outerIndex}", innerIndex: "0" },
         { outerIndex: "${outerIndex}", innerIndex: "1" },
       ],
@@ -303,9 +298,7 @@ test("template with list and broadcast returns properly", () => {
 // ----------------------------------------------------------------
 
 test("throws on missing template reference", () => {
-  const templates = [
-    { templateName: "exists", templateContent: { key: "value" } },
-  ];
+  const templates = [{ name: "exists", content: { key: "value" } }];
 
   expect(() =>
     fillTemplates({ templates, obj: { template: "doesNotExist" } }),
@@ -315,8 +308,8 @@ test("throws on missing template reference", () => {
 test("throws on unfilled field placeholders", () => {
   const templates = [
     {
-      templateName: "withPlaceholder",
-      templateContent: { name: "${missingField}" },
+      name: "withPlaceholder",
+      content: { name: "${missingField}" },
     },
   ];
 
@@ -331,12 +324,12 @@ test("throws on unfilled field placeholders", () => {
 test("throws on circular template references (depth limit)", () => {
   const templates = [
     {
-      templateName: "loop1",
-      templateContent: { nested: { template: "loop2" } },
+      name: "loop1",
+      content: { nested: { template: "loop2" } },
     },
     {
-      templateName: "loop2",
-      templateContent: { nested: { template: "loop1" } },
+      name: "loop2",
+      content: { nested: { template: "loop1" } },
     },
   ];
 
@@ -348,12 +341,12 @@ test("throws on circular template references (depth limit)", () => {
 test("circular reference error includes template chain", () => {
   const templates = [
     {
-      templateName: "alpha",
-      templateContent: { next: { template: "beta" } },
+      name: "alpha",
+      content: { next: { template: "beta" } },
     },
     {
-      templateName: "beta",
-      templateContent: { next: { template: "alpha" } },
+      name: "beta",
+      content: { next: { template: "alpha" } },
     },
   ];
 
@@ -387,8 +380,8 @@ test("empty templates array with plain array", () => {
 test("numeric field values substituted as standalone", () => {
   const templates = [
     {
-      templateName: "numeric",
-      templateContent: { count: "${num}" },
+      name: "numeric",
+      content: { count: "${num}" },
     },
   ];
 
@@ -403,8 +396,8 @@ test("numeric field values substituted as standalone", () => {
 test("string field embedded in another string", () => {
   const templates = [
     {
-      templateName: "embedded",
-      templateContent: { label: "Item ${name} here" },
+      name: "embedded",
+      content: { label: "Item ${name} here" },
     },
   ];
 
@@ -418,8 +411,8 @@ test("string field embedded in another string", () => {
 test("array field values substituted correctly", () => {
   const templates = [
     {
-      templateName: "arrayField",
-      templateContent: { items: "${myArray}" },
+      name: "arrayField",
+      content: { items: "${myArray}" },
     },
   ];
 
@@ -433,8 +426,8 @@ test("array field values substituted correctly", () => {
 test("boolean field values substituted correctly", () => {
   const templates = [
     {
-      templateName: "boolField",
-      templateContent: { enabled: "${flag}" },
+      name: "boolField",
+      content: { enabled: "${flag}" },
     },
   ];
 
@@ -452,8 +445,8 @@ test("boolean field values substituted correctly", () => {
 test("additionalFields resolves platform-provided placeholders", () => {
   const templates = [
     {
-      templateName: "stage",
-      templateContent: {
+      name: "stage",
+      content: {
         name: "rate_${dimension}",
         url: "${clipUrl}",
         startAt: "${clipStartAt}",
@@ -479,8 +472,8 @@ test("additionalFields resolves platform-provided placeholders", () => {
 test("additionalFields without additionalFields behaves identically", () => {
   const templates = [
     {
-      templateName: "simple",
-      templateContent: { name: "${n}" },
+      name: "simple",
+      content: { name: "${n}" },
     },
   ];
 
@@ -494,8 +487,8 @@ test("additionalFields without additionalFields behaves identically", () => {
 test("researcher fields and additionalFields coexist", () => {
   const templates = [
     {
-      templateName: "mixed",
-      templateContent: {
+      name: "mixed",
+      content: {
         researcherField: "${myField}",
         platformField: "${platformValue}",
       },
@@ -516,8 +509,8 @@ test("researcher fields and additionalFields coexist", () => {
 test("broadcast + additionalFields work together", () => {
   const templates = [
     {
-      templateName: "rating",
-      templateContent: {
+      name: "rating",
+      content: {
         name: "rate_${dimension}",
         clip: "${clipUrl}",
       },
@@ -549,8 +542,8 @@ test("broadcast + additionalFields work together", () => {
 test("missing additionalFields still triggers error", () => {
   const templates = [
     {
-      templateName: "needsMore",
-      templateContent: {
+      name: "needsMore",
+      content: {
         a: "${provided}",
         b: "${missing}",
       },
@@ -569,8 +562,8 @@ test("missing additionalFields still triggers error", () => {
 test("additionalFields with object values", () => {
   const templates = [
     {
-      templateName: "config",
-      templateContent: { settings: "${platformConfig}" },
+      name: "config",
+      content: { settings: "${platformConfig}" },
     },
   ];
 
@@ -587,9 +580,7 @@ test("additionalFields with object values", () => {
 });
 
 test("returns empty unresolvedFields when all fields filled", () => {
-  const templates = [
-    { templateName: "full", templateContent: { val: "${x}" } },
-  ];
+  const templates = [{ name: "full", content: { val: "${x}" } }];
 
   const { result, unresolvedFields } = fillTemplates({
     templates,
@@ -606,8 +597,8 @@ test("returns empty unresolvedFields when all fields filled", () => {
 test("allowUnresolved returns partial result with unresolved field names", () => {
   const templates = [
     {
-      templateName: "stage",
-      templateContent: {
+      name: "stage",
+      content: {
         name: "rate_${dimension}",
         clip: "${clipUrl}",
         start: "${clipStartAt}",
@@ -629,8 +620,8 @@ test("allowUnresolved returns partial result with unresolved field names", () =>
 test("allowUnresolved + additionalFields: partial fill", () => {
   const templates = [
     {
-      templateName: "stage",
-      templateContent: {
+      name: "stage",
+      content: {
         clip: "${clipUrl}",
         start: "${clipStartAt}",
         stop: "${clipStopAt}",
@@ -651,8 +642,8 @@ test("allowUnresolved + additionalFields: partial fill", () => {
 test("two-pass expansion: researcher templates then platform fields", () => {
   const templates = [
     {
-      templateName: "ratingStage",
-      templateContent: {
+      name: "ratingStage",
+      content: {
         name: "rate_${dimension}",
         clip: "${clipUrl}",
         startAt: "${clipStartAt}",
@@ -689,7 +680,7 @@ test("two-pass expansion: researcher templates then platform fields", () => {
 });
 
 test("allowUnresolved without unresolved fields returns empty array", () => {
-  const templates = [{ templateName: "done", templateContent: { x: "${a}" } }];
+  const templates = [{ name: "done", content: { x: "${a}" } }];
 
   const { result, unresolvedFields } = fillTemplates({
     templates,
@@ -701,9 +692,7 @@ test("allowUnresolved without unresolved fields returns empty array", () => {
 });
 
 test("default (allowUnresolved false) still throws on unresolved", () => {
-  const templates = [
-    { templateName: "incomplete", templateContent: { x: "${missing}" } },
-  ];
+  const templates = [{ name: "incomplete", content: { x: "${missing}" } }];
 
   expect(() =>
     fillTemplates({ templates, obj: { template: "incomplete" } }),
@@ -717,8 +706,8 @@ test("default (allowUnresolved false) still throws on unresolved", () => {
 test("getUnresolvedFields returns platform placeholders", () => {
   const templates = [
     {
-      templateName: "stage",
-      templateContent: {
+      name: "stage",
+      content: {
         name: "rate_${dimension}",
         url: "${clipUrl}",
         startAt: "${clipStartAt}",
@@ -739,8 +728,8 @@ test("getUnresolvedFields returns platform placeholders", () => {
 test("getUnresolvedFields returns empty when all fields resolved", () => {
   const templates = [
     {
-      templateName: "complete",
-      templateContent: { name: "${n}" },
+      name: "complete",
+      content: { name: "${n}" },
     },
   ];
 
@@ -754,8 +743,8 @@ test("getUnresolvedFields returns empty when all fields resolved", () => {
 test("getUnresolvedFields with broadcast resolves researcher fields", () => {
   const templates = [
     {
-      templateName: "rating",
-      templateContent: {
+      name: "rating",
+      content: {
         name: "rate_${dimension}",
         clip: "${clipUrl}",
       },
@@ -778,8 +767,8 @@ test("getUnresolvedFields with broadcast resolves researcher fields", () => {
 test("getUnresolvedFields does not throw", () => {
   const templates = [
     {
-      templateName: "incomplete",
-      templateContent: { a: "${x}", b: "${y}", c: "${z}" },
+      name: "incomplete",
+      content: { a: "${x}", b: "${y}", c: "${z}" },
     },
   ];
 
@@ -794,8 +783,8 @@ test("getUnresolvedFields does not throw", () => {
 test("getUnresolvedFields returns unique names", () => {
   const templates = [
     {
-      templateName: "repeated",
-      templateContent: {
+      name: "repeated",
+      content: {
         a: "${same}",
         b: "prefix_${same}_suffix",
         c: "${same}",
@@ -817,9 +806,7 @@ test("getUnresolvedFields returns unique names", () => {
 // -- undefined/null additionalFields values --
 
 test("additionalFields with undefined value leaves placeholder", () => {
-  const templates = [
-    { templateName: "t", templateContent: { a: "${x}", b: "${y}" } },
-  ];
+  const templates = [{ name: "t", content: { a: "${x}", b: "${y}" } }];
 
   // undefined is skipped, so ${x} remains unresolved
   expect(() =>
@@ -832,9 +819,7 @@ test("additionalFields with undefined value leaves placeholder", () => {
 });
 
 test("additionalFields with undefined value + allowUnresolved", () => {
-  const templates = [
-    { templateName: "t", templateContent: { a: "${x}", b: "${y}" } },
-  ];
+  const templates = [{ name: "t", content: { a: "${x}", b: "${y}" } }];
 
   const { result, unresolvedFields } = fillTemplates({
     templates,
@@ -848,7 +833,7 @@ test("additionalFields with undefined value + allowUnresolved", () => {
 });
 
 test("additionalFields with null value substitutes null", () => {
-  const templates = [{ templateName: "t", templateContent: { val: "${x}" } }];
+  const templates = [{ name: "t", content: { val: "${x}" } }];
 
   const { result } = fillTemplates({
     templates,
@@ -864,8 +849,8 @@ test("additionalFields with null value substitutes null", () => {
 test("field value containing placeholder-like text is not re-substituted", () => {
   const templates = [
     {
-      templateName: "code",
-      templateContent: { snippet: "${code}", label: "Code: ${code}" },
+      name: "code",
+      content: { snippet: "${code}", label: "Code: ${code}" },
     },
   ];
 
@@ -886,9 +871,7 @@ test("field value containing placeholder-like text is not re-substituted", () =>
 // -- additionalFields override researcher fields --
 
 test("additionalFields applied after researcher fields (later wins)", () => {
-  const templates = [
-    { templateName: "t", templateContent: { val: "${shared}" } },
-  ];
+  const templates = [{ name: "t", content: { val: "${shared}" } }];
 
   const { result } = fillTemplates({
     templates,
@@ -905,9 +888,7 @@ test("additionalFields applied after researcher fields (later wins)", () => {
 // -- Array of template contexts --
 
 test("array of template contexts each expanded independently", () => {
-  const templates = [
-    { templateName: "greet", templateContent: { msg: "Hello ${name}" } },
-  ];
+  const templates = [{ name: "greet", content: { msg: "Hello ${name}" } }];
 
   const { result } = fillTemplates({
     templates,
@@ -922,8 +903,8 @@ test("array of template contexts each expanded independently", () => {
 
 test("array of treatments with different unresolved fields", () => {
   const templates = [
-    { templateName: "a", templateContent: { url: "${clipUrl}" } },
-    { templateName: "b", templateContent: { start: "${startTime}" } },
+    { name: "a", content: { url: "${clipUrl}" } },
+    { name: "b", content: { start: "${startTime}" } },
   ];
 
   const { result, unresolvedFields } = fillTemplates({
@@ -939,7 +920,7 @@ test("array of treatments with different unresolved fields", () => {
 // -- Broadcast edge cases --
 
 test("single-item broadcast returns array with one element", () => {
-  const templates = [{ templateName: "t", templateContent: { val: "${v}" } }];
+  const templates = [{ name: "t", content: { val: "${v}" } }];
 
   const { result } = fillTemplates({
     templates,
@@ -957,8 +938,8 @@ test("single-item broadcast returns array with one element", () => {
 test("broadcast dimension indices don't collide with additionalFields", () => {
   const templates = [
     {
-      templateName: "t",
-      templateContent: { index: "${d0}", platform: "${pval}" },
+      name: "t",
+      content: { index: "${d0}", platform: "${pval}" },
     },
   ];
 
@@ -981,8 +962,8 @@ test("broadcast dimension indices don't collide with additionalFields", () => {
 test("multi-dimensional broadcast + additionalFields", () => {
   const templates = [
     {
-      templateName: "t",
-      templateContent: { name: "${d0}_${d1}", url: "${platformUrl}" },
+      name: "t",
+      content: { name: "${d0}_${d1}", url: "${platformUrl}" },
     },
   ];
 
@@ -1013,14 +994,14 @@ test("multi-dimensional broadcast + additionalFields", () => {
 test("unresolved fields in nested templates bubble up", () => {
   const templates = [
     {
-      templateName: "outer",
-      templateContent: {
+      name: "outer",
+      content: {
         inner: { template: "inner", fields: { x: "resolved" } },
       },
     },
     {
-      templateName: "inner",
-      templateContent: { x: "${x}", y: "${y}" },
+      name: "inner",
+      content: { x: "${x}", y: "${y}" },
     },
   ];
 
@@ -1037,9 +1018,7 @@ test("unresolved fields in nested templates bubble up", () => {
 // -- Two-pass strict second pass --
 
 test("strict second pass throws on remaining unresolved", () => {
-  const templates = [
-    { templateName: "t", templateContent: { a: "${x}", b: "${y}" } },
-  ];
+  const templates = [{ name: "t", content: { a: "${x}", b: "${y}" } }];
 
   const { result: partial } = fillTemplates({
     templates,
@@ -1059,7 +1038,7 @@ test("strict second pass throws on remaining unresolved", () => {
 // -- Return type consistency --
 
 test("non-broadcast returns object, broadcast returns array", () => {
-  const templates = [{ templateName: "t", templateContent: { id: "${id}" } }];
+  const templates = [{ name: "t", content: { id: "${id}" } }];
 
   const { result: single } = fillTemplates({
     templates,

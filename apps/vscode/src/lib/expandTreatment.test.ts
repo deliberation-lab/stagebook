@@ -23,8 +23,8 @@ describe("expandTreatmentSource", () => {
   describe("simple template expansion", () => {
     it("expands a template context into concrete content", () => {
       const src = `templates:
-  - templateName: myStage
-    templateContent:
+  - name: myStage
+    content:
       name: stage1
       duration: 300
       elements:
@@ -47,8 +47,8 @@ treatments:
   describe("field substitution", () => {
     it("substitutes field values into template content", () => {
       const src = `templates:
-  - templateName: topicStage
-    templateContent:
+  - name: topicStage
+    content:
       name: \${topic}_stage
       duration: 300
       elements:
@@ -71,8 +71,8 @@ treatments:
   describe("broadcast expansion", () => {
     it("expands broadcast dimensions into multiple items", () => {
       const src = `templates:
-  - templateName: topicStage
-    templateContent:
+  - name: topicStage
+    content:
       name: \${topic}_stage
       duration: 300
       elements:
@@ -127,8 +127,8 @@ treatments:
         .map((t) => `            - topic: ${t}`)
         .join("\n");
       const src = `templates:
-  - templateName: bigStage
-    templateContent:
+  - name: bigStage
+    content:
       name: \${topic}_stage
       duration: 300
       elements:
@@ -155,11 +155,11 @@ ${broadcastItems}`;
   describe("nested templates", () => {
     it("expands templates that reference other templates", () => {
       const src = `templates:
-  - templateName: innerElem
-    templateContent:
+  - name: innerElem
+    content:
       type: submitButton
-  - templateName: outerStage
-    templateContent:
+  - name: outerStage
+    content:
       name: stage1
       duration: 300
       elements:
@@ -179,8 +179,8 @@ treatments:
   describe("nonexistent template reference", () => {
     it("returns an error when a template reference does not exist", () => {
       const src = `templates:
-  - templateName: myStage
-    templateContent:
+  - name: myStage
+    content:
       name: stage1
 treatments:
   - name: study1
@@ -196,8 +196,8 @@ treatments:
   describe("unresolved placeholders", () => {
     it("preserves unresolved placeholders in the output", () => {
       const src = `templates:
-  - templateName: myStage
-    templateContent:
+  - name: myStage
+    content:
       name: \${missing}_stage
       duration: 300
       elements:
@@ -216,8 +216,8 @@ treatments:
   describe("multi-dimension broadcast", () => {
     it("expands broadcast with multiple dimensions into cartesian product", () => {
       const src = `templates:
-  - templateName: topicStage
-    templateContent:
+  - name: topicStage
+    content:
       name: \${topic}_\${condition}_stage
       duration: 300
       elements:
@@ -250,8 +250,8 @@ treatments:
         .map((t) => `            - topic: ${t}`)
         .join("\n");
       const src = `templates:
-  - templateName: bigStage
-    templateContent:
+  - name: bigStage
+    content:
       name: \${topic}_stage
 treatments:
   - name: study1
@@ -270,8 +270,8 @@ ${broadcastItems}`;
   describe("templates key removal", () => {
     it("removes the templates key from expanded output", () => {
       const src = `templates:
-  - templateName: myStage
-    templateContent:
+  - name: myStage
+    content:
       name: stage1
       duration: 300
       elements:
@@ -283,8 +283,10 @@ treatments:
       - template: myStage`;
       const result = expandTreatmentSource(src);
       expect(result.error).toBeNull();
-      expect(result.yaml).not.toMatch(/templateName:/);
-      expect(result.yaml).not.toMatch(/templateContent:/);
+      expect(result.yaml).not.toMatch(/^templates:/m);
+      // Template definition itself (- name: myStage at indent 2) is gone;
+      // the only `name:` keys remaining belong to the expanded treatment.
+      expect(result.yaml).not.toMatch(/^ {2}- name: myStage/m);
     });
   });
 });

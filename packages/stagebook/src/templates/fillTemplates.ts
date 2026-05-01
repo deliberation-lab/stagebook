@@ -11,13 +11,13 @@ function escapeRegExp(str: string): string {
 const FIELD_PLACEHOLDER_REGEX = /\$\{([a-zA-Z0-9_]+)\}/g;
 
 export function substituteFields({
-  templateContent,
+  content,
   fields,
 }: {
-  templateContent: any;
+  content: any;
   fields: Record<string, any>;
 }): any {
-  let expandedTemplate = JSON.parse(JSON.stringify(templateContent));
+  let expandedTemplate = JSON.parse(JSON.stringify(content));
 
   for (const [key, value] of Object.entries(fields)) {
     // Skip undefined values — they can't be JSON-serialized and would
@@ -73,19 +73,17 @@ export function expandTemplate({
   }
 
   // Find the matching template
-  const template = templates.find(
-    (t: any) => t.templateName === newContext.template,
-  );
+  const template = templates.find((t: any) => t.name === newContext.template);
   if (!template) {
     throw new Error(`Template "${newContext.template}" not found`);
   }
 
-  let expandedTemplate = JSON.parse(JSON.stringify(template.templateContent));
+  let expandedTemplate = JSON.parse(JSON.stringify(template.content));
 
   // Step 3: Apply given fields if any
   if (newContext.fields) {
     expandedTemplate = substituteFields({
-      templateContent: expandedTemplate,
+      content: expandedTemplate,
       fields: newContext.fields,
     });
   }
@@ -123,7 +121,7 @@ export function expandTemplate({
     const returnObjects: any[] = [];
     for (const broadcastFields of broadcastFieldsArray) {
       const newObj = substituteFields({
-        templateContent: expandedTemplate,
+        content: expandedTemplate,
         fields: broadcastFields,
       });
       if (Array.isArray(newObj)) {
@@ -276,7 +274,7 @@ export function fillTemplates({
   // Apply platform-provided fields after template expansion
   if (additionalFields && Object.keys(additionalFields).length > 0) {
     newObj = substituteFields({
-      templateContent: newObj,
+      content: newObj,
       fields: additionalFields,
     });
   }

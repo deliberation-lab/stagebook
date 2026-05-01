@@ -54,9 +54,9 @@ treatments:
 
 const TEMPLATE_YAML = `
 templates:
-  - templateName: questionStage
+  - name: questionStage
     contentType: stage
-    templateContent:
+    content:
       name: "\${topic}"
       duration: 60
       elements:
@@ -86,9 +86,9 @@ treatments:
 
 const UNRESOLVED_FIELD_YAML = `
 templates:
-  - templateName: questionStage
+  - name: questionStage
     contentType: stage
-    templateContent:
+    content:
       name: "\${topic}"
       duration: 60
       elements:

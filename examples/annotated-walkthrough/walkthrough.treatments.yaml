@@ -4,18 +4,19 @@
 # sidebar; short inline comments flag syntax particulars.
 
 templates:
-  - templateName: studyTreatment
+  - name: studyTreatment
     contentType: treatment
-    templateDesc: One run of the study, parameterised by topic.
     notes: |
+      One run of the study, parameterised by topic.
+
       Templates are reusable blocks of YAML — define a structure once,
       then instantiate it with different field values via `template:` +
       `fields:` (single use) or `template:` + `broadcast:` (Cartesian
       expansion, used here under `treatments:`). Placeholders use the
       `${fieldName}` syntax and are substituted at expansion time.
       `contentType: treatment` tells the validator which schema to apply
-      to `templateContent`.
-    templateContent:
+      to `content`.
+    content:
       # `${topic}` and `${topicLabel}` come from the broadcast axis at
       # the bottom of the file. After expansion `${topic}` becomes e.g.
       # "remote_work" and `${topicLabel}` becomes "remote work policies".

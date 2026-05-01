@@ -22,17 +22,17 @@ treatments: # required: array of treatment objects
 
 ```yaml
 templates:
-  - templateName: <name>
-    contentType: <element|stage|treatment|...>  # recommended
-    templateContent: <any structure>
+  - name: <name>
+    contentType: <element|stage|treatment|...>  # required
+    content: <any structure>
 
 # Usage:
-- template: <templateName>
+- template: <name>
   fields: { key: value }       # ${key} substitution
   broadcast: { d0: [...] }     # cartesian expansion
 ```
 
-Content types: `introSequence`, `introSequences`, `elements`, `element`, `stage`, `stages`, `treatment`, `treatments`, `reference`, `condition`, `player`, `introExitStep`, `exitSteps`, `other`.
+Content types: `introSequence`, `introSequences`, `elements`, `element`, `stage`, `stages`, `treatment`, `treatments`, `reference`, `condition`, `conditions`, `player`, `groupComposition`, `introExitStep`, `introSteps`, `exitSteps`, `discussion`, `broadcastAxisValues`.
 
 ## 4. References
 

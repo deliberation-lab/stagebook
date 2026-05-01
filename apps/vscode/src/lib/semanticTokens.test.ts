@@ -108,8 +108,8 @@ describe("computeSemanticTokens", () => {
   describe("section keys", () => {
     it("highlights structural section keys", () => {
       const src = `templates:
-  - templateName: myStage
-    templateContent:
+  - name: myStage
+    content:
       name: stage1
 treatments:
   - name: study1
@@ -121,8 +121,6 @@ treatments:
       const sectionTokens = tokens.filter((t) => t.tokenType === "property");
       const keys = sectionTokens.map((t) => t.text);
       expect(keys).toContain("templates");
-      expect(keys).toContain("templateName");
-      expect(keys).toContain("templateContent");
       expect(keys).toContain("treatments");
       expect(keys).toContain("gameStages");
       expect(keys).toContain("elements");
@@ -463,10 +461,10 @@ duration: 300`;
 
     it("highlights notes: on stages, elements, intro steps, and templates", () => {
       const src = `templates:
-  - templateName: tpl
+  - name: tpl
     contentType: stage
     notes: template note
-    templateContent:
+    content:
       name: s
       notes: stage-in-template note
       duration: 10
@@ -505,28 +503,6 @@ treatments:
           "game stage note",
         ]),
       );
-    });
-
-    it("does NOT highlight notes: inside a freeform template (contentType: other)", () => {
-      const src = `templates:
-  - templateName: freeform
-    contentType: other
-    templateContent:
-      notes: not a real researcher note
-      anything: goes`;
-      const tokens = computeSemanticTokens(src);
-      const comment = tokens.filter((t) => t.tokenType === "comment");
-      expect(comment).toHaveLength(0);
-    });
-
-    it("does NOT highlight notes: inside a template with no contentType", () => {
-      const src = `templates:
-  - templateName: untagged
-    templateContent:
-      notes: can't prove what this is`;
-      const tokens = computeSemanticTokens(src);
-      const comment = tokens.filter((t) => t.tokenType === "comment");
-      expect(comment).toHaveLength(0);
     });
   });
 
