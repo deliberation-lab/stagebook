@@ -1938,10 +1938,10 @@ test("element: explicit prompt element still validates", () => {
 });
 
 test("element: missing `type` discriminator is rejected", () => {
-  // Parsed via `elementsSchema` (the array form) so the inner element goes
-  // straight into the discriminated union — not via `elementSchema`'s
-  // `altTemplateContext` wrapper, which would otherwise route an object
-  // with a `template:` key into the template-context branch first.
+  // Each array item is validated through `elementSchema` (which dispatches
+  // via `altTemplateContext`). With no `template:` key, the object falls
+  // straight through to the discriminated union and fails on the missing
+  // `type:` discriminator.
   const result = elementsSchema.safeParse([
     { file: "prompts/intro.prompt.md" },
   ]);
