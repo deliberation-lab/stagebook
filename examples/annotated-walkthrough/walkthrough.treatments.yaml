@@ -84,10 +84,10 @@ templates:
           duration: 300
           notes: |
             Platform-coupled stage. The `discussion` block adds a
-            synchronised chat panel; `sharedNotepad` adds a
-            collaborative editor. Both are slots the host platform
-            implements — they render as skeleton placeholders in the
-            viewer because they require a live multi-participant
+            synchronised chat panel; a `shared: true` open-response
+            prompt adds a collaborative editor. Both are slots the host
+            platform implements — they render as skeleton placeholders
+            in the viewer because they require a live multi-participant
             session.
           discussion:
             chatType: text
@@ -97,9 +97,17 @@ templates:
           elements:
             - type: prompt
               file: prompts/discussion_guide.prompt.md
-            - type: sharedNotepad
+            - type: prompt
               name: ${topic}_notes
-              notes: Platform-coupled collaborative editor. Renders as a skeleton placeholder in the viewer.
+              file: prompts/discussion_notes.prompt.md
+              shared: true
+              notes: |
+                Collaborative editor implemented via the host's
+                `renderSharedNotepad` slot. Both participants edit a
+                single saved value (`shared: true` on an openResponse
+                prompt). The standalone `sharedNotepad` element type
+                was removed in #250 — shared prompts are the single
+                path now.
             - type: timer
             - type: submitButton
               buttonText: End discussion
@@ -171,11 +179,11 @@ templates:
         - name: Exit Survey
           notes: |
             Stagebook renders `qualtrics` directly as an iframe (not via
-            a host slot, unlike `survey` / `discussion` /
-            `sharedNotepad`). The step auto-submits when the iframe
-            posts its end-of-survey message — no `submitButton` needed.
-            In the viewer the placeholder URL below won't load; swap in
-            a real Qualtrics form URL to test the flow.
+            a host slot, unlike `survey` / `discussion`). The step
+            auto-submits when the iframe posts its end-of-survey
+            message — no `submitButton` needed. In the viewer the
+            placeholder URL below won't load; swap in a real Qualtrics
+            form URL to test the flow.
           elements:
             - type: qualtrics
               name: exit_qualtrics

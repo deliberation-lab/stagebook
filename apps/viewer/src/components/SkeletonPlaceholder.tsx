@@ -119,7 +119,6 @@ export function SkeletonPlaceholder({
     survey: "Survey element — requires external survey platform",
     sharedNotepad:
       "Shared notepad — requires live session with multiple participants",
-    talkMeter: "Talk meter — requires live audio session",
     qualtrics: "Qualtrics survey — requires external integration",
   };
 
@@ -162,7 +161,6 @@ export function createSkeletonRenderers() {
         config={{ padName: config.padName }}
       />
     ),
-    renderTalkMeter: () => <SkeletonPlaceholder type="talkMeter" />,
   };
 }
 

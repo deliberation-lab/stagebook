@@ -1979,3 +1979,58 @@ test("element: mediaPlayer playback 'once' + syncToStageTime still rejected", ()
   });
   expect(result.success).toBe(false);
 });
+
+// ----------- Element Types (#250) ------------
+
+test("element: type 'talkMeter' is rejected (removed in #250)", () => {
+  const result = elementSchema.safeParse({ type: "talkMeter" });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(
+      result.error.issues.some((i) => i.code === "invalid_union_discriminator"),
+    ).toBe(true);
+  }
+});
+
+test("element: type 'sharedNotepad' is rejected (removed in #250)", () => {
+  const result = elementSchema.safeParse({
+    type: "sharedNotepad",
+    name: "groupNotes",
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(
+      result.error.issues.some((i) => i.code === "invalid_union_discriminator"),
+    ).toBe(true);
+  }
+});
+
+test("element: type 'survey' still accepted with a one-time deprecation warning", async () => {
+  const { vi } = await import("vitest");
+  const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    // First parse fires the warning.
+    const r1 = elementSchema.safeParse({
+      type: "survey",
+      surveyName: "deprecation_test_TIPI",
+    });
+    expect(r1.success).toBe(true);
+    // Second parse with the same surveyName does NOT re-warn — the dedupe is
+    // module-scoped per process, keyed on surveyName.
+    const r2 = elementSchema.safeParse({
+      type: "survey",
+      surveyName: "deprecation_test_TIPI",
+    });
+    expect(r2.success).toBe(true);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("`type: survey` is deprecated");
+  } finally {
+    warnSpy.mockRestore();
+  }
+});
+
+test("validElementTypes does not include talkMeter or sharedNotepad", async () => {
+  const { validElementTypes } = await import("./treatment.js");
+  expect(validElementTypes).not.toContain("talkMeter");
+  expect(validElementTypes).not.toContain("sharedNotepad");
+});

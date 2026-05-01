@@ -1,6 +1,23 @@
 # Page Elements
 
-Elements are the building blocks of every stage. The `elements` array is rendered top-to-bottom as a single column. All element types accept these common fields:
+Elements are the building blocks of every stage. The `elements` array is rendered top-to-bottom as a single column.
+
+## Element typology
+
+A few element types look superficially redundant but encode distinct intents — they answer different authoring questions, so they stay distinct.
+
+| Type          | Intent                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| `audio`       | Non-interactive audio (chimes, alerts, ambient sound). One-shot; no participant controls expected. `audio` ≠ `mediaPlayer with playVideo: false`. |
+| `image`       | Non-interactive image display. Static picture; conceptually parallel to `audio`, not `display`. `image` ≠ `display`. |
+| `mediaPlayer` | Interactive audio/video with playback controls (play, pause, scrub, speed). Participant interacts with the clip. |
+| `display`     | Shows a value looked up by reference from elsewhere in the study (e.g., `prompt.foo`'s response). Reactive to stored data, not a static resource. |
+
+Use `audio` for a chime, `mediaPlayer` for a video, `image` for a picture, `display` to show a stored value. The four types are intentionally separate — a sequence of `if (playVideo) ... else ...` configuration on a single type would conflate "fire-and-forget asset" with "controllable surface" and "live data view."
+
+## Common fields
+
+All element types accept these common fields:
 
 | Field               | Type     | Description                                                         |
 | ------------------- | -------- | ------------------------------------------------------------------- |
@@ -435,6 +452,8 @@ Saved selections are **restored on reload** — if a participant refreshes mid-s
 
 ## Survey
 
+> **Deprecated.** `type: survey` is pending removal once Stagebook's module-reuse pattern lands. The element still works (the host's `renderSurvey` slot is still called), but the runtime emits a one-time deprecation warning per `surveyName` at parse time. Prefer prompt-based patterns for new treatment files.
+
 Renders a pre-built survey from the `@watts-lab/surveys` package.
 
 ```yaml
@@ -495,22 +514,30 @@ guidance, or set it to an empty string to hide the helper entirely:
 | `helperText`  | string | no       | Text shown below the link. Defaults to "Link opens in a new tab. Return to this tab to complete the study." Pass an empty string to hide. |
 | `urlParams`   | list   | no       | Query parameters appended to the URL (see Qualtrics example)                                                                              |
 
-## Shared Notepad
+## Shared Notepad (via `shared: true` prompt)
 
-A collaborative text editor (backed by Etherpad) where participants can write together.
+A collaborative text editor where multiple participants edit a single saved value. Use a `prompt` element with `shared: true` and an `openResponse` prompt file:
 
 ```yaml
-- type: sharedNotepad
+- type: prompt
   name: group_notes
+  file: prompts/group_notes.prompt.md
+  shared: true
 ```
 
-## Talk Meter
-
-Displays cumulative speaking time for each participant. Only meaningful in video discussion stages.
+Where `prompts/group_notes.prompt.md` is a minimal openResponse file:
 
 ```yaml
-- type: talkMeter
+---
+type: openResponse
+---
+
+# Group notes
+
+(Optional framing for the notepad goes in the body.)
 ```
+
+The host platform implements the collaborative semantics via the `renderSharedNotepad` context slot. The standalone `sharedNotepad` element type was removed in #250; shared prompts are the single path now.
 
 ## Time fields and reference frames
 

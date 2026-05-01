@@ -170,7 +170,6 @@ const context: StagebookContext = {
   // Optional: platform-provided renderers for service-coupled elements
   renderDiscussion: (config) => <YourVideoComponent {...config} />,
   renderSharedNotepad: (config) => <YourNotepadComponent {...config} />,
-  renderTalkMeter: () => <YourTalkMeter />,
 };
 ```
 
@@ -441,23 +440,13 @@ The `config` parameter is the full `discussion` object from the treatment YAML, 
 
 ### Shared Notepad
 
-Collaborative text editors (e.g., Etherpad) are used for `sharedNotepad` elements and `shared: true` open response prompts.
+Collaborative text editors (e.g., Etherpad) are used by `shared: true` open-response prompts. (The standalone `sharedNotepad` element type was removed in #250.)
 
 ```typescript
 const context: StagebookContext = {
   renderSharedNotepad: ({ padName }) => (
     <EtherpadEmbed padName={padName} />
   ),
-};
-```
-
-### Talk Meter
-
-Speaking time tracking requires audio analysis, which is platform-specific.
-
-```typescript
-const context: StagebookContext = {
-  renderTalkMeter: () => <TalkTimeDisplay />,
 };
 ```
 
