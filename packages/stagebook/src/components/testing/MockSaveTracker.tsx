@@ -35,9 +35,8 @@ export function MockSaveTracker({
     submit: () => {},
     getAssetURL: (path: string) => `https://cdn.test/${path}`,
     getTextContent: () =>
-      Promise.resolve(
-        "---\nname: mock\ntype: noResponse\n---\nMock content\n---\n",
-      ),
+      // After #243 noResponse files are two-section.
+      Promise.resolve("---\nname: mock\ntype: noResponse\n---\nMock content\n"),
     progressLabel: `game_0_${stage.name}`,
     playerId: "player-1",
     position: 0,

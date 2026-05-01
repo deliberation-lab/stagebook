@@ -85,7 +85,8 @@ export function MockStageRenderer({
     getAssetURL: (path: string) => `https://mock-cdn.test/${path}`,
     getTextContent: (path: string) =>
       Promise.resolve(
-        `---\nname: ${path}\ntype: noResponse\n---\nMock content for ${path}\n---\n`,
+        // After #243 noResponse files are two-section (no trailing `---`).
+        `---\nname: ${path}\ntype: noResponse\n---\nMock content for ${path}\n`,
       ),
     progressLabel: `game_0_${stage.name}`,
     playerId: "test-player-1",
