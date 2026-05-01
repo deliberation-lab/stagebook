@@ -202,6 +202,20 @@ export function Timeline({
   const [pendingRangeStartTime, setPendingRangeStartTime] = useState<
     number | null
   >(null);
+  // Pulse trigger for blocked range-create attempts. Token increments each
+  // time the user attempts a creation that's blocked (single-select with
+  // an existing range, or multi-select with the playhead inside an existing
+  // range); SelectionOverlay restarts its pulse animation via React `key`.
+  const [pulseTrigger, setPulseTrigger] = useState<{
+    token: number;
+    indices: number[];
+  } | null>(null);
+  const triggerBlockedPulse = useCallback((indices: number[]) => {
+    setPulseTrigger((prev) => ({
+      token: (prev?.token ?? 0) + 1,
+      indices,
+    }));
+  }, []);
 
   // Selection state via reducer. Lazy initializer hydrates from saved state
   // when present so participants who reload mid-stage see their existing
@@ -632,6 +646,33 @@ export function Timeline({
         // playhead time; the matching keyup will commit the range.
         // Auto-repeat keydowns are filtered upstream by keyToAction.
         const t = clampToMedia(handleRef.current?.getCurrentTime() ?? 0);
+
+        // Blocked-attempt detection. Match what click/drag would do at
+        // commit time so the user sees consistent behavior across input
+        // modalities. Pulse the obstructing range(s) instead of starting
+        // a hold that would be silently rejected on keyup.
+        const existingRanges =
+          selectionType === "range"
+            ? (state.selections as RangeSelection[])
+            : [];
+        if (!multiSelect && existingRanges.length > 0) {
+          // Single-select: any existing range blocks creation.
+          triggerBlockedPulse(existingRanges.map((_, i) => i));
+          break;
+        }
+        if (multiSelect) {
+          // Multi-select: only ranges containing the press time block.
+          // (clampToFreeGap returns null on commit if fully enclosed.)
+          const blockingIndices: number[] = [];
+          existingRanges.forEach((r, i) => {
+            if (t >= r.start && t < r.end) blockingIndices.push(i);
+          });
+          if (blockingIndices.length > 0) {
+            triggerBlockedPulse(blockingIndices);
+            break;
+          }
+        }
+
         pendingRangeStartRef.current = t;
         setPendingRangeStartTime(t);
         break;
@@ -947,6 +988,8 @@ export function Timeline({
               containerElRef.current?.focus({ preventScroll: true })
             }
             keyboardRangePreview={keyboardRangePreview}
+            pulseTrigger={pulseTrigger}
+            onBlockedCreate={triggerBlockedPulse}
           />
 
           {/* Playhead — over selection overlay, extends into ruler via negative top */}
@@ -979,6 +1022,11 @@ export function Timeline({
         onHelpToggle={() => setHelpOpen((v) => !v)}
         helpOpen={helpOpen}
         helpButtonRef={helpButtonRef}
+        singleSelectFull={
+          selectionType === "range" &&
+          !multiSelect &&
+          state.selections.length > 0
+        }
       />
 
       {/* Help popover */}

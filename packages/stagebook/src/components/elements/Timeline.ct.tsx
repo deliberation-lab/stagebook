@@ -765,9 +765,13 @@ test("range mode multi-select: click adds a second range next to existing", asyn
   await expect(component.locator('[data-testid="range-1"]')).toBeAttached();
 });
 
-test("range mode: multiSelect false — new range replaces existing", async ({
+test("range mode: multiSelect false — drag-create preserves existing range", async ({
   mount,
 }) => {
+  // Single-select rule: once a range exists, every "create" gesture
+  // (click, drag, Enter) is a no-op. To replace, the user must first
+  // delete the existing range. A red pulse on the existing range gives
+  // immediate visual feedback that the gesture was blocked.
   const component = await mount(
     <MockTimeline
       source="player"
@@ -808,7 +812,13 @@ test("range mode: multiSelect false — new range replaces existing", async ({
     isPrimary: true,
   });
 
-  // Second range at 60%-80% (no overlap)
+  const savesBefore = await readSaveLog(component);
+  const before = savesBefore[savesBefore.length - 1]?.value as {
+    start: number;
+    end: number;
+  }[];
+
+  // Second drag-create at 60%-80% — should be blocked.
   await overlay.dispatchEvent("pointerdown", {
     clientX: box.x + box.width * 0.6,
     clientY: box.y + box.height * 0.5,
@@ -834,16 +844,22 @@ test("range mode: multiSelect false — new range replaces existing", async ({
     isPrimary: true,
   });
 
-  // Only one range should exist (range-0). The previous range was replaced.
+  // Existing range still there, no second range.
   await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
   await expect(component.locator('[data-testid="range-1"]')).not.toBeAttached();
-  const saves = await readSaveLog(component);
-  const last = saves[saves.length - 1]?.value as {
+  const savesAfter = await readSaveLog(component);
+  const after = savesAfter[savesAfter.length - 1]?.value as {
     start: number;
     end: number;
   }[];
-  expect(last).toHaveLength(1);
-  expect(last[0]?.start).toBeCloseTo(36, 0); // 60% of 60
+  expect(after).toHaveLength(1);
+  expect(after[0]?.start).toBeCloseTo(before[0]?.start, 2);
+  expect(after[0]?.end).toBeCloseTo(before[0]?.end, 2);
+
+  // Pulse fires for visual feedback.
+  await expect(
+    component.locator('[data-testid="range-blocked-pulse"]'),
+  ).toBeAttached();
 });
 
 test("range mode: multiSelect true — ranges accumulate sorted", async ({
@@ -3929,4 +3945,181 @@ test("range mode: blur during hold clears the preview", async ({ mount }) => {
     el.blur();
   });
   await expect(preview).toHaveCount(0);
+});
+
+// -- Single-select / blocked-create rule (#268 follow-up) --
+
+test("range mode single-select: Enter with existing range is a no-op and pulses", async ({
+  mount,
+}) => {
+  // After a range exists in single-select mode, Enter must NOT create a
+  // new range (mirrors the click + drag rules). The existing range should
+  // pulse as visual feedback that the gesture was blocked.
+  const initial = [{ start: 5, end: 10 }];
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="single_enter_blocked"
+      selectionType="range"
+      multiSelect={false}
+      mockDuration={60}
+      mockCurrentTime={30}
+      initialSelections={initial}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+
+  // No live-preview rectangle: keydown was rejected before pendingRangeStart
+  // was set.
+  await expect(
+    component.locator('[data-testid="range-keyboard-preview"]'),
+  ).toHaveCount(0);
+
+  // Pulse appears.
+  await expect(
+    component.locator('[data-testid="range-blocked-pulse"]'),
+  ).toBeAttached();
+
+  // Release just to confirm the keyup doesn't commit anything either.
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  // Existing range still the only one, unmodified.
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-1"]')).not.toBeAttached();
+});
+
+test("range mode multi-select: Enter inside existing range is a no-op and pulses", async ({
+  mount,
+}) => {
+  // In multi-select, the press-time-inside-existing-range case is
+  // blocked at keydown — clampToFreeGap would have rejected the commit
+  // anyway, but we want the user to see immediate feedback.
+  const initial = [{ start: 20, end: 40 }];
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="multi_enter_inside_blocked"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={30}
+      initialSelections={initial}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+
+  await expect(
+    component.locator('[data-testid="range-keyboard-preview"]'),
+  ).toHaveCount(0);
+  await expect(
+    component.locator('[data-testid="range-blocked-pulse"]'),
+  ).toBeAttached();
+
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  // Still exactly the original range.
+  await expect(component.locator('[data-testid="range-0"]')).toBeAttached();
+  await expect(component.locator('[data-testid="range-1"]')).not.toBeAttached();
+});
+
+test("range mode single-select: footer hint appears only when a range exists", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="single_footer_hint"
+      selectionType="range"
+      multiSelect={false}
+      mockDuration={60}
+    />,
+  );
+  const hint = component.locator('[data-testid="timeline-single-select-hint"]');
+
+  // No range yet → hint hidden.
+  await expect(hint).toHaveCount(0);
+
+  // Drag-create a range.
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.2,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointermove", {
+    clientX: box.x + box.width * 0.4,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.4,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+
+  // Range exists → hint shown.
+  await expect(hint).toBeAttached();
+  await expect(hint).toContainText("Max 1 range");
+});
+
+test("range mode multi-select: footer hint never appears", async ({
+  mount,
+}) => {
+  const initial = [{ start: 5, end: 10 }];
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="multi_no_footer_hint"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      initialSelections={initial}
+    />,
+  );
+  await expect(
+    component.locator('[data-testid="timeline-single-select-hint"]'),
+  ).toHaveCount(0);
 });

@@ -97,10 +97,16 @@ export function selectionsReducer(
 ): SelectionState {
   switch (action.type) {
     case "CREATE_RANGE": {
-      // multiSelect: false → the new range REPLACES any existing one. Don't
-      // clamp against ranges that are about to be discarded, and don't try
-      // to "keep the last in time order" (that would keep the wrong one).
+      // multiSelect: false → preserve any existing range. The user must
+      // explicitly delete the existing range to make a new one. This
+      // mirrors the no-op behavior of click-without-drag (SelectionOverlay)
+      // and Enter press-and-hold (Timeline). Visual feedback (pulse on the
+      // existing range, footer hint) lives at the call sites — the reducer
+      // is the authoritative gate.
       if (!action.multiSelect) {
+        const hasExistingRange =
+          isRangeArray(state.selections) && state.selections.length > 0;
+        if (hasExistingRange) return state;
         const lo = roundMs(Math.min(action.start, action.end));
         const hi = roundMs(Math.max(action.start, action.end));
         if (hi <= lo) return state;

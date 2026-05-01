@@ -9,6 +9,10 @@ export interface TimelineFooterProps {
   onHelpToggle: () => void;
   helpOpen: boolean;
   helpButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  /** Show "Max 1 range — delete to replace" to the left of the help button.
+   *  True when the timeline is in single-select range mode and a range
+   *  already exists (further create attempts will be blocked). */
+  singleSelectFull?: boolean;
 }
 
 function isRangeArray(
@@ -69,6 +73,7 @@ export function TimelineFooter({
   onHelpToggle,
   helpOpen,
   helpButtonRef,
+  singleSelectFull = false,
 }: TimelineFooterProps) {
   return (
     <div
@@ -89,8 +94,16 @@ export function TimelineFooter({
         {summary(selectionType, selections, activeIndex)}
       </div>
 
-      {/* Right: help */}
-      <div style={{ display: "flex", alignItems: "center" }}>
+      {/* Right: single-select hint + help button */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        {singleSelectFull && (
+          <span
+            data-testid="timeline-single-select-hint"
+            style={{ fontStyle: "italic" }}
+          >
+            Max 1 range — delete to replace
+          </span>
+        )}
         <button
           ref={helpButtonRef}
           type="button"
