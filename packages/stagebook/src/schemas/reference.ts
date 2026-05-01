@@ -1,17 +1,18 @@
 /**
- * Reference schemas (#240).
+ * Reference schemas (#240, #246).
  *
  * A reference identifies a value somewhere in the study state. There are two
  * kinds: **named** sources (`prompt`, `survey`, …) whose data is keyed by
- * a researcher-chosen `name`, and **external** sources (`urlParams`,
+ * a researcher-chosen `name`, and **external** sources (`entryUrl`,
  * `participantInfo`, …) supplied by the host as a singleton.
  *
  * References can be written two ways:
  *   - **String shorthand** (the original syntax) — `prompt.familiarity`,
- *     `urlParams.condition`, `survey.TIPI.responses.q1`.
+ *     `entryUrl.params.condition`, `survey.TIPI.responses.q1`.
  *   - **Structured object** — `{ source: "prompt", name: "familiarity" }`,
- *     `{ source: "urlParams", path: ["condition"] }`. Same expressivity
- *     plus the ability to override defaults that the dotted form bakes in.
+ *     `{ source: "entryUrl", path: ["params", "condition"] }`. Same
+ *     expressivity plus the ability to override defaults that the dotted
+ *     form bakes in.
  *
  * The string shorthand is parsed into the structured form, so downstream
  * code only ever sees `{source, name?, path?}` shapes.
@@ -36,7 +37,13 @@ export const namedSourceEnum = z.enum([
 export type NamedSource = z.infer<typeof namedSourceEnum>;
 
 export const externalSourceEnum = z.enum([
-  "urlParams",
+  // `entryUrl.params.<key>` reads the participant's incoming query
+  // parameters. The `params` subpath is required (the namespace is
+  // reserved for `entryUrl.path`, `entryUrl.host`, etc. as future
+  // additions, see #246). Renamed from the legacy `urlParams` source
+  // so it doesn't collide with the unrelated `urlParams:` element field
+  // (outgoing params on trackedLink / qualtrics).
+  "entryUrl",
   "connectionInfo",
   "browserInfo",
   "participantInfo",
@@ -61,7 +68,24 @@ export const externalReferenceSchema = z
       message: "External-source references require a non-empty `path`.",
     }),
   })
-  .strict();
+  .strict()
+  // `entryUrl` references must currently be addressed via the `params`
+  // subpath (#246). The namespace is reserved so future additions like
+  // `entryUrl.path`, `entryUrl.host`, `entryUrl.href` can land
+  // non-breakingly. Other external sources are unconstrained beyond the
+  // non-empty path requirement above.
+  .superRefine((data, ctx) => {
+    if (data.source === "entryUrl") {
+      if (data.path.length < 2 || data.path[0] !== "params") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["path"],
+          message:
+            "entryUrl references must use the `params` subpath: `entryUrl.params.<key>`. (Other entryUrl subpaths like `path`, `host`, `href` are reserved for future use.)",
+        });
+      }
+    }
+  });
 export type ExternalReferenceType = z.infer<typeof externalReferenceSchema>;
 
 /** Result of normalising a reference: always one of the two structured shapes. */
@@ -95,6 +119,18 @@ export function parseDottedReference(
   const [source, ...rest] = segments;
   if (!source) {
     return { ok: false, message: "Reference must include a source." };
+  }
+  // Legacy `urlParams.<key>` was renamed to `entryUrl.params.<key>` in
+  // #246 to disambiguate from the unrelated `urlParams:` element field
+  // (outgoing params on trackedLink / qualtrics). Surface a clear hint
+  // instead of a generic "invalid source" so existing files migrate
+  // cleanly.
+  if (source === "urlParams") {
+    const key = rest.length > 0 ? rest.join(".") : "<key>";
+    return {
+      ok: false,
+      message: `\`urlParams\` reference source was renamed to \`entryUrl.params\` (#246). Use \`entryUrl.params.${key}\` instead of \`urlParams.${key}\`.`,
+    };
   }
   if (NAMED_SOURCES.has(source)) {
     const [name, ...path] = rest;
@@ -173,7 +209,7 @@ const stringReferenceSchema = z.string().transform((str, ctx) => {
 
 /**
  * Reference field schema — accepts either:
- *   - the dotted-string sugar (`prompt.foo`, `urlParams.condition`)
+ *   - the dotted-string sugar (`prompt.foo`, `entryUrl.params.condition`)
  *   - the structured `{ source, name?, path? }` object form
  *
  * Output is always the structured form (the string-sugar branch transforms

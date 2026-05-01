@@ -81,11 +81,11 @@ getReferenceKeyAndPath("survey.bigFive.result.score");
 getReferenceKeyAndPath("prompt.myQuestion");
 // { referenceKey: "prompt_myQuestion", path: ["value"] }
 
-getReferenceKeyAndPath("urlParams.condition");
-// { referenceKey: "urlParams", path: ["condition"] }
+getReferenceKeyAndPath("entryUrl.params.condition");
+// { referenceKey: "entryUrl", path: ["params", "condition"] }
 ```
 
-Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `urlParams`, `connectionInfo`, `browserInfo`, `participantInfo`, `discussion`.
+Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `timeline`, `discussion`, `entryUrl`, `connectionInfo`, `browserInfo`, `participantInfo`. (`urlParams` was renamed to `entryUrl` in #246.)
 
 ### `getNestedValueByPath(obj, path?)`
 

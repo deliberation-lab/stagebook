@@ -4,7 +4,7 @@
  * Two rules:
  * 1. **No forward references** — applies to every reference site. A reference
  *    whose target storage key is produced by a *later* stage in the flow is
- *    rejected. External references (urlParams, participantInfo, …) are
+ *    rejected. External references (entryUrl, participantInfo, …) are
  *    always valid.
  * 2. **No always-skip-at-load** — stage-level conditions only. A stage-level
  *    condition whose reference points at the *current* stage's data and
@@ -73,7 +73,7 @@ const RANK_INTRO = 0;
 const RANK_GAME_BASE = 1;
 
 /** The types of reference whose target keys are **produced by a stage**. A
- *  reference of any other type (urlParams, participantInfo, …) is external
+ *  reference of any other type (entryUrl, participantInfo, …) is external
  *  and always valid regardless of position.
  *
  *  Note: `discussion` references aren't in this set because stagebook
@@ -607,7 +607,7 @@ function applyRules({
   if (allowedProducerRanks && !allowedProducerRanks.has(producerRank)) {
     issues.push({
       path: site.path,
-      message: `groupComposition condition references "${refStr}", which is produced by a game or exit stage. groupComposition is evaluated before any stage runs — it can only reference intro-phase data or external values (urlParams, participantInfo, …).`,
+      message: `groupComposition condition references "${refStr}", which is produced by a game or exit stage. groupComposition is evaluated before any stage runs — it can only reference intro-phase data or external values (entryUrl, participantInfo, …).`,
     });
     return;
   }

@@ -49,7 +49,7 @@ A reference identifies a value somewhere in the study state. Two forms (#240): t
 | `trackedLink.<name>.<path>`  | `trackedLink.signup.events`            |
 | `timeline.<name>(.<path>)`   | `timeline.story.0.start`               |
 | `discussion.<name>(.<path>)` | `discussion.lobby.messageCount`        |
-| `urlParams.<key>`            | `urlParams.PROLIFIC_PID`               |
+| `entryUrl.params.<key>`      | `entryUrl.params.PROLIFIC_PID`         |
 | `connectionInfo.<key>`       | `connectionInfo.country`               |
 | `browserInfo.<key>`          | `browserInfo.language`                 |
 | `participantInfo.<field>`    | `participantInfo.name`                 |
@@ -59,7 +59,7 @@ A reference identifies a value somewhere in the study state. Two forms (#240): t
 ```yaml
 reference:
   source: prompt | survey | submitButton | qualtrics | timeline | trackedLink | discussion |
-          urlParams | connectionInfo | browserInfo | participantInfo
+          entryUrl | connectionInfo | browserInfo | participantInfo
   name: <element name>      # required for named sources, forbidden for external sources
   path: [<segments>...]     # optional; per-source default applies when omitted
 ```
