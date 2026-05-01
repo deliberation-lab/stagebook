@@ -65,7 +65,7 @@ conditions:
 
 ## 6. Elements
 
-All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`.
+All elements accept: `name?`, `notes?`, `displayTime?`, `hideTime?`, `showToPositions?`, `hideFromPositions?`, `conditions?`, `tags?`. (`file?` is per-type — only `prompt`, `audio`, `image`, `mediaPlayer` accept it; see #249.)
 
 | Type            | Key Fields                                                                                                                                                                                                                                     |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

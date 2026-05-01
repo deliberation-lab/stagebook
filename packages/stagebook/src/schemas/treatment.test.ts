@@ -610,6 +610,14 @@ test("fileSchema rejects an absolute path", () => {
   expect(fileSchema.safeParse("/etc/passwd").success).toBe(false);
 });
 
+test("fileSchema rejects backslash-separated (Windows-style) paths", () => {
+  // The host loader expects POSIX paths; a backslash slipping through would
+  // resolve to a different file on Windows than on POSIX hosts.
+  expect(fileSchema.safeParse("shared\\clip.mp4").success).toBe(false);
+  expect(fileSchema.safeParse("\\\\server\\share\\x.mp4").success).toBe(false);
+  expect(fileSchema.safeParse("a/b\\c").success).toBe(false);
+});
+
 test("fileSchema rejects opaque-scheme variants (no //)", () => {
   expect(fileSchema.safeParse("asset:clip.mp4").success).toBe(false);
   expect(fileSchema.safeParse("https:cdn.example.com/x").success).toBe(false);

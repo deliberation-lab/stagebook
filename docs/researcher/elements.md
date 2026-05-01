@@ -248,7 +248,7 @@ Each interaction is appended to an event list under the element's name:
 ```json
 {
   "name": "coding_clip",
-  "file": "https://example.com/clips/scene1.mp4",
+  "url": "https://example.com/clips/scene1.mp4",
   "startAt": 30,
   "stopAt": 90,
   "lastVideoTime": 87.4,

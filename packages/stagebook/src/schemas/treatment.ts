@@ -143,6 +143,7 @@ export const fileSchema = z
       // backslashes (Windows-style) since the host loader expects POSIX
       // relative paths.
       if (value.startsWith("/")) return false;
+      if (value.includes("\\")) return false;
       return true;
     },
     {
