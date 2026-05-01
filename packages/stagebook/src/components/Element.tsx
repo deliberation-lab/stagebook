@@ -2,7 +2,11 @@
 import React from "react";
 import { useStagebookContext, useTextContent } from "./StagebookProvider.js";
 import { promptFileSchema } from "../schemas/promptFile.js";
-import type { ReferenceType } from "../schemas/treatment.js";
+import {
+  formatReference,
+  parseDottedReference,
+  type ReferenceType,
+} from "../schemas/reference.js";
 import { Separator } from "./form/Separator.js";
 import { Display } from "./elements/Display.js";
 import { SubmitButton } from "./elements/SubmitButton.js";
@@ -148,7 +152,17 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     case "display": {
       const ref = element.reference ?? `prompt.${element.name}`;
       const values = resolve(ref, element.position);
-      const refString = typeof ref === "string" ? ref : JSON.stringify(ref);
+      // Always render a stable dotted-string for `data-reference`
+      // regardless of whether the treatment authored a string or
+      // structured ref (and regardless of whether the host parsed it
+      // into structured form before passing it in). Downstream tooling
+      // that scrapes the attribute keeps the familiar dotted shape.
+      const refString =
+        typeof ref === "string"
+          ? parseDottedReference(ref).ok
+            ? ref
+            : ref // malformed strings pass through verbatim
+          : formatReference(ref);
       return (
         <Display
           reference={refString}

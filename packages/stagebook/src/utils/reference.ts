@@ -1,7 +1,7 @@
 import {
   parseDottedReference,
   type ReferenceType,
-} from "../schemas/treatment.js";
+} from "../schemas/reference.js";
 
 // Path segments that traverse into Object.prototype are rejected to prevent
 // accidental exposure of inherited properties (e.g. `constructor`) via
@@ -65,10 +65,11 @@ export function getReferenceKeyAndPath(
     // The default only applies when `path` is *omitted*. Writing `path: []`
     // explicitly opts out of the default and addresses the whole stored
     // record — the rule-of-least-surprise reading for "I gave you an
-    // explicit path."
+    // explicit path." Defensive copy so callers can't mutate either the
+    // shared `NAMED_SOURCE_DEFAULTS` array or the caller's input ref.
     return {
       referenceKey: `${ref.source}_${ref.name}`,
-      path: ref.path ?? NAMED_SOURCE_DEFAULTS[ref.source] ?? [],
+      path: [...(ref.path ?? NAMED_SOURCE_DEFAULTS[ref.source] ?? [])],
     };
   }
   return { referenceKey: ref.source, path: [...ref.path] };

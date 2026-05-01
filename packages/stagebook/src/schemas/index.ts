@@ -23,6 +23,7 @@ export {
   displayRegionSchema,
   referenceSchema,
   parseDottedReference,
+  formatReference,
   namedSourceEnum,
   externalSourceEnum,
   conditionSchema,

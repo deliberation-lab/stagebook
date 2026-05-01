@@ -1,10 +1,10 @@
 import React from "react";
 
 export interface DisplayProps {
-  /** The reference, rendered into `data-reference` for downstream tooling.
-   *  Stringified upstream — accepts the dotted form (`prompt.foo`) or the
-   *  structured form's `JSON.stringify` output, depending on what the
-   *  treatment file authored. */
+  /** Dotted-string representation of the reference, rendered into
+   *  `data-reference` for downstream tooling. The caller (`Element.tsx`)
+   *  routes both the dotted-string and the structured form through
+   *  `formatReference` so consumers always see the dotted shape. */
   reference: string;
   position?: string;
   values: unknown[];

@@ -121,12 +121,15 @@ For OR logic on a single reference (across positions, comparators, etc.), `any:`
 
 ## Reference Strings
 
-References point to data collected earlier in the experiment. The dotted format is `type.name.path`:
+References point to data collected earlier in the experiment. The dotted form uses one of two grammars depending on the source:
+
+- **Named sources** (`prompt`, `survey`, `submitButton`, `qualtrics`, `timeline`, `trackedLink`, `discussion`): `source.name(.path...)` — `name` is required, `path` is optional.
+- **External sources** (`urlParams`, `connectionInfo`, `browserInfo`, `participantInfo`): `source.path...` — no `name`, `path` is required.
 
 ```yaml
-- reference: prompt.familiarity
-- reference: survey.TIPI.responses.q1
-- reference: urlParams.condition
+- reference: prompt.familiarity         # named source: source.name
+- reference: survey.TIPI.responses.q1   # named source: source.name.path...
+- reference: urlParams.condition        # external source: source.path...
 ```
 
 After #240, references can also be written in **structured form** — preferred in new code, especially when you need to override the implicit defaults the dotted form bakes in (e.g. addressing the `debugMessages` field on a prompt's saved record instead of the default `value`):

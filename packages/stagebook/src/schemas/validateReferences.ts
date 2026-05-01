@@ -21,11 +21,15 @@
 
 import { getReferenceKeyAndPath } from "../utils/reference.js";
 import { compare, type Comparator } from "../utils/compare.js";
-// Imported from a sibling module (not `./treatment.js`) to avoid an
-// import cycle — `treatment.ts` imports this file for the cross-stage
-// reference walker.
+// `OPERATOR_KEYS` is in its own module to avoid a `treatment.ts ↔
+// validateReferences.ts` import cycle. The reference helpers below come
+// from `./reference.ts` for the same reason.
 import { OPERATOR_KEYS } from "./conditionOperators.js";
-import { parseDottedReference, type ReferenceType } from "./treatment.js";
+import {
+  parseDottedReference,
+  formatReference,
+  type ReferenceType,
+} from "./reference.js";
 
 /** Normalize a raw reference value (string or structured) into the
  *  structured form. Returns null if the input is malformed — callers skip
@@ -41,18 +45,6 @@ function normalizeReference(input: unknown): ReferenceType | null {
     return input as ReferenceType;
   }
   return null;
-}
-
-/** Render a reference back to its dotted-string form for error messages.
- *  Used so validator messages stay readable for both string-shorthand and
- *  structured-form authoring. */
-function formatReference(ref: ReferenceType): string {
-  if ("name" in ref) {
-    return ref.path && ref.path.length > 0
-      ? `${ref.source}.${ref.name}.${ref.path.join(".")}`
-      : `${ref.source}.${ref.name}`;
-  }
-  return `${ref.source}.${ref.path.join(".")}`;
 }
 
 /** Structured issue emitted by the walker. Translated to zod issues by the

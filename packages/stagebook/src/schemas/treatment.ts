@@ -1,6 +1,32 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { z } from "zod";
 import { validateTreatmentFileReferences } from "./validateReferences.js";
+import { nameSchema, type NameType } from "./primitives.js";
+import {
+  namedSourceEnum,
+  externalSourceEnum,
+  referenceSchema,
+  type ReferenceType,
+  type NamedReferenceType,
+  type ExternalReferenceType,
+  type NamedSource,
+  type ExternalSource,
+} from "./reference.js";
+
+// Re-exports so consumers' existing imports from `./treatment.js` keep
+// working after the reference machinery moved to its own module (#240).
+export { nameSchema, type NameType };
+export {
+  namedSourceEnum,
+  externalSourceEnum,
+  referenceSchema,
+  type ReferenceType,
+  type NamedReferenceType,
+  type ExternalReferenceType,
+  type NamedSource,
+  type ExternalSource,
+};
+export { parseDottedReference, formatReference } from "./reference.js";
 
 // TODO: used by regex validation in conditionMatchesSchema — wire up or remove
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -37,20 +63,7 @@ function containsFieldPlaceholder(value: string): boolean {
   return FIELD_PLACEHOLDER_PATTERN.test(value);
 }
 
-// Names should have properties:
-// max length: 64 characters
-// min length: 1 character
-// allowed characters: a-z, A-Z, 0-9, -, _, and space
-// Todo: allow template fields in a name
-export const nameSchema = z
-  .string()
-  .min(1, "Name is required")
-  .max(64)
-  .regex(/^(?:[a-zA-Z0-9 _-]|\$\{[a-zA-Z0-9_]+\})+$/, {
-    message:
-      "Name must be alphanumeric, cannot have special characters, with optional template fields in the format ${fieldname}",
-  });
-export type NameType = z.infer<typeof nameSchema>;
+// `nameSchema` is defined in `./primitives.js` and re-exported above.
 
 // `https?://path` — accepted by both browserUrlSchema and fileSchema.
 // `asset://path` — accepted only by fileSchema (resolved via host's
@@ -532,154 +545,7 @@ function altTemplateContext<T extends z.ZodTypeAny>(baseSchema: T) {
   });
 }
 
-// ------------------ References ------------------ //
-//
-// A reference identifies a value somewhere in the study state. There are two
-// kinds: **named** sources (`prompt`, `survey`, …) whose data is keyed by
-// a researcher-chosen `name`, and **external** sources (`urlParams`,
-// `participantInfo`, …) supplied by the host as a singleton.
-//
-// References can be written two ways:
-//   - **String shorthand** (the original syntax) — `prompt.familiarity`,
-//     `urlParams.condition`, `survey.TIPI.responses.q1`.
-//   - **Structured object** (#240) — `{ source: "prompt", name: "familiarity" }`,
-//     `{ source: "urlParams", path: ["condition"] }`. Same expressivity plus
-//     the ability to override defaults that the dotted form bakes in (e.g.
-//     `path: ["debugMessages"]` on a prompt ref).
-//
-// The string shorthand is parsed into the structured form, so downstream code
-// only ever sees `{source, name?, path?}` shapes.
-
-export const namedSourceEnum = z.enum([
-  "prompt",
-  "survey",
-  "submitButton",
-  "qualtrics",
-  "timeline",
-  "trackedLink",
-  "discussion",
-]);
-export type NamedSource = z.infer<typeof namedSourceEnum>;
-
-export const externalSourceEnum = z.enum([
-  "urlParams",
-  "connectionInfo",
-  "browserInfo",
-  "participantInfo",
-]);
-export type ExternalSource = z.infer<typeof externalSourceEnum>;
-
-const referencePathSchema = z.array(z.string().min(1));
-
-const namedReferenceSchema = z
-  .object({
-    source: namedSourceEnum,
-    name: nameSchema,
-    path: referencePathSchema.optional(),
-  })
-  .strict();
-export type NamedReferenceType = z.infer<typeof namedReferenceSchema>;
-
-const externalReferenceSchema = z
-  .object({
-    source: externalSourceEnum,
-    path: referencePathSchema.nonempty({
-      message: "External-source references require a non-empty `path`.",
-    }),
-  })
-  .strict();
-export type ExternalReferenceType = z.infer<typeof externalReferenceSchema>;
-
-/** Result of normalising a reference: always one of the two structured shapes. */
-export type ReferenceType = NamedReferenceType | ExternalReferenceType;
-
-const NAMED_SOURCES: ReadonlySet<string> = new Set(namedSourceEnum.options);
-const EXTERNAL_SOURCES: ReadonlySet<string> = new Set(
-  externalSourceEnum.options,
-);
-const ALL_SOURCES = [
-  ...namedSourceEnum.options,
-  ...externalSourceEnum.options,
-] as const;
-
-/**
- * Parse a dotted-string reference into its structured form. Returns either
- * `{ ok: true, value }` or `{ ok: false, message }`. Used by the schema
- * (string-shorthand sugar) AND by `getReferenceKeyAndPath` when a runtime
- * caller passes a string instead of the structured form.
- */
-export function parseDottedReference(
-  str: string,
-): { ok: true; value: ReferenceType } | { ok: false; message: string } {
-  const segments = str.split(".");
-  const [source, ...rest] = segments;
-  if (!source) {
-    return { ok: false, message: "Reference must include a source." };
-  }
-  if (NAMED_SOURCES.has(source)) {
-    const [name, ...path] = rest;
-    if (name === undefined || name.length < 1) {
-      return {
-        ok: false,
-        message: `A name must be provided, e.g. '${source}.elementName'.`,
-      };
-    }
-    return {
-      ok: true,
-      value:
-        path.length > 0
-          ? { source: source as NamedSource, name, path }
-          : { source: source as NamedSource, name },
-    };
-  }
-  if (EXTERNAL_SOURCES.has(source)) {
-    if (rest.length < 1) {
-      return {
-        ok: false,
-        message: `A path must be provided, e.g. '${source}.fieldName'.`,
-      };
-    }
-    return {
-      ok: true,
-      value: {
-        source: source as ExternalSource,
-        path: rest as [string, ...string[]],
-      },
-    };
-  }
-  return {
-    ok: false,
-    message: `Invalid reference source "${source}". Valid sources are: ${ALL_SOURCES.join(", ")}.`,
-  };
-}
-
-const stringReferenceSchema = z.string().transform((str, ctx) => {
-  const parsed = parseDottedReference(str);
-  if (!parsed.ok) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: parsed.message,
-    });
-    return z.NEVER;
-  }
-  return parsed.value;
-});
-
-/**
- * Reference field schema — accepts either:
- *   - the dotted-string sugar (`prompt.foo`, `urlParams.condition`)
- *   - the structured `{ source, name?, path? }` object form
- *
- * Output is always the structured form (the string-sugar branch transforms
- * to the same shape). Validation: named sources require `name` and forbid
- * `path` of empty strings; external sources forbid `name` and require a
- * non-empty `path`.
- */
-export const referenceSchema = z.union([
-  namedReferenceSchema,
-  externalReferenceSchema,
-  stringReferenceSchema,
-]);
+// References live in `./reference.js` (#240) and are re-exported above.
 
 // --------------- Conditions --------------- //
 
