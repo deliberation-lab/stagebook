@@ -1,6 +1,10 @@
 import React from "react";
 
 export interface DisplayProps {
+  /** The reference, rendered into `data-reference` for downstream tooling.
+   *  Stringified upstream — accepts the dotted form (`prompt.foo`) or the
+   *  structured form's `JSON.stringify` output, depending on what the
+   *  treatment file authored. */
   reference: string;
   position?: string;
   values: unknown[];

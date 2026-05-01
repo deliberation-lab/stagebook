@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
-import type { DiscussionType } from "../schemas/treatment.js";
+import type { DiscussionType, ReferenceType } from "../schemas/treatment.js";
 import {
   getReferenceKeyAndPath,
   getNestedValueByPath,
@@ -121,7 +121,10 @@ export interface StagebookContext {
 // --------------- Internal context ---------------
 
 interface InternalStagebookContext extends StagebookContext {
-  resolve(reference: string, position?: string): unknown[];
+  // After #240, callers can pass either the dotted-string sugar
+  // (`prompt.foo`) or the structured form
+  // (`{ source: "prompt", name: "foo" }`).
+  resolve(reference: string | ReferenceType, position?: string): unknown[];
 }
 
 const StagebookReactContext = createContext<InternalStagebookContext | null>(
@@ -138,13 +141,15 @@ export function StagebookProvider({
   children: React.ReactNode;
 }) {
   const resolve = React.useCallback(
-    (reference: string, position?: string): unknown[] => {
+    (reference: string | ReferenceType, position?: string): unknown[] => {
       let referenceKey: string;
       let path: string[];
       try {
         ({ referenceKey, path } = getReferenceKeyAndPath(reference));
       } catch {
-        console.error(`Invalid reference: "${reference}"`);
+        console.error(
+          `Invalid reference: ${typeof reference === "string" ? `"${reference}"` : JSON.stringify(reference)}`,
+        );
         return [];
       }
       // After #238, *condition* leaves only emit `"shared"` /
@@ -189,7 +194,10 @@ export function useStagebookContext(): InternalStagebookContext {
   return ctx;
 }
 
-export function useResolve(reference: string, position?: string): unknown[] {
+export function useResolve(
+  reference: string | ReferenceType,
+  position?: string,
+): unknown[] {
   const { resolve } = useStagebookContext();
   return resolve(reference, position);
 }

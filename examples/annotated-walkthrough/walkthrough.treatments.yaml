@@ -150,10 +150,17 @@ templates:
             - type: prompt
               file: prompts/post_consensus.prompt.md
               conditions:
+                # String-shorthand reference (the most common form).
                 - reference: prompt.${topic}_changed
                   position: 0
                   comparator: exists
-                - reference: prompt.${topic}_changed
+                # Same reference, written in the structured form (#240).
+                # Equivalent to `prompt.${topic}_changed` — `path: [value]`
+                # makes the implicit `value` default explicit.
+                - reference:
+                    source: prompt
+                    name: ${topic}_changed
+                    path: [value]
                   position: 1
                   comparator: exists
               notes: |
@@ -164,7 +171,10 @@ templates:
                 values are gone. The flat-array form here AND-combines
                 two per-slot leaves, which is the canonical way to
                 express "both players have data." For OR semantics use
-                the `any:` operator from #235.
+                the `any:` operator from #235. The two leaves below show
+                both reference shapes — string sugar (`prompt.foo`) and
+                the structured `{source, name, path}` form (#240) — at
+                the same site; either parses to the same internal shape.
 
             - type: submitButton
 

@@ -51,11 +51,11 @@ test("reference prompt with no name", () => {
   expect(result.success).toBe(false);
 });
 
-test("reference survey with no path", () => {
+test("reference survey with no path is now valid (named source — path is optional, #240)", () => {
   const reference = "survey.namedSurvey";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
-  expect(result.success).toBe(false);
+  expect(result.success).toBe(true);
 });
 
 test("reference tracked link with name", () => {

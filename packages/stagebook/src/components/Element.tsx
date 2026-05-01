@@ -2,6 +2,7 @@
 import React from "react";
 import { useStagebookContext, useTextContent } from "./StagebookProvider.js";
 import { promptFileSchema } from "../schemas/promptFile.js";
+import type { ReferenceType } from "../schemas/treatment.js";
 import { Separator } from "./form/Separator.js";
 import { Display } from "./elements/Display.js";
 import { SubmitButton } from "./elements/SubmitButton.js";
@@ -23,11 +24,13 @@ function resolveParams(
     | Array<{
         key: string;
         value?: unknown;
-        reference?: string;
+        // After #240, references can be either the dotted-string sugar
+        // or the structured `{source, name?, path?}` form.
+        reference?: string | ReferenceType;
         position?: string;
       }>
     | undefined,
-  resolve: (ref: string, pos?: string) => unknown[],
+  resolve: (ref: string | ReferenceType, pos?: string) => unknown[],
 ): ResolvedParam[] {
   if (!urlParams) return [];
   return urlParams.map((param) => {
@@ -54,7 +57,11 @@ export interface ElementConfig {
   name?: string;
   file?: string;
   style?: "" | "thin" | "regular" | "thick";
-  reference?: string;
+  // After #240, references accept the dotted-string sugar OR the structured
+  // `{source, name?, path?}` form. Element.tsx forwards either to `resolve`
+  // (which handles both) and stringifies for the `data-reference` attribute
+  // on Display.
+  reference?: string | ReferenceType;
   position?: string;
   shared?: boolean;
   buttonText?: string;
@@ -65,7 +72,7 @@ export interface ElementConfig {
   urlParams?: Array<{
     key: string;
     value?: unknown;
-    reference?: string;
+    reference?: string | ReferenceType;
     position?: string;
   }>;
   width?: number;
@@ -141,8 +148,13 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     case "display": {
       const ref = element.reference ?? `prompt.${element.name}`;
       const values = resolve(ref, element.position);
+      const refString = typeof ref === "string" ? ref : JSON.stringify(ref);
       return (
-        <Display reference={ref} position={element.position} values={values} />
+        <Display
+          reference={refString}
+          position={element.position}
+          values={values}
+        />
       );
     }
 

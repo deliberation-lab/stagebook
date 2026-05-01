@@ -533,70 +533,153 @@ function altTemplateContext<T extends z.ZodTypeAny>(baseSchema: T) {
 }
 
 // ------------------ References ------------------ //
+//
+// A reference identifies a value somewhere in the study state. There are two
+// kinds: **named** sources (`prompt`, `survey`, …) whose data is keyed by
+// a researcher-chosen `name`, and **external** sources (`urlParams`,
+// `participantInfo`, …) supplied by the host as a singleton.
+//
+// References can be written two ways:
+//   - **String shorthand** (the original syntax) — `prompt.familiarity`,
+//     `urlParams.condition`, `survey.TIPI.responses.q1`.
+//   - **Structured object** (#240) — `{ source: "prompt", name: "familiarity" }`,
+//     `{ source: "urlParams", path: ["condition"] }`. Same expressivity plus
+//     the ability to override defaults that the dotted form bakes in (e.g.
+//     `path: ["debugMessages"]` on a prompt ref).
+//
+// The string shorthand is parsed into the structured form, so downstream code
+// only ever sees `{source, name?, path?}` shapes.
 
-export const referenceSchema = z
-  .string()
-  .transform((str) => str.split("."))
-  .superRefine((arr, ctx) => {
-    const [givenType] = arr; // destructure first element
-    let name;
-    let path;
-    switch (givenType) {
-      case "survey":
-      case "submitButton":
-      case "qualtrics":
-        [, name, ...path] = arr;
-        if (path.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A path must be provided, e.g. '${givenType}.${name}.object.selectors.here'`,
-            path: [],
-          });
-        }
-        if (name === undefined || name.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A name must be provided, e.g. '${givenType}.elementName.object.selectors.here'`,
-            path: [],
-          });
-        }
-        break;
-      case "discussion":
-      case "prompt":
-      case "timeline":
-      case "trackedLink":
-        [, name] = arr;
-        if (name === undefined || name.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A name must be provided, e.g. '${givenType}.elementName'`,
-            path: [],
-          });
-        }
-        break;
-      case "urlParams":
-      case "connectionInfo":
-      case "browserInfo":
-      case "participantInfo":
-        [, ...path] = arr;
-        if (path.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `A path must be provided, e.g. '${givenType}.object.selectors.here'.`,
-            path: [],
-          });
-        }
-        break;
-      default:
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Invalid reference type "${givenType}", need to be in form of a valid reference type such as 'survey', 'submitButton', 'qualtrics', 'discussion', 'participantInfo', 'prompt', 'timeline', 'trackedLink', 'urlParams', 'connectionInfo', or 'browserInfo' followed by a . and name or path.`,
-          path: [],
-        });
+export const namedSourceEnum = z.enum([
+  "prompt",
+  "survey",
+  "submitButton",
+  "qualtrics",
+  "timeline",
+  "trackedLink",
+  "discussion",
+]);
+export type NamedSource = z.infer<typeof namedSourceEnum>;
+
+export const externalSourceEnum = z.enum([
+  "urlParams",
+  "connectionInfo",
+  "browserInfo",
+  "participantInfo",
+]);
+export type ExternalSource = z.infer<typeof externalSourceEnum>;
+
+const referencePathSchema = z.array(z.string().min(1));
+
+const namedReferenceSchema = z
+  .object({
+    source: namedSourceEnum,
+    name: nameSchema,
+    path: referencePathSchema.optional(),
+  })
+  .strict();
+export type NamedReferenceType = z.infer<typeof namedReferenceSchema>;
+
+const externalReferenceSchema = z
+  .object({
+    source: externalSourceEnum,
+    path: referencePathSchema.nonempty({
+      message: "External-source references require a non-empty `path`.",
+    }),
+  })
+  .strict();
+export type ExternalReferenceType = z.infer<typeof externalReferenceSchema>;
+
+/** Result of normalising a reference: always one of the two structured shapes. */
+export type ReferenceType = NamedReferenceType | ExternalReferenceType;
+
+const NAMED_SOURCES: ReadonlySet<string> = new Set(namedSourceEnum.options);
+const EXTERNAL_SOURCES: ReadonlySet<string> = new Set(
+  externalSourceEnum.options,
+);
+const ALL_SOURCES = [
+  ...namedSourceEnum.options,
+  ...externalSourceEnum.options,
+] as const;
+
+/**
+ * Parse a dotted-string reference into its structured form. Returns either
+ * `{ ok: true, value }` or `{ ok: false, message }`. Used by the schema
+ * (string-shorthand sugar) AND by `getReferenceKeyAndPath` when a runtime
+ * caller passes a string instead of the structured form.
+ */
+export function parseDottedReference(
+  str: string,
+): { ok: true; value: ReferenceType } | { ok: false; message: string } {
+  const segments = str.split(".");
+  const [source, ...rest] = segments;
+  if (!source) {
+    return { ok: false, message: "Reference must include a source." };
+  }
+  if (NAMED_SOURCES.has(source)) {
+    const [name, ...path] = rest;
+    if (name === undefined || name.length < 1) {
+      return {
+        ok: false,
+        message: `A name must be provided, e.g. '${source}.elementName'.`,
+      };
     }
-  });
+    return {
+      ok: true,
+      value:
+        path.length > 0
+          ? { source: source as NamedSource, name, path }
+          : { source: source as NamedSource, name },
+    };
+  }
+  if (EXTERNAL_SOURCES.has(source)) {
+    if (rest.length < 1) {
+      return {
+        ok: false,
+        message: `A path must be provided, e.g. '${source}.fieldName'.`,
+      };
+    }
+    return {
+      ok: true,
+      value: {
+        source: source as ExternalSource,
+        path: rest as [string, ...string[]],
+      },
+    };
+  }
+  return {
+    ok: false,
+    message: `Invalid reference source "${source}". Valid sources are: ${ALL_SOURCES.join(", ")}.`,
+  };
+}
 
-export type ReferenceType = z.infer<typeof referenceSchema>;
+const stringReferenceSchema = z.string().transform((str, ctx) => {
+  const parsed = parseDottedReference(str);
+  if (!parsed.ok) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: parsed.message,
+    });
+    return z.NEVER;
+  }
+  return parsed.value;
+});
+
+/**
+ * Reference field schema — accepts either:
+ *   - the dotted-string sugar (`prompt.foo`, `urlParams.condition`)
+ *   - the structured `{ source, name?, path? }` object form
+ *
+ * Output is always the structured form (the string-sugar branch transforms
+ * to the same shape). Validation: named sources require `name` and forbid
+ * `path` of empty strings; external sources forbid `name` and require a
+ * non-empty `path`.
+ */
+export const referenceSchema = z.union([
+  namedReferenceSchema,
+  externalReferenceSchema,
+  stringReferenceSchema,
+]);
 
 // --------------- Conditions --------------- //
 
@@ -1372,16 +1455,8 @@ export const validComparators = [
 ] as const;
 
 export const validReferenceTypes = [
-  "survey",
-  "submitButton",
-  "qualtrics",
-  "prompt",
-  "trackedLink",
-  "urlParams",
-  "connectionInfo",
-  "browserInfo",
-  "participantInfo",
-  "discussion",
+  ...namedSourceEnum.options,
+  ...externalSourceEnum.options,
 ] as const;
 
 // ------------------ Schema introspection ------------------ //
