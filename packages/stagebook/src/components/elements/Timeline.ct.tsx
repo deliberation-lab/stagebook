@@ -3838,3 +3838,95 @@ test("range mode: Enter keyup without prior keydown is a no-op", async ({
   const last = saves[saves.length - 1]?.value as unknown[] | undefined;
   expect(last ?? []).toHaveLength(0);
 });
+
+test("range mode: Enter press-and-hold shows a live preview rectangle", async ({
+  mount,
+}) => {
+  // #268: while Enter is held, a dashed rectangle should be visible from
+  // the press time to the current playhead. It disappears on keyup.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_range_preview"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={10}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  const preview = component.locator('[data-testid="range-keyboard-preview"]');
+
+  await timeline.focus();
+  await expect(preview).toHaveCount(0);
+
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+
+  // Preview should be visible immediately at the press time.
+  await expect(preview).toHaveCount(1);
+
+  // Advance the playhead — preview should still be there (with a wider
+  // box). We can't easily measure exact width but presence is enough to
+  // prove the live update.
+  await component.update(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_range_preview"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={20}
+    />,
+  );
+  await expect(preview).toHaveCount(1);
+
+  // Release — preview should clear.
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+  await expect(preview).toHaveCount(0);
+});
+
+test("range mode: blur during hold clears the preview", async ({ mount }) => {
+  // If focus leaves the timeline while Enter is still held, the preview
+  // should disappear (mirrors the ref-clearing onBlur).
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_range_preview_blur"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={10}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  const preview = component.locator('[data-testid="range-keyboard-preview"]');
+
+  await timeline.focus();
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+  await expect(preview).toHaveCount(1);
+
+  await timeline.evaluate((el: HTMLElement) => {
+    el.blur();
+  });
+  await expect(preview).toHaveCount(0);
+});

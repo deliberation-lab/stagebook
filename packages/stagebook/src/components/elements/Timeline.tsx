@@ -195,6 +195,13 @@ export function Timeline({
   // at release. Cleared on commit, on Escape mid-hold, and on blur so a
   // dropped focus during the hold doesn't leave a stale start.
   const pendingRangeStartRef = useRef<number | null>(null);
+  // State mirror of pendingRangeStartRef for re-rendering the live
+  // preview rectangle while Enter is held (#268 fix). Kept in lockstep
+  // with the ref so the keyup handler can read synchronously while the
+  // overlay still re-renders on each playhead tick.
+  const [pendingRangeStartTime, setPendingRangeStartTime] = useState<
+    number | null
+  >(null);
 
   // Selection state via reducer. Lazy initializer hydrates from saved state
   // when present so participants who reload mid-stage see their existing
@@ -624,9 +631,9 @@ export function Timeline({
         // Press-and-hold range, keydown half (#263). Stash the current
         // playhead time; the matching keyup will commit the range.
         // Auto-repeat keydowns are filtered upstream by keyToAction.
-        pendingRangeStartRef.current = clampToMedia(
-          handleRef.current?.getCurrentTime() ?? 0,
-        );
+        const t = clampToMedia(handleRef.current?.getCurrentTime() ?? 0);
+        pendingRangeStartRef.current = t;
+        setPendingRangeStartTime(t);
         break;
       }
     }
@@ -662,6 +669,7 @@ export function Timeline({
     if (action.type === "endRangeAtPlayhead") {
       const startTime = pendingRangeStartRef.current;
       pendingRangeStartRef.current = null;
+      setPendingRangeStartTime(null);
       // Keyup without a prior keydown (e.g., focus changed mid-press) —
       // ignore.
       if (startTime === null) return;
@@ -762,6 +770,18 @@ export function Timeline({
 
   const tracksHeight = channelCount * TRACK_HEIGHT;
 
+  // Live preview rectangle for press-and-hold Enter range creation
+  // (#268 fix). Re-derived each render from currentTime so the right
+  // edge tracks the playhead as the video plays. Null when no hold is
+  // in progress.
+  const keyboardRangePreview =
+    pendingRangeStartTime !== null
+      ? {
+          start: Math.min(pendingRangeStartTime, currentTime),
+          end: Math.max(pendingRangeStartTime, currentTime),
+        }
+      : null;
+
   return (
     <div
       ref={containerRef}
@@ -783,6 +803,7 @@ export function Timeline({
         // Drop any in-progress press-and-hold range — focus left the
         // timeline before the matching keyup arrived. (#263)
         pendingRangeStartRef.current = null;
+        setPendingRangeStartTime(null);
       }}
       style={{
         border: "1px solid var(--stagebook-border, #e5e7eb)",
@@ -925,6 +946,7 @@ export function Timeline({
             onRequestFocus={() =>
               containerElRef.current?.focus({ preventScroll: true })
             }
+            keyboardRangePreview={keyboardRangePreview}
           />
 
           {/* Playhead — over selection overlay, extends into ruler via negative top */}
