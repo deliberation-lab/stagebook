@@ -21,7 +21,7 @@ export interface PromptProps {
    * non-slider types. After #243 slider points and labels share the same
    * body lines (`- 50: Somewhat familiar`); upstream
    * `promptFileSchema.transform` splits them into `sliderPoints` (numbers)
-   * and `responseItems` (labels) with the i'th index aligned across both.
+   * and `responseItems` (labels) with the i-th index aligned across both.
    */
   sliderPoints?: number[];
   name: string;

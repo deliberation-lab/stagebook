@@ -314,9 +314,25 @@ export const promptFileSchema: z.ZodType<
       });
       return z.NEVER;
     }
+    // Exact section count enforcement: extra `---` after the response
+    // section (e.g. a stray trailing delimiter, or a `---` used as a
+    // horizontal rule inside the response section) silently splits a
+    // valid file into pieces we'd otherwise drop. Reject so the author
+    // gets the same `***`/`___` migration hint as the section-count
+    // collisions inside the body section.
+    if (sections.length > 4) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["responses"],
+        message: `${parsedMetadata.type} prompt must have exactly three sections (frontmatter + body + responses). Use \`***\` or \`___\` for horizontal rules in the body, since \`---\` delimits sections.`,
+      });
+    }
 
     const responseLines = responseString
-      .split(/\r?\n/g)
+      // Match the structural section split (`/^-{3,}$/gm`) by also
+      // accepting `\r`-only line endings — legacy Mac files and some
+      // Windows tooling normalise line breaks differently.
+      .split(/\r?\n|\r/g)
       .filter((line) => line.trim().length > 0);
 
     // Per-type marker enforcement (#243). Both forms require a trailing
