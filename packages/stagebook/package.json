@@ -1,6 +1,6 @@
 {
   "name": "stagebook",
-  "version": "0.8.3",
+  "version": "0.9.0",
   "description": "Schemas, validators, utilities, and components for interactive social science experiments",
   "type": "module",
   "main": "./dist/index.cjs",
