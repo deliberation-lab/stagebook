@@ -1054,15 +1054,6 @@ export const promptSchema = elementBaseSchema
   })
   .strict();
 
-const promptShorthandSchema = promptFilePathSchema.transform((str) => {
-  const newElement = {
-    type: "prompt",
-    file: str,
-    name: str,
-  };
-  return newElement;
-});
-
 const separatorSchema = elementBaseSchema
   .extend({
     type: z.literal("separator"),
@@ -1137,6 +1128,57 @@ export const mediaPlayerSchema = elementBaseSchema
   .strict();
 
 export type MediaPlayerType = z.infer<typeof mediaPlayerSchema>;
+
+/**
+ * mediaPlayer cross-field rules. Lives outside `mediaPlayerSchema` because
+ * `z.discriminatedUnion` in Zod 3 only accepts plain `ZodObject` members
+ * (not `ZodEffects` wrappers), so any `.refine`/`.superRefine` applied to a
+ * member would break elementSchema's discriminated union. We apply these
+ * rules from the union's outer superRefine instead — same behavior, same
+ * error messages.
+ */
+function checkMediaPlayerCrossFields(
+  data: z.infer<typeof mediaPlayerSchema>,
+  ctx: z.RefinementCtx,
+): void {
+  // Only compare when both are concrete numbers — skip when either is an
+  // unresolved ${field} placeholder.
+  if (
+    typeof data.startAt === "number" &&
+    typeof data.stopAt === "number" &&
+    data.stopAt <= data.startAt
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "stopAt must be greater than startAt",
+      path: ["stopAt"],
+    });
+  }
+  if (data.syncToStageTime && data.controls) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "controls cannot be specified when syncToStageTime is true (playback is locked to stage time)",
+      path: ["controls"],
+    });
+  }
+  if (data.playback === "once" && data.controls) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'controls cannot be specified when playback is "once" (participant controls are disabled)',
+      path: ["controls"],
+    });
+  }
+  if (data.playback === "once" && data.syncToStageTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'playback "once" cannot be combined with syncToStageTime (use syncToStageTime without playback instead)',
+      path: ["playback"],
+    });
+  }
+}
 
 export const timelineSchema = elementBaseSchema
   .extend({
@@ -1401,119 +1443,31 @@ export function getValidKeysForPlayer(): string[] {
 }
 
 export const elementSchema = altTemplateContext(
-  z.any().superRefine((data, ctx) => {
-    const isObject = typeof data === "object" && data !== null;
-    const hasTypeKey = isObject && "type" in data;
-
-    const schemaToUse = hasTypeKey
-      ? z.discriminatedUnion("type", [
-          audioSchema,
-          displaySchema,
-          imageSchema,
-          promptSchema,
-          qualtricsSchema,
-          separatorSchema,
-          sharedNotepadSchema,
-          submitButtonSchema,
-          surveySchema,
-          talkMeterSchema,
-          timerSchema,
-          mediaPlayerSchema,
-          timelineSchema,
-          trackedLinkSchema,
-        ])
-      : promptShorthandSchema;
-
-    const result = schemaToUse.safeParse(data);
-
-    if (!result.success) {
-      //promptShorthandSchema is a special case where we expect a string
-      //But there are 0 key mismatches as a result of this for whatever object
-      //is input
-      if (!hasTypeKey && isObject && schemaToUse === promptShorthandSchema) {
-        // If we expected a string (promptShorthand) but got an object instead
-        // Add one error per key
-        ctx.addIssue({
-          code: "invalid_type",
-          expected: "string",
-          received: "object",
-          message: `promptShorthandSchema expects a string, but received object.`,
-        });
-        for (const key of Object.keys(data)) {
-          ctx.addIssue({
-            code: "unrecognized_keys",
-            keys: [key],
-          });
-        }
-      } else {
-        // Forward errors from schemaToUse
-        result.error.issues.forEach((issue) =>
-          ctx.addIssue({
-            ...issue,
-            path: [...issue.path],
-          }),
-        );
+  z
+    .discriminatedUnion("type", [
+      audioSchema,
+      displaySchema,
+      imageSchema,
+      promptSchema,
+      qualtricsSchema,
+      separatorSchema,
+      sharedNotepadSchema,
+      submitButtonSchema,
+      surveySchema,
+      talkMeterSchema,
+      timerSchema,
+      mediaPlayerSchema,
+      timelineSchema,
+      trackedLinkSchema,
+    ])
+    .superRefine((data, ctx) => {
+      // Cross-field rules only run after base-shape validation succeeds —
+      // an incomplete mediaPlayer (e.g. missing `url`) already errored
+      // inside the discriminated union, so we never reach here for it.
+      if (data.type === "mediaPlayer") {
+        checkMediaPlayerCrossFields(data, ctx);
       }
-    }
-
-    // Cross-field validation for mediaPlayer
-    if (
-      isObject &&
-      (data as { type?: unknown }).type === "mediaPlayer" &&
-      result.success
-    ) {
-      const mp = data as {
-        startAt?: number | string;
-        stopAt?: number | string;
-      };
-      // Only compare when both are concrete numbers — skip when either is
-      // an unresolved ${field} placeholder
-      if (
-        typeof mp.startAt === "number" &&
-        typeof mp.stopAt === "number" &&
-        mp.stopAt <= mp.startAt
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "stopAt must be greater than startAt",
-          path: ["stopAt"],
-        });
-      }
-      const mpSync = data as {
-        syncToStageTime?: boolean;
-        controls?: Record<string, boolean>;
-      };
-      if (mpSync.syncToStageTime && mpSync.controls) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            "controls cannot be specified when syncToStageTime is true (playback is locked to stage time)",
-          path: ["controls"],
-        });
-      }
-      const mpPlayback = data as {
-        playback?: string;
-        controls?: Record<string, boolean>;
-        syncToStageTime?: boolean;
-      };
-      if (mpPlayback.playback === "once" && mpPlayback.controls) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'controls cannot be specified when playback is "once" (participant controls are disabled)',
-          path: ["controls"],
-        });
-      }
-      if (mpPlayback.playback === "once" && mpPlayback.syncToStageTime) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'playback "once" cannot be combined with syncToStageTime (use syncToStageTime without playback instead)',
-          path: ["playback"],
-        });
-      }
-    }
-  }),
+    }),
 );
 
 export type ElementType = z.infer<typeof elementSchema>;

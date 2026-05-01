@@ -65,14 +65,6 @@ Renders a question or informational text from a Markdown file. This is the most 
   shared: true # optional — single response editable by all participants
 ```
 
-**Shorthand:** A bare string in the `elements` array is treated as a prompt:
-
-```yaml
-elements:
-  - game/discussion_prompt.prompt.md # equivalent to { type: prompt, file: "..." }
-  - type: submitButton
-```
-
 See [Prompt Files](prompts.md) for the Markdown format.
 
 ## Display

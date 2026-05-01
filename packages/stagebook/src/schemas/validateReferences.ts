@@ -662,55 +662,25 @@ function collectStepKeys(step: unknown): Set<string> {
  *  sub-values rather than trying to shape-check against `contentType`,
  *  because template shapes are flexible and we just want "every key that
  *  could come out of this template."
- *
- *  Bare `*.prompt.md` strings are only treated as produced keys when
- *  they appear as prompt-shorthand entries inside an `elements` array.
- *  Treating every matching string as a produced key would
- *  over-approximate — e.g. an explicit `{ type: prompt, name: foo,
- *  file: "p.prompt.md" }` element would add *both* `prompt_foo` (real
- *  key) and `prompt_p.prompt.md` (bogus) — and mask real typos.
  */
-function collectKeysFromAny(
-  node: unknown,
-  acc: Set<string>,
-  allowPromptShorthand = false,
-): void {
-  if (typeof node === "string") {
-    if (allowPromptShorthand && node.endsWith(".prompt.md")) {
-      acc.add(`prompt_${node}`);
-    }
-    return;
-  }
+function collectKeysFromAny(node: unknown, acc: Set<string>): void {
+  if (typeof node !== "object" || node === null) return;
   if (Array.isArray(node)) {
-    for (const item of node) {
-      collectKeysFromAny(item, acc, allowPromptShorthand);
-    }
+    for (const item of node) collectKeysFromAny(item, acc);
     return;
   }
   if (!isRecord(node)) return;
   // Try as an element first (matches the concrete-walker shape).
   collectProducedKeys(node, acc);
-  // Recurse into every sub-value. Only `elements` arrays carry
-  // prompt-shorthand strings — any other string field (e.g. `file:
-  // "…prompt.md"`) is not a shorthand and shouldn't be counted.
-  for (const [key, value] of Object.entries(node)) {
-    collectKeysFromAny(value, acc, key === "elements");
+  for (const value of Object.values(node)) {
+    collectKeysFromAny(value, acc);
   }
 }
 
-/** Map an element (or a bare prompt-shorthand path string) to its storage
- *  key (or keys) and add them to `acc`. The key conventions mirror
- *  `getReferenceKeyAndPath` so lookups line up.
+/** Map an element to its storage key (or keys) and add them to `acc`.
+ *  The key conventions mirror `getReferenceKeyAndPath` so lookups line up.
  */
 function collectProducedKeys(element: unknown, acc: Set<string>): void {
-  // Prompt-shorthand: a bare "*.prompt.md" string inside `elements` stands
-  // in for `{ type: "prompt", file: <str>, name: <str> }`. Without a name
-  // it still produces `prompt_<str>` since the shorthand auto-names from
-  // the path.
-  if (typeof element === "string" && element.endsWith(".prompt.md")) {
-    acc.add(`prompt_${element}`);
-    return;
-  }
   if (!isRecord(element)) return;
   const type = element.type;
   const name = element.name;

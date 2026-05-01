@@ -1907,3 +1907,75 @@ test("template: notes field is accepted", () => {
   });
   expect(result.success).toBe(true);
 });
+
+// ----------- Element Schema (#245) ------------
+//
+// promptShorthandSchema is gone — bare strings inside an `elements` array no
+// longer become prompts. They fail discriminated-union validation with a
+// clear "Expected object" message instead.
+
+test("element: bare string inside elements array is rejected", () => {
+  const result = elementsSchema.safeParse(["prompts/intro.prompt.md"]);
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    // Zod's discriminated-union complaint about a non-object — the surface
+    // message says it expected an object, not a string.
+    const messages = result.error.issues.map((i) => i.message).join("\n");
+    expect(messages.toLowerCase()).toMatch(/object/);
+  }
+});
+
+test("element: typo'd plain string in elements array is rejected (no silent prompt parse)", () => {
+  const result = elementsSchema.safeParse(["not-a-prompt.txt"]);
+  expect(result.success).toBe(false);
+});
+
+test("element: explicit prompt element still validates", () => {
+  const result = elementsSchema.safeParse([
+    { type: "prompt", file: "prompts/intro.prompt.md" },
+  ]);
+  expect(result.success).toBe(true);
+});
+
+test("element: missing `type` discriminator is rejected", () => {
+  // Each array item is validated through `elementSchema` (which dispatches
+  // via `altTemplateContext`). With no `template:` key, the object falls
+  // straight through to the discriminated union and fails on the missing
+  // `type:` discriminator.
+  const result = elementsSchema.safeParse([
+    { file: "prompts/intro.prompt.md" },
+  ]);
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(
+      result.error.issues.some((i) => i.code === "invalid_union_discriminator"),
+    ).toBe(true);
+  }
+});
+
+test("element: mediaPlayer cross-field rule (stopAt > startAt) still applies", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "clip.mp4",
+    startAt: 10,
+    stopAt: 5,
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(
+      result.error.issues.some((i) =>
+        i.message.includes("stopAt must be greater than startAt"),
+      ),
+    ).toBe(true);
+  }
+});
+
+test("element: mediaPlayer playback 'once' + syncToStageTime still rejected", () => {
+  const result = elementSchema.safeParse({
+    type: "mediaPlayer",
+    url: "clip.mp4",
+    playback: "once",
+    syncToStageTime: true,
+  });
+  expect(result.success).toBe(false);
+});
