@@ -9,7 +9,10 @@ import { usePlayback } from "../playback/PlaybackProvider.js";
 import { TimeRuler, RULER_HEIGHT } from "./timeline/TimeRuler.js";
 import { TimelineTrack, GUTTER_WIDTH } from "./timeline/TimelineTrack.js";
 import { Playhead } from "./timeline/Playhead.js";
-import { SelectionOverlay } from "./timeline/SelectionOverlay.js";
+import {
+  SelectionOverlay,
+  CLICK_CREATED_RANGE_MIN_PX,
+} from "./timeline/SelectionOverlay.js";
 import { TimelineFooter } from "./timeline/TimelineFooter.js";
 import { TimelineHeader } from "./timeline/TimelineHeader.js";
 import { Minimap } from "./timeline/Minimap.js";
@@ -19,7 +22,12 @@ import {
   initialSelectionState,
   selectionsReducer,
 } from "./timeline/selectionsReducer.js";
-import { keyToAction } from "./timeline/keyboardActions.js";
+import {
+  keyToAction,
+  keyUpToAction,
+  type KeyContext,
+  type KeyEventLike,
+} from "./timeline/keyboardActions.js";
 import type { PointSelection, RangeSelection } from "./timeline/selections.js";
 import {
   AUTO_SCROLL_THRESHOLD,
@@ -180,6 +188,13 @@ export function Timeline({
   // chases the cursor (cursor at >90% scrolls right; new viewport puts
   // cursor at >90% again; runaway) and the user can't stop near the edge.
   const playheadDraggingRef = useRef(false);
+
+  // Range mode press-and-hold annotation (#263). When the user presses
+  // Enter in range mode we stash the playhead time here; the matching
+  // keyup commits a range from this start to wherever the playhead is
+  // at release. Cleared on commit, on Escape mid-hold, and on blur so a
+  // dropped focus during the hold doesn't leave a stale start.
+  const pendingRangeStartRef = useRef<number | null>(null);
 
   // Selection state via reducer. Lazy initializer hydrates from saved state
   // when present so participants who reload mid-stage see their existing
@@ -510,22 +525,22 @@ export function Timeline({
         ? ((state.selections as PointSelection[])[state.activeIndex] ?? null)
         : null;
 
-    const action = keyToAction(
-      {
-        key: e.key,
-        ctrlKey: e.ctrlKey,
-        metaKey: e.metaKey,
-        shiftKey: e.shiftKey,
-        altKey: e.altKey,
-      },
-      {
-        selectionType,
-        activeIndex: state.activeIndex,
-        activeHandle: state.activeHandle,
-        currentRange,
-        currentPoint,
-      },
-    );
+    const eventLike: KeyEventLike = {
+      key: e.key,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      shiftKey: e.shiftKey,
+      altKey: e.altKey,
+      repeat: e.repeat,
+    };
+    const ctx: KeyContext = {
+      selectionType,
+      activeIndex: state.activeIndex,
+      activeHandle: state.activeHandle,
+      currentRange,
+      currentPoint,
+    };
+    const action = keyToAction(eventLike, ctx);
     if (!action) return; // Fall through to MediaPlayer
 
     e.preventDefault();
@@ -590,6 +605,108 @@ export function Timeline({
         const t = clampToMedia(current + action.delta);
         handleRef.current?.seekTo(t);
         break;
+      }
+      case "createPointAtPlayhead": {
+        // Real-time point annotation (#263). One Enter press = one point
+        // at the current playhead. The reducer's CREATE_POINT honors
+        // multiSelect (appends if true, replaces if false), so this
+        // single dispatch covers both modes.
+        const t = clampToMedia(handleRef.current?.getCurrentTime() ?? 0);
+        dispatch({
+          type: "CREATE_POINT",
+          time: t,
+          track: undefined,
+          multiSelect,
+        });
+        break;
+      }
+      case "beginRangeAtPlayhead": {
+        // Press-and-hold range, keydown half (#263). Stash the current
+        // playhead time; the matching keyup will commit the range.
+        // Auto-repeat keydowns are filtered upstream by keyToAction.
+        pendingRangeStartRef.current = clampToMedia(
+          handleRef.current?.getCurrentTime() ?? 0,
+        );
+        break;
+      }
+    }
+  };
+
+  // Press-and-hold range, keyup half (#263). The user pressed Enter at
+  // some point time A and released it at the current playhead — which
+  // may differ from A if the video kept playing or they scrubbed during
+  // the hold. Commit a range from min(A, current) to max(A, current),
+  // with the same min-pixel-width clamp the click-create path uses so a
+  // near-instantaneous tap still produces a visible range.
+  const onKeyUp = (e: React.KeyboardEvent) => {
+    const eventLike: KeyEventLike = {
+      key: e.key,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      shiftKey: e.shiftKey,
+      altKey: e.altKey,
+    };
+    const ctx: KeyContext = {
+      selectionType,
+      activeIndex: state.activeIndex,
+      activeHandle: state.activeHandle,
+      currentRange: null,
+      currentPoint: null,
+    };
+    const action = keyUpToAction(eventLike, ctx);
+    if (!action) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (action.type === "endRangeAtPlayhead") {
+      const startTime = pendingRangeStartRef.current;
+      pendingRangeStartRef.current = null;
+      // Keyup without a prior keydown (e.g., focus changed mid-press) —
+      // ignore.
+      if (startTime === null) return;
+
+      const dur = handleRef.current?.getDuration() ?? 0;
+      const clampToMediaLocal = (t: number): number => {
+        if (Number.isFinite(dur) && dur > 0) {
+          return Math.max(0, Math.min(t, dur));
+        }
+        return Math.max(0, t);
+      };
+      const endTime = clampToMediaLocal(
+        handleRef.current?.getCurrentTime() ?? 0,
+      );
+
+      let lo = Math.min(startTime, endTime);
+      let hi = Math.max(startTime, endTime);
+
+      // Min-visible-width clamp: a brief tap shouldn't produce an
+      // invisible range. Mirrors the click-create path's behavior.
+      // (Compute waveform width inline; the top-level `waveformWidth`
+      // const is declared further down in the function body.)
+      const waveformWidthLocal = Math.max(containerWidth - GUTTER_WIDTH, 0);
+      if (waveformWidthLocal > 0 && dur > 0) {
+        const pxPerSec = (waveformWidthLocal * zoomLevel) / dur;
+        if (pxPerSec > 0) {
+          const minSec = CLICK_CREATED_RANGE_MIN_PX / pxPerSec;
+          if (hi - lo < minSec) {
+            hi = lo + minSec;
+            if (hi > dur) {
+              hi = dur;
+              lo = Math.max(0, dur - minSec);
+            }
+          }
+        }
+      }
+
+      if (hi - lo > 0) {
+        dispatch({
+          type: "CREATE_RANGE",
+          start: lo,
+          end: hi,
+          track: undefined,
+          multiSelect,
+        });
       }
     }
   };
@@ -661,6 +778,12 @@ export function Timeline({
       aria-label={`Timeline: ${name}`}
       tabIndex={0}
       onKeyDown={onKeyDown}
+      onKeyUp={onKeyUp}
+      onBlur={() => {
+        // Drop any in-progress press-and-hold range — focus left the
+        // timeline before the matching keyup arrived. (#263)
+        pendingRangeStartRef.current = null;
+      }}
       style={{
         border: "1px solid var(--stagebook-border, #e5e7eb)",
         borderRadius: "0.5rem",

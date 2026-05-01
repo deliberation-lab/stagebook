@@ -3655,3 +3655,186 @@ test("wheel pan: line-mode (deltaMode=1) deltas are normalized to pixels", async
   // (a one-shot read can race the commit on busy CI workers).
   await expect.poll(() => readViewportStart(timeline)).toBeGreaterThan(0.5);
 });
+
+// -- Enter key for real-time annotation (#263) --
+
+test("point mode: Enter creates a point at the current playhead", async ({
+  mount,
+}) => {
+  // Real-time labeling story: video plays, viewer taps Enter at each
+  // moment they want to mark. Each Enter press = one point at the
+  // current playhead time.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_point"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={12.5}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  // dispatchEvent (rather than locator.press) for parity with the other
+  // Enter tests below — press relies on browser keyboard plumbing that
+  // can race the React event delegation in CT.
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  const saves = await readSaveLog(component);
+  const value = saves[saves.length - 1]?.value as { time: number }[];
+  expect(value).toHaveLength(1);
+  expect(value[0]?.time).toBeCloseTo(12.5, 5);
+});
+
+test("point mode: Enter ignored when held (auto-repeat doesn't spam)", async ({
+  mount,
+}) => {
+  // Real-time use means the user might hold Enter for a fraction of a
+  // second — that should still produce ONE point, not a stream.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_repeat"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={5}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  // Initial keydown — creates one point.
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+  // Several auto-repeat keydowns — should be ignored.
+  for (let i = 0; i < 3; i++) {
+    await timeline.dispatchEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      repeat: true,
+      bubbles: true,
+      cancelable: true,
+    });
+  }
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  const saves = await readSaveLog(component);
+  const value = saves[saves.length - 1]?.value as { time: number }[];
+  expect(value).toHaveLength(1);
+});
+
+test("range mode: Enter press-and-hold creates a range from press time to release time", async ({
+  mount,
+}) => {
+  // Press at currentTime=10, advance to currentTime=15 via remount,
+  // release. Expected: a range [10, 15].
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_range"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={10}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+
+  // Press Enter at t=10 — stashes a pending range start.
+  await timeline.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    repeat: false,
+    bubbles: true,
+    cancelable: true,
+  });
+
+  // Simulate the playhead moving (video plays / user scrubs) by
+  // re-rendering with a later currentTime.
+  await component.update(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_range"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={15}
+    />,
+  );
+
+  // Release Enter at t=15 — commits the range.
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  const saves = await readSaveLog(component);
+  const value = saves[saves.length - 1]?.value as {
+    start: number;
+    end: number;
+  }[];
+  expect(value).toHaveLength(1);
+  expect(value[0]?.start).toBeCloseTo(10, 5);
+  expect(value[0]?.end).toBeCloseTo(15, 5);
+});
+
+test("range mode: Enter keyup without prior keydown is a no-op", async ({
+  mount,
+}) => {
+  // Defensive — if focus changes mid-press the orphan keyup shouldn't
+  // do anything.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="enter_orphan_keyup"
+      selectionType="range"
+      multiSelect={true}
+      mockDuration={60}
+      mockCurrentTime={5}
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  await timeline.focus();
+  await timeline.dispatchEvent("keyup", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  const saves = await readSaveLog(component);
+  // No selection-creating saves (only the initial empty-state save, if any).
+  const last = saves[saves.length - 1]?.value as unknown[] | undefined;
+  expect(last ?? []).toHaveLength(0);
+});
