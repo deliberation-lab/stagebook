@@ -1,1 +1,16 @@
+# Honor `.nvmrc` when nvm is installed. Without this the hook inherits
+# whatever Node is on the calling shell's PATH, which on machines with
+# system Node + nvm-managed `.nvmrc` Node typically picks up the system
+# version (e.g. 20) and trips on transitively-installed deps that
+# require the repo's pinned `engines` (e.g. jsdom's `html-encoding-sniffer`
+# requires Node ≥ 20.18 / 22.12 / 24).
+#
+# No-op when nvm isn't present — non-nvm contributors fall through to
+# whatever Node is on their PATH, same as before.
+if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+  nvm use --silent >/dev/null 2>&1 || true
+fi
+
 npm run lint && npm test
