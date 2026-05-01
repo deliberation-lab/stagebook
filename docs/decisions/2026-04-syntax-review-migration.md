@@ -1,44 +1,47 @@
 # Syntax review (April 2026): migration guide
 
-The April 2026 syntax review tightened the Stagebook DSL across nine
-issues. Each one was small to medium on its own, but together they
-touch most of what a researcher writes in a treatment file or
-`.prompt.md`. This document is the consolidated upgrade path: what
-changed, what to rewrite, and where to look for full context.
+The April 2026 syntax review tightened the Stagebook DSL across a
+coordinated set of issues. Each one was small to medium on its own,
+but together they touch most of what a researcher writes in a
+treatment file or `.prompt.md`. This document is the consolidated
+upgrade path: what changed, what to rewrite, and where to look for
+full context.
 
 If you already track Stagebook issue-by-issue, the per-issue PR
 descriptions and `docs/decisions/principles.md` are the canonical
 write-ups. This page collapses them into a single linear pass.
 
-## At-a-glance breaking changes
+## At-a-glance changes
 
-Every entry below is a **hard break** — old syntax fails preflight
+Most entries below are **hard breaks** — old syntax fails preflight
 validation rather than silently running. The fail-fast direction is
 deliberate; silent migration would have masked semantic shifts (e.g.
 the discussion storage-key namespace, `qualtrics.url` losing
-`asset://` support).
+`asset://` support). A handful of additive changes — boolean-tree
+operators, structured references — keep the older syntax working as
+sugar; those rows are flagged.
 
-| Area              | Before                                      | After                                         | Issue |
-|-------------------|---------------------------------------------|-----------------------------------------------|-------|
-| Conditions        | `position: percentAgreement`                | use `any:` / `none:` operators                | [#238] |
-| Conditions        | flat-array AND only                         | `all:` / `any:` / `none:` boolean tree         | [#235] |
-| References        | dotted strings only                         | `{source, name?, path?}` structured form (string-shorthand stays as sugar) | [#240] |
-| References        | `urlParams.<key>`                           | `entryUrl.params.<key>`                        | [#246] |
-| References        | `discussion.<name>` storage key = `<name>`  | storage key = `discussion_<name>`              | [#240] |
-| Templates         | `templateName:` / `templateContent:` / `templateDesc:` | `name:` / `content:` (drop desc, fold into `notes:`) | [#244] |
-| Templates         | `contentType:` optional, `"other"` accepted | `contentType:` required, `"other"` removed     | [#244] |
-| Elements          | bare `*.prompt.md` string in `elements:`    | explicit `{ type: prompt, file: ... }`         | [#245] |
-| Elements          | `type: talkMeter`                           | removed entirely                               | [#250] |
-| Elements          | `type: sharedNotepad`                       | `type: prompt` + `shared: true` + openResponse | [#250] |
-| Elements          | `type: survey`                              | deprecated; one-time runtime warning           | [#250] |
-| Resources         | `mediaPlayer.url:`                          | `mediaPlayer.file:`                            | [#249] |
-| Resources         | `qualtrics.url: asset://...`                | strict `https?://` only                        | [#249] |
-| Resources         | `trackedLink.url: asset://...`              | strict `https?://` only                        | [#249] |
-| Prompt files      | `shuffleOptions:`                           | `shuffle:`                                     | [#243] |
-| Prompt files      | `select: undefined`                         | omit field for default `single`                | [#243] |
-| Prompt files      | slider `labelPts: [0, 50, 100]` + body labels | inline `- 0: Not familiar` body lines        | [#243] |
-| Prompt files      | `noResponse` three-section file              | two-section (drop trailing `---`)              | [#243] |
-| Prompt files      | mixed `-` / `>` markers per type            | `-` for list types, `>` for openResponse       | [#243] |
+| Area              | Before                                      | After                                         | Kind | Issue |
+|-------------------|---------------------------------------------|-----------------------------------------------|------|-------|
+| Conditions        | `position: percentAgreement`                | no direct equivalent — see [Conditions](#conditions--position-is-a-read-selector-only-238) | breaking | [#238] |
+| Conditions        | flat-array AND only                         | `all:` / `any:` / `none:` boolean tree (flat array still parses as sugar for `all:`) | additive | [#235] |
+| References        | dotted strings only                         | `{source, name?, path?}` structured form (dotted strings still parse as sugar) | additive | [#240] |
+| References        | `urlParams.<key>`                           | `entryUrl.params.<key>`                        | breaking | [#246] |
+| References        | `discussion.<name>` storage key = `<name>`  | storage key = `discussion_<name>`              | breaking | [#240] |
+| Templates         | `templateName:` / `templateContent:` / `templateDesc:` | `name:` / `content:` (drop desc, fold into `notes:`) | breaking | [#244] |
+| Templates         | `contentType:` optional, `"other"` accepted | `contentType:` required, `"other"` removed     | breaking | [#244] |
+| Elements          | bare `*.prompt.md` string in `elements:`    | explicit `{ type: prompt, file: ... }`         | breaking | [#245] |
+| Elements          | `type: talkMeter`                           | removed entirely                               | breaking | [#250] |
+| Elements          | `type: sharedNotepad`                       | `type: prompt` + `shared: true` + openResponse | breaking | [#250] |
+| Elements          | `type: survey`                              | deprecated; one-time runtime warning           | additive | [#250] |
+| Resources         | `mediaPlayer.url:`                          | `mediaPlayer.file:`                            | breaking | [#249] |
+| Resources         | `qualtrics.url: asset://...`                | strict `https?://` only                        | breaking | [#249] |
+| Resources         | `trackedLink.url: asset://...`              | strict `https?://` only                        | breaking | [#249] |
+| Prompt files      | `shuffleOptions:`                           | `shuffle:`                                     | breaking | [#243] |
+| Prompt files      | `select: undefined`                         | omit field for default `single`                | breaking | [#243] |
+| Prompt files      | slider `labelPts: [0, 50, 100]` + body labels | inline `- 0: Not familiar` body lines        | breaking | [#243] |
+| Prompt files      | `noResponse` three-section file              | two-section (drop trailing `---`)              | breaking | [#243] |
+| Prompt files      | mixed `-` / `>` markers per type            | `-` for list types, `>` for openResponse       | breaking | [#243] |
 
 ## Treatment files
 
@@ -125,19 +128,23 @@ keep working. See [`docs/researcher/conditions.md`](../researcher/conditions.md)
 ### Conditions — `position` is a read selector only (#238)
 
 `position` on a condition leaf used to mix two roles: which player's
-data to read AND cross-player aggregation (`percentAgreement`). After
-#238, `position` is purely a read selector. Aggregation lives in the
+data to read AND cross-player aggregation (`percentAgreement`,
+`any`, `all`). After #238, `position` is purely a read selector
+(numeric slot, `shared`, or `player`). Aggregation lives in the
 boolean-tree operators.
 
-```yaml
-# Before — cross-player aggregator embedded in position
-- reference: prompt.changedMind
-  position: percentAgreement
-  comparator: isAtLeast
-  value: 50
+`position: any` and `position: all` map cleanly onto the new `any:` /
+`all:` operators with explicit per-slot leaves:
 
-# After — explicit per-slot leaves under any: / all:
-- any:
+```yaml
+# Before — "all players said yes"
+- reference: prompt.changedMind
+  position: all
+  comparator: equals
+  value: yes
+
+# After — explicit per-slot leaves under all:
+- all:
     - reference: prompt.changedMind
       position: 0
       comparator: equals
@@ -147,6 +154,20 @@ boolean-tree operators.
       comparator: equals
       value: yes
 ```
+
+`position: percentAgreement` (≥X% of players satisfied) **has no
+direct one-line replacement** in the boolean tree. The boolean
+operators are existentially quantified (`any`, `all`, `none`), not
+threshold-quantified. Re-express the condition based on the study's
+intent:
+
+- "any player said yes" → `any:` with per-slot `equals` leaves.
+- "all players said yes" → `all:` with per-slot `equals` leaves.
+- "at least N out of M agreed" (the original `percentAgreement` use
+  case) → no syntactic equivalent today. Either drop the condition
+  until a future aggregates / countables feature lands, or model the
+  threshold outside the condition tree (e.g. compute the count in a
+  separate stage and compare to it via a single condition).
 
 The `display.position: any | all` selectors are unchanged — they're a
 render concern, not a condition aggregator.
@@ -382,12 +403,24 @@ set of changes beyond the treatment-file syntax above.
 
 ### Storage-key renames
 
-| Reference                  | Storage key before | Storage key after        |
-|----------------------------|--------------------|--------------------------|
-| `discussion.<name>`        | `<name>`           | `discussion_<name>` (#240) |
-| `entryUrl.params.<key>`    | `urlParams[<key>]` | `entryUrl.params[<key>]` (#246) |
+`getReferenceKeyAndPath(...)` returns `{ referenceKey, path }`; the
+host's `get(referenceKey, scope)` looks up the singleton bucket and
+the path is walked into the returned record. Two buckets changed:
 
-Hosts that read or write either bucket must rename on their side.
+| Reference                  | `referenceKey` before | `referenceKey` after | `path` after | Issue |
+|----------------------------|------------------------|----------------------|--------------|-------|
+| `discussion.<name>`        | `<name>`               | `discussion_<name>`  | (unchanged)   | [#240] |
+| `entryUrl.params.<key>`    | `urlParams`            | `entryUrl`           | `["params", "<key>"]` | [#246] |
+
+For `discussion.*`, the rename is a flat namespace bump — what hosts
+stored under `<name>` now lives under `discussion_<name>`.
+
+For `entryUrl.params.*`, the rename happens at the singleton-key
+level: hosts that previously stored a flat `urlParams: { condition:
+"A", referrer: "..." }` bucket now serve it under
+`entryUrl: { params: { condition: "A", referrer: "..." } }`. The
+extra `params` nesting reserves room for future `entryUrl.path`,
+`entryUrl.host`, `entryUrl.href` accessors without another rename.
 
 ### Removed / deprecated context slots
 
