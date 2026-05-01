@@ -84,8 +84,6 @@ All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `s
 | `sharedNotepad` | _(no extra fields)_                                                                                                                                                                                                                            |
 | `talkMeter`     | _(no extra fields)_                                                                                                                                                                                                                            |
 
-**Shorthand:** bare string → `{ type: "prompt", file: "<string>", name: "<string>" }`.
-
 ### Media hosting requirements
 
 The `<video>` element rendered by `mediaPlayer` always sets `crossOrigin="anonymous"`. This is required for the Web Audio API to read the audio stream when a `timeline` element with `showWaveform: true` is attached — without it, the analyser is silently CORS-tainted and the waveform tracks render as flat lines.

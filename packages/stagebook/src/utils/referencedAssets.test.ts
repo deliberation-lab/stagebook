@@ -375,75 +375,17 @@ describe("getReferencedAssets — structural walk", () => {
   });
 });
 
-describe("getReferencedAssets — prompt shorthand", () => {
-  test("bare .prompt.md string inside elements is collected as prompt.file", () => {
+describe("getReferencedAssets — bare strings inside elements are not collected", () => {
+  // Prompt shorthand was removed in #245. Bare strings inside an `elements`
+  // array now fail schema validation rather than silently becoming prompts;
+  // the walker no longer recognises them, even though it runs pre-validation.
+  test("bare .prompt.md string inside elements is not collected", () => {
     const tree = treatmentWithElements(["intro.prompt.md"]);
-    const assets = getReferencedAssets(tree);
-    expect(assets).toEqual<ReferencedAsset[]>([
-      {
-        path: "intro.prompt.md",
-        field: "file",
-        elementType: "prompt",
-        elementName: "intro.prompt.md",
-        pathInTree: ["treatments", 0, "gameStages", 0, "elements", 0],
-      },
-    ]);
-  });
-
-  test("shorthand works in intro and exit steps too", () => {
-    const tree = {
-      introSequences: [
-        {
-          name: "seq",
-          introSteps: [{ name: "s", elements: ["intro.prompt.md"] }],
-        },
-      ],
-      treatments: [
-        {
-          name: "t",
-          playerCount: 1,
-          gameStages: [
-            { name: "g", duration: 1, elements: [{ type: "submitButton" }] },
-          ],
-          exitSequence: [{ name: "e", elements: ["exit.prompt.md"] }],
-        },
-      ],
-    };
-    const paths = getReferencedAssets(tree).map((a) => a.path);
-    expect(paths).toEqual(["intro.prompt.md", "exit.prompt.md"]);
+    expect(getReferencedAssets(tree)).toEqual([]);
   });
 
   test("non-.prompt.md strings inside elements are not collected", () => {
     const tree = treatmentWithElements(["not-a-prompt.txt", 42, null]);
-    expect(getReferencedAssets(tree)).toEqual([]);
-  });
-
-  test("shorthand with template placeholder is excluded", () => {
-    const tree = treatmentWithElements(["${variant}.prompt.md"]);
-    expect(getReferencedAssets(tree)).toEqual([]);
-  });
-
-  test("bare .prompt.md strings outside an elements array are ignored", () => {
-    // Safety: only recognise shorthand where the schema actually allows it.
-    const tree = {
-      introSequences: [],
-      treatments: [
-        {
-          name: "t",
-          playerCount: 1,
-          notes: "see intro.prompt.md",
-          gameStages: [
-            {
-              name: "g",
-              duration: 1,
-              elements: [{ type: "submitButton" }],
-              // Some unrelated field that happens to hold a .prompt.md string
-              foo: "bar.prompt.md",
-            },
-          ],
-        },
-      ],
-    };
     expect(getReferencedAssets(tree)).toEqual([]);
   });
 });
