@@ -1,0 +1,175 @@
+# Ultimatum Game — a 2-player asymmetric example.
+# Position 0 is the Proposer (offers a slice of $10); position 1 is the
+# Responder (accepts or rejects). Roles are assigned via
+# `groupComposition` from a multipleChoice in the intro. The two game
+# stages and the outcome stage demonstrate position-based asymmetric
+# content via `showToPositions` and cross-player `display` elements.
+
+treatments:
+  - name: Ultimatum Game
+    notes: |
+      Two-player single-round game. Position 0 (proposer) chooses an
+      offer between $0 and $10; position 1 (responder) sees the offer
+      and accepts or rejects it. Each game stage gives each position
+      a different element set via `showToPositions` so the proposer
+      and responder are working from the same stage but seeing
+      different content.
+    playerCount: 2
+
+    # `groupComposition` matches participants into seats based on the
+    # role-preference response captured in the intro. If both
+    # participants pick the same role the host's matching policy
+    # decides who gets which seat — Stagebook only specifies the
+    # contract.
+    groupComposition:
+      - position: 0
+        title: Proposer
+        conditions:
+          - reference: prompt.role_preference
+            comparator: equals
+            value: Proposer
+      - position: 1
+        title: Responder
+        conditions:
+          - reference: prompt.role_preference
+            comparator: equals
+            value: Responder
+
+    gameStages:
+      - name: offer
+        duration: 60
+        notes: |
+          Stage 1 — offer. Position 0 sees the slider prompt and submits
+          an offer; position 1 sees a "your partner is deciding" notice
+          and a Ready button. Both must submit before the stage advances,
+          so the responder is naturally held while the proposer thinks.
+        elements:
+          # Proposer-only: the actual offer slider.
+          - type: prompt
+            name: offer
+            file: prompts/offer.prompt.md
+            showToPositions: [0]
+            notes: |
+              `showToPositions: [0]` restricts this prompt to the
+              proposer. The response is named `offer`, so it is
+              addressable as `prompt.offer` from the responder's
+              `display` element on the next stage.
+
+          # Responder-only: a "wait" view.
+          - type: prompt
+            file: prompts/responder_waiting.prompt.md
+            showToPositions: [1]
+
+          - type: timer
+          - type: submitButton
+            buttonText: Ready
+
+      - name: decision
+        duration: 60
+        notes: |
+          Stage 2 — decision. Position 1 sees the offer (via a `display`
+          element that reads `prompt.offer` at `position: 0`) and the
+          Accept/Reject prompt. Position 0 sees a "your partner is
+          deciding" notice plus a `display` of their own offer as a
+          recap. Both submit; stage advances when both are in.
+        elements:
+          # Proposer-only: recap of the offer they made + waiting message.
+          - type: display
+            reference: prompt.offer
+            position: 0
+            showToPositions: [0]
+            notes: |
+              Same `display` element used for the recap and the
+              cross-player view — `position: 0` selects the
+              proposer's offer; `showToPositions: [0]` shows it to
+              the proposer themselves here. (See the next element
+              for the cross-player variant.)
+          - type: prompt
+            file: prompts/proposer_waiting.prompt.md
+            showToPositions: [0]
+
+          # Responder-only: cross-player display of the offer + decide
+          # prompt.
+          - type: display
+            reference: prompt.offer
+            position: 0
+            showToPositions: [1]
+            notes: |
+              Cross-player `display` — `position: 0` reads the
+              proposer's response; `showToPositions: [1]` renders
+              the value into the responder's view.
+          - type: prompt
+            name: decision
+            file: prompts/decision.prompt.md
+            showToPositions: [1]
+
+          - type: timer
+          - type: submitButton
+            buttonText: Submit
+
+      - name: outcome
+        duration: 30
+        notes: |
+          Stage 3 — outcome. Both positions see the offer (via `display`)
+          and exactly one of two outcome cards based on the responder's
+          decision. `comparator: equals` on `prompt.decision` at
+          position 1 selects accepted vs. rejected.
+        elements:
+          - type: display
+            reference: prompt.offer
+            position: 0
+            notes: Both positions see the offer value. No `showToPositions` defaults to all.
+
+          - type: separator
+
+          - type: prompt
+            file: prompts/outcome_accepted.prompt.md
+            conditions:
+              - reference: prompt.decision
+                position: 1
+                comparator: equals
+                value: Accept
+
+          - type: prompt
+            file: prompts/outcome_rejected.prompt.md
+            conditions:
+              - reference: prompt.decision
+                position: 1
+                comparator: equals
+                value: Reject
+
+          - type: submitButton
+            displayTime: 5
+            buttonText: Continue
+
+    exitSequence:
+      - name: Reflection
+        elements:
+          - type: prompt
+            name: reflection
+            file: prompts/feedback.prompt.md
+          - type: submitButton
+
+introSequences:
+  - name: orientation
+    notes: |
+      Solo intro. Asks each participant which role they would prefer;
+      that response feeds `groupComposition` to assign positions.
+    introSteps:
+      - name: Instructions
+        elements:
+          - type: prompt
+            file: prompts/instructions.prompt.md
+          - type: submitButton
+            buttonText: Continue
+
+      - name: Role preference
+        elements:
+          - type: prompt
+            name: role_preference
+            file: prompts/role_preference.prompt.md
+            notes: |
+              `name: role_preference` here is what makes this choice
+              addressable as `prompt.role_preference` in
+              `groupComposition`.
+          - type: submitButton

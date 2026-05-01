@@ -1,0 +1,198 @@
+# Prisoner's Dilemma — a 2-player simultaneous-choice example.
+# Two treatments share a single round template: a one-shot game and a
+# 3-round repeated game. Each round = one choice stage + one outcome
+# stage; the outcome stage uses condition leaves with `comparator: equals`
+# to render the right outcome card per (P0 × P1) choice combination.
+
+templates:
+  - name: roundTemplate
+    contentType: stages
+    notes: |
+      One full round: a simultaneous choice stage followed by an outcome
+      stage. Used by both treatments — the one-shot invokes it once with
+      `roundN: 1`; the 3-round version broadcasts over `roundN: [1, 2, 3]`,
+      and because the template's content is itself an array (`contentType:
+      stages`), each broadcast row contributes 2 stages to `gameStages`
+      for a total of 6.
+    content:
+      - name: round_${roundN}_choice
+        duration: 60
+        notes: |
+          Round ${roundN} simultaneous choice. The stage advances when
+          both positions submit (or `duration` expires). `name:
+          choice_round_${roundN}` on the prompt makes the response
+          addressable as `prompt.choice_round_${roundN}` in the matching
+          outcome stage's conditions.
+        elements:
+          - type: prompt
+            name: choice_round_${roundN}
+            file: prompts/choice.prompt.md
+          - type: timer
+          - type: submitButton
+            buttonText: Lock in choice
+
+      - name: round_${roundN}_outcome
+        duration: 30
+        notes: |
+          Round ${roundN} outcome. The participant sees the partner's
+          choice via two `display` elements (asymmetric per position),
+          then exactly one of four outcome cards via condition leaves
+          combined with `comparator: equals`. The two asymmetric
+          outcomes (one player exploited, one player exploiting) split
+          into one element per perspective so the same prompt file can
+          serve "you were exploited" for whoever cooperated.
+        elements:
+          # Show partner's choice — asymmetric per position.
+          - type: display
+            reference: prompt.choice_round_${roundN}
+            position: 1
+            showToPositions: [0]
+            notes: Position 0 sees position 1's choice.
+          - type: display
+            reference: prompt.choice_round_${roundN}
+            position: 0
+            showToPositions: [1]
+            notes: Position 1 sees position 0's choice.
+
+          - type: separator
+
+          # Both cooperated → both see the same card.
+          - type: prompt
+            file: prompts/outcome_both_cooperated.prompt.md
+            conditions:
+              - reference: prompt.choice_round_${roundN}
+                position: 0
+                comparator: equals
+                value: Cooperate
+              - reference: prompt.choice_round_${roundN}
+                position: 1
+                comparator: equals
+                value: Cooperate
+            notes: Flat-array conditions are AND-combined — only renders when *both* positions chose Cooperate.
+
+          # Both defected → both see the same card.
+          - type: prompt
+            file: prompts/outcome_both_defected.prompt.md
+            conditions:
+              - reference: prompt.choice_round_${roundN}
+                position: 0
+                comparator: equals
+                value: Defect
+              - reference: prompt.choice_round_${roundN}
+                position: 1
+                comparator: equals
+                value: Defect
+
+          # Asymmetric: position 0 cooperated, position 1 defected.
+          # Each side sees a different card; we instantiate the same
+          # prompt file twice with mirrored `showToPositions` /
+          # `position` selectors.
+          - type: prompt
+            file: prompts/outcome_you_cooperated_they_defected.prompt.md
+            showToPositions: [0]
+            conditions:
+              - reference: prompt.choice_round_${roundN}
+                position: 0
+                comparator: equals
+                value: Cooperate
+              - reference: prompt.choice_round_${roundN}
+                position: 1
+                comparator: equals
+                value: Defect
+          - type: prompt
+            file: prompts/outcome_you_defected_they_cooperated.prompt.md
+            showToPositions: [1]
+            conditions:
+              - reference: prompt.choice_round_${roundN}
+                position: 0
+                comparator: equals
+                value: Cooperate
+              - reference: prompt.choice_round_${roundN}
+                position: 1
+                comparator: equals
+                value: Defect
+
+          # Asymmetric: position 0 defected, position 1 cooperated. Mirror
+          # of the block above.
+          - type: prompt
+            file: prompts/outcome_you_defected_they_cooperated.prompt.md
+            showToPositions: [0]
+            conditions:
+              - reference: prompt.choice_round_${roundN}
+                position: 0
+                comparator: equals
+                value: Defect
+              - reference: prompt.choice_round_${roundN}
+                position: 1
+                comparator: equals
+                value: Cooperate
+          - type: prompt
+            file: prompts/outcome_you_cooperated_they_defected.prompt.md
+            showToPositions: [1]
+            conditions:
+              - reference: prompt.choice_round_${roundN}
+                position: 0
+                comparator: equals
+                value: Defect
+              - reference: prompt.choice_round_${roundN}
+                position: 1
+                comparator: equals
+                value: Cooperate
+
+          - type: submitButton
+            displayTime: 5
+            buttonText: Continue
+
+treatments:
+  - name: Prisoners Dilemma one-shot
+    notes: |
+      Single-round game. Invokes `roundTemplate` once with `roundN: 1`.
+      The template returns 2 stages (choice + outcome), so this
+      treatment ends up with 2 game stages plus the shared exit step.
+    playerCount: 2
+    gameStages:
+      - template: roundTemplate
+        fields:
+          roundN: 1
+    exitSequence:
+      - name: Reflection
+        elements:
+          - type: prompt
+            name: reflection
+            file: prompts/feedback.prompt.md
+          - type: submitButton
+
+  - name: Prisoners Dilemma 3-round repeated
+    notes: |
+      Same round structure repeated three times via broadcast. Each
+      broadcast row produces 2 stages, so this treatment has 6 game
+      stages — the participant alternates choosing and seeing the
+      outcome three times before the reflection step. Because each
+      round's prompt is named `choice_round_${roundN}`, references
+      from one round don't collide with another's.
+    playerCount: 2
+    gameStages:
+      - template: roundTemplate
+        broadcast:
+          d0:
+            - roundN: 1
+            - roundN: 2
+            - roundN: 3
+    exitSequence:
+      - name: Reflection
+        elements:
+          - type: prompt
+            name: reflection
+            file: prompts/feedback.prompt.md
+          - type: submitButton
+
+introSequences:
+  - name: orientation
+    notes: Solo intro — both players read the rules independently before being matched.
+    introSteps:
+      - name: Instructions
+        elements:
+          - type: prompt
+            file: prompts/instructions.prompt.md
+          - type: submitButton
+            buttonText: Continue
