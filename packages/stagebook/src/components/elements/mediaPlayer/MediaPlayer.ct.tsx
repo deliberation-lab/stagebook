@@ -1229,6 +1229,41 @@ test("K key toggles to playing state", async ({ mount }) => {
   ).toHaveAttribute("aria-label", "Pause");
 });
 
+test("Enter key does not toggle playback (#268 — reserved for Timeline)", async ({
+  mount,
+}) => {
+  // Without preventDefault on Enter, a focused play/pause button would
+  // fire a click and unpause the video — making playback behavior depend
+  // on which control had focus last. We suppress Enter unconditionally so
+  // the Timeline can own it for real-time annotation (#263).
+  const component = await mount(
+    <MockMediaPlayer
+      url="/sample-video.mp4"
+      name="test"
+      controls={{ playPause: true }}
+    />,
+  );
+  const player = component.locator('[data-testid="mediaPlayer"]');
+  await component
+    .locator('[data-testid="mediaPlayer-video"]')
+    .evaluate((el) => {
+      el.play = () => {
+        el.dispatchEvent(new Event("play"));
+        return Promise.resolve();
+      };
+    });
+  await player.focus();
+  await player.press("Enter");
+  // Reveal controls — hover doesn't auto-hide while paused, but be safe.
+  await player.evaluate((el) =>
+    el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
+  );
+  // Should still be paused (button still says Play, not Pause).
+  await expect(
+    component.locator('[data-testid="mediaPlayer-playPause"]'),
+  ).toHaveAttribute("aria-label", "Play");
+});
+
 test("ArrowRight seeks forward 1 second", async ({ mount }) => {
   const component = await mount(
     <MockMediaPlayer

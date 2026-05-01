@@ -67,6 +67,11 @@ export interface SelectionOverlayProps {
    *  selection actions so keyboard shortcuts (arrows, Tab, Delete, Escape)
    *  work immediately without the user manually clicking the timeline. */
   onRequestFocus: () => void;
+  /** Live preview of a press-and-hold range (#268 fix). When set, render a
+   *  dashed rectangle from `start` to `end` so the participant sees the
+   *  range growing while the Enter key is held. Cleared by Timeline on
+   *  keyup or blur. */
+  keyboardRangePreview?: { start: number; end: number; track?: number } | null;
 }
 
 const DRAG_DEAD_ZONE_PX = 4;
@@ -222,6 +227,7 @@ export function SelectionOverlay({
   onBeginDrag,
   onEndDrag,
   onRequestFocus,
+  keyboardRangePreview = null,
 }: SelectionOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -804,6 +810,52 @@ export function SelectionOverlay({
     );
   };
 
+  // Live preview while Enter is held for press-and-hold range creation
+  // (#268 fix). Mirrors the click-drag preview style. Unlike the click
+  // path, we don't clamp against existing ranges here — the keyup commit
+  // path clamps if needed, and showing a clipped preview during the hold
+  // would feel jumpy as the playhead moves.
+  const renderKeyboardRangePreview = () => {
+    if (!keyboardRangePreview) return null;
+    const x1 = timeToPixel(
+      keyboardRangePreview.start,
+      duration,
+      width,
+      zoomLevel,
+      viewportStart,
+    );
+    const x2 = timeToPixel(
+      keyboardRangePreview.end,
+      duration,
+      width,
+      zoomLevel,
+      viewportStart,
+    );
+    const left = Math.min(x1, x2);
+    const previewWidth = Math.abs(x2 - x1);
+    const top =
+      selectionScope === "track" && keyboardRangePreview.track !== undefined
+        ? keyboardRangePreview.track * trackHeight
+        : 0;
+    const previewHeight = selectionScope === "track" ? trackHeight : height;
+    return (
+      <div
+        data-testid="range-keyboard-preview"
+        style={{
+          position: "absolute",
+          left: `${String(left)}px`,
+          top: `${String(top)}px`,
+          width: `${String(previewWidth)}px`,
+          height: `${String(previewHeight)}px`,
+          background: "rgba(59, 130, 246, 0.25)",
+          border: "1px dashed rgba(59, 130, 246, 0.6)",
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        }}
+      />
+    );
+  };
+
   return (
     <div
       ref={containerRef}
@@ -846,6 +898,7 @@ export function SelectionOverlay({
     >
       {selectionType === "range" ? renderRanges() : renderPoints()}
       {renderDragPreview()}
+      {renderKeyboardRangePreview()}
     </div>
   );
 }

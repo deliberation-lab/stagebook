@@ -678,6 +678,14 @@ export function MediaPlayer({
       // "once" mode: no keyboard controls
       if (effectivePlayback === "once") return;
 
+      // Enter is reserved for Timeline annotation (#263). Preventing
+      // default stops focused-button activation so player behavior doesn't
+      // depend on which control last had focus.
+      if (e.key === "Enter") {
+        e.preventDefault();
+        return;
+      }
+
       // YouTube: only Space/K play-pause and J/L/Arrow seek work
       if (ytHandle) {
         switch (e.key) {
