@@ -71,10 +71,13 @@ export const slider = {
     min: 0,
     max: 100,
     interval: 1,
-    labelPts: [0, 20, 50, 80, 100],
   } as MetadataType,
   body: "# How warm is your love for avocados?",
   responseItems: ["Very cold", "Chilly", "Tolerable", "Warm", "Super Hot"],
+  // After #243 slider points live in the body alongside their labels.
+  // The fixture shape mirrors `promptFileSchema.parse()` output, so
+  // points and labels arrive as parallel arrays.
+  sliderPoints: [0, 20, 50, 80, 100],
 };
 
 export const listSorter = {

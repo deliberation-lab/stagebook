@@ -16,5 +16,3 @@ Your responses are confidential and will only be used in aggregate. You
 can stop at any time.
 
 Click **I consent** below to begin.
-
----

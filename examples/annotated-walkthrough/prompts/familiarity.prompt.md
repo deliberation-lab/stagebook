@@ -4,7 +4,6 @@ name: Familiarity
 min: 0
 max: 100
 interval: 1
-labelPts: [0, 50, 100]
 ---
 
 # Workplace policy familiarity
@@ -17,6 +16,6 @@ yet — that is intentional, so the position you choose is your own.
 
 ---
 
-- Not familiar
-- Somewhat familiar
-- Very familiar
+- 0: Not familiar
+- 50: Somewhat familiar
+- 100: Very familiar

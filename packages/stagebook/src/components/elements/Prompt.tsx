@@ -16,6 +16,14 @@ export interface PromptProps {
   metadata: MetadataType;
   body: string;
   responseItems: string[];
+  /**
+   * Slider points (numbers) parsed from the body section. Empty for
+   * non-slider types. After #243 slider points and labels share the same
+   * body lines (`- 50: Somewhat familiar`); upstream
+   * `promptFileSchema.transform` splits them into `sliderPoints` (numbers)
+   * and `responseItems` (labels) with the i'th index aligned across both.
+   */
+  sliderPoints?: number[];
   name: string;
   file?: string;
   shared?: boolean;
@@ -33,6 +41,7 @@ export function Prompt({
   metadata,
   body,
   responseItems,
+  sliderPoints,
   name,
   file,
   shared = false,
@@ -49,9 +58,19 @@ export function Prompt({
   );
 
   const promptType = metadata.type;
-  const rows = metadata.rows ?? 5;
-  const minLength = metadata.minLength ?? undefined;
-  const maxLength = metadata.maxLength ?? undefined;
+  // Per-type fields only exist on the discriminated-union branch where
+  // they were declared (#243). Safely-narrowed lookups via the type tag.
+  const rows = promptType === "openResponse" ? (metadata.rows ?? 5) : 5;
+  const minLength =
+    promptType === "openResponse" ? metadata.minLength : undefined;
+  const maxLength =
+    promptType === "openResponse" ? metadata.maxLength : undefined;
+  // `shuffle` (renamed from `shuffleOptions` in #243) lives on
+  // multipleChoice and listSorter. Sliders never shuffle — points and
+  // labels share an i'th-position alignment that scrambling would break.
+  const shouldShuffle =
+    (promptType === "multipleChoice" || promptType === "listSorter") &&
+    metadata.shuffle === true;
 
   // Initialize responses from responseItems (with optional shuffle)
   if (
@@ -60,7 +79,7 @@ export function Prompt({
     (!responses.length ||
       !setEquality(new Set(responseItems), new Set(responses)))
   ) {
-    if (metadata.shuffleOptions) {
+    if (shouldShuffle) {
       setResponses([...responseItems].sort(() => 0.5 - Math.random()));
     } else {
       setResponses(responseItems);
@@ -178,7 +197,7 @@ export function Prompt({
           min={metadata.min}
           max={metadata.max}
           interval={metadata.interval}
-          labelPts={metadata.labelPts}
+          labelPts={sliderPoints}
           labels={responses}
           value={value as number | undefined}
           onChange={(val) => debouncedSaveInteractive(val, record)}

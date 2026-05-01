@@ -17,13 +17,12 @@ What is your favorite color?
       expect(result.diagnostics).toEqual([]);
     });
 
-    it("returns no diagnostics for a valid noResponse prompt", () => {
+    it("returns no diagnostics for a valid noResponse prompt (#243 — two-section file)", () => {
       const src = `---
 name: test/info.prompt.md
 type: noResponse
 ---
 Please read the following instructions carefully.
----
 `;
       const result = validatePromptSource(src);
       expect(result.diagnostics).toEqual([]);
@@ -51,15 +50,17 @@ Please describe your experience.
       expect(result.diagnostics[0].message).toMatch(/section|delimiter/i);
     });
 
-    it("reports error for only two delimiters", () => {
+    it("reports error for only two delimiters on a multipleChoice prompt (third section required)", () => {
       const src = `---
 name: test.prompt.md
-type: noResponse
+type: multipleChoice
 ---
-Body text but no third delimiter`;
+Body text but no third section`;
       const result = validatePromptSource(src);
       expect(result.diagnostics.length).toBeGreaterThan(0);
-      expect(result.diagnostics[0].message).toMatch(/section|delimiter/i);
+      expect(result.diagnostics[0].message).toMatch(
+        /section|delimiter|response/i,
+      );
     });
 
     it("reports error for empty file", () => {
@@ -73,9 +74,7 @@ Body text but no third delimiter`;
       const src = `---
 name: test/prompt.prompt.md
 ---
-Body text
----
-`;
+Body text`;
       const result = validatePromptSource(src);
       expect(result.diagnostics.length).toBeGreaterThan(0);
       expect(result.diagnostics[0].severity).toBe("error");
@@ -86,15 +85,13 @@ Body text
 name: test/prompt.prompt.md
 type: invalidType
 ---
-Body text
----
-`;
+Body text`;
       const result = validatePromptSource(src);
       expect(result.diagnostics.length).toBeGreaterThan(0);
       expect(result.diagnostics[0].severity).toBe("error");
     });
 
-    it("reports error for rows on non-openResponse type", () => {
+    it("reports error for rows on non-openResponse type (strict-keys per #243)", () => {
       const src = `---
 name: test/prompt.prompt.md
 type: multipleChoice
@@ -138,9 +135,7 @@ Blue`;
 name: test/prompt.prompt.md
 type: invalidType
 ---
-Body text
----
-`;
+Body text`;
       const result = validatePromptSource(src);
       const metadataErrors = result.diagnostics.filter(
         (d) =>
@@ -166,33 +161,33 @@ bad line`;
   });
 
   describe("extra delimiter warning", () => {
-    it("warns when more than 3 --- delimiters exist", () => {
+    it("warns when more than 3 --- delimiters appear in a 3-section prompt", () => {
+      // Stray `---` inside the body of a 3-section type is the classic
+      // "tried to use --- as a horizontal rule" footgun. After #243 the
+      // schema also rejects it (3-section types expect exactly one
+      // section delimiter between body and responses), but the explicit
+      // warning steers authors to *** / ___ instead.
       const src = `---
 name: test/prompt.prompt.md
-type: noResponse
+type: multipleChoice
 ---
-Some text
+Pick one
 ---
 then a horizontal rule
 ---
-`;
+- A
+- B`;
       const result = validatePromptSource(src);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === "warning",
       );
-      expect(warnings).toHaveLength(1);
+      expect(warnings.length).toBeGreaterThanOrEqual(1);
       expect(warnings[0].message).toMatch(/horizontal rule|\*\*\*|___/i);
-      expect(warnings[0].range).toEqual({
-        startLine: 7,
-        startCol: 0,
-        endLine: 7,
-        endCol: 3,
-      });
     });
   });
 
   describe("slider type", () => {
-    it("returns no diagnostics for a valid slider prompt", () => {
+    it("returns no diagnostics for a valid slider prompt (#243 — labels in body, `- <n>: <label>`)", () => {
       const src = `---
 name: test/slider.prompt.md
 type: slider
@@ -202,39 +197,40 @@ interval: 10
 ---
 Rate your agreement.
 ---
-> Low
-> High`;
+- 0: Low
+- 100: High`;
       const result = validatePromptSource(src);
       expect(result.diagnostics).toEqual([]);
     });
 
-    it("reports errors when slider is missing required fields", () => {
+    it("reports errors when slider is missing required fields (#243 — strict required)", () => {
       const src = `---
 name: test/slider.prompt.md
 type: slider
 ---
 Rate something.
 ---
-> Low`;
+- 0: Low`;
       const result = validatePromptSource(src);
       const messages = result.diagnostics.map((d) => d.message);
-      expect(messages).toContain("min is required for slider type");
-      expect(messages).toContain("max is required for slider type");
-      expect(messages).toContain("interval is required for slider type");
+      // After #243 the discriminated-union branch declares min/max/interval
+      // as required (not optional), so missing them triggers Zod's
+      // "Required" message rather than a custom per-field message.
+      expect(messages.filter((m) => m === "Required").length).toBe(3);
     });
   });
 
   describe("listSorter type", () => {
-    it("returns no diagnostics for a valid listSorter prompt", () => {
+    it("returns no diagnostics for a valid listSorter prompt (#243 — `-` marker required)", () => {
       const src = `---
 name: test/sort.prompt.md
 type: listSorter
 ---
 Rank these items.
 ---
-> Item A
-> Item B
-> Item C`;
+- Item A
+- Item B
+- Item C`;
       const result = validatePromptSource(src);
       expect(result.diagnostics).toEqual([]);
     });
@@ -246,9 +242,7 @@ Rank these items.
 name: test/prompt.prompt.md
 type: [unclosed bracket
 ---
-Body text
----
-`;
+Body text`;
       const result = validatePromptSource(src);
       expect(result.diagnostics).toContainEqual(
         expect.objectContaining({

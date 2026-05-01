@@ -371,22 +371,23 @@ test.describe("List Sorter", () => {
 });
 
 // ================================================================
-// Multiple Choice option order (shuffleOptions vs source order)
+// Multiple Choice option order (shuffle vs source order)
 // ================================================================
 //
 // Pins the contract that:
-//   - `shuffleOptions: true` produces a non-source-order rendering
+//   - `shuffle: true` produces a non-source-order rendering
 //     while keeping the same option set
 //   - the shuffled order is captured at first render and remains
 //     stable across re-renders (the user's randomized labels don't
 //     reshuffle on every parent state change)
-//   - omitting `shuffleOptions` preserves yaml-declared order, even
+//   - omitting `shuffle` preserves yaml-declared order, even
 //     when that order is intentionally non-alphabetical (e.g. mixed
 //     numeric and string labels)
 //
-// Used by deliberation-empirica's cypress 01 omnibus (now retiring);
-// this duplicates the assertions upstream so the upstream contract
-// is locked in. (Issue #232.)
+// (Renamed from `shuffleOptions:` in #243.) Used by
+// deliberation-empirica's cypress 01 omnibus (now retiring); this
+// duplicates the assertions upstream so the upstream contract is
+// locked in. (Issue #232.)
 
 const SHUFFLE_OPTIONS = [
   "alpha",
@@ -403,7 +404,7 @@ const shuffledMultipleChoice = {
   metadata: {
     name: "projects/example/shuffled.md",
     type: "multipleChoice" as const,
-    shuffleOptions: true,
+    shuffle: true,
   },
   body: "# Pick one",
   responseItems: [...SHUFFLE_OPTIONS],
@@ -440,7 +441,7 @@ async function readRadioOrder(
 }
 
 test.describe("Multiple Choice option order", () => {
-  test("shuffleOptions: true produces a different order with the same set", async ({
+  test("shuffle: true produces a different order with the same set", async ({
     mount,
   }) => {
     const component = await mount(
@@ -492,7 +493,7 @@ test.describe("Multiple Choice option order", () => {
     expect(secondOrder).toEqual(firstOrder);
   });
 
-  test("without shuffleOptions, options render in declared yaml order", async ({
+  test("without shuffle, options render in declared yaml order", async ({
     mount,
   }) => {
     // Custom order: "0", "0.5", "3", "4", "5.5", "six", "7", "8" — not
