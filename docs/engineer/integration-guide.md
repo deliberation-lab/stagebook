@@ -23,7 +23,12 @@ Stagebook exports from two entry points:
 import { treatmentFileSchema, compare, fillTemplates } from "stagebook";
 
 // React components — requires React 18+
-import { StagebookProvider, Element, Markdown, Button } from "stagebook/components";
+import {
+  StagebookProvider,
+  Element,
+  Markdown,
+  Button,
+} from "stagebook/components";
 ```
 
 ## Validating Treatment Files
@@ -190,7 +195,8 @@ function GameStage({ stageConfig, onSubmit }) {
     getElapsedTime: () => context.timer.elapsed,
     submit: onSubmit,
     getAssetURL: (path) => `${context.cdnBase}/${path}`,
-    getTextContent: (path) => fetch(`${context.cdnBase}/${path}`).then(r => r.text()),
+    getTextContent: (path) =>
+      fetch(`${context.cdnBase}/${path}`).then((r) => r.text()),
     progressLabel: context.progressLabel,
     playerId: context.player.id,
     position: context.player.position,
@@ -208,6 +214,7 @@ function GameStage({ stageConfig, onSubmit }) {
 ```
 
 The `Stage` component handles:
+
 - Laying out elements top-to-bottom with appropriate spacing and max-widths
 - Two-column layout when a discussion is present (discussion left, elements right)
 - Wrapping each element in time, position, and condition-based conditional rendering
@@ -215,11 +222,36 @@ The `Stage` component handles:
 
 If you need lower-level control, you can use the `Element` component directly to render individual elements, or the pure element components (e.g., `Prompt`, `Display`) with manual prop wiring.
 
-### Page Chrome and Scroll Model
+### The Three Phases
 
-Stagebook draws a deliberate line between **measurement instruments** (its job) and **page chrome** (the host's job). Anything that's about how `<Stage>` sits in *your page* — the scroll container, the bottom-of-stage breathing room, sticky headers, branded backgrounds, in-page progress indicators — belongs to the host. This keeps Stage focused on rendering elements consistently while letting platforms decorate freely.
+The same `StagebookContext` interface works across all three experiment phases. The platform adapts its implementation:
 
-#### Who owns the scroll?
+|                       | Intro (async, solo)       | Game (sync, group)    | Exit (async, solo)       |
+| --------------------- | ------------------------- | --------------------- | ------------------------ |
+| `position`            | `undefined`               | `0`, `1`, `2`, ...    | same as game             |
+| `playerCount`         | `undefined`               | group size            | group size               |
+| `get`                 | single-player values only | multi-player values   | multi-player values      |
+| `save(..., "shared")` | not available             | writes to group state | writes to group state    |
+| `getElapsedTime`      | client-side `Date.now()`  | server-synced timer   | client-side `Date.now()` |
+| `submit`              | advance to next step      | signal readiness      | advance to next step     |
+
+Components don't need to know which phase they're in.
+
+## Host Platform Responsibilities
+
+Stagebook draws a deliberate line between **measurement instruments** (its job) and **the page around them** (the host's job). Stage focuses on rendering elements consistently across platforms; everything about how `<Stage>` _sits in your page_ — the surrounding chrome, the scroll model, where assets and state actually live — belongs to the host. This section gathers those responsibilities in one place so the next consuming platform doesn't have to rediscover them.
+
+The boundary table at the end of this section is the canonical summary; the subsections below explain the tricky cases.
+
+### Page chrome
+
+Stagebook does not render page-level chrome. The host is responsible for:
+
+- **Headers, branded backgrounds, footers, navigation.** Render these around `<Stage>`, not inside.
+- **In-page progress indicators** (step counters, "stage X of Y" bars). The host knows the global progression; Stage only knows the current step.
+- **Layout context.** `<Stage>` doesn't assume anything about its parent's height or scroll model. The host picks: a fixed-height column with internal scroll, or a min-height page that scrolls naturally.
+
+### Page scroll and bottom spacing
 
 `<Stage>` accepts a `scrollMode` prop:
 
@@ -227,6 +259,8 @@ Stagebook draws a deliberate line between **measurement instruments** (its job) 
 - **`scrollMode="host"`.** Stage drops the internal scroll container, the bottom padding, and the indicator. Content flows naturally; the host decides what scrolls (the page, a `<main>` element, a custom shell) and is free to mount the publicly exported `useScrollAwareness` + `<ScrollIndicator>` against its own ref.
 
 For most hosts, **`host` mode is the better default** — it lets the page flow naturally and integrates with whatever surrounding chrome you already have. Use `internal` only when you genuinely need Stage to be a fixed-height column.
+
+In `host` mode, the host is also responsible for **bottom-of-stage breathing room**: a small spacer below the stage so participants get a visual cue they've reached the end. Without it, long stages end at a hard scroll-stop and participants have no signal there isn't more content. ~6–8rem is typical; size to your own footer / page chrome.
 
 #### Recommended host setup (host mode)
 
@@ -248,11 +282,7 @@ function HostedStage({ stageConfig, context, onSubmit }) {
   return (
     <main ref={scrollRef} style={{ overflow: "auto" }}>
       <StagebookProvider value={context}>
-        <Stage
-          stage={stageConfig}
-          onSubmit={onSubmit}
-          scrollMode="host"
-        />
+        <Stage stage={stageConfig} onSubmit={onSubmit} scrollMode="host" />
       </StagebookProvider>
 
       {/* Bottom-of-stage breathing room. ~6–8rem is typical; size to
@@ -270,38 +300,52 @@ function HostedStage({ stageConfig, context, onSubmit }) {
 }
 ```
 
-#### What the host owns vs. what Stage owns
-
-| | Host | Stage |
-|---|---|---|
-| The scroll container (`overflow`) | ✅ | — |
-| Bottom-of-stage breathing room | ✅ | — |
-| Page header / branded chrome / footers | ✅ | — |
-| Layout context (fixed-height vs. min-height page) | ✅ | — |
-| Element rendering (prompts, separators, etc.) | — | ✅ |
-| Per-element max-widths and spacing | — | ✅ |
-| Conditional rendering (time / position / conditions) | — | ✅ |
-| Submission overlay ("waiting for others") | — | ✅ |
-| Discussion two-column layout when `discussion:` is set | — | ✅ |
-
-#### Backward compatibility
-
 `scrollMode` defaults to `"internal"`, so existing integrations are unaffected. Migrate at your own pace: add a host-side scroll container + spacer + `<ScrollIndicator>`, then flip the prop.
 
-### The Three Phases
+### Resource resolution (`getAssetURL` and `getTextContent`)
 
-The same `StagebookContext` interface works across all three experiment phases. The platform adapts its implementation:
+All paths in treatment files are relative to the treatment file's location. Stagebook never resolves them itself — the host's `getAssetURL` and `getTextContent` are the only window into where resources actually live (CDN, local filesystem, VS Code workspace, bundled imports). Two important contract details:
 
-| | Intro (async, solo) | Game (sync, group) | Exit (async, solo) |
-|---|---|---|---|
-| `position` | `undefined` | `0`, `1`, `2`, ... | same as game |
-| `playerCount` | `undefined` | group size | group size |
-| `get` | single-player values only | multi-player values | multi-player values |
-| `save(..., "shared")` | not available | writes to group state | writes to group state |
-| `getElapsedTime` | client-side `Date.now()` | server-synced timer | client-side `Date.now()` |
-| `submit` | advance to next step | signal readiness | advance to next step |
+- **`getAssetURL` is synchronous.** Stagebook calls it inline during render (e.g., to set `<img src=...>`, audio source URLs). The host must be able to return a renderable URL without `await` — pre-resolve any async work (signed URL generation, blob URL creation, workspace URI lookup) before mounting the provider, or memoize the resolution so subsequent calls are sync.
+- **`getTextContent` is async.** Returns a `Promise<string>`. This is where prompt files, transcripts, and other text content are loaded; the host owns fetching, caching, retries, and error handling.
 
-Components don't need to know which phase they're in.
+The asymmetry matters: a host that does async work inside `getAssetURL` (e.g., calling a signed-URL service mid-render) will produce visible flicker, broken images on first render, or React render-loop warnings. If your storage layer is async-only, hydrate a path-to-URL map ahead of provider mount.
+
+See [platform-requirements.md §4 Content Delivery](./platform-requirements.md#4-content-delivery-required) for the full description of both methods.
+
+### State persistence
+
+Stagebook's `save` / `get` are the host's mailbox — Stagebook writes participant data to keys it derives from the treatment file, and reads them back for cross-element resolution and conditional rendering. The host decides what each store actually is:
+
+- **What's local-only vs. server-synced.** Single-player tools may keep everything in React state; multiplayer platforms persist to a server-authoritative store and broadcast mutations to all connected clients.
+- **What survives a reload.** State should survive page refreshes — if a participant disconnects and reconnects, their previous responses should still be present. For multiplayer experiments, other participants' state must also be available after reconnection.
+- **What's player-scoped vs. shared.** Stagebook passes a `scope` argument (`"player"`, `"shared"`, `"all"`, or a participant index as a string); the host routes the read/write to the appropriate store. See [platform-requirements.md §1 State Management](./platform-requirements.md#1-state-management-required) for the full scope semantics and storage-key patterns.
+
+Stagebook handles DSL reference parsing internally — the host's `get(key, scope)` is a flat key-value lookup. The host doesn't need to understand reference syntax or nested-path traversal; it only needs to return whatever was last `save()`d under that key.
+
+### What the host owns vs. what Stage owns
+
+|                                                        | Host | Stage |
+| ------------------------------------------------------ | ---- | ----- |
+| The scroll container (`overflow`)                      | ✅   | —     |
+| Bottom-of-stage breathing room                         | ✅   | —     |
+| Page header / branded chrome / footers                 | ✅   | —     |
+| In-page progress indicators (step counter, etc.)       | ✅   | —     |
+| Layout context (fixed-height vs. min-height page)      | ✅   | —     |
+| Asset URL resolution (`getAssetURL`, **synchronous**)  | ✅   | —     |
+| Text content fetching (`getTextContent`, async)        | ✅   | —     |
+| State store (`get` / `save`, scoping, persistence)     | ✅   | —     |
+| Storage-key routing (player vs. shared vs. by index)   | ✅   | —     |
+| Group formation and position assignment                | ✅   | —     |
+| Stage timer and submission coordination                | ✅   | —     |
+| Element rendering (prompts, separators, etc.)          | —    | ✅    |
+| Per-element max-widths and spacing                     | —    | ✅    |
+| Conditional rendering (time / position / conditions)   | —    | ✅    |
+| DSL reference parsing and nested-path traversal        | —    | ✅    |
+| Submission overlay ("waiting for others")              | —    | ✅    |
+| Discussion two-column layout when `discussion:` is set | —    | ✅    |
+
+For the deeper specs behind each row, see [platform-requirements.md](./platform-requirements.md).
 
 ## Using Standalone Components
 
@@ -343,7 +387,9 @@ treatmentFileSchema.safeParse(config);
 compare(playerResponse, "isAtLeast", 0.75);
 
 // Parse a reference string
-const { referenceKey, path } = getReferenceKeyAndPath("survey.TIPI.result.score");
+const { referenceKey, path } = getReferenceKeyAndPath(
+  "survey.TIPI.result.score",
+);
 
 // Expand templates
 const expanded = fillTemplates({ obj: treatments, templates });
@@ -364,8 +410,8 @@ Surveys are rendered by the platform because they depend on a survey library (e.
 ```yaml
 elements:
   - type: survey
-    surveyName: TIPI          # which survey to render
-    name: preTIPI             # optional — overrides the storage key
+    surveyName: TIPI # which survey to render
+    name: preTIPI # optional — overrides the storage key
   - type: submitButton
 ```
 
@@ -395,6 +441,7 @@ const context: StagebookContext = {
 ```
 
 Your survey component must:
+
 1. **Render** the survey questions and response controls
 2. **Call `onComplete(results)`** when the participant finishes, passing the results object
 

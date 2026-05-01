@@ -354,6 +354,8 @@ Returns a URL that the browser can use to display an image, play audio, or embed
 - **VS Code extension**: Resolve to webview URI
 - **Bundled**: Return an import path or data URI
 
+**Synchronous contract.** Stagebook calls `getAssetURL` inline during render (e.g., to set `<img src=...>` or an audio source). The platform must return a renderable URL without `await`. If your storage layer is async-only (signed URLs, blob URL creation, async workspace URI lookup), pre-resolve a path-to-URL map before mounting `<StagebookProvider>`, or memoize the resolution so subsequent calls are sync. Doing async work inside the callback produces visible flicker, broken images on first render, or React render-loop warnings.
+
 ### `getTextContent(path: string): Promise<string>`
 
 Returns the text content of a file (typically prompt markdown). The platform handles:
