@@ -408,6 +408,79 @@ test("string field embedded in another string", () => {
   expect(result).toEqual({ label: "Item Alpha here" });
 });
 
+test("numeric field embedded in another string", () => {
+  // Regression: substituteFields previously skipped in-string substitution
+  // for non-string scalars, so `roundN: 1` left `${roundN}` literal in
+  // strings like `round_${roundN}_choice`. The function now stringifies
+  // numbers and booleans for embedded substitution.
+  const templates = [
+    {
+      name: "embedded",
+      content: { name: "round_${roundN}_choice" },
+    },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: { template: "embedded", fields: { roundN: 1 } },
+  });
+  expect(result).toEqual({ name: "round_1_choice" });
+});
+
+test("boolean field embedded in another string", () => {
+  const templates = [
+    {
+      name: "embedded",
+      content: { tag: "active=${flag}" },
+    },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: { template: "embedded", fields: { flag: true } },
+  });
+  expect(result).toEqual({ tag: "active=true" });
+});
+
+test("numeric broadcast field substituted into stage names (#PD repro)", () => {
+  // Mirrors the prisoner's-dilemma example: a `contentType: stages`
+  // template invoked with broadcast over a numeric `roundN`. Each
+  // expansion must produce stages with the round number substituted
+  // into the stage name.
+  const templates = [
+    {
+      name: "roundTemplate",
+      content: [
+        { name: "round_${roundN}_choice" },
+        { name: "round_${roundN}_outcome" },
+      ],
+    },
+  ];
+
+  const { result } = fillTemplates({
+    templates,
+    obj: {
+      gameStages: [
+        {
+          template: "roundTemplate",
+          broadcast: { d0: [{ roundN: 1 }, { roundN: 2 }, { roundN: 3 }] },
+        },
+      ],
+    },
+  });
+
+  expect(result).toEqual({
+    gameStages: [
+      { name: "round_1_choice" },
+      { name: "round_1_outcome" },
+      { name: "round_2_choice" },
+      { name: "round_2_outcome" },
+      { name: "round_3_choice" },
+      { name: "round_3_outcome" },
+    ],
+  });
+});
+
 test("array field values substituted correctly", () => {
   const templates = [
     {
