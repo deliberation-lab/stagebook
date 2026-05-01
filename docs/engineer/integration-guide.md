@@ -276,7 +276,8 @@ import {
 function HostedStage({ stageConfig, context, onSubmit }) {
   // Whatever element scrolls in your layout — could be <main>, the
   // window (pass `null`/document.scrollingElement), or a custom shell.
-  const scrollRef = useRef<HTMLElement>(null);
+  // Match `useScrollAwareness`'s `RefObject<HTMLElement | null>` param.
+  const scrollRef = useRef<HTMLElement | null>(null);
   const { showIndicator } = useScrollAwareness(scrollRef);
 
   return (
@@ -319,7 +320,7 @@ Stagebook's `save` / `get` are the host's mailbox — Stagebook writes participa
 
 - **What's local-only vs. server-synced.** Single-player tools may keep everything in React state; multiplayer platforms persist to a server-authoritative store and broadcast mutations to all connected clients.
 - **What survives a reload.** State should survive page refreshes — if a participant disconnects and reconnects, their previous responses should still be present. For multiplayer experiments, other participants' state must also be available after reconnection.
-- **What's player-scoped vs. shared.** Stagebook passes a `scope` argument (`"player"`, `"shared"`, `"all"`, or a participant index as a string); the host routes the read/write to the appropriate store. See [platform-requirements.md §1 State Management](./platform-requirements.md#1-state-management-required) for the full scope semantics and storage-key patterns.
+- **What's player-scoped vs. shared.** For writes, `save(key, value, scope)` is limited to `"player"` or `"shared"`, and the host routes the write to the appropriate store. For reads, `get(key, scope)` accepts the same two plus `"all"` and a participant index as a string. See [platform-requirements.md §1 State Management](./platform-requirements.md#1-state-management-required) for the full scope semantics and storage-key patterns.
 
 Stagebook handles DSL reference parsing internally — the host's `get(key, scope)` is a flat key-value lookup. The host doesn't need to understand reference syntax or nested-path traversal; it only needs to return whatever was last `save()`d under that key.
 
