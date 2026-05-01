@@ -5,7 +5,7 @@ import {
   exampleCatalog,
   prepareExampleTreatment,
 } from "./exampleCatalog";
-import { parseTreatmentYaml } from "./treatment";
+import { parseTreatmentYaml, expandTreatmentFile } from "./treatment";
 
 const SAMPLE_YAML = `
 introSequences:
@@ -166,6 +166,21 @@ describe("exampleCatalog (discovered via import.meta.glob)", () => {
     expect(walkthrough?.prompts["prompts/consent.prompt.md"]).toContain(
       "noResponse",
     );
+  });
+
+  it("every bundled example expands with no unresolved fields", () => {
+    // Regression for the PD broadcast bug: substituteFields previously
+    // skipped in-string substitution for non-string scalars, so the
+    // 3-round prisoner's-dilemma broadcast left `${roundN}` literal in
+    // stage names. The catalog's title-extraction step doesn't notice
+    // because it only reads `treatments[0].name`; only an explicit
+    // unresolved-fields check across all examples surfaces this kind
+    // of bug.
+    for (const entry of exampleCatalog) {
+      const parsed = parseTreatmentYaml(entry.yaml);
+      const { unresolvedFields } = expandTreatmentFile(parsed);
+      expect(unresolvedFields, `${entry.id} has unresolved fields`).toEqual([]);
+    }
   });
 });
 

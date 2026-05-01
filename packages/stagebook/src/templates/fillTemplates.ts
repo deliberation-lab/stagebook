@@ -36,12 +36,20 @@ export function substituteFields({
       stringifiedValue,
     );
 
-    // if the value is just a string or number, we can also replace instances of ${key} within other strings
-    if (typeof value === "string") {
+    // For scalars (string / number / boolean), also replace `${key}`
+    // when it's embedded inside a longer string — e.g.
+    // `round_${roundN}_choice` with `roundN: 1` → `round_1_choice`.
+    // The earlier whole-value `"${key}"` regex already handles standalone
+    // placeholders (and arrays/objects, which can't be string-embedded).
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
       const stringReplacementRegex = new RegExp(`\\$\\{${escapedKey}\\}`, "g");
       stringifiedTemplate = stringifiedTemplate.replace(
         stringReplacementRegex,
-        value,
+        String(value),
       );
     }
 
