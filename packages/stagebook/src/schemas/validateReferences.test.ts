@@ -504,7 +504,7 @@ describe("Rule 1 — no forward references", () => {
     expect(hit).toBeDefined();
   });
 
-  test("external references (urlParams.x, participantInfo.x) accepted at every site", () => {
+  test("external references (entryUrl.params.x, participantInfo.x) accepted at every site", () => {
     const file = baseFile({
       gameStages: [
         {
@@ -512,7 +512,7 @@ describe("Rule 1 — no forward references", () => {
           duration: 60,
           conditions: [
             {
-              reference: "urlParams.cohort",
+              reference: "entryUrl.params.cohort",
               comparator: "equals",
               value: "a",
               position: "shared",
@@ -757,7 +757,7 @@ describe("Unknown-reference detection", () => {
           elements: [
             {
               type: "display",
-              reference: "urlParams.neverDeclared",
+              reference: "entryUrl.params.neverDeclared",
             },
             { type: "submitButton" },
           ],

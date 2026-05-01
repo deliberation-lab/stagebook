@@ -87,7 +87,7 @@ getReferenceKeyAndPath("prompt.myQuestion");
 // { referenceKey: "prompt_myQuestion", path: ["value"] }
 ```
 
-Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `urlParams`, `connectionInfo`, `browserInfo`, `participantInfo`, `discussion`.
+Supported namespaces: `survey`, `submitButton`, `qualtrics`, `prompt`, `trackedLink`, `timeline`, `discussion`, `entryUrl`, `connectionInfo`, `browserInfo`, `participantInfo`. (`urlParams` was renamed to `entryUrl` in #246.) `entryUrl` references must use the `params` subpath, e.g. `getReferenceKeyAndPath("entryUrl.params.foo")`.
 
 ### Expanding templates
 

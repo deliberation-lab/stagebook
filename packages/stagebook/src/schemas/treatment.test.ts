@@ -1603,7 +1603,7 @@ test("introExitStepSchema allows stage-level conditions with any position, inclu
     conditions: [
       // Intro/exit is per-participant — default (player) position is fine
       {
-        reference: "urlParams.showOptionalInfo",
+        reference: "entryUrl.params.showOptionalInfo",
         comparator: "equals",
         value: "true",
       },
@@ -2183,4 +2183,54 @@ test("validElementTypes does not include talkMeter or sharedNotepad", async () =
   const { validElementTypes } = await import("./treatment.js");
   expect(validElementTypes).not.toContain("talkMeter");
   expect(validElementTypes).not.toContain("sharedNotepad");
+});
+
+// ----------- entryUrl rename (#246) ------------
+
+test("entryUrl.params.<key> string reference is accepted", () => {
+  const result = referenceSchema.safeParse("entryUrl.params.condition");
+  expect(result.success).toBe(true);
+});
+
+test("entryUrl bare-key string reference is rejected (`params` subpath required)", () => {
+  const result = referenceSchema.safeParse("entryUrl.condition");
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const message = result.error.issues.map((i) => i.message).join("\n");
+    expect(message).toContain("entryUrl.params");
+  }
+});
+
+test("legacy urlParams.<key> string reference is rejected with a migration hint", () => {
+  const result = referenceSchema.safeParse("urlParams.condition");
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    const message = result.error.issues.map((i) => i.message).join("\n");
+    expect(message).toContain("entryUrl.params");
+  }
+});
+
+test("structured `{source: entryUrl, path: [params, key]}` is accepted", () => {
+  const result = referenceSchema.safeParse({
+    source: "entryUrl",
+    path: ["params", "condition"],
+  });
+  expect(result.success).toBe(true);
+});
+
+test("structured `{source: entryUrl, path: [<key>]}` is rejected", () => {
+  const result = referenceSchema.safeParse({
+    source: "entryUrl",
+    path: ["condition"],
+  });
+  expect(result.success).toBe(false);
+});
+
+test("structured `{source: entryUrl, name: ...}` is rejected (external sources forbid name)", () => {
+  const result = referenceSchema.safeParse({
+    source: "entryUrl",
+    name: "condition",
+    path: ["params", "x"],
+  });
+  expect(result.success).toBe(false);
 });

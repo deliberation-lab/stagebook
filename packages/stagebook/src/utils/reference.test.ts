@@ -34,10 +34,16 @@ describe("getReferenceKeyAndPath", () => {
     expect(result.path).toEqual(["events"]);
   });
 
-  test("urlParams reference", () => {
-    const result = getReferenceKeyAndPath("urlParams.condition");
-    expect(result.referenceKey).toBe("urlParams");
-    expect(result.path).toEqual(["condition"]);
+  test("entryUrl.params reference (renamed from urlParams in #246)", () => {
+    const result = getReferenceKeyAndPath("entryUrl.params.condition");
+    expect(result.referenceKey).toBe("entryUrl");
+    expect(result.path).toEqual(["params", "condition"]);
+  });
+
+  test("legacy urlParams.<key> reference is rejected with a migration hint", () => {
+    expect(() => getReferenceKeyAndPath("urlParams.condition")).toThrow(
+      /entryUrl\.params/,
+    );
   });
 
   test("connectionInfo reference", () => {
@@ -100,8 +106,17 @@ describe("getReferenceKeyAndPath", () => {
     expect(() => getReferenceKeyAndPath("browserInfo")).toThrow(
       "A path must be provided",
     );
-    expect(() => getReferenceKeyAndPath("urlParams")).toThrow(
+    expect(() => getReferenceKeyAndPath("entryUrl")).toThrow(
       "A path must be provided",
+    );
+  });
+
+  test("entryUrl bare-key is rejected by the dotted-string parser (`params` subpath required)", () => {
+    // The `params` subpath check on `entryUrl` lives in
+    // `externalReferenceSchema.superRefine` and runs through
+    // `parseDottedReference`'s post-validation.
+    expect(() => getReferenceKeyAndPath("entryUrl.condition")).toThrow(
+      /entryUrl\.params/,
     );
   });
 
@@ -137,13 +152,13 @@ describe("getReferenceKeyAndPath", () => {
     expect(result.path).toEqual([]);
   });
 
-  test("structured external reference: urlParams", () => {
+  test("structured external reference: entryUrl.params.<key>", () => {
     const result = getReferenceKeyAndPath({
-      source: "urlParams",
-      path: ["condition"],
+      source: "entryUrl",
+      path: ["params", "condition"],
     });
-    expect(result.referenceKey).toBe("urlParams");
-    expect(result.path).toEqual(["condition"]);
+    expect(result.referenceKey).toBe("entryUrl");
+    expect(result.path).toEqual(["params", "condition"]);
   });
 
   test("string and structured forms produce equivalent output", () => {
@@ -154,10 +169,10 @@ describe("getReferenceKeyAndPath", () => {
         path: ["responses", "q1"],
       }),
     );
-    expect(getReferenceKeyAndPath("urlParams.PROLIFIC_PID")).toEqual(
+    expect(getReferenceKeyAndPath("entryUrl.params.PROLIFIC_PID")).toEqual(
       getReferenceKeyAndPath({
-        source: "urlParams",
-        path: ["PROLIFIC_PID"],
+        source: "entryUrl",
+        path: ["params", "PROLIFIC_PID"],
       }),
     );
   });

@@ -43,8 +43,8 @@ branch, and reads as English.
 
 When a field has multiple kinds of values, distinguish them with one
 discriminator rather than wrapping categories in another layer.
-`source: urlParams` and `source: prompt` sit at the same level; we don't
-wrap external sources in `context: { source: urlParams }` or named sources
+`source: entryUrl` and `source: prompt` sit at the same level; we don't
+wrap external sources in `context: { source: entryUrl }` or named sources
 in `element: { source: prompt }`.
 
 The rule: if the discriminator value already names the kind, the wrapper

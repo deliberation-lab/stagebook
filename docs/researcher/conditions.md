@@ -124,12 +124,12 @@ For OR logic on a single reference (across positions, comparators, etc.), `any:`
 References point to data collected earlier in the experiment. The dotted form uses one of two grammars depending on the source:
 
 - **Named sources** (`prompt`, `survey`, `submitButton`, `qualtrics`, `timeline`, `trackedLink`, `discussion`): `source.name(.path...)` — `name` is required, `path` is optional.
-- **External sources** (`urlParams`, `connectionInfo`, `browserInfo`, `participantInfo`): `source.path...` — no `name`, `path` is required.
+- **External sources** (`entryUrl`, `connectionInfo`, `browserInfo`, `participantInfo`): `source.path...` — no `name`, `path` is required. `entryUrl` references must currently use the `params` subpath (see [URL Parameters](#url-parameters) below).
 
 ```yaml
 - reference: prompt.familiarity         # named source: source.name
 - reference: survey.TIPI.responses.q1   # named source: source.name.path...
-- reference: urlParams.condition        # external source: source.path...
+- reference: entryUrl.params.condition  # external source: source.path...
 ```
 
 After #240, references can also be written in **structured form** — preferred in new code, especially when you need to override the implicit defaults the dotted form bakes in (e.g. addressing the `debugMessages` field on a prompt's saved record instead of the default `value`):
@@ -138,16 +138,16 @@ After #240, references can also be written in **structured form** — preferred 
 - reference:
     source: prompt
     name: familiarity
-    path: [value]            # explicit; same as the dotted `prompt.familiarity`
+    path: [value]                 # explicit; same as the dotted `prompt.familiarity`
 
 - reference:
     source: prompt
     name: familiarity
-    path: [debugMessages]    # newly possible — addresses other saved fields
+    path: [debugMessages]         # newly possible — addresses other saved fields
 
 - reference:
-    source: urlParams
-    path: [condition]
+    source: entryUrl
+    path: [params, condition]
 ```
 
 Both forms parse to the same internal shape; either is accepted at every reference site (conditions, `display.reference`, `trackedLink`/`qualtrics` `urlParams[].reference`).
@@ -185,10 +185,12 @@ trackedLink.<name>.totalTimeAwaySeconds
 ### URL Parameters
 
 ```
-urlParams.<paramName>
+entryUrl.params.<paramName>
 ```
 
-Query parameters from the participant's landing URL (e.g., `?role=confederate`).
+Query parameters from the participant's landing URL (e.g., `?role=confederate`). The `params` subpath is required — the `entryUrl.*` namespace is reserved so future additions like `entryUrl.path`, `entryUrl.host`, `entryUrl.href` can land non-breakingly.
+
+Renamed from the legacy `urlParams.<key>` source in #246 to disambiguate from the unrelated `urlParams:` element field on `trackedLink` / `qualtrics`, which sets *outgoing* query parameters (i.e. params appended to the element's own URL). The element field is unchanged.
 
 ### Connection Info
 
@@ -395,13 +397,13 @@ groupComposition:
   - position: 0
     title: Confederate
     conditions:
-      - reference: urlParams.role
+      - reference: entryUrl.params.role
         comparator: equals
         value: confederate
   - position: 1
     title: Participant
     conditions:
-      - reference: urlParams.role
+      - reference: entryUrl.params.role
         comparator: equals
         value: participant
 ```
@@ -494,7 +496,7 @@ A reference must point at data produced by an earlier or the current stage in th
 introSteps → gameStages → exitSequence
 ```
 
-Referencing a stage that hasn't run yet is rejected. External references (`urlParams.*`, `participantInfo.*`, `connectionInfo.*`, `browserInfo.*`) are always valid — they come from the platform, not a stage.
+Referencing a stage that hasn't run yet is rejected. External references (`entryUrl.params.*`, `participantInfo.*`, `connectionInfo.*`, `browserInfo.*`) are always valid — they come from the platform, not a stage.
 
 `groupComposition` is stricter: it runs before the game starts, so its conditions can only reference intro-phase or external data. Referencing game or exit data from `groupComposition` is rejected.
 
