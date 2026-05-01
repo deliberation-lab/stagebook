@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { keyToAction, FRAME_STEP, type KeyContext } from "./keyboardActions.js";
+import {
+  keyToAction,
+  keyUpToAction,
+  FRAME_STEP,
+  type KeyContext,
+} from "./keyboardActions.js";
 
 function ctx(overrides: Partial<KeyContext> = {}): KeyContext {
   return {
@@ -615,5 +620,150 @@ describe("keyToAction", () => {
         ),
       ).toBe(null);
     });
+  });
+
+  describe("Enter for real-time annotation (#263)", () => {
+    const enterEvent = {
+      key: "Enter",
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+    };
+
+    it("returns createPointAtPlayhead in point mode (no active selection)", () => {
+      expect(
+        keyToAction(
+          enterEvent,
+          ctx({
+            selectionType: "point",
+            activeIndex: null,
+            currentPoint: null,
+          }),
+        ),
+      ).toEqual({ type: "createPointAtPlayhead" });
+    });
+
+    it("returns createPointAtPlayhead in point mode even when a point is selected", () => {
+      // Real-time tagging shouldn't require explicit deselection between
+      // marks — Enter always means "create new point at playhead."
+      expect(
+        keyToAction(
+          enterEvent,
+          ctx({
+            selectionType: "point",
+            activeIndex: 0,
+            currentPoint: { time: 5 },
+          }),
+        ),
+      ).toEqual({ type: "createPointAtPlayhead" });
+    });
+
+    it("returns beginRangeAtPlayhead in range mode (no active selection)", () => {
+      expect(
+        keyToAction(
+          enterEvent,
+          ctx({
+            selectionType: "range",
+            activeIndex: null,
+            currentRange: null,
+            activeHandle: null,
+          }),
+        ),
+      ).toEqual({ type: "beginRangeAtPlayhead" });
+    });
+
+    it("returns beginRangeAtPlayhead in range mode even when a range is selected", () => {
+      expect(keyToAction(enterEvent, ctx({ selectionType: "range" }))).toEqual({
+        type: "beginRangeAtPlayhead",
+      });
+    });
+
+    it("ignores auto-repeat keydowns (e.repeat=true) in both modes", () => {
+      // Holding Enter should produce ONE mark per press, not a stream.
+      const repeated = { ...enterEvent, repeat: true };
+      expect(
+        keyToAction(
+          repeated,
+          ctx({ selectionType: "point", activeIndex: null }),
+        ),
+      ).toBe(null);
+      expect(
+        keyToAction(
+          repeated,
+          ctx({ selectionType: "range", activeIndex: null }),
+        ),
+      ).toBe(null);
+    });
+
+    it("ignores Enter with any modifier (reserved for future bindings)", () => {
+      const point = ctx({ selectionType: "point", activeIndex: null });
+      expect(keyToAction({ ...enterEvent, shiftKey: true }, point)).toBe(null);
+      expect(keyToAction({ ...enterEvent, ctrlKey: true }, point)).toBe(null);
+      expect(keyToAction({ ...enterEvent, metaKey: true }, point)).toBe(null);
+      expect(keyToAction({ ...enterEvent, altKey: true }, point)).toBe(null);
+    });
+  });
+});
+
+describe("keyUpToAction", () => {
+  it("returns endRangeAtPlayhead on Enter keyup in range mode", () => {
+    expect(
+      keyUpToAction(
+        {
+          key: "Enter",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
+        { ...ctx({ selectionType: "range" }) },
+      ),
+    ).toEqual({ type: "endRangeAtPlayhead" });
+  });
+
+  it("returns null on Enter keyup in point mode (point Enter is keydown-only)", () => {
+    expect(
+      keyUpToAction(
+        {
+          key: "Enter",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
+        ctx({ selectionType: "point", activeIndex: null }),
+      ),
+    ).toBe(null);
+  });
+
+  it("returns null on Enter+modifier keyup", () => {
+    expect(
+      keyUpToAction(
+        {
+          key: "Enter",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: true,
+          altKey: false,
+        },
+        ctx({ selectionType: "range" }),
+      ),
+    ).toBe(null);
+  });
+
+  it("returns null on non-Enter keyup", () => {
+    expect(
+      keyUpToAction(
+        {
+          key: "ArrowRight",
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+        },
+        ctx({ selectionType: "range" }),
+      ),
+    ).toBe(null);
   });
 });

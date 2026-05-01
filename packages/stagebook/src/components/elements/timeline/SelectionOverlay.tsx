@@ -84,8 +84,12 @@ const CLICK_CREATED_RANGE_SEC = 1;
  * videos at low zoom, 1 second can render at <1px, leaving the start and
  * end handles overlapping with no visible range between them. We expand
  * the range so the gap between the handles is at least this many pixels.
+ *
+ * Exported for reuse by Timeline.tsx's keyboard-tap range creation —
+ * same purpose (avoid an invisible range from a near-instantaneous
+ * input), same threshold.
  */
-const CLICK_CREATED_RANGE_MIN_PX = 6;
+export const CLICK_CREATED_RANGE_MIN_PX = 6;
 
 interface DragState {
   startX: number;

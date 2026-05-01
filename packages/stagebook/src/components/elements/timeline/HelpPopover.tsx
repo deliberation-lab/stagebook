@@ -13,6 +13,7 @@ const rangeShortcuts: { keys: string; description: string }[] = [
   { keys: "←  → (no selection)", description: "Scrub playhead ±1s" },
   { keys: ", . (no selection)", description: "Scrub ±1 frame" },
   { keys: "Click and drag", description: "Create range" },
+  { keys: "Enter (press and hold)", description: "Mark range while watching" },
   { keys: "Click range", description: "Select it" },
   { keys: "Drag handle", description: "Adjust boundary" },
   { keys: "←  →", description: "Adjust handle ±1s" },
@@ -26,6 +27,7 @@ const rangeShortcuts: { keys: string; description: string }[] = [
 const pointShortcuts: { keys: string; description: string }[] = [
   { keys: "Space", description: "Play / Pause" },
   { keys: "Click empty space", description: "Place point" },
+  { keys: "Enter", description: "Place point at playhead" },
   { keys: "←  → (no selection)", description: "Scrub playhead ±1s" },
   { keys: ", . (no selection)", description: "Scrub ±1 frame" },
   { keys: "Click point", description: "Select it" },

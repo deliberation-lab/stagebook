@@ -35,7 +35,16 @@ export type KeyAction =
   | { type: "deselect" }
   | { type: "undo" }
   | { type: "togglePlayPause" }
-  | { type: "seekPlayhead"; delta: number };
+  | { type: "seekPlayhead"; delta: number }
+  /** Point mode, Enter keydown: create a point at the current playhead. */
+  | { type: "createPointAtPlayhead" }
+  /** Range mode, Enter keydown: stash the current playhead as a pending
+   *  range-start. Timeline.tsx tracks the pending start in a ref until
+   *  the matching keyup arrives. */
+  | { type: "beginRangeAtPlayhead" }
+  /** Range mode, Enter keyup: commit the range from the pending start to
+   *  the current playhead. */
+  | { type: "endRangeAtPlayhead" };
 
 /** Subset of KeyboardEvent that we care about — easier to test. */
 export interface KeyEventLike {
@@ -44,6 +53,8 @@ export interface KeyEventLike {
   metaKey: boolean;
   shiftKey: boolean;
   altKey: boolean;
+  /** Browser auto-repeat flag — true on the 2nd+ keydown of a held key. */
+  repeat?: boolean;
 }
 
 /**
@@ -78,6 +89,30 @@ export function keyToAction(
     (e.key === "z" || e.key === "Z")
   ) {
     return { type: "undo" };
+  }
+
+  // Enter: real-time annotation. Point mode → tap to create a point at
+  // the playhead; range mode → keydown stashes a pending start for a
+  // press-and-hold range (the matching keyup is handled by
+  // `keyUpToAction`). Available regardless of active selection so users
+  // can keep adding marks without explicitly deselecting first.
+  //
+  // Filter rules:
+  // - Auto-repeat (`e.repeat`): ignore. One press = one mark; a held
+  //   Enter shouldn't spam dozens of points or reset the range start.
+  // - Any modifier: ignore. Reserved for future bindings (Shift+Enter,
+  //   Cmd+Enter, etc.).
+  if (
+    e.key === "Enter" &&
+    !e.repeat &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.shiftKey &&
+    !e.altKey
+  ) {
+    return ctx.selectionType === "point"
+      ? { type: "createPointAtPlayhead" }
+      : { type: "beginRangeAtPlayhead" };
   }
 
   // No active selection: arrow/comma/period scrub the playhead. Skip when
@@ -149,5 +184,27 @@ export function keyToAction(
     };
   }
 
+  return null;
+}
+
+/**
+ * Map a keyup event to a Timeline action. Today the only keyup we care
+ * about is Enter in range mode (the press-and-hold range commit). All
+ * other keys release without doing anything.
+ */
+export function keyUpToAction(
+  e: KeyEventLike,
+  ctx: KeyContext,
+): KeyAction | null {
+  if (
+    e.key === "Enter" &&
+    ctx.selectionType === "range" &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.shiftKey &&
+    !e.altKey
+  ) {
+    return { type: "endRangeAtPlayhead" };
+  }
   return null;
 }
