@@ -52,58 +52,117 @@ export const nameSchema = z
   });
 export type NameType = z.infer<typeof nameSchema>;
 
-// TODO: check that file exists
-export const fileSchema = z.string().optional();
+// `https?://path` — accepted by both browserUrlSchema and fileSchema.
+// `asset://path` — accepted only by fileSchema (resolved via host's
+//   `getAssetURL()`, see #188). Browser-direct fields don't accept
+//   `asset://` because the browser can't navigate to it directly.
+// Bare `scheme:foo` (no `//`) is always rejected — `new URL()` accepts
+// opaque-scheme variants but downstream code expects a real
+// hierarchical URL.
+const HIERARCHICAL_HTTPS_RE = /^https?:\/\//i;
+const HIERARCHICAL_ASSET_RE = /^asset:\/\//i;
 
-export const promptFilePathSchema = z
-  .string()
-  .refine((s) => s.endsWith(".prompt.md"), {
-    message:
-      'Prompt files must use the .prompt.md extension (e.g., "myPrompt.prompt.md")',
-  });
-
-export type FileType = z.infer<typeof fileSchema>;
-
-// Three accepted URL forms in treatment files:
-// - `http://…` / `https://…`  — fetched directly by the browser
-// - `asset://path/…`          — platform-provided; resolved by the
-//   host's `getAssetURL()` (e.g. S3 presigned URL, local file server).
-//   See #188.
-// Callers that walk treatment trees for repo-local assets (e.g.
-// `getReferencedAssets`) should exclude both `http(s)://` and
-// `asset://` — neither is a local file.
-// Require the hierarchical `scheme://` form. `new URL()` alone accepts
-// opaque-scheme variants like `https:example.com` or `asset:clip.mp4`
-// (no `//`), which parse but aren't what we mean — downstream code
-// (e.g. the Qualtrics iframe, the `asset://` exclusion in
-// `getReferencedAssets`) expects a real hierarchical URL.
-const HIERARCHICAL_URL_RE = /^(?:https?|asset):\/\//i;
-
-export const urlSchema = z.string().refine(
+/**
+ * `browserUrlSchema` — strict `https?://` (with non-empty host) only.
+ * Used for fields the browser fetches/navigates to directly: the
+ * `qualtrics.url` iframe src, the `trackedLink.url` click-through. Drops
+ * `asset://` because neither a browser navigation nor an iframe `src`
+ * can resolve `asset://` (the host's resolver is platform-side,
+ * unreachable from the browser-direct path).
+ */
+export const browserUrlSchema = z.string().refine(
   (url) => {
-    if (!HIERARCHICAL_URL_RE.test(url)) return false;
+    if (!HIERARCHICAL_HTTPS_RE.test(url)) return false;
     try {
       const parsed = new URL(url);
-      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-        // Reject `https://` with no host.
-        return parsed.host.length > 0;
-      }
-      if (parsed.protocol === "asset:") {
-        // Require the URL to carry *some* location after the scheme so
-        // we don't silently accept a bare `asset://`.
-        return parsed.host.length > 0 || parsed.pathname.length > 1;
-      }
-      return false;
+      return (
+        (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+        parsed.host.length > 0
+      );
     } catch {
       return false;
     }
   },
   {
     message:
-      "URL must use http://, https://, or asset:// (platform-provided media) with a non-empty host/path",
+      "URL must use http:// or https:// with a non-empty host. (asset:// is not accepted on browser-direct URL fields — use it only on file: fields, where the host's getAssetURL() resolves it.)",
   },
 );
-export type UrlType = z.infer<typeof urlSchema>;
+export type BrowserUrlType = z.infer<typeof browserUrlSchema>;
+
+/**
+ * `fileSchema` — a resource handle the platform helps resolve to something
+ * the browser can fetch. Three accepted forms:
+ *
+ *   1. **Relative path** (e.g. `prompts/foo.prompt.md`) — resolved
+ *      against the treatment file's directory by the host loader.
+ *   2. **`asset://…` URI** (e.g. `asset://clips/clip1.mp4`) — resolved
+ *      by the host's `getAssetURL()` (#188).
+ *   3. **`https?://…` URL** (e.g. `https://cdn.example.com/clip.mp4`) —
+ *      passed straight through to the browser without resolution.
+ *
+ * Distinct from `browserUrlSchema` — that one is for URLs the browser
+ * uses verbatim (trackedLink targets, qualtrics iframe src), where
+ * `asset://` has no meaning. Used by every `file:` field in the schema.
+ */
+export const fileSchema = z
+  .string()
+  .min(1, "File path cannot be empty.")
+  .refine(
+    (value) => {
+      // Reject scalars that are entirely whitespace.
+      if (value.trim().length === 0) return false;
+      // Reject opaque-scheme variants like `asset:clip.mp4` or
+      // `https:cdn.example.com/x` (no `//`) — these parse via `new URL()`
+      // but aren't what we mean.
+      if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+        if (HIERARCHICAL_HTTPS_RE.test(value)) {
+          try {
+            const parsed = new URL(value);
+            return (
+              (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+              parsed.host.length > 0
+            );
+          } catch {
+            return false;
+          }
+        }
+        if (HIERARCHICAL_ASSET_RE.test(value)) {
+          try {
+            const parsed = new URL(value);
+            return parsed.host.length > 0 || parsed.pathname.length > 1;
+          } catch {
+            return false;
+          }
+        }
+        // Some other opaque scheme (`ftp:`, `file:`, `mailto:`, …) —
+        // not what `file:` fields accept.
+        return false;
+      }
+      // No scheme — treat as a relative path. Reject absolute paths and
+      // backslashes (Windows-style) since the host loader expects POSIX
+      // relative paths.
+      if (value.startsWith("/")) return false;
+      return true;
+    },
+    {
+      message:
+        "File path must be a relative path (e.g. prompts/foo.prompt.md), an asset:// URI, or an http(s):// URL with a non-empty host.",
+    },
+  );
+export type FileType = z.infer<typeof fileSchema>;
+
+/**
+ * `promptFilePathSchema` — `fileSchema` plus the `.prompt.md` suffix
+ * requirement. Applies only to `prompt.file:`.
+ */
+export const promptFilePathSchema = fileSchema.refine(
+  (s) => s.endsWith(".prompt.md"),
+  {
+    message:
+      'Prompt files must use the .prompt.md extension (e.g., "myPrompt.prompt.md")',
+  },
+);
 
 // stage duration:
 export const durationSchema = z.number().int().positive(); // min: 1 second
@@ -1003,7 +1062,11 @@ const elementBaseSchema = z
   .object({
     name: nameSchema.optional(),
     notes: z.string().optional(),
-    file: fileSchema.or(fieldPlaceholderSchema).optional(),
+    // `file:` is intentionally NOT on the base schema — it's only valid on
+    // element types that actually consume a resource (prompt, audio, image,
+    // mediaPlayer). Per-type schemas declare it themselves so a stray
+    // `file:` on (e.g.) `submitButton` fails strict-key validation at
+    // preflight rather than being silently accepted. See #249.
     displayTime: displayTimeSchema.or(fieldPlaceholderSchema).optional(),
     hideTime: hideTimeSchema.or(fieldPlaceholderSchema).optional(),
     showToPositions: showToPositionsSchema
@@ -1131,10 +1194,12 @@ const mediaPlayerControlsSchema = z
 export const mediaPlayerSchema = elementBaseSchema
   .extend({
     type: z.literal("mediaPlayer"),
-    url: z.string(),
+    // `file:` (renamed from `url:` in #249) — a fileSchema-resolvable
+    // resource: relative path, asset:// URI, or http(s):// URL.
+    file: fileSchema,
     playVideo: z.boolean().optional(),
     playAudio: z.boolean().optional(),
-    captionsFile: z.string().optional(),
+    captionsFile: fileSchema.optional(),
     startAt: z.number().nonnegative().or(fieldPlaceholderSchema).optional(),
     stopAt: z.number().positive().or(fieldPlaceholderSchema).optional(),
     allowScrubOutsideBounds: z.boolean().optional(),
@@ -1242,7 +1307,7 @@ const trackedLinkParamSchema = z
 const qualtricsSchema = elementBaseSchema
   .extend({
     type: z.literal("qualtrics"),
-    url: urlSchema,
+    url: browserUrlSchema,
     urlParams: z
       .array(trackedLinkParamSchema, {
         invalid_type_error:
@@ -1258,7 +1323,7 @@ const trackedLinkSchema = elementBaseSchema
   .extend({
     type: z.literal("trackedLink"),
     name: nameSchema,
-    url: urlSchema,
+    url: browserUrlSchema,
     displayText: z.string().min(1),
     helperText: z.string().optional(),
     urlParams: z

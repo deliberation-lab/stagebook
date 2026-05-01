@@ -140,7 +140,7 @@ function validateTreatmentFile(document: vscode.TextDocument): void {
  * Walk the parsed treatment object and check that every local-asset path
  * referenced by an element exists. `getReferencedAssets` owns the per-element-
  * type allowlist of file-like fields (prompt.file, image.file, audio.file,
- * mediaPlayer.url, mediaPlayer.captionsFile) and filters out template
+ * mediaPlayer.file, mediaPlayer.captionsFile) and filters out template
  * placeholders and full URLs; we still apply a path-traversal guard here.
  */
 function checkFileReferences(
@@ -356,8 +356,8 @@ class FilePathCompletionProvider implements vscode.CompletionItemProvider {
     const prefix = line.substring(0, position.character);
 
     // Trigger inside the value of any recognised file-path field:
-    // `file:` (prompt/image/audio), `url:` (mediaPlayer — including local
-    // video files), or `captionsFile:` (mediaPlayer captions).
+    // `file:` (prompt/image/audio/mediaPlayer — including local video
+    // files) or `captionsFile:` (mediaPlayer captions).
     const ctx = parseFilePathCompletionContext(prefix);
     if (!ctx) return undefined;
 

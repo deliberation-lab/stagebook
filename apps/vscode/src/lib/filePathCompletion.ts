@@ -13,8 +13,11 @@
 /**
  * YAML field names that point at local asset paths and should trigger
  * file-path completion or surface quick-fix suggestions.
+ *
+ * After #249, `mediaPlayer.url` was renamed to `mediaPlayer.file`, so the
+ * file-path family is just `file` and `captionsFile`.
  */
-export const FILE_PATH_FIELDS = ["file", "url", "captionsFile"] as const;
+export const FILE_PATH_FIELDS = ["file", "captionsFile"] as const;
 
 /**
  * Glob pattern covering every local-asset file type the extension cares
@@ -26,7 +29,7 @@ export const ASSET_GLOB =
   "**/*.{prompt.md,md,yaml,jpg,jpeg,png,gif,webp,mp3,wav,m4a,ogg,mp4,webm,mov,vtt}";
 
 export interface FilePathCompletionContext {
-  /** The triggering field name (e.g. "file", "url", "captionsFile"). */
+  /** The triggering field name (e.g. "file", "captionsFile"). */
   field: (typeof FILE_PATH_FIELDS)[number];
   /** The partial path the user has typed after `<field>:<whitespace>`. */
   partial: string;

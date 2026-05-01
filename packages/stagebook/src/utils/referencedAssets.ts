@@ -10,7 +10,7 @@ const FILE_FIELDS_BY_ELEMENT_TYPE: Record<string, readonly string[]> = {
   prompt: ["file"],
   image: ["file"],
   audio: ["file"],
-  mediaPlayer: ["url", "captionsFile"],
+  mediaPlayer: ["file", "captionsFile"],
   // timeline.source is a name reference to another element, not a file path
   timeline: [],
 };

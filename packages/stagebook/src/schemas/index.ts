@@ -12,7 +12,7 @@ export {
 export {
   nameSchema,
   fileSchema,
-  urlSchema,
+  browserUrlSchema,
   durationSchema,
   displayTimeSchema,
   hideTimeSchema,
@@ -50,7 +50,7 @@ export {
   matchContentType,
   type NameType,
   type FileType,
-  type UrlType,
+  type BrowserUrlType,
   type DurationType,
   type DisplayTimeType,
   type HideTimeType,

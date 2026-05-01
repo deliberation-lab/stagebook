@@ -156,7 +156,7 @@ Use a direct URL for any video/audio file, or a YouTube URL for embedded YouTube
 ```yaml
 - type: mediaPlayer
   name: intro_video
-  url: https://example.com/study/clip.mp4
+  file: https://example.com/study/clip.mp4
 ```
 
 ### Play-once mode (default)
@@ -166,7 +166,7 @@ By default the video autoplays once with no participant controls. If the browser
 ```yaml
 - type: mediaPlayer
   name: intro_video
-  url: https://example.com/study/clip.mp4
+  file: https://example.com/study/clip.mp4
 ```
 
 You can also set this explicitly:
@@ -174,7 +174,7 @@ You can also set this explicitly:
 ```yaml
 - type: mediaPlayer
   name: intro_video
-  url: https://example.com/study/clip.mp4
+  file: https://example.com/study/clip.mp4
   playback: once
 ```
 
@@ -185,7 +185,7 @@ When you add `controls`, the playback mode automatically switches to `manual` â€
 ```yaml
 - type: mediaPlayer
   name: coding_clip
-  url: https://example.com/clips/scene1.mp4
+  file: https://example.com/clips/scene1.mp4
   controls:
     playPause: true
     seek: true # Â±1s seek buttons + scrub bar
@@ -203,7 +203,7 @@ Ties video time to stage elapsed time so all participants stay in sync. Hides al
 ```yaml
 - type: mediaPlayer
   name: group_video
-  url: https://youtu.be/QC8iQqtG0hg
+  file: https://youtu.be/QC8iQqtG0hg
   syncToStageTime: true
   submitOnComplete: true # stage advances when video ends
 ```
@@ -212,7 +212,7 @@ Ties video time to stage elapsed time so all participants stay in sync. Hides al
 
 | Field                     | Type                   | Default  | Description                                                                                                                                    |
 | ------------------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`                     | string                 | required | Direct media URL or YouTube URL                                                                                                                |
+| `file`                    | string                 | required | Direct media URL, YouTube URL, asset:// URI, or relative path to a local file                                                                  |
 | `playback`                | `"once"` or `"manual"` | `"once"` | `"once"`: autoplay with no controls; `"manual"`: participant uses controls. Defaults to `"once"` unless `controls` or `syncToStageTime` is set |
 | `playVideo`               | boolean                | `true`   | Show the video track (set `false` for audio-only)                                                                                              |
 | `playAudio`               | boolean                | `true`   | Unmute audio                                                                                                                                   |
@@ -248,7 +248,7 @@ Each interaction is appended to an event list under the element's name:
 ```json
 {
   "name": "coding_clip",
-  "url": "https://example.com/clips/scene1.mp4",
+  "file": "https://example.com/clips/scene1.mp4",
   "startAt": 30,
   "stopAt": 90,
   "lastVideoTime": 87.4,
@@ -287,7 +287,7 @@ The timeline links to a sibling `mediaPlayer` element by name via the `source` f
 ```yaml
 - type: mediaPlayer
   name: coding_video
-  url: shared/interview.mp4
+  file: shared/interview.mp4
   controls:
     playPause: true
     seek: true
@@ -585,7 +585,7 @@ A `mediaPlayer` element using both frames at once:
 
 ```yaml
 - type: mediaPlayer
-  url: https://example.com/clip.mp4
+  file: https://example.com/clip.mp4
   displayTime: 5 # stage time: appear 5s into the stage
   hideTime: 60 # stage time: hide 55s later
   startAt: 30 # media time: begin playback 30s into the clip

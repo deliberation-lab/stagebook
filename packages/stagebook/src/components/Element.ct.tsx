@@ -162,7 +162,7 @@ test.describe("Element router dispatch", () => {
         stage={singleElementStage({
           type: "mediaPlayer",
           name: "test_video",
-          url: "https://example.com/video.mp4",
+          file: "https://example.com/video.mp4",
         })}
       />,
     );

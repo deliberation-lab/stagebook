@@ -231,7 +231,7 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       );
 
     case "mediaPlayer": {
-      const rawURL = String(element.url ?? "");
+      const rawURL = String(element.file ?? "");
       const resolvedURL =
         rawURL.startsWith("http://") || rawURL.startsWith("https://")
           ? rawURL
