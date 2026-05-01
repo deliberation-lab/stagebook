@@ -2092,6 +2092,13 @@ export function matchContentType(contentType: ContentType): z.ZodTypeAny {
       return discussionSchema;
     case "broadcastAxisValues":
       return templateBroadcastAxisValuesSchema;
+    default: {
+      // Belt-and-suspenders: TS guarantees exhaustiveness over `ContentType`,
+      // but the function is exported and could be called from JS with an
+      // arbitrary string. Fail loudly rather than returning `undefined`.
+      const _exhaustive: never = contentType;
+      throw new Error(`Unknown contentType: ${String(_exhaustive)}`);
+    }
   }
 }
 
