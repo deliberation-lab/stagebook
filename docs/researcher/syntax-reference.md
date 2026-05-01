@@ -78,11 +78,9 @@ All elements accept: `name?`, `notes?`, `file?`, `displayTime?`, `hideTime?`, `s
 | `image`         | `file` (required), `width?`                                                                                                                                                                                                                    |
 | `mediaPlayer`   | `url` (required), `name`, `controls?`, `syncToStageTime?`, `submitOnComplete?`, `startAt?`, `stopAt?`, `stepDuration?`, `playVideo?`, `playAudio?`, `captionsFile?`, `allowScrubOutsideBounds?`                                                |
 | `timeline`      | `source` (required, name of a sibling `mediaPlayer`), `name` (required), `selectionType` (required, `range` or `point`), `selectionScope?` (default `all`), `multiSelect?` (default `false`), `showWaveform?` (default `true`), `trackLabels?` |
-| `survey`        | `surveyName` (required)                                                                                                                                                                                                                        |
+| `survey`        | `surveyName` (required) — _deprecated; pending removal once a module-reuse pattern lands. Prefer prompt-based patterns._                                                                                                                       |
 | `qualtrics`     | `url` (required), `urlParams?`                                                                                                                                                                                                                 |
 | `trackedLink`   | `name` (required), `url` (required), `displayText` (required), `helperText?`, `urlParams?`                                                                                                                                                     |
-| `sharedNotepad` | _(no extra fields)_                                                                                                                                                                                                                            |
-| `talkMeter`     | _(no extra fields)_                                                                                                                                                                                                                            |
 
 ### Media hosting requirements
 

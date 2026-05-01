@@ -85,12 +85,22 @@ export interface StagebookContext {
 
   // Platform-provided renderers for service-coupled elements
   renderDiscussion?: (config: DiscussionType) => React.ReactNode;
+  /**
+   * Renders a shared text input with collaborative editing semantics.
+   * Called by `prompt` elements with `shared: true` and an openResponse
+   * prompt file. (The standalone `sharedNotepad` element type was removed
+   * in #250 — shared prompts are now the single path.)
+   */
   renderSharedNotepad?: (config: {
     padName: string;
     defaultText?: string;
     rows?: number;
   }) => React.ReactNode;
-  renderTalkMeter?: () => React.ReactNode;
+  /**
+   * @deprecated `type: survey` is pending removal once Stagebook's
+   *   module-reuse pattern lands. Hosts should keep implementing this
+   *   for now; new treatment files should prefer prompt-based patterns.
+   */
   renderSurvey?: (config: {
     surveyName: string;
     onComplete: (results: unknown) => void;

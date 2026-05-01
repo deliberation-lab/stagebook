@@ -222,10 +222,9 @@ Requires StagebookProvider. Dispatches to the appropriate element component base
 
 | Slot | Config | When Used |
 |------|--------|-----------|
-| `renderSurvey` | `{ surveyName, onComplete }` | `type: "survey"` element |
+| `renderSurvey` | `{ surveyName, onComplete }` | `type: "survey"` element (deprecated — pending removal once a module-reuse pattern lands) |
 | `renderDiscussion` | Full `DiscussionType` config | Stage with `discussion` block |
-| `renderSharedNotepad` | `{ padName }` | `type: "sharedNotepad"` or `shared: true` prompt |
-| `renderTalkMeter` | _(none)_ | `type: "talkMeter"` element |
+| `renderSharedNotepad` | `{ padName }` | `shared: true` open-response prompt |
 
 ### Conditional Components
 

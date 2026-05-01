@@ -440,7 +440,7 @@ Provide via: `renderDiscussion(config)` on StagebookProvider (same slot as video
 
 ### Shared Notepad
 
-Required for `sharedNotepad` elements and `shared: true` open response prompts.
+Required for `shared: true` open-response prompts. (The standalone `sharedNotepad` element type was removed in #250 — shared prompts are the single path now.)
 
 The platform must:
 
@@ -452,18 +452,6 @@ The platform must:
 **Services used in deliberation-empirica**: Etherpad
 
 Provide via: `renderSharedNotepad(config)` on StagebookProvider.
-
-### Talk Meter
-
-Required for `talkMeter` elements.
-
-The platform must:
-
-- Detect which participant is speaking (requires audio analysis)
-- Track cumulative speaking time per participant
-- Display the results
-
-Provide via: `renderTalkMeter()` on StagebookProvider.
 
 ---
 

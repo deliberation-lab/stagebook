@@ -170,7 +170,6 @@ const context: StagebookContext = {
   // Optional: platform-provided renderers for service-coupled elements
   renderDiscussion: (config) => <YourVideoComponent {...config} />,
   renderSharedNotepad: (config) => <YourNotepadComponent {...config} />,
-  renderTalkMeter: () => <YourTalkMeter />,
 };
 ```
 
@@ -356,6 +355,8 @@ Some elements depend on external services or platform-specific libraries. Stageb
 
 ### Survey
 
+> **Deprecated.** `type: survey` is pending removal once Stagebook's module-reuse pattern lands. The element still works (the host's `renderSurvey` slot is still called); the runtime emits a one-time `console.warn` per `surveyName` at parse time. New treatment files should prefer prompt-based patterns where the survey can be expressed as a sequence of prompt elements.
+
 Surveys are rendered by the platform because they depend on a survey library (e.g., `@watts-lab/surveys`). Stagebook validates the element config, wraps the survey in conditional rendering, and handles data storage — but the platform provides the actual survey UI.
 
 #### What the researcher writes
@@ -441,23 +442,13 @@ The `config` parameter is the full `discussion` object from the treatment YAML, 
 
 ### Shared Notepad
 
-Collaborative text editors (e.g., Etherpad) are used for `sharedNotepad` elements and `shared: true` open response prompts.
+Collaborative text editors (e.g., Etherpad) are used by `shared: true` open-response prompts. (The standalone `sharedNotepad` element type was removed in #250.)
 
 ```typescript
 const context: StagebookContext = {
   renderSharedNotepad: ({ padName }) => (
     <EtherpadEmbed padName={padName} />
   ),
-};
-```
-
-### Talk Meter
-
-Speaking time tracking requires audio analysis, which is platform-specific.
-
-```typescript
-const context: StagebookContext = {
-  renderTalkMeter: () => <TalkTimeDisplay />,
 };
 ```
 

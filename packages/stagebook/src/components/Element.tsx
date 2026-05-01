@@ -94,7 +94,6 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
     progressLabel,
     renderSharedNotepad,
     renderDiscussion,
-    renderTalkMeter,
     renderSurvey,
     playerId,
     setAllowIdle,
@@ -315,16 +314,6 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           progressLabel={progressLabel}
           setAllowIdle={setAllowIdle}
         />
-      );
-
-    case "talkMeter":
-      return renderTalkMeter?.() ?? null;
-
-    case "sharedNotepad":
-      return (
-        renderSharedNotepad?.({
-          padName: element.name ?? "",
-        }) ?? null
       );
 
     case "qualtrics": {

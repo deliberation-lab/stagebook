@@ -13,10 +13,7 @@ export interface ViewerContextOptions {
   renderers?: Partial<
     Pick<
       StagebookContext,
-      | "renderDiscussion"
-      | "renderSurvey"
-      | "renderSharedNotepad"
-      | "renderTalkMeter"
+      "renderDiscussion" | "renderSurvey" | "renderSharedNotepad"
     >
   >;
 }

@@ -16,7 +16,7 @@ Two treatments are generated from a single template by broadcasting over a list 
 | **`groupComposition`** (matching participants by condition)          | `studyTreatment.groupComposition`                                      |
 | **Conditional rendering** on elements                                | Stage 3 consensus prompt                                               |
 | **`display` elements** (one player's response shown to another)      | Stage 3                                                                |
-| **Platform-coupled elements** (`survey`, `discussion`, `sharedNotepad`) | Intro `Personality`, Stage 2                                           |
+| **Platform-coupled elements** (`survey` ⚠️ deprecated, `discussion`, `shared: true` open-response prompt) | Intro `Personality`, Stage 2                                           |
 | **`qualtrics` element** (real iframe to an external survey)          | exit `Exit Survey`                                                     |
 
 The platform-coupled elements render as skeleton placeholders in the viewer — they require a host that implements the corresponding `render*` slot. The `qualtrics` element is different: stagebook renders it directly as an iframe to the configured URL, so the viewer will attempt to load `example.qualtrics.com` (which will fail, since that's a placeholder URL) rather than showing a skeleton.

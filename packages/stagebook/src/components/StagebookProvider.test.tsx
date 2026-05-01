@@ -91,18 +91,15 @@ describe("StagebookContext interface", () => {
     const ctx = createMockContext();
     expect(ctx.renderDiscussion).toBeUndefined();
     expect(ctx.renderSharedNotepad).toBeUndefined();
-    expect(ctx.renderTalkMeter).toBeUndefined();
   });
 
   test("render slots can be provided", () => {
     const ctx = createMockContext({
       renderDiscussion: () => React.createElement("div", null, "discussion"),
       renderSharedNotepad: () => React.createElement("div", null, "notepad"),
-      renderTalkMeter: () => React.createElement("div", null, "meter"),
     });
     expect(ctx.renderDiscussion).toBeDefined();
     expect(ctx.renderSharedNotepad).toBeDefined();
-    expect(ctx.renderTalkMeter).toBeDefined();
   });
 });
 

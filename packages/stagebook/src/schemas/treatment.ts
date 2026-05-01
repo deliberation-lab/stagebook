@@ -1061,12 +1061,6 @@ const separatorSchema = elementBaseSchema
   })
   .strict();
 
-const sharedNotepadSchema = elementBaseSchema
-  .extend({
-    type: z.literal("sharedNotepad"),
-  })
-  .strict();
-
 const submitButtonSchema = elementBaseSchema
   .extend({
     type: z.literal("submitButton"),
@@ -1074,19 +1068,44 @@ const submitButtonSchema = elementBaseSchema
   })
   .strict();
 
+/**
+ * @deprecated `type: survey` is pending removal once Stagebook's module-reuse
+ *   pattern lands. New treatment files should prefer prompt-based patterns
+ *   where the survey can be expressed as a sequence of prompt elements. The
+ *   schema still accepts it; the runtime emits a one-time warning per
+ *   `surveyName` when a survey element is parsed (see `warnSurveyDeprecation`
+ *   on the element-union outer superRefine).
+ */
 const surveySchema = elementBaseSchema
   .extend({
     type: z.literal("survey"),
     surveyName: z.string(),
-    // Todo: check that surveyName is a valid survey name
   })
   .strict();
 
-const talkMeterSchema = elementBaseSchema
-  .extend({
-    type: z.literal("talkMeter"),
-  })
-  .strict();
+// One-time `survey` deprecation warning — keyed by surveyName so each unique
+// survey logs at most once per process. Tracked for removal once the
+// module-reuse pattern lands; until then `survey` keeps working.
+const _warnedSurveys = new Set<string>();
+
+// Format the user-supplied surveyName for safe inclusion in a one-line
+// console message: JSON.stringify escapes quotes / control chars / newlines,
+// then truncate so a pathological multi-kilobyte string can't blow out logs.
+const MAX_SURVEY_NAME_LOG_CHARS = 200;
+function formatSurveyNameForLog(surveyName: string): string {
+  const escaped = JSON.stringify(surveyName);
+  return escaped.length > MAX_SURVEY_NAME_LOG_CHARS
+    ? `${escaped.slice(0, MAX_SURVEY_NAME_LOG_CHARS - 1)}…`
+    : escaped;
+}
+
+function warnSurveyDeprecation(surveyName: string): void {
+  if (_warnedSurveys.has(surveyName)) return;
+  _warnedSurveys.add(surveyName);
+  console.warn(
+    `[stagebook] \`type: survey\` is deprecated and tracked for removal once a module-reuse pattern lands (surveyName: ${formatSurveyNameForLog(surveyName)}). Prefer prompt-based patterns where the survey can be expressed as a sequence of prompt elements.`,
+  );
+}
 
 const timerSchema = elementBaseSchema
   .extend({
@@ -1258,10 +1277,9 @@ export const validElementTypes = [
   "prompt",
   "qualtrics",
   "separator",
-  "sharedNotepad",
   "submitButton",
+  // `survey` is deprecated (see surveySchema's JSDoc) but still accepted.
   "survey",
-  "talkMeter",
   "timer",
   "mediaPlayer",
   "timeline",
@@ -1320,10 +1338,8 @@ const elementSchemasByType = {
   prompt: promptSchema,
   qualtrics: qualtricsSchema,
   separator: separatorSchema,
-  sharedNotepad: sharedNotepadSchema,
   submitButton: submitButtonSchema,
   survey: surveySchema,
-  talkMeter: talkMeterSchema,
   timer: timerSchema,
   mediaPlayer: mediaPlayerSchema,
   timeline: timelineSchema,
@@ -1451,10 +1467,8 @@ export const elementSchema = altTemplateContext(
       promptSchema,
       qualtricsSchema,
       separatorSchema,
-      sharedNotepadSchema,
       submitButtonSchema,
       surveySchema,
-      talkMeterSchema,
       timerSchema,
       mediaPlayerSchema,
       timelineSchema,
@@ -1466,6 +1480,9 @@ export const elementSchema = altTemplateContext(
       // inside the discriminated union, so we never reach here for it.
       if (data.type === "mediaPlayer") {
         checkMediaPlayerCrossFields(data, ctx);
+      }
+      if (data.type === "survey") {
+        warnSurveyDeprecation(data.surveyName);
       }
     }),
 );
