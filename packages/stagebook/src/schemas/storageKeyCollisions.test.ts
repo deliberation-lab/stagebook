@@ -74,12 +74,38 @@ describe("collectStorageKeyCollisions", () => {
     expect(collisions).toHaveLength(1);
     expect(collisions[0].key).toBe("prompt_q1");
     expect(collisions[0].paths).toHaveLength(2);
-    // Paths span different stages
-    expect(collisions[0].paths[0][3]).toBe(0); // gameStages[0]
-    expect(collisions[0].paths[1][3]).toBe(1); // gameStages[1]
   });
 
-  it("flags duplicates between intro and game phases", () => {
+  it("flags duplicates between game stages and exit sequence in the same treatment", () => {
+    const data = {
+      treatments: [
+        {
+          name: "t1",
+          gameStages: [
+            {
+              name: "stage1",
+              elements: [
+                { type: "prompt", name: "shared", file: "a.prompt.md" },
+              ],
+            },
+          ],
+          exitSequence: [
+            {
+              name: "exit1",
+              elements: [
+                { type: "prompt", name: "shared", file: "a.prompt.md" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const collisions = collectStorageKeyCollisions(data);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].key).toBe("prompt_shared");
+  });
+
+  it("flags duplicates between intro sequence and game stage (cross-pair)", () => {
     const data = {
       introSequences: [
         {
@@ -111,38 +137,37 @@ describe("collectStorageKeyCollisions", () => {
     const collisions = collectStorageKeyCollisions(data);
     expect(collisions).toHaveLength(1);
     expect(collisions[0].key).toBe("prompt_shared");
+    expect(collisions[0].message).toContain("introSequence");
+    expect(collisions[0].message).toContain("treatment");
   });
 
-  it("flags duplicates between game and exit phases", () => {
+  it("does NOT flag duplicates across separate treatments (each participant only experiences one)", () => {
     const data = {
       treatments: [
         {
-          name: "t1",
+          name: "treatment_A",
           gameStages: [
             {
               name: "stage1",
-              elements: [
-                { type: "prompt", name: "shared", file: "a.prompt.md" },
-              ],
+              elements: [{ type: "prompt", name: "q1", file: "a.prompt.md" }],
             },
           ],
-          exitSequence: [
+        },
+        {
+          name: "treatment_B",
+          gameStages: [
             {
-              name: "exit1",
-              elements: [
-                { type: "prompt", name: "shared", file: "a.prompt.md" },
-              ],
+              name: "stage1",
+              elements: [{ type: "prompt", name: "q1", file: "a.prompt.md" }],
             },
           ],
         },
       ],
     };
-    const collisions = collectStorageKeyCollisions(data);
-    expect(collisions).toHaveLength(1);
-    expect(collisions[0].key).toBe("prompt_shared");
+    expect(collectStorageKeyCollisions(data)).toEqual([]);
   });
 
-  it("flags duplicates across intro sequences", () => {
+  it("does NOT flag duplicates across separate intro sequences (each participant only goes through one)", () => {
     const data = {
       introSequences: [
         {
@@ -165,9 +190,53 @@ describe("collectStorageKeyCollisions", () => {
         },
       ],
     };
+    expect(collectStorageKeyCollisions(data)).toEqual([]);
+  });
+
+  it("flags an intro key colliding with EVERY treatment as a separate cross-pair (since any pairing is possible)", () => {
+    const data = {
+      introSequences: [
+        {
+          name: "intro1",
+          introSteps: [
+            {
+              name: "welcome",
+              elements: [
+                { type: "prompt", name: "shared", file: "a.prompt.md" },
+              ],
+            },
+          ],
+        },
+      ],
+      treatments: [
+        {
+          name: "treatment_A",
+          gameStages: [
+            {
+              name: "stage1",
+              elements: [
+                { type: "prompt", name: "shared", file: "a.prompt.md" },
+              ],
+            },
+          ],
+        },
+        {
+          name: "treatment_B",
+          gameStages: [
+            {
+              name: "stage1",
+              elements: [
+                { type: "prompt", name: "shared", file: "a.prompt.md" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
     const collisions = collectStorageKeyCollisions(data);
-    expect(collisions).toHaveLength(1);
-    expect(collisions[0].key).toBe("prompt_q1");
+    expect(collisions).toHaveLength(2);
+    expect(collisions[0].message).toContain("treatment");
+    expect(collisions[1].message).toContain("treatment");
   });
 
   it("does not flag identical names on different element types as duplicates", () => {

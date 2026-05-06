@@ -1,13 +1,23 @@
 /**
- * Storage-key collision detection (treatment-wide).
+ * Storage-key collision detection.
  *
  * Two elements that resolve to the same `{type}_{name}` storage key silently
- * overwrite each other's saved data. Storage keys must be unique across every
- * phase of a treatment (intro, game stages, exit). This is enforced at schema
- * validation time as an error — no per-stage carve-outs.
+ * overwrite each other's saved data when both are encountered by the same
+ * participant. Storage keys must be unique within the scope a single
+ * participant traverses:
  *
- * Authors who need the same prompt file in multiple places use the per-element
- * `name:` override to disambiguate (e.g. `name: pretest_q1` vs `name: posttest_q1`).
+ *   - within a single intro sequence (one solo phase, all steps)
+ *   - within a single treatment (game stages + exit sequence combined)
+ *   - within each (intro sequence × treatment) pair, since a participant
+ *     who flows from one intro into one treatment encounters both sets
+ *
+ * Collisions ACROSS intro sequences (or across treatments) are NOT
+ * collisions for any single participant — each participant only ever
+ * encounters one of each — so they're allowed.
+ *
+ * Authors who need the same prompt file in multiple places use the
+ * per-element `name:` override (e.g. `name: pretest_q1` vs
+ * `name: posttest_q1`) to disambiguate.
  *
  * Key derivation mirrors the save() calls in src/components/elements/:
  *   audio        → `audio_${name ?? file}`
@@ -85,23 +95,66 @@ function scanElements(
   });
 }
 
+function emitDuplicates(
+  keys: Map<string, Path[]>,
+  scopeDescription: string,
+): StorageKeyCollision[] {
+  const out: StorageKeyCollision[] = [];
+  keys.forEach((paths, key) => {
+    if (paths.length < 2) return;
+    out.push({
+      key,
+      paths,
+      message: `Duplicate storage key "${key}" in ${scopeDescription}: ${paths.length} elements share this key. Storage keys must be unique within every (intro sequence × treatment) pair a participant can traverse. Use the per-element \`name:\` override to disambiguate.`,
+    });
+  });
+  return out;
+}
+
+/**
+ * Merge two key maps and return a *new* map containing only entries whose
+ * combined paths come from BOTH inputs (i.e., the cross-scope duplicates).
+ * Within-scope duplicates are caller's job to surface separately.
+ */
+function crossDuplicates(
+  a: Map<string, Path[]>,
+  b: Map<string, Path[]>,
+): Map<string, Path[]> {
+  const out = new Map<string, Path[]>();
+  a.forEach((aPaths, key) => {
+    const bPaths = b.get(key);
+    if (bPaths && bPaths.length > 0 && aPaths.length > 0) {
+      out.set(key, [...aPaths, ...bPaths]);
+    }
+  });
+  return out;
+}
+
+function describe(name: unknown, fallbackIndex: number): string {
+  return typeof name === "string" && name.length > 0
+    ? `"${name}"`
+    : `#${fallbackIndex}`;
+}
+
 export function collectStorageKeyCollisions(
   data: unknown,
 ): StorageKeyCollision[] {
   if (!data || typeof data !== "object") return [];
   const root = data as Record<string, unknown>;
+  const out: StorageKeyCollision[] = [];
 
-  // One global map across every phase.
-  const keys = new Map<string, Path[]>();
-
-  // Intro sequences
+  // Build per-introSequence key maps; surface within-introSequence duplicates.
+  const introMaps: { name: unknown; idx: number; keys: Map<string, Path[]> }[] =
+    [];
   const introSequences = Array.isArray(root.introSequences)
     ? root.introSequences
     : [];
   introSequences.forEach((seq, seqIdx) => {
     if (!seq || typeof seq !== "object") return;
-    const s = seq as { introSteps?: unknown };
+    const s = seq as { name?: unknown; introSteps?: unknown };
     const steps = Array.isArray(s.introSteps) ? s.introSteps : [];
+    if (steps.length === 0) return;
+    const keys = new Map<string, Path[]>();
     steps.forEach((step, stepIdx) => {
       if (!step || typeof step !== "object") return;
       const st = step as { elements?: unknown };
@@ -111,45 +164,66 @@ export function collectStorageKeyCollisions(
         keys,
       );
     });
+    out.push(
+      ...emitDuplicates(keys, `introSequence ${describe(s.name, seqIdx)}`),
+    );
+    introMaps.push({ name: s.name, idx: seqIdx, keys });
   });
 
-  // Treatments — gameStages and exitSequence
+  // Build per-treatment key maps; surface within-treatment duplicates.
+  const treatmentMaps: {
+    name: unknown;
+    idx: number;
+    keys: Map<string, Path[]>;
+  }[] = [];
   const treatments = Array.isArray(root.treatments) ? root.treatments : [];
-  treatments.forEach((treatment, treatmentIdx) => {
+  treatments.forEach((treatment, tIdx) => {
     if (!treatment || typeof treatment !== "object") return;
-    const t = treatment as { gameStages?: unknown; exitSequence?: unknown };
-
+    const t = treatment as {
+      name?: unknown;
+      gameStages?: unknown;
+      exitSequence?: unknown;
+    };
+    const keys = new Map<string, Path[]>();
     const gameStages = Array.isArray(t.gameStages) ? t.gameStages : [];
     gameStages.forEach((stage, stageIdx) => {
       if (!stage || typeof stage !== "object") return;
       const s = stage as { elements?: unknown };
       scanElements(
         s.elements,
-        ["treatments", treatmentIdx, "gameStages", stageIdx, "elements"],
+        ["treatments", tIdx, "gameStages", stageIdx, "elements"],
         keys,
       );
     });
-
     const exitSequence = Array.isArray(t.exitSequence) ? t.exitSequence : [];
     exitSequence.forEach((step, stepIdx) => {
       if (!step || typeof step !== "object") return;
       const st = step as { elements?: unknown };
       scanElements(
         st.elements,
-        ["treatments", treatmentIdx, "exitSequence", stepIdx, "elements"],
+        ["treatments", tIdx, "exitSequence", stepIdx, "elements"],
         keys,
       );
     });
+    if (keys.size === 0) return;
+    out.push(...emitDuplicates(keys, `treatment ${describe(t.name, tIdx)}`));
+    treatmentMaps.push({ name: t.name, idx: tIdx, keys });
   });
 
-  const out: StorageKeyCollision[] = [];
-  keys.forEach((paths, key) => {
-    if (paths.length < 2) return;
-    out.push({
-      key,
-      paths,
-      message: `Duplicate storage key "${key}": ${paths.length} elements share this key. Storage keys must be unique across every phase of a treatment file. Use the per-element \`name:\` override to disambiguate.`,
-    });
-  });
+  // Cross-pair: every (introSequence × treatment) combination. A participant
+  // who flows from intro_i into treatment_j sees both sets, so any key
+  // appearing in both is a collision for that participant.
+  for (const intro of introMaps) {
+    for (const treatment of treatmentMaps) {
+      const cross = crossDuplicates(intro.keys, treatment.keys);
+      out.push(
+        ...emitDuplicates(
+          cross,
+          `pair of introSequence ${describe(intro.name, intro.idx)} × treatment ${describe(treatment.name, treatment.idx)}`,
+        ),
+      );
+    }
+  }
+
   return out;
 }
