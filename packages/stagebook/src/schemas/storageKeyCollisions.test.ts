@@ -281,6 +281,83 @@ describe("collectStorageKeyCollisions", () => {
     expect(collisions[0].key).toBe("audio_intro.mp3");
   });
 
+  it("derives keys for mediaPlayer (name OR file fallback) — matches Element.tsx runtime", () => {
+    // Per Element.tsx:277, mediaPlayer falls back to the raw `file` field
+    // (NOT `url` — that field was renamed to `file` in #249).
+    const data = {
+      treatments: [
+        {
+          name: "t1",
+          gameStages: [
+            {
+              name: "stage1",
+              elements: [
+                { type: "mediaPlayer", file: "intro.mp4" },
+                { type: "mediaPlayer", file: "intro.mp4" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const collisions = collectStorageKeyCollisions(data);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].key).toBe("mediaPlayer_intro.mp4");
+  });
+
+  it("flags any two qualtrics elements in the same scope as colliding (fixed key)", () => {
+    // Qualtrics writes to a fixed `qualtricsDataReady` key regardless of
+    // name/url (Qualtrics.tsx:50), so any two qualtrics elements in the
+    // same scope silently overwrite each other.
+    const data = {
+      treatments: [
+        {
+          name: "t1",
+          gameStages: [
+            {
+              name: "stage1",
+              elements: [
+                { type: "qualtrics", url: "https://example.qualtrics.com/a" },
+                { type: "qualtrics", url: "https://example.qualtrics.com/b" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const collisions = collectStorageKeyCollisions(data);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].paths).toHaveLength(2);
+  });
+
+  it("flags qualtrics elements as colliding even across stages within a treatment", () => {
+    // Different URLs, different stages — still collides because the key is fixed.
+    const data = {
+      treatments: [
+        {
+          name: "t1",
+          gameStages: [
+            {
+              name: "stage1",
+              elements: [
+                { type: "qualtrics", url: "https://example.qualtrics.com/a" },
+              ],
+            },
+            {
+              name: "stage2",
+              elements: [
+                { type: "qualtrics", url: "https://example.qualtrics.com/b" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const collisions = collectStorageKeyCollisions(data);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].paths).toHaveLength(2);
+  });
+
   it("derives keys for survey (name OR surveyName fallback)", () => {
     const data = {
       treatments: [

@@ -27,7 +27,11 @@
  *   survey       → `survey_${name ?? surveyName}`
  *   submitButton → `submitButton_${name}` (runtime fallback is progressLabel;
  *                   only checked when `name` is set)
- *   mediaPlayer  → `mediaPlayer_${name ?? url}`
+ *   mediaPlayer  → `mediaPlayer_${name ?? file}` (runtime falls back to the
+ *                   raw `file` field at Element.tsx:277, before URL resolution)
+ *   qualtrics    → fixed key `qualtricsDataReady` (Qualtrics.tsx:50). Any
+ *                   two qualtrics elements in the same scope collide
+ *                   regardless of name/url, since the key is constant.
  *   timeline     → `timeline_${name}` (name is required by the schema)
  *   trackedLink  → `trackedLink_${name}` (name is required by the schema)
  */
@@ -62,7 +66,7 @@ function storageKeyFor(element: unknown): string | null {
       suffix = name ?? strField(el, "surveyName");
       break;
     case "mediaPlayer":
-      suffix = name ?? strField(el, "url");
+      suffix = name ?? strField(el, "file");
       break;
     case "prompt":
     case "submitButton":
@@ -70,6 +74,11 @@ function storageKeyFor(element: unknown): string | null {
     case "trackedLink":
       suffix = name;
       break;
+    case "qualtrics":
+      // Qualtrics writes to a fixed key regardless of element identity, so
+      // any two qualtrics elements in the same scope collide. Return a
+      // synthetic key that's identical for every qualtrics element.
+      return "qualtrics_qualtricsDataReady";
     default:
       return null;
   }
