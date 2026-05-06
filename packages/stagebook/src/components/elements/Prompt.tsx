@@ -62,7 +62,12 @@ export function Prompt({
   const numericPoints = responsePoints ?? sliderPoints;
   const hasNumericPoints =
     numericPoints !== undefined && numericPoints.length > 0;
-  const [responses, setResponses] = useState<string[]>([]);
+  // `shuffleOrder[i]` is the original index of the option at display
+  // position `i`. We track *one* shuffle order and derive both labels and
+  // numeric points from it, so a shuffled label always stays paired with
+  // its corresponding numeric value (#282 — without this, a shuffled
+  // numeric multipleChoice records the wrong number for the chosen label).
+  const [shuffleOrder, setShuffleOrder] = useState<number[]>([]);
   const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
   const debounceTextRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceInteractiveRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -84,19 +89,35 @@ export function Prompt({
     (promptType === "multipleChoice" || promptType === "listSorter") &&
     metadata.shuffle === true;
 
-  // Initialize responses from responseItems (with optional shuffle)
+  // Initialize shuffleOrder when responseItems first arrives or changes
+  // length. Reshuffles only when the option set itself changes — the
+  // setEquality guard prevents a re-shuffle on every render.
   if (
     promptType !== "noResponse" &&
     responseItems.length > 0 &&
-    (!responses.length ||
-      !setEquality(new Set(responseItems), new Set(responses)))
+    (shuffleOrder.length !== responseItems.length ||
+      !setEquality(
+        new Set(responseItems),
+        new Set(shuffleOrder.map((i) => responseItems[i] ?? "")),
+      ))
   ) {
+    const indices = Array.from({ length: responseItems.length }, (_, i) => i);
     if (shouldShuffle) {
-      setResponses([...responseItems].sort(() => 0.5 - Math.random()));
-    } else {
-      setResponses(responseItems);
+      indices.sort(() => 0.5 - Math.random());
     }
+    setShuffleOrder(indices);
   }
+
+  // Apply the shuffle to both labels and (when present) numeric points so
+  // they stay aligned at every display position.
+  const responses =
+    shuffleOrder.length === responseItems.length
+      ? shuffleOrder.map((i) => responseItems[i] ?? "")
+      : responseItems;
+  const shuffledNumericPoints =
+    numericPoints && shuffleOrder.length === numericPoints.length
+      ? shuffleOrder.map((i) => numericPoints[i] ?? 0)
+      : numericPoints;
 
   const record = {
     ...metadata,
@@ -157,19 +178,19 @@ export function Prompt({
         // In numeric mode (#282) the option key is the stringified number;
         // the saved value is the number (parsed back from the key) and the
         // label is the displayed text. In text mode value === label.
-        (hasNumericPoints ? (
+        (hasNumericPoints && shuffledNumericPoints ? (
           <RadioGroup
             options={responses.map((label, idx) => ({
-              key: String(numericPoints[idx]),
+              key: String(shuffledNumericPoints[idx]),
               value: label,
             }))}
             value={typeof value === "number" ? String(value) : undefined}
             layout={metadata.layout}
             onChange={(e) => {
-              const idx = (numericPoints ?? []).findIndex(
+              const idx = shuffledNumericPoints.findIndex(
                 (p) => String(p) === e.target.value,
               );
-              const numericValue = numericPoints[idx];
+              const numericValue = shuffledNumericPoints[idx];
               const label = responses[idx] ?? "";
               debouncedSaveInteractive(numericValue, record, label);
             }}
