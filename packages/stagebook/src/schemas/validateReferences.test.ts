@@ -79,10 +79,9 @@ describe("Rule 1 — no forward references", () => {
           duration: 60,
           conditions: [
             {
-              reference: "prompt.laterAnswer",
+              reference: "shared.prompt.laterAnswer",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton" }],
@@ -121,7 +120,7 @@ describe("Rule 1 — no forward references", () => {
               type: "submitButton",
               conditions: [
                 {
-                  reference: "prompt.laterAnswer",
+                  reference: "self.prompt.laterAnswer",
                   comparator: "equals",
                   value: "yes",
                 },
@@ -159,7 +158,7 @@ describe("Rule 1 — no forward references", () => {
           name: "s1",
           duration: 60,
           elements: [
-            { type: "display", reference: "prompt.laterAnswer" },
+            { type: "display", reference: "self.prompt.laterAnswer" },
             { type: "submitButton" },
           ],
         },
@@ -198,7 +197,9 @@ describe("Rule 1 — no forward references", () => {
               name: "signup",
               url: "https://example.org",
               displayText: "Go",
-              urlParams: [{ key: "answer", reference: "prompt.laterAnswer" }],
+              urlParams: [
+                { key: "answer", reference: "self.prompt.laterAnswer" },
+              ],
             },
           ],
         },
@@ -235,7 +236,7 @@ describe("Rule 1 — no forward references", () => {
             {
               type: "qualtrics",
               url: "https://upenn.qualtrics.com/jfe/form/SV_x",
-              urlParams: [{ key: "x", reference: "prompt.laterAnswer" }],
+              urlParams: [{ key: "x", reference: "self.prompt.laterAnswer" }],
             },
           ],
         },
@@ -274,10 +275,9 @@ describe("Rule 1 — no forward references", () => {
             showTitle: false,
             conditions: [
               {
-                reference: "prompt.laterAnswer",
+                reference: "shared.prompt.laterAnswer",
                 comparator: "equals",
                 value: "yes",
-                position: "shared",
               },
             ],
           },
@@ -314,7 +314,7 @@ describe("Rule 1 — no forward references", () => {
           title: "Confederate",
           conditions: [
             {
-              reference: "prompt.gameStageAnswer",
+              reference: "self.prompt.gameStageAnswer",
               comparator: "equals",
               value: "yes",
             },
@@ -325,7 +325,7 @@ describe("Rule 1 — no forward references", () => {
           title: "Participant",
           conditions: [
             {
-              reference: "prompt.gameStageAnswer",
+              reference: "self.prompt.gameStageAnswer",
               comparator: "doesNotEqual",
               value: "yes",
             },
@@ -373,7 +373,7 @@ describe("Rule 1 — no forward references", () => {
           title: "D",
           conditions: [
             {
-              reference: "prompt.partyAffiliation",
+              reference: "self.prompt.partyAffiliation",
               comparator: "equals",
               value: "democrat",
             },
@@ -384,7 +384,7 @@ describe("Rule 1 — no forward references", () => {
           title: "R",
           conditions: [
             {
-              reference: "prompt.partyAffiliation",
+              reference: "self.prompt.partyAffiliation",
               comparator: "equals",
               value: "republican",
             },
@@ -405,7 +405,7 @@ describe("Rule 1 — no forward references", () => {
           name: "welcome",
           conditions: [
             {
-              reference: "prompt.gameAnswer",
+              reference: "self.prompt.gameAnswer",
               comparator: "equals",
               value: "yes",
             },
@@ -440,7 +440,7 @@ describe("Rule 1 — no forward references", () => {
         {
           name: "welcome",
           elements: [
-            { type: "display", reference: "prompt.gameAnswer" },
+            { type: "display", reference: "self.prompt.gameAnswer" },
             { type: "submitButton" },
           ],
         },
@@ -479,7 +479,7 @@ describe("Rule 1 — no forward references", () => {
           elements: [
             {
               type: "display",
-              reference: "survey.MySurvey.result.answer",
+              reference: "self.survey.MySurvey.result.answer",
             },
             { type: "submitButton" },
           ],
@@ -512,16 +512,15 @@ describe("Rule 1 — no forward references", () => {
           duration: 60,
           conditions: [
             {
-              reference: "entryUrl.params.cohort",
+              reference: "shared.entryUrl.params.cohort",
               comparator: "equals",
               value: "a",
-              position: "shared",
             },
           ],
           elements: [
             {
               type: "display",
-              reference: "participantInfo.playerId",
+              reference: "self.participantInfo.playerId",
             },
             { type: "submitButton" },
           ],
@@ -548,10 +547,9 @@ describe("Rule 1 — no forward references", () => {
           duration: 60,
           conditions: [
             {
-              reference: "prompt.early",
+              reference: "shared.prompt.early",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton" }],
@@ -579,10 +577,9 @@ describe("Rule 1 — no forward references", () => {
           name: "debrief",
           conditions: [
             {
-              reference: "prompt.main",
+              reference: "shared.prompt.main",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton" }],
@@ -620,7 +617,7 @@ describe("Unknown-reference detection", () => {
               type: "submitButton",
               conditions: [
                 {
-                  reference: "timeline.storySegment2",
+                  reference: "self.timeline.storySegment2",
                   comparator: "exists",
                 },
               ],
@@ -646,10 +643,9 @@ describe("Unknown-reference detection", () => {
           duration: 60,
           conditions: [
             {
-              reference: "prompt.nonexistent",
+              reference: "shared.prompt.nonexistent",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton" }],
@@ -705,7 +701,7 @@ describe("Unknown-reference detection", () => {
               elements: [
                 {
                   type: "display",
-                  reference: "prompt.templatedPrompt",
+                  reference: "self.prompt.templatedPrompt",
                 },
                 { type: "submitButton" },
               ],
@@ -735,7 +731,7 @@ describe("Unknown-reference detection", () => {
               type: "submitButton",
               conditions: [
                 {
-                  reference: "discussion.someRoom.messages",
+                  reference: "self.discussion.someRoom.messages",
                   comparator: "exists",
                 },
               ],
@@ -757,7 +753,7 @@ describe("Unknown-reference detection", () => {
           elements: [
             {
               type: "display",
-              reference: "entryUrl.params.neverDeclared",
+              reference: "self.entryUrl.params.neverDeclared",
             },
             { type: "submitButton" },
           ],
@@ -778,9 +774,8 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
           duration: 60,
           conditions: [
             {
-              reference: "submitButton.speedSubmit",
+              reference: "shared.submitButton.speedSubmit",
               comparator: "doesNotExist",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton", name: "speedSubmit" }],
@@ -799,9 +794,8 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
           duration: 60,
           conditions: [
             {
-              reference: "submitButton.s",
+              reference: "shared.submitButton.s",
               comparator: "exists",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton", name: "s" }],
@@ -825,10 +819,9 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
           duration: 60,
           conditions: [
             {
-              reference: "prompt.currentAnswer",
+              reference: "shared.prompt.currentAnswer",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [
@@ -869,7 +862,7 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
               type: "submitButton",
               conditions: [
                 {
-                  reference: "prompt.currentAnswer",
+                  reference: "self.prompt.currentAnswer",
                   comparator: "equals",
                   value: "yes",
                 },
@@ -895,7 +888,7 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
               name: "currentAnswer",
               file: "c.prompt.md",
             },
-            { type: "display", reference: "prompt.currentAnswer" },
+            { type: "display", reference: "self.prompt.currentAnswer" },
             { type: "submitButton" },
           ],
         },
@@ -922,7 +915,7 @@ describe("Rule 2 — stage-level always-skip-at-load (current-stage refs only)",
               name: "link",
               url: "https://example.org",
               displayText: "Go",
-              urlParams: [{ key: "a", reference: "prompt.currentAnswer" }],
+              urlParams: [{ key: "a", reference: "self.prompt.currentAnswer" }],
             },
           ],
         },
@@ -947,10 +940,9 @@ describe("Rule 2 with boolean-tree operators (#235)", () => {
           duration: 60,
           conditions: [
             {
-              reference: "prompt.q",
+              reference: "shared.prompt.q",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [
@@ -976,10 +968,9 @@ describe("Rule 2 with boolean-tree operators (#235)", () => {
           conditions: {
             all: [
               {
-                reference: "prompt.q",
+                reference: "shared.prompt.q",
                 comparator: "equals",
                 value: "yes",
-                position: "shared",
               },
             ],
           } as unknown as Record<string, unknown>[],
@@ -1011,16 +1002,14 @@ describe("Rule 2 with boolean-tree operators (#235)", () => {
           conditions: {
             any: [
               {
-                reference: "prompt.q",
+                reference: "shared.prompt.q",
                 comparator: "equals",
                 value: "yes",
-                position: "shared",
               },
               {
-                reference: "prompt.r",
+                reference: "shared.prompt.r",
                 comparator: "equals",
                 value: "yes",
-                position: "shared",
               },
             ],
           } as unknown as Record<string, unknown>[],
@@ -1051,10 +1040,9 @@ describe("Rule 2 with boolean-tree operators (#235)", () => {
           conditions: {
             none: [
               {
-                reference: "prompt.q",
+                reference: "shared.prompt.q",
                 comparator: "equals",
                 value: "yes",
-                position: "shared",
               },
             ],
           } as unknown as Record<string, unknown>[],
@@ -1083,10 +1071,9 @@ describe("Rule 2 with boolean-tree operators (#235)", () => {
               {
                 any: [
                   {
-                    reference: "prompt.q",
+                    reference: "shared.prompt.q",
                     comparator: "equals",
                     value: "yes",
-                    position: "shared",
                   },
                 ],
               },
@@ -1116,10 +1103,9 @@ describe("treatmentFileSchema surfaces walker issues via superRefine (red-squigg
           duration: 60,
           conditions: [
             {
-              reference: "prompt.later",
+              reference: "shared.prompt.later",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton" }],

@@ -5,37 +5,39 @@ import { getReferenceKeyAndPath, getNestedValueByPath } from "./reference.js";
 
 describe("getReferenceKeyAndPath", () => {
   test("survey reference", () => {
-    const result = getReferenceKeyAndPath("survey.bigFive.result.score");
+    const result = getReferenceKeyAndPath("self.survey.bigFive.result.score");
     expect(result.referenceKey).toBe("survey_bigFive");
     expect(result.path).toEqual(["result", "score"]);
   });
 
   test("submitButton reference", () => {
-    const result = getReferenceKeyAndPath("submitButton.continue.time");
+    const result = getReferenceKeyAndPath("self.submitButton.continue.time");
     expect(result.referenceKey).toBe("submitButton_continue");
     expect(result.path).toEqual(["time"]);
   });
 
   test("qualtrics reference", () => {
-    const result = getReferenceKeyAndPath("qualtrics.mySurvey.responses.Q1");
+    const result = getReferenceKeyAndPath(
+      "self.qualtrics.mySurvey.responses.Q1",
+    );
     expect(result.referenceKey).toBe("qualtrics_mySurvey");
     expect(result.path).toEqual(["responses", "Q1"]);
   });
 
   test("prompt reference defaults path to ['value']", () => {
-    const result = getReferenceKeyAndPath("prompt.myQuestion");
+    const result = getReferenceKeyAndPath("self.prompt.myQuestion");
     expect(result.referenceKey).toBe("prompt_myQuestion");
     expect(result.path).toEqual(["value"]);
   });
 
   test("trackedLink reference", () => {
-    const result = getReferenceKeyAndPath("trackedLink.followUp.events");
+    const result = getReferenceKeyAndPath("self.trackedLink.followUp.events");
     expect(result.referenceKey).toBe("trackedLink_followUp");
     expect(result.path).toEqual(["events"]);
   });
 
   test("entryUrl.params reference (renamed from urlParams in #246)", () => {
-    const result = getReferenceKeyAndPath("entryUrl.params.condition");
+    const result = getReferenceKeyAndPath("self.entryUrl.params.condition");
     expect(result.referenceKey).toBe("entryUrl");
     expect(result.path).toEqual(["params", "condition"]);
   });
@@ -47,13 +49,13 @@ describe("getReferenceKeyAndPath", () => {
   });
 
   test("connectionInfo reference", () => {
-    const result = getReferenceKeyAndPath("connectionInfo.country");
+    const result = getReferenceKeyAndPath("self.connectionInfo.country");
     expect(result.referenceKey).toBe("connectionInfo");
     expect(result.path).toEqual(["country"]);
   });
 
   test("browserInfo reference", () => {
-    const result = getReferenceKeyAndPath("browserInfo.name");
+    const result = getReferenceKeyAndPath("self.browserInfo.name");
     expect(result.referenceKey).toBe("browserInfo");
     expect(result.path).toEqual(["name"]);
   });
@@ -62,51 +64,51 @@ describe("getReferenceKeyAndPath", () => {
     // participantInfo uses the same flat-namespace pattern as connectionInfo
     // and browserInfo — stored under a single `participantInfo` key with
     // the field addressed via the nested path.
-    const result = getReferenceKeyAndPath("participantInfo.name");
+    const result = getReferenceKeyAndPath("self.participantInfo.name");
     expect(result.referenceKey).toBe("participantInfo");
     expect(result.path).toEqual(["name"]);
   });
 
   test("participantInfo reference with deep path", () => {
-    const result = getReferenceKeyAndPath("participantInfo.sampleId.raw");
+    const result = getReferenceKeyAndPath("self.participantInfo.sampleId.raw");
     expect(result.referenceKey).toBe("participantInfo");
     expect(result.path).toEqual(["sampleId", "raw"]);
   });
 
   test("timeline reference", () => {
-    const result = getReferenceKeyAndPath("timeline.myAnnotations");
+    const result = getReferenceKeyAndPath("self.timeline.myAnnotations");
     expect(result.referenceKey).toBe("timeline_myAnnotations");
     expect(result.path).toEqual([]);
   });
 
   test("discussion reference (now namespaced as `discussion_<name>` per #240)", () => {
-    const result = getReferenceKeyAndPath("discussion.main.messageCount");
+    const result = getReferenceKeyAndPath("self.discussion.main.messageCount");
     expect(result.referenceKey).toBe("discussion_main");
     expect(result.path).toEqual(["messageCount"]);
   });
 
   test("throws on invalid reference type", () => {
-    expect(() => getReferenceKeyAndPath("duck.quack")).toThrow(
+    expect(() => getReferenceKeyAndPath("self.duck.quack")).toThrow(
       'Invalid reference source "duck"',
     );
   });
 
   test("throws on missing name segment", () => {
-    expect(() => getReferenceKeyAndPath("survey")).toThrow();
+    expect(() => getReferenceKeyAndPath("self.survey")).toThrow();
   });
 
   test("throws on missing path segment for external sources", () => {
     // External-source references require at least one path segment.
-    expect(() => getReferenceKeyAndPath("participantInfo")).toThrow(
+    expect(() => getReferenceKeyAndPath("self.participantInfo")).toThrow(
       "A path must be provided",
     );
-    expect(() => getReferenceKeyAndPath("connectionInfo")).toThrow(
+    expect(() => getReferenceKeyAndPath("self.connectionInfo")).toThrow(
       "A path must be provided",
     );
-    expect(() => getReferenceKeyAndPath("browserInfo")).toThrow(
+    expect(() => getReferenceKeyAndPath("self.browserInfo")).toThrow(
       "A path must be provided",
     );
-    expect(() => getReferenceKeyAndPath("entryUrl")).toThrow(
+    expect(() => getReferenceKeyAndPath("self.entryUrl")).toThrow(
       "A path must be provided",
     );
   });
@@ -115,7 +117,7 @@ describe("getReferenceKeyAndPath", () => {
     // The `params` subpath check on `entryUrl` lives in
     // `externalReferenceSchema.superRefine` and runs through
     // `parseDottedReference`'s post-validation.
-    expect(() => getReferenceKeyAndPath("entryUrl.condition")).toThrow(
+    expect(() => getReferenceKeyAndPath("self.entryUrl.condition")).toThrow(
       /entryUrl\.params/,
     );
   });
@@ -162,14 +164,14 @@ describe("getReferenceKeyAndPath", () => {
   });
 
   test("string and structured forms produce equivalent output", () => {
-    expect(getReferenceKeyAndPath("survey.TIPI.responses.q1")).toEqual(
+    expect(getReferenceKeyAndPath("self.survey.TIPI.responses.q1")).toEqual(
       getReferenceKeyAndPath({
         source: "survey",
         name: "TIPI",
         path: ["responses", "q1"],
       }),
     );
-    expect(getReferenceKeyAndPath("entryUrl.params.PROLIFIC_PID")).toEqual(
+    expect(getReferenceKeyAndPath("self.entryUrl.params.PROLIFIC_PID")).toEqual(
       getReferenceKeyAndPath({
         source: "entryUrl",
         path: ["params", "PROLIFIC_PID"],

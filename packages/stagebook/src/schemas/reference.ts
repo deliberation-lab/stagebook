@@ -1,21 +1,26 @@
 /**
- * Reference schemas (#240, #246).
+ * Reference schemas (#240, #246, #298).
  *
  * A reference identifies a value somewhere in the study state. There are two
  * kinds: **named** sources (`prompt`, `survey`, …) whose data is keyed by
  * a researcher-chosen `name`, and **external** sources (`entryUrl`,
  * `participantInfo`, …) supplied by the host as a singleton.
  *
+ * Per #298, every reference begins with an explicit **position selector** —
+ * `<integer>`, `self`, `shared`, or `all`. The position selector is part of
+ * the reference (where to find the value), not a separate field.
+ *
  * References can be written two ways:
- *   - **String shorthand** (the original syntax) — `prompt.familiarity`,
- *     `entryUrl.params.condition`, `survey.TIPI.responses.q1`.
- *   - **Structured object** — `{ source: "prompt", name: "familiarity" }`,
- *     `{ source: "entryUrl", path: ["params", "condition"] }`. Same
- *     expressivity plus the ability to override defaults that the dotted
+ *   - **String shorthand** (the original syntax) — `0.prompt.familiarity`,
+ *     `self.entryUrl.params.condition`, `1.survey.TIPI.responses.q1`,
+ *     `all.prompt.recall.value`.
+ *   - **Structured object** — `{ position: 0, source: "prompt", name: "familiarity" }`,
+ *     `{ position: "self", source: "entryUrl", path: ["params", "condition"] }`.
+ *     Same expressivity plus the ability to override defaults that the dotted
  *     form bakes in.
  *
  * The string shorthand is parsed into the structured form, so downstream
- * code only ever sees `{source, name?, path?}` shapes.
+ * code only ever sees `{position, source, name?, path?}` shapes.
  *
  * Lives in its own module (not `treatment.ts`) so the cross-stage walker
  * `validateReferences.ts` can import the parser without creating a circular
@@ -52,8 +57,34 @@ export type ExternalSource = z.infer<typeof externalSourceEnum>;
 
 const referencePathSchema = z.array(z.string().min(1));
 
+/**
+ * Position selector for a reference (#298). Either a non-negative integer
+ * slot index, or one of the named selectors:
+ *   - `self` — the current participant's value
+ *   - `shared` — group-shared state
+ *   - `all` — multi-participant list (one entry per participant)
+ *
+ * The pre-#298 `any` selector is removed; existential quantification
+ * across participants belongs in the boolean-tree `any:` operator.
+ *
+ * The pre-#298 `player` selector is removed; `self` replaces it (same
+ * semantic, clearer name, single canonical spelling).
+ */
+export const positionSelectorSchema = z.union([
+  z.number().int().nonnegative(),
+  // YAML may quote stringified integers (`position: '1'`); coerce to
+  // canonical number form so consumers see one type.
+  z
+    .string()
+    .regex(/^\d+$/, "numeric position selector must be a non-negative integer")
+    .transform((s) => Number(s)),
+  z.enum(["self", "shared", "all"]),
+]);
+export type PositionSelectorType = z.infer<typeof positionSelectorSchema>;
+
 export const namedReferenceSchema = z
   .object({
+    position: positionSelectorSchema,
     source: namedSourceEnum,
     name: nameSchema,
     path: referencePathSchema.optional(),
@@ -63,6 +94,7 @@ export type NamedReferenceType = z.infer<typeof namedReferenceSchema>;
 
 export const externalReferenceSchema = z
   .object({
+    position: positionSelectorSchema,
     source: externalSourceEnum,
     path: referencePathSchema.nonempty({
       message: "External-source references require a non-empty `path`.",
@@ -81,7 +113,7 @@ export const externalReferenceSchema = z
           code: z.ZodIssueCode.custom,
           path: ["path"],
           message:
-            "entryUrl references must use the `params` subpath: `entryUrl.params.<key>`. (Other entryUrl subpaths like `path`, `host`, `href` are reserved for future use.)",
+            "entryUrl references must use the `params` subpath: e.g. `self.entryUrl.params.<key>`. (Other entryUrl subpaths like `path`, `host`, `href` are reserved for future use.)",
         });
       }
     }
@@ -99,12 +131,36 @@ const ALL_SOURCES = [
   ...namedSourceEnum.options,
   ...externalSourceEnum.options,
 ] as const;
+const POSITION_SELECTOR_NAMES: ReadonlySet<string> = new Set([
+  "self",
+  "shared",
+  "all",
+]);
+
+function parsePositionToken(
+  token: string,
+): { ok: true; position: PositionSelectorType } | { ok: false } {
+  if (POSITION_SELECTOR_NAMES.has(token)) {
+    return { ok: true, position: token as PositionSelectorType };
+  }
+  // Numeric position. Canonical form: non-negative integer with no
+  // leading zeros (`0`, `1`, `12`). Reject `01`, `007`, etc. so two
+  // distinct token strings can't normalize to the same selector.
+  if (/^(0|[1-9]\d*)$/.test(token)) {
+    return { ok: true, position: Number(token) };
+  }
+  return { ok: false };
+}
 
 /**
  * Parse a dotted-string reference into its structured form. Returns either
  * `{ ok: true, value }` or `{ ok: false, message }`. Used by the schema
  * (string-shorthand sugar) AND by `getReferenceKeyAndPath` when a runtime
  * caller passes a string instead of the structured form.
+ *
+ * Per #298, the first segment is a required position selector
+ * (`<integer>`, `self`, `shared`, `all`). The second segment is the source
+ * enum.
  *
  * The result is then re-validated against the structured schemas
  * (`namedReferenceSchema` / `externalReferenceSchema`) so the string-shorthand
@@ -116,10 +172,52 @@ export function parseDottedReference(
   str: string,
 ): { ok: true; value: ReferenceType } | { ok: false; message: string } {
   const segments = str.split(".");
-  const [source, ...rest] = segments;
-  if (!source) {
-    return { ok: false, message: "Reference must include a source." };
+  if (segments.length < 2) {
+    return {
+      ok: false,
+      message: `Reference must include a position prefix and a source, e.g. \`self.prompt.elementName\` or \`0.prompt.elementName\`. Got "${str}".`,
+    };
   }
+  const [positionToken, source, ...rest] = segments;
+
+  const positionResult = parsePositionToken(positionToken);
+  if (!positionResult.ok) {
+    // Legacy `urlParams.<key>` was renamed to `entryUrl.params.<key>`
+    // in #246. Surface the migration hint even when the position prefix
+    // is also missing — the renamed source + missing prefix together
+    // is the most common compound migration error.
+    if (positionToken === "urlParams") {
+      const key = source ? [source, ...rest].join(".") : "<key>";
+      return {
+        ok: false,
+        message: `\`urlParams\` reference source was renamed to \`entryUrl.params\` (#246). Use \`self.entryUrl.params.${key}\` instead.`,
+      };
+    }
+    // Help authors migrating from pre-#298 references where the first
+    // segment was a source enum.
+    if (
+      NAMED_SOURCES.has(positionToken) ||
+      EXTERNAL_SOURCES.has(positionToken)
+    ) {
+      return {
+        ok: false,
+        message: `Reference "${str}" is missing a position prefix. After #298, every reference starts with a position selector — \`self\`, \`shared\`, \`all\`, or a non-negative integer slot index. Try \`self.${str}\` for the current participant's value.`,
+      };
+    }
+    return {
+      ok: false,
+      message: `Reference "${str}" must start with a position selector (\`self\`, \`shared\`, \`all\`, or a non-negative integer). Got "${positionToken}".`,
+    };
+  }
+  const position = positionResult.position;
+
+  if (!source) {
+    return {
+      ok: false,
+      message: `Reference "${str}" is missing a source after the position prefix.`,
+    };
+  }
+
   // Legacy `urlParams.<key>` was renamed to `entryUrl.params.<key>` in
   // #246 to disambiguate from the unrelated `urlParams:` element field
   // (outgoing params on trackedLink / qualtrics). Surface a clear hint
@@ -129,7 +227,7 @@ export function parseDottedReference(
     const key = rest.length > 0 ? rest.join(".") : "<key>";
     return {
       ok: false,
-      message: `\`urlParams\` reference source was renamed to \`entryUrl.params\` (#246). Use \`entryUrl.params.${key}\` instead of \`urlParams.${key}\`.`,
+      message: `\`urlParams\` reference source was renamed to \`entryUrl.params\` (#246). Use \`<position>.entryUrl.params.${key}\` instead.`,
     };
   }
   if (NAMED_SOURCES.has(source)) {
@@ -137,13 +235,13 @@ export function parseDottedReference(
     if (name === undefined || name.length < 1) {
       return {
         ok: false,
-        message: `A name must be provided, e.g. '${source}.elementName'.`,
+        message: `A name must be provided, e.g. '<position>.${source}.elementName'.`,
       };
     }
     const candidate =
       path.length > 0
-        ? { source: source as NamedSource, name, path }
-        : { source: source as NamedSource, name };
+        ? { position, source: source as NamedSource, name, path }
+        : { position, source: source as NamedSource, name };
     const parsed = namedReferenceSchema.safeParse(candidate);
     if (!parsed.success) {
       return {
@@ -157,10 +255,11 @@ export function parseDottedReference(
     if (rest.length < 1) {
       return {
         ok: false,
-        message: `A path must be provided, e.g. '${source}.fieldName'.`,
+        message: `A path must be provided, e.g. '<position>.${source}.fieldName'.`,
       };
     }
     const candidate = {
+      position,
       source: source as ExternalSource,
       path: rest as [string, ...string[]],
     };
@@ -187,12 +286,13 @@ export function parseDottedReference(
  * familiar dotted form.
  */
 export function formatReference(ref: ReferenceType): string {
+  const positionStr = String(ref.position);
   if ("name" in ref) {
     return ref.path && ref.path.length > 0
-      ? `${ref.source}.${ref.name}.${ref.path.join(".")}`
-      : `${ref.source}.${ref.name}`;
+      ? `${positionStr}.${ref.source}.${ref.name}.${ref.path.join(".")}`
+      : `${positionStr}.${ref.source}.${ref.name}`;
   }
-  return `${ref.source}.${ref.path.join(".")}`;
+  return `${positionStr}.${ref.source}.${ref.path.join(".")}`;
 }
 
 const stringReferenceSchema = z.string().transform((str, ctx) => {
@@ -209,13 +309,13 @@ const stringReferenceSchema = z.string().transform((str, ctx) => {
 
 /**
  * Reference field schema — accepts either:
- *   - the dotted-string sugar (`prompt.foo`, `entryUrl.params.condition`)
- *   - the structured `{ source, name?, path? }` object form
+ *   - the dotted-string sugar (`0.prompt.foo`, `self.entryUrl.params.condition`)
+ *   - the structured `{ position, source, name?, path? }` object form
  *
  * Output is always the structured form (the string-sugar branch transforms
- * to the same shape). Validation: named sources require `name` and forbid
- * empty `path` segments; external sources forbid `name` and require a
- * non-empty `path`.
+ * to the same shape). Validation: position is required (#298); named sources
+ * require `name` and forbid empty `path` segments; external sources forbid
+ * `name` and require a non-empty `path`.
  */
 export const referenceSchema = z.union([
   namedReferenceSchema,

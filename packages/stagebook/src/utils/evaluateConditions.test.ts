@@ -8,7 +8,7 @@ describe("evaluateCondition", () => {
     test("all values satisfy equals", () => {
       expect(
         evaluateCondition(
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
           ["yes", "yes", "yes"],
         ),
       ).toBe(true);
@@ -17,7 +17,7 @@ describe("evaluateCondition", () => {
     test("fails if any value doesn't satisfy", () => {
       expect(
         evaluateCondition(
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
           ["yes", "no", "yes"],
         ),
       ).toBe(false);
@@ -26,7 +26,7 @@ describe("evaluateCondition", () => {
     test("single value satisfies", () => {
       expect(
         evaluateCondition(
-          { reference: "prompt.q1", comparator: "isAbove", value: 5 },
+          { reference: "self.prompt.q1", comparator: "isAbove", value: 5 },
           [10],
         ),
       ).toBe(true);
@@ -39,7 +39,7 @@ describe("evaluateCondition", () => {
       // "exists" to appear before any prompt was answered.)
       expect(
         evaluateCondition(
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
           [],
         ),
       ).toBe(false);
@@ -47,30 +47,35 @@ describe("evaluateCondition", () => {
 
     test("exists comparator", () => {
       expect(
-        evaluateCondition({ reference: "prompt.q1", comparator: "exists" }, [
-          "some value",
-        ]),
+        evaluateCondition(
+          { reference: "self.prompt.q1", comparator: "exists" },
+          ["some value"],
+        ),
       ).toBe(true);
     });
 
     test("exists fails for undefined", () => {
       expect(
-        evaluateCondition({ reference: "prompt.q1", comparator: "exists" }, [
-          undefined,
-        ]),
+        evaluateCondition(
+          { reference: "self.prompt.q1", comparator: "exists" },
+          [undefined],
+        ),
       ).toBe(false);
     });
 
     test("exists fails for empty array (nothing exists)", () => {
       expect(
-        evaluateCondition({ reference: "prompt.q1", comparator: "exists" }, []),
+        evaluateCondition(
+          { reference: "self.prompt.q1", comparator: "exists" },
+          [],
+        ),
       ).toBe(false);
     });
 
     test("doesNotExist passes for empty array", () => {
       expect(
         evaluateCondition(
-          { reference: "prompt.q1", comparator: "doesNotExist" },
+          { reference: "self.prompt.q1", comparator: "doesNotExist" },
           [],
         ),
       ).toBe(true);
@@ -95,8 +100,7 @@ describe("evaluateCondition", () => {
       expect(
         evaluateCondition(
           {
-            reference: "prompt.q1",
-            position: "any",
+            reference: "all.prompt.q1",
             comparator: "equals",
             value: "yes",
           },
@@ -114,8 +118,7 @@ describe("evaluateCondition", () => {
       expect(
         evaluateCondition(
           {
-            reference: "prompt.q1",
-            position: "percentAgreement",
+            reference: "self.prompt.q1",
             comparator: "isAtLeast",
             value: 80,
           },
@@ -129,7 +132,11 @@ describe("evaluateCondition", () => {
     test("doesNotEqual with undefined lhs returns true", () => {
       expect(
         evaluateCondition(
-          { reference: "prompt.q1", comparator: "doesNotEqual", value: "x" },
+          {
+            reference: "self.prompt.q1",
+            comparator: "doesNotEqual",
+            value: "x",
+          },
           [undefined],
         ),
       ).toBe(true);
@@ -139,7 +146,7 @@ describe("evaluateCondition", () => {
       expect(
         evaluateCondition(
           {
-            reference: "prompt.q1",
+            reference: "self.prompt.q1",
             comparator: "includes",
             value: "world",
           },
@@ -152,7 +159,7 @@ describe("evaluateCondition", () => {
       expect(
         evaluateCondition(
           {
-            reference: "prompt.q1",
+            reference: "self.prompt.q1",
             comparator: "isOneOf",
             value: ["a", "b", "c"],
           },
@@ -177,8 +184,8 @@ describe("evaluateConditions", () => {
   test("single condition met", () => {
     expect(
       evaluateConditions(
-        [{ reference: "prompt.q1", comparator: "equals", value: "yes" }],
-        mockResolve({ "prompt.q1": ["yes"] }),
+        [{ reference: "self.prompt.q1", comparator: "equals", value: "yes" }],
+        mockResolve({ "self.prompt.q1": ["yes"] }),
       ),
     ).toBe(true);
   });
@@ -186,8 +193,8 @@ describe("evaluateConditions", () => {
   test("single condition not met", () => {
     expect(
       evaluateConditions(
-        [{ reference: "prompt.q1", comparator: "equals", value: "yes" }],
-        mockResolve({ "prompt.q1": ["no"] }),
+        [{ reference: "self.prompt.q1", comparator: "equals", value: "yes" }],
+        mockResolve({ "self.prompt.q1": ["no"] }),
       ),
     ).toBe(false);
   });
@@ -196,10 +203,10 @@ describe("evaluateConditions", () => {
     expect(
       evaluateConditions(
         [
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
-          { reference: "prompt.q2", comparator: "isAbove", value: 5 },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q2", comparator: "isAbove", value: 5 },
         ],
-        mockResolve({ "prompt.q1": ["yes"], "prompt.q2": [10] }),
+        mockResolve({ "self.prompt.q1": ["yes"], "self.prompt.q2": [10] }),
       ),
     ).toBe(true);
   });
@@ -208,10 +215,10 @@ describe("evaluateConditions", () => {
     expect(
       evaluateConditions(
         [
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
-          { reference: "prompt.q2", comparator: "isAbove", value: 5 },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q2", comparator: "isAbove", value: 5 },
         ],
-        mockResolve({ "prompt.q1": ["yes"], "prompt.q2": [3] }),
+        mockResolve({ "self.prompt.q1": ["yes"], "self.prompt.q2": [3] }),
       ),
     ).toBe(false);
   });
@@ -223,7 +230,13 @@ describe("evaluateConditions", () => {
     // gated on "exists" to appear before any prompt was answered.)
     expect(
       evaluateConditions(
-        [{ reference: "prompt.missing", comparator: "equals", value: "yes" }],
+        [
+          {
+            reference: "self.prompt.missing",
+            comparator: "equals",
+            value: "yes",
+          },
+        ],
         mockResolve({}),
       ),
     ).toBe(false);
@@ -232,7 +245,7 @@ describe("evaluateConditions", () => {
   test("exists on missing reference fails", () => {
     expect(
       evaluateConditions(
-        [{ reference: "prompt.missing", comparator: "exists" }],
+        [{ reference: "self.prompt.missing", comparator: "exists" }],
         mockResolve({}),
       ),
     ).toBe(false);
@@ -241,49 +254,39 @@ describe("evaluateConditions", () => {
   test("doesNotExist on missing reference passes", () => {
     expect(
       evaluateConditions(
-        [{ reference: "prompt.missing", comparator: "doesNotExist" }],
+        [{ reference: "self.prompt.missing", comparator: "doesNotExist" }],
         mockResolve({}),
       ),
     ).toBe(true);
   });
 
-  // ----- Positional comparators by name (issue #232) -----
+  // ----- Positional comparators by name (issue #232, updated for #298) -----
   //
-  // `position: shared`, `position: "0"`, `position: "1"` are host-resolver
-  // concerns — stagebook itself doesn't know what "shared" or numeric
-  // positions mean, it just forwards the position string through to the
-  // host's `resolve(reference, position)` callback. These tests pin the
-  // forwarding contract (so deliberation-empirica-style hosts can rely on
-  // it) and confirm that once values come back, the comparator runs with
-  // default `all` semantics — every returned value must satisfy.
+  // After #298, position is part of the reference string (`shared.X`,
+  // `0.X`, `1.X`, `self.X`). Stagebook just forwards the reference to
+  // the host's `resolve(reference)` callback; the host's resolver
+  // parses out the position and looks up the right slot. These tests
+  // pin the forwarding contract and confirm comparator semantics on
+  // the resolved values.
 
-  // A position-aware resolver that returns different values for the same
-  // reference depending on the position string. Modeled on the kind of
-  // resolver a multi-position host would supply.
-  const resolveByPosition = (
-    table: Record<string, Record<string, unknown[]>>,
-  ) => {
-    return (reference: string, position?: string) => {
-      const key = position ?? "__default";
-      return table[reference]?.[key] ?? [];
-    };
+  // A position-aware resolver: maps the full position-prefixed reference
+  // to its values. Models a host that's parsed the prefix and routed to
+  // the right scope.
+  const resolveByReference = (table: Record<string, unknown[]>) => {
+    return (reference: string) => table[reference] ?? [];
   };
 
-  test("position: shared — forwards the string and uses the resolved value", () => {
-    const resolve = resolveByPosition({
-      "prompt.flag": {
-        shared: ["yes"],
-        "0": ["no"],
-        "1": ["maybe"],
-      },
+  test("position: shared — forwards the reference and uses the resolved value", () => {
+    const resolve = resolveByReference({
+      "shared.prompt.flag": ["yes"],
+      "0.prompt.flag": ["no"],
+      "1.prompt.flag": ["maybe"],
     });
-    // Resolving with `position: "shared"` returns ["yes"], which equals "yes".
     expect(
       evaluateConditions(
         [
           {
-            reference: "prompt.flag",
-            position: "shared",
+            reference: "shared.prompt.flag",
             comparator: "equals",
             value: "yes",
           },
@@ -294,18 +297,15 @@ describe("evaluateConditions", () => {
   });
 
   test("position: shared — failure case (shared value doesn't match)", () => {
-    const resolve = resolveByPosition({
-      "prompt.flag": {
-        shared: ["no"],
-        "0": ["yes"],
-      },
+    const resolve = resolveByReference({
+      "shared.prompt.flag": ["no"],
+      "0.prompt.flag": ["yes"],
     });
     expect(
       evaluateConditions(
         [
           {
-            reference: "prompt.flag",
-            position: "shared",
+            reference: "shared.prompt.flag",
             comparator: "equals",
             value: "yes",
           },
@@ -316,54 +316,34 @@ describe("evaluateConditions", () => {
   });
 
   test("position: 0 — resolves to the position-0 player's value", () => {
-    const resolve = resolveByPosition({
-      "prompt.q": {
-        "0": ["red"],
-        "1": ["blue"],
-      },
+    const resolve = resolveByReference({
+      "0.prompt.q": ["red"],
+      "1.prompt.q": ["blue"],
     });
     expect(
       evaluateConditions(
-        [
-          {
-            reference: "prompt.q",
-            position: "0",
-            comparator: "equals",
-            value: "red",
-          },
-        ],
+        [{ reference: "0.prompt.q", comparator: "equals", value: "red" }],
         resolve,
       ),
     ).toBe(true);
-    // Failure case: position 0's value is "red", not "blue".
     expect(
       evaluateConditions(
-        [
-          {
-            reference: "prompt.q",
-            position: "0",
-            comparator: "equals",
-            value: "blue",
-          },
-        ],
+        [{ reference: "0.prompt.q", comparator: "equals", value: "blue" }],
         resolve,
       ),
     ).toBe(false);
   });
 
   test("position: 1 — resolves to the position-1 player's value", () => {
-    const resolve = resolveByPosition({
-      "prompt.q": {
-        "0": ["red"],
-        "1": ["blue"],
-      },
+    const resolve = resolveByReference({
+      "0.prompt.q": ["red"],
+      "1.prompt.q": ["blue"],
     });
     expect(
       evaluateConditions(
         [
           {
-            reference: "prompt.q",
-            position: "1",
+            reference: "1.prompt.q",
             comparator: "equals",
             value: "blue",
           },
@@ -375,8 +355,7 @@ describe("evaluateConditions", () => {
       evaluateConditions(
         [
           {
-            reference: "prompt.q",
-            position: "1",
+            reference: "1.prompt.q",
             comparator: "equals",
             value: "red",
           },
@@ -386,42 +365,25 @@ describe("evaluateConditions", () => {
     ).toBe(false);
   });
 
-  test("position string is forwarded to resolver verbatim (spy)", () => {
-    // Hosts implement `resolve` and can interpret any position string —
-    // stagebook's only contract is to pass it through. Verify with a spy.
-    const calls: { reference: string; position: string | undefined }[] = [];
-    const resolve = (reference: string, position?: string) => {
-      calls.push({ reference, position });
+  test("reference string is forwarded to resolver verbatim (spy)", () => {
+    // After #298, the position is embedded in the reference. The
+    // resolver takes only the reference; hosts parse out the position.
+    // Verify with a spy that each leaf's reference reaches the resolver
+    // unchanged.
+    const calls: string[] = [];
+    const resolve = (reference: string) => {
+      calls.push(reference);
       return ["x"];
     };
     evaluateConditions(
       [
-        {
-          reference: "prompt.q",
-          position: "shared",
-          comparator: "equals",
-          value: "x",
-        },
-        {
-          reference: "prompt.q",
-          position: "0",
-          comparator: "equals",
-          value: "x",
-        },
-        {
-          reference: "prompt.q",
-          // position omitted — resolver receives undefined.
-          comparator: "equals",
-          value: "x",
-        },
+        { reference: "shared.prompt.q", comparator: "equals", value: "x" },
+        { reference: "0.prompt.q", comparator: "equals", value: "x" },
+        { reference: "self.prompt.q", comparator: "equals", value: "x" },
       ],
       resolve,
     );
-    expect(calls).toEqual([
-      { reference: "prompt.q", position: "shared" },
-      { reference: "prompt.q", position: "0" },
-      { reference: "prompt.q", position: undefined },
-    ]);
+    expect(calls).toEqual(["shared.prompt.q", "0.prompt.q", "self.prompt.q"]);
   });
 });
 
@@ -442,10 +404,10 @@ describe("evaluateConditions — boolean tree (#235)", () => {
     });
 
     test("single leaf in array", () => {
-      const resolve = makeResolve({ "prompt.q": ["yes"] });
+      const resolve = makeResolve({ "self.prompt.q": ["yes"] });
       expect(
         evaluateConditions(
-          [{ reference: "prompt.q", comparator: "equals", value: "yes" }],
+          [{ reference: "self.prompt.q", comparator: "equals", value: "yes" }],
           resolve,
         ),
       ).toBe(true);
@@ -453,14 +415,14 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
     test("multiple leaves AND together", () => {
       const resolve = makeResolve({
-        "prompt.a": ["x"],
-        "prompt.b": ["y"],
+        "self.prompt.a": ["x"],
+        "self.prompt.b": ["y"],
       });
       expect(
         evaluateConditions(
           [
-            { reference: "prompt.a", comparator: "equals", value: "x" },
-            { reference: "prompt.b", comparator: "equals", value: "y" },
+            { reference: "self.prompt.a", comparator: "equals", value: "x" },
+            { reference: "self.prompt.b", comparator: "equals", value: "y" },
           ],
           resolve,
         ),
@@ -469,14 +431,14 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
     test("any leaf failing makes the array false", () => {
       const resolve = makeResolve({
-        "prompt.a": ["x"],
-        "prompt.b": ["wrong"],
+        "self.prompt.a": ["x"],
+        "self.prompt.b": ["wrong"],
       });
       expect(
         evaluateConditions(
           [
-            { reference: "prompt.a", comparator: "equals", value: "x" },
-            { reference: "prompt.b", comparator: "equals", value: "y" },
+            { reference: "self.prompt.a", comparator: "equals", value: "x" },
+            { reference: "self.prompt.b", comparator: "equals", value: "y" },
           ],
           resolve,
         ),
@@ -487,15 +449,15 @@ describe("evaluateConditions — boolean tree (#235)", () => {
   describe("all operator", () => {
     test("all children true → true", () => {
       const resolve = makeResolve({
-        "prompt.a": ["x"],
-        "prompt.b": ["y"],
+        "self.prompt.a": ["x"],
+        "self.prompt.b": ["y"],
       });
       expect(
         evaluateConditions(
           {
             all: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -505,15 +467,15 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
     test("any child false → false", () => {
       const resolve = makeResolve({
-        "prompt.a": ["x"],
-        "prompt.b": ["wrong"],
+        "self.prompt.a": ["x"],
+        "self.prompt.b": ["wrong"],
       });
       expect(
         evaluateConditions(
           {
             all: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -530,8 +492,8 @@ describe("evaluateConditions — boolean tree (#235)", () => {
         evaluateConditions(
           {
             all: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -543,15 +505,15 @@ describe("evaluateConditions — boolean tree (#235)", () => {
   describe("any operator", () => {
     test("at least one child true → true", () => {
       const resolve = makeResolve({
-        "prompt.a": ["wrong"],
-        "prompt.b": ["y"],
+        "self.prompt.a": ["wrong"],
+        "self.prompt.b": ["y"],
       });
       expect(
         evaluateConditions(
           {
             any: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -561,15 +523,15 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
     test("all children false → false", () => {
       const resolve = makeResolve({
-        "prompt.a": ["wrong"],
-        "prompt.b": ["wrong"],
+        "self.prompt.a": ["wrong"],
+        "self.prompt.b": ["wrong"],
       });
       expect(
         evaluateConditions(
           {
             any: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -583,8 +545,8 @@ describe("evaluateConditions — boolean tree (#235)", () => {
         evaluateConditions(
           {
             any: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -596,15 +558,15 @@ describe("evaluateConditions — boolean tree (#235)", () => {
   describe("none operator (the case that requires tri-state)", () => {
     test("all children false → true", () => {
       const resolve = makeResolve({
-        "prompt.a": ["wrong"],
-        "prompt.b": ["wrong"],
+        "self.prompt.a": ["wrong"],
+        "self.prompt.b": ["wrong"],
       });
       expect(
         evaluateConditions(
           {
             none: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -614,15 +576,15 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
     test("any child true → false", () => {
       const resolve = makeResolve({
-        "prompt.a": ["x"],
-        "prompt.b": ["wrong"],
+        "self.prompt.a": ["x"],
+        "self.prompt.b": ["wrong"],
       });
       expect(
         evaluateConditions(
           {
             none: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -642,8 +604,8 @@ describe("evaluateConditions — boolean tree (#235)", () => {
         evaluateConditions(
           {
             none: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -652,13 +614,13 @@ describe("evaluateConditions — boolean tree (#235)", () => {
     });
 
     test("one child known false, one unknown → undefined → false", () => {
-      const resolve = makeResolve({ "prompt.a": ["wrong"] });
+      const resolve = makeResolve({ "self.prompt.a": ["wrong"] });
       expect(
         evaluateConditions(
           {
             none: [
-              { reference: "prompt.a", comparator: "equals", value: "x" },
-              { reference: "prompt.b", comparator: "equals", value: "y" },
+              { reference: "self.prompt.a", comparator: "equals", value: "x" },
+              { reference: "self.prompt.b", comparator: "equals", value: "y" },
             ],
           },
           resolve,
@@ -681,7 +643,11 @@ describe("evaluateConditions — boolean tree (#235)", () => {
             all: [
               {
                 none: [
-                  { reference: "prompt.a", comparator: "equals", value: "x" },
+                  {
+                    reference: "self.prompt.a",
+                    comparator: "equals",
+                    value: "x",
+                  },
                 ],
               },
             ],
@@ -696,15 +662,23 @@ describe("evaluateConditions — boolean tree (#235)", () => {
       // [undefined] → undefined → boundary false. The known-true child
       // inside the inner `all` does not "leak out" because the
       // surrounding `all` didn't reach a definitive answer.
-      const resolve = makeResolve({ "prompt.a": ["x"] });
+      const resolve = makeResolve({ "self.prompt.a": ["x"] });
       expect(
         evaluateConditions(
           {
             any: [
               {
                 all: [
-                  { reference: "prompt.a", comparator: "equals", value: "x" },
-                  { reference: "prompt.b", comparator: "equals", value: "y" },
+                  {
+                    reference: "self.prompt.a",
+                    comparator: "equals",
+                    value: "x",
+                  },
+                  {
+                    reference: "self.prompt.b",
+                    comparator: "equals",
+                    value: "y",
+                  },
                 ],
               },
             ],
@@ -718,9 +692,9 @@ describe("evaluateConditions — boolean tree (#235)", () => {
   describe("nested operators", () => {
     test("(A or B) and C", () => {
       const resolve = makeResolve({
-        "prompt.a": ["wrong"],
-        "prompt.b": ["yes"],
-        "prompt.c": ["go"],
+        "self.prompt.a": ["wrong"],
+        "self.prompt.b": ["yes"],
+        "self.prompt.c": ["go"],
       });
       expect(
         evaluateConditions(
@@ -728,11 +702,19 @@ describe("evaluateConditions — boolean tree (#235)", () => {
             all: [
               {
                 any: [
-                  { reference: "prompt.a", comparator: "equals", value: "yes" },
-                  { reference: "prompt.b", comparator: "equals", value: "yes" },
+                  {
+                    reference: "self.prompt.a",
+                    comparator: "equals",
+                    value: "yes",
+                  },
+                  {
+                    reference: "self.prompt.b",
+                    comparator: "equals",
+                    value: "yes",
+                  },
                 ],
               },
-              { reference: "prompt.c", comparator: "equals", value: "go" },
+              { reference: "self.prompt.c", comparator: "equals", value: "go" },
             ],
           },
           resolve,
@@ -742,9 +724,9 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
     test("array root with nested operator inside", () => {
       const resolve = makeResolve({
-        "prompt.a": ["yes"],
-        "prompt.b": ["no"],
-        "prompt.c": ["yes"],
+        "self.prompt.a": ["yes"],
+        "self.prompt.b": ["no"],
+        "self.prompt.c": ["yes"],
       });
       // Top-level array (implicit all): each item must hold.
       // Item 1: leaf "prompt.a == yes" → true
@@ -753,11 +735,19 @@ describe("evaluateConditions — boolean tree (#235)", () => {
       expect(
         evaluateConditions(
           [
-            { reference: "prompt.a", comparator: "equals", value: "yes" },
+            { reference: "self.prompt.a", comparator: "equals", value: "yes" },
             {
               any: [
-                { reference: "prompt.b", comparator: "equals", value: "yes" },
-                { reference: "prompt.c", comparator: "equals", value: "yes" },
+                {
+                  reference: "self.prompt.b",
+                  comparator: "equals",
+                  value: "yes",
+                },
+                {
+                  reference: "self.prompt.c",
+                  comparator: "equals",
+                  value: "yes",
+                },
               ],
             },
           ],
@@ -770,9 +760,9 @@ describe("evaluateConditions — boolean tree (#235)", () => {
       // `none` of [all(A,B), C] — true when neither (A and B) nor C
       // holds.
       const resolve = makeResolve({
-        "prompt.a": ["yes"],
-        "prompt.b": ["no"], // (a and b) is false
-        "prompt.c": ["no"], // c is false
+        "self.prompt.a": ["yes"],
+        "self.prompt.b": ["no"], // (a and b) is false
+        "self.prompt.c": ["no"], // c is false
       });
       expect(
         evaluateConditions(
@@ -780,11 +770,23 @@ describe("evaluateConditions — boolean tree (#235)", () => {
             none: [
               {
                 all: [
-                  { reference: "prompt.a", comparator: "equals", value: "yes" },
-                  { reference: "prompt.b", comparator: "equals", value: "yes" },
+                  {
+                    reference: "self.prompt.a",
+                    comparator: "equals",
+                    value: "yes",
+                  },
+                  {
+                    reference: "self.prompt.b",
+                    comparator: "equals",
+                    value: "yes",
+                  },
                 ],
               },
-              { reference: "prompt.c", comparator: "equals", value: "yes" },
+              {
+                reference: "self.prompt.c",
+                comparator: "equals",
+                value: "yes",
+              },
             ],
           },
           resolve,
@@ -795,20 +797,20 @@ describe("evaluateConditions — boolean tree (#235)", () => {
 
   describe("single leaf at root", () => {
     test("single leaf object (not in array) — true case", () => {
-      const resolve = makeResolve({ "prompt.q": ["yes"] });
+      const resolve = makeResolve({ "self.prompt.q": ["yes"] });
       expect(
         evaluateConditions(
-          { reference: "prompt.q", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q", comparator: "equals", value: "yes" },
           resolve,
         ),
       ).toBe(true);
     });
 
     test("single leaf object — false case", () => {
-      const resolve = makeResolve({ "prompt.q": ["no"] });
+      const resolve = makeResolve({ "self.prompt.q": ["no"] });
       expect(
         evaluateConditions(
-          { reference: "prompt.q", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q", comparator: "equals", value: "yes" },
           resolve,
         ),
       ).toBe(false);

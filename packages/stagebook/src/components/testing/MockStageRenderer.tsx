@@ -19,7 +19,12 @@ export interface MockStageRendererProps {
   playerCount?: number;
   isSubmitted?: boolean;
   elapsedTime?: number;
-  /** Key-value map of DSL reference string → extracted value (e.g., "prompt.answer" → "yes") */
+  /**
+   * Key-value map of DSL reference string → extracted value
+   * (e.g., `"self.prompt.answer" → "yes"`). Per #298 the reference
+   * needs a position prefix; the prefix itself is discarded when
+   * computing the storage key, so any valid prefix works.
+   */
   stateValues?: Record<string, unknown>;
   /**
    * Host advancement hook for stage-level conditions (#183). Default

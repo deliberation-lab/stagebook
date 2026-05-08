@@ -1,11 +1,10 @@
 import { compare, type Comparator } from "./compare.js";
 
-/** A single leaf condition: a reference + comparator + optional value,
- *  with optional cross-player aggregation via `position`. This is what
- *  the boolean tree's operator branches eventually bottom out at. */
+/** A single leaf condition: a reference + comparator + optional value.
+ *  After #298, the position is part of the reference itself (e.g.
+ *  `0.prompt.X.value`); the sibling `position:` field is removed. */
 export interface Condition {
   reference: string;
-  position?: string;
   comparator: string;
   value?: unknown;
 }
@@ -66,12 +65,12 @@ function isNoneNode(n: unknown): n is { none: ConditionNode[] } {
  * is available (so operators above can know the leaf is "unknown"
  * rather than "false"); returns `true`/`false` otherwise.
  *
- * After #238, `position` on a leaf is a pure read selector
- * (`"shared"` / `"player"` / numeric slot index, default `"player"`).
- * The host's `resolve(reference, position)` callback returns the
- * relevant value(s) for that selector. Cross-player aggregation
- * (`all` / `any`) lives in the boolean-tree operators (#235);
- * `percentAgreement` was pulled out entirely.
+ * After #298, the position is part of the reference itself
+ * (`0.prompt.X.value`, `self.entryUrl.params.x`, etc.). The host's
+ * `resolve(reference)` callback parses out the position and returns
+ * the relevant value(s). Cross-player aggregation (`all` / `any`)
+ * lives in the boolean-tree operators (#235); `percentAgreement`
+ * was pulled out entirely.
  *
  * Semantics: every returned value must satisfy the comparator; the
  * loop short-circuits on a definite false, propagates undefined when
@@ -120,7 +119,7 @@ function evaluateLeafTriState(
  */
 function evaluateNode(
   node: ConditionNode,
-  resolve: (reference: string, position?: string) => unknown[],
+  resolve: (reference: string) => unknown[],
 ): TriState {
   if (isAllNode(node)) {
     let anyUnknown = false;
@@ -149,8 +148,8 @@ function evaluateNode(
     }
     return anyUnknown ? undefined : true;
   }
-  // Leaf
-  const values = resolve(node.reference, node.position);
+  // Leaf — position is part of the reference itself per #298.
+  const values = resolve(node.reference);
   return evaluateLeafTriState(node, values);
 }
 
@@ -181,7 +180,7 @@ export function evaluateCondition(
  */
 export function evaluateConditions(
   conditions: ConditionNode[] | ConditionNode | undefined | null,
-  resolve: (reference: string, position?: string) => unknown[],
+  resolve: (reference: string) => unknown[],
 ): boolean {
   if (conditions === undefined || conditions === null) return true;
   if (Array.isArray(conditions)) {

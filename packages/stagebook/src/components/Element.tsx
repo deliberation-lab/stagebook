@@ -29,12 +29,13 @@ function resolveParams(
         key: string;
         value?: unknown;
         // After #240, references can be either the dotted-string sugar
-        // or the structured `{source, name?, path?}` form.
+        // or the structured `{position, source, name?, path?}` form.
+        // Per #298 position lives inside the reference; the pre-#298
+        // sibling `position:` field is gone.
         reference?: string | ReferenceType;
-        position?: string;
       }>
     | undefined,
-  resolve: (ref: string | ReferenceType, pos?: string) => unknown[],
+  resolve: (ref: string | ReferenceType) => unknown[],
 ): ResolvedParam[] {
   if (!urlParams) return [];
   return urlParams.map((param) => {
@@ -47,7 +48,9 @@ function resolveParams(
             : String(param.value as string | number | boolean),
       };
     }
-    const values = resolve(param.reference, param.position);
+    // Per #298 the position is part of the reference itself; the
+    // sibling `param.position` field is removed.
+    const values = resolve(param.reference);
     const picked = values.find((v) => v !== undefined);
     return {
       key: param.key,
@@ -150,23 +153,31 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       );
 
     case "display": {
-      const ref = element.reference ?? `prompt.${element.name}`;
-      const values = resolve(ref, element.position);
-      // Always render a stable dotted-string for `data-reference`
-      // regardless of whether the treatment authored a string or
-      // structured ref (and regardless of whether the host parsed it
-      // into structured form before passing it in). Downstream tooling
-      // that scrapes the attribute keeps the familiar dotted shape.
-      const refString =
-        typeof ref === "string"
-          ? parseDottedReference(ref).ok
-            ? ref
-            : ref // malformed strings pass through verbatim
-          : formatReference(ref);
+      // Per #298, the position is part of the reference itself —
+      // `0.prompt.foo.value`, `all.prompt.recall.value`, etc. The
+      // Display element no longer takes a sibling `position:` field;
+      // the position is parsed out of the reference and used for
+      // layout hints. The resolver handles the same parsing internally
+      // when resolving values.
+      const ref = element.reference ?? `self.prompt.${String(element.name)}`;
+      const values = resolve(ref);
+      // Parse once, derive both the canonical dotted-string form (for
+      // `data-reference`) and the position (for layout) from the same
+      // structured shape.
+      let parsed: ReferenceType | null = null;
+      if (typeof ref === "string") {
+        const r = parseDottedReference(ref);
+        if (r.ok) parsed = r.value;
+      } else {
+        parsed = ref;
+      }
+      const refString = parsed ? formatReference(parsed) : (ref as string); // malformed pass-through
+      const positionForLayout =
+        parsed === null ? undefined : String(parsed.position);
       return (
         <Display
           reference={refString}
-          position={element.position}
+          position={positionForLayout}
           values={values}
         />
       );
@@ -210,9 +221,11 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       const promptName =
         element.name ?? `${progressLabel}_${metadata.name ?? element.file}`;
 
-      // Read current value from state
-      const scope = element.shared ? "shared" : "player";
-      const currentValues = resolve(`prompt.${promptName}`, scope);
+      // Read current value from state. Position comes from the
+      // reference itself per #298 — `shared.prompt.X` for shared
+      // prompts, `self.prompt.X` for player-scoped.
+      const scope = element.shared ? "shared" : "self";
+      const currentValues = resolve(`${scope}.prompt.${promptName}`);
       const currentValue = currentValues[0];
 
       return (

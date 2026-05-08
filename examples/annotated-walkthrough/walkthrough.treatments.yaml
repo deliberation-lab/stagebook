@@ -1,8 +1,3 @@
-# Annotated walkthrough — a Stagebook syntax tour.
-# See README.md for the big-picture overview. The `notes:` fields below
-# describe each stage/element/template and are surfaced in the viewer
-# sidebar; short inline comments flag syntax particulars.
-
 templates:
   - name: studyTreatment
     contentType: treatment
@@ -17,37 +12,22 @@ templates:
       `contentType: treatment` tells the validator which schema to apply
       to `content`.
     content:
-      # `${topic}` and `${topicLabel}` come from the broadcast axis at
-      # the bottom of the file. After expansion `${topic}` becomes e.g.
-      # "remote_work" and `${topicLabel}` becomes "remote work policies".
       name: Annotated walkthrough - ${topicLabel}
       notes: A two-person text discussion about ${topicLabel}, annotated as a syntax tour.
       playerCount: 2
-
-      # `groupComposition` defines per-position eligibility conditions
-      # on data captured during the intro. (Player-level blocks don't
-      # carry `notes:`, so the explanatory commentary for this block
-      # lives here as a YAML comment.) Absolute cutoff on the
-      # familiarity slider: scores ≥ 50 → position 0 ("Familiar"); scores
-      # < 50 → position 1 ("Newcomer"). Stagebook defines the contract;
-      # matching happens in the host's lobby. Hosts that enforce strict
-      # threshold matching will fail to form a group when both
-      # participants fall on the same side of the cutoff — the
-      # intentional cost of threshold-based composition there.
       groupComposition:
         - position: 0
           title: Familiar
           conditions:
-            - reference: prompt.familiarity
+            - reference: self.prompt.familiarity
               comparator: isAtLeast
               value: 50
         - position: 1
           title: Newcomer
           conditions:
-            - reference: prompt.familiarity
+            - reference: self.prompt.familiarity
               comparator: isBelow
               value: 50
-
       gameStages:
         - name: ${topic}_initial
           duration: 90
@@ -65,8 +45,6 @@ templates:
                 Visible for 0–10s via `hideTime: 10`. Acts as a short
                 orientation screen before the real prompt appears.
             - type: prompt
-              # `name:` makes this response addressable as
-              # `prompt.${topic}_initial` in later references.
               name: ${topic}_initial
               file: prompts/topic_${topic}.prompt.md
               displayTime: 10
@@ -79,7 +57,6 @@ templates:
               buttonText: Submit my position
               displayTime: 10
               notes: Hidden for the first 10s so participants read the orientation before they can advance.
-
         - name: ${topic}_discussion
           duration: 300
           notes: |
@@ -93,7 +70,10 @@ templates:
             chatType: text
             showNickname: true
             showTitle: true
-            reactionEmojisAvailable: ["👍", "🤔", "❓"]
+            reactionEmojisAvailable:
+              - 👍
+              - 🤔
+              - ❓
           elements:
             - type: prompt
               file: prompts/discussion_guide.prompt.md
@@ -113,7 +93,6 @@ templates:
               buttonText: End discussion
               displayTime: 60
               notes: Hidden for the first 60s so participants engage before they can bail out.
-
         - name: ${topic}_reflection
           duration: 120
           notes: |
@@ -126,42 +105,34 @@ templates:
             question.
           elements:
             - type: display
-              reference: prompt.${topic}_initial
-              position: 1
-              showToPositions: [0]
+              reference: 1.prompt.${topic}_initial
+              showToPositions:
+                - 0
               notes: Shows position 1's initial response to position 0.
             - type: display
-              reference: prompt.${topic}_initial
-              position: 0
-              showToPositions: [1]
+              reference: 0.prompt.${topic}_initial
+              showToPositions:
+                - 1
               notes: Shows position 0's initial response to position 1.
-
             - type: separator
               style: thick
-
             - type: prompt
               name: ${topic}_post
               file: prompts/post_position.prompt.md
-
             - type: prompt
               name: ${topic}_changed
               file: prompts/post_changed.prompt.md
-
             - type: prompt
               file: prompts/post_consensus.prompt.md
               conditions:
-                # String-shorthand reference (the most common form).
-                - reference: prompt.${topic}_changed
-                  position: 0
+                - reference: 0.prompt.${topic}_changed
                   comparator: exists
-                # Same reference, written in the structured form (#240).
-                # Equivalent to `prompt.${topic}_changed` — `path: [value]`
-                # makes the implicit `value` default explicit.
                 - reference:
+                    position: '1'
                     source: prompt
                     name: ${topic}_changed
-                    path: [value]
-                  position: 1
+                    path:
+                      - value
                   comparator: exists
               notes: |
                 Conditional element — only appears once *both* players
@@ -175,9 +146,7 @@ templates:
                 both reference shapes — string sugar (`prompt.foo`) and
                 the structured `{source, name, path}` form (#240) — at
                 the same site; either parses to the same internal shape.
-
             - type: submitButton
-
       exitSequence:
         - name: Debrief
           notes: Per-treatment, solo exit step. Runs after the game stages but before any treatment-wide exit survey.
@@ -198,7 +167,6 @@ templates:
             - type: qualtrics
               name: exit_qualtrics
               url: https://example.qualtrics.com/jfe/form/SV_example
-
 introSequences:
   - name: onboarding
     notes: |
@@ -215,12 +183,9 @@ introSequences:
             notes: Informational `noResponse` prompt — text only, no input collected.
           - type: submitButton
             buttonText: I consent
-
       - name: Familiarity
         elements:
           - type: prompt
-            # `name:` here is what makes this slider addressable by
-            # `groupComposition` above as `prompt.familiarity`.
             name: familiarity
             file: prompts/familiarity.prompt.md
             notes: |
@@ -228,19 +193,12 @@ introSequences:
               `groupComposition` uses (`prompt.familiarity`) to split
               participants into positions.
           - type: submitButton
-
       - name: Personality
         elements:
           - type: survey
             surveyName: TIPI
             name: pre_TIPI
             notes: Platform-coupled survey element — the host platform renders the Ten-Item Personality Inventory. Skeleton placeholder in the viewer.
-
-# Two treatments are generated from one template by broadcasting over
-# the `d0` axis below. The viewer offers them side-by-side in the
-# treatment picker; each row supplies a different value for `${topic}`
-# and `${topicLabel}`, which fan out through every `${topic}`
-# placeholder inside `studyTreatment`.
 treatments:
   - template: studyTreatment
     broadcast:

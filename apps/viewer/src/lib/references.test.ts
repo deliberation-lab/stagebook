@@ -9,12 +9,12 @@ describe("extractStageReferences", () => {
         name: "q2",
         file: "prompts/q2.prompt.md",
         conditions: [
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
         ],
       },
     ];
     const refs = extractStageReferences(elements);
-    expect(refs).toContain("prompt.q1");
+    expect(refs).toContain("self.prompt.q1");
   });
 
   it("extracts display element references", () => {
@@ -22,12 +22,11 @@ describe("extractStageReferences", () => {
       {
         type: "display" as const,
         name: "showVote",
-        reference: "prompt.vote",
-        position: "0",
+        reference: "0.prompt.vote",
       },
     ];
     const refs = extractStageReferences(elements);
-    expect(refs).toContain("prompt.vote");
+    expect(refs).toContain("0.prompt.vote");
   });
 
   it("extracts multiple references and deduplicates", () => {
@@ -37,10 +36,10 @@ describe("extractStageReferences", () => {
         name: "q2",
         file: "prompts/q2.prompt.md",
         conditions: [
-          { reference: "prompt.q1", comparator: "equals", value: "yes" },
-          { reference: "prompt.q1", comparator: "equals", value: "no" },
+          { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
+          { reference: "self.prompt.q1", comparator: "equals", value: "no" },
           {
-            reference: "survey.TIPI.result.score",
+            reference: "self.survey.TIPI.result.score",
             comparator: "isAbove",
             value: 3,
           },
@@ -49,11 +48,11 @@ describe("extractStageReferences", () => {
       {
         type: "display" as const,
         name: "d1",
-        reference: "prompt.q1",
+        reference: "self.prompt.q1",
       },
     ];
     const refs = extractStageReferences(elements);
-    expect(refs).toEqual(["prompt.q1", "survey.TIPI.result.score"]);
+    expect(refs).toEqual(["self.prompt.q1", "self.survey.TIPI.result.score"]);
   });
 
   it("returns empty array for elements with no references", () => {

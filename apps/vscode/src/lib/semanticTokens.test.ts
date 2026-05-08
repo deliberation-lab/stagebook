@@ -42,12 +42,12 @@ describe("computeSemanticTokens", () => {
   describe("reference strings", () => {
     it("highlights reference values after 'reference:' key", () => {
       const src = `conditions:
-  - reference: prompt.q1
+  - reference: self.prompt.q1
     comparator: exists`;
       const tokens = computeSemanticTokens(src);
       const refTokens = tokens.filter((t) => t.tokenType === "variable");
       expect(refTokens).toHaveLength(1);
-      expect(refTokens[0]).toMatchObject({ text: "prompt.q1" });
+      expect(refTokens[0]).toMatchObject({ text: "self.prompt.q1" });
     });
   });
 
@@ -283,15 +283,15 @@ duration: 300`;
     });
 
     it("aligns token for double-quoted reference", () => {
-      const src = `reference: "prompt.q1"`;
+      const src = `reference: "self.prompt.q1"`;
       const tokens = computeSemanticTokens(src);
       const refTokens = tokens.filter((t) => t.tokenType === "variable");
       expect(refTokens).toHaveLength(1);
       expect(refTokens[0]).toMatchObject({
         line: 0,
         startCol: 12,
-        length: 9,
-        text: "prompt.q1",
+        length: "self.prompt.q1".length,
+        text: "self.prompt.q1",
       });
     });
 
@@ -518,7 +518,7 @@ treatments:
           - type: prompt
             file: prompts/q1.prompt.md
             conditions:
-              - reference: prompt.consent
+              - reference: self.prompt.consent
                 comparator: equals
                 value: "yes"
           - type: submitButton`;

@@ -123,7 +123,6 @@ describe("StagebookProvider + useStagebookContext", () => {
 function renderUseResolve(
   reference: string,
   ctx: StagebookContext,
-  position?: string,
 ): {
   result: { current: unknown[] };
   unmount: () => void;
@@ -133,7 +132,7 @@ function renderUseResolve(
   let root: Root;
 
   function Harness(): ReactNode {
-    result.current = useResolve(reference, position);
+    result.current = useResolve(reference);
     return null;
   }
 
@@ -159,9 +158,11 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     ]);
     const ctx = createMockContext({ get });
 
-    const { result, unmount } = renderUseResolve("prompt.q1", ctx);
+    // Per #298 the position is part of the reference itself. `self.X`
+    // maps to the host's "player" scope at the get() boundary.
+    const { result, unmount } = renderUseResolve("self.prompt.q1", ctx);
 
-    expect(get).toHaveBeenCalledWith("prompt_q1", undefined);
+    expect(get).toHaveBeenCalledWith("prompt_q1", "player");
     expect(result.current).toEqual(["yes"]);
     unmount();
   });
@@ -171,61 +172,44 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     const ctx = createMockContext({ get });
 
     const { result, unmount } = renderUseResolve(
-      "survey.TIPI.result.score",
+      "self.survey.TIPI.result.score",
       ctx,
     );
 
-    expect(get).toHaveBeenCalledWith("survey_TIPI", undefined);
+    expect(get).toHaveBeenCalledWith("survey_TIPI", "player");
     expect(result.current).toEqual([4.5]);
     unmount();
   });
 
-  test("passes 'shared' scope through to get verbatim", () => {
+  test("passes 'shared' position prefix through to get verbatim", () => {
     const get = vi.fn(() => []);
     const ctx = createMockContext({ get });
 
-    const { unmount } = renderUseResolve("prompt.q1", ctx, "shared");
+    const { unmount } = renderUseResolve("shared.prompt.q1", ctx);
 
     expect(get).toHaveBeenCalledWith("prompt_q1", "shared");
     unmount();
   });
 
-  test("passes a numeric slot-index scope through to get verbatim", () => {
-    // After #238, condition leaves can target a specific slot via a
-    // numeric position (rendered to string at this boundary). The
-    // host's get() receives the string unchanged.
+  test("passes a numeric slot-index prefix through to get verbatim", () => {
+    // Numeric slot index is rendered to a string at the get()
+    // boundary so the host receives a uniform string scope arg.
     const get = vi.fn(() => []);
     const ctx = createMockContext({ get });
 
-    const { unmount } = renderUseResolve("prompt.q1", ctx, "0");
+    const { unmount } = renderUseResolve("0.prompt.q1", ctx);
 
     expect(get).toHaveBeenCalledWith("prompt_q1", "0");
     unmount();
   });
 
-  test("forwards `all` scope to get (display.position: all is still kept)", () => {
-    // `display.position` (and trackedLink/qualtrics urlParams via
-    // `positionSelectorSchema`) still allow `"all"` after #238 —
-    // only condition leaves were narrowed. The runtime forwards
+  test("forwards `all` prefix to get (multi-participant list)", () => {
+    // `all.X` returns one value per participant; the runtime forwards
     // `"all"` verbatim to the host's get().
     const get = vi.fn(() => []);
     const ctx = createMockContext({ get });
 
-    const { unmount } = renderUseResolve("prompt.q1", ctx, "all");
-
-    expect(get).toHaveBeenCalledWith("prompt_q1", "all");
-    unmount();
-  });
-
-  test("normalizes `any` scope to `all` before forwarding to get", () => {
-    // `display.position: "any"` and `"all"` share the same storage
-    // shape (one value per participant); the "any-of" semantics is
-    // applied at the consumer. Stagebook normalizes here so hosts
-    // only need to handle `"all"`.
-    const get = vi.fn(() => []);
-    const ctx = createMockContext({ get });
-
-    const { unmount } = renderUseResolve("prompt.q1", ctx, "any");
+    const { unmount } = renderUseResolve("all.prompt.q1", ctx);
 
     expect(get).toHaveBeenCalledWith("prompt_q1", "all");
     unmount();
@@ -236,7 +220,7 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     const get = vi.fn(() => [{ name: "q1" }]);
     const ctx = createMockContext({ get });
 
-    const { result, unmount } = renderUseResolve("prompt.q1", ctx);
+    const { result, unmount } = renderUseResolve("self.prompt.q1", ctx);
 
     expect(result.current).toEqual([]);
     unmount();
@@ -253,7 +237,7 @@ describe("Provider-level resolve (get → resolve pipeline)", () => {
     ]);
     const ctx = createMockContext({ get });
 
-    const { result, unmount } = renderUseResolve("prompt.q1", ctx, "0");
+    const { result, unmount } = renderUseResolve("0.prompt.q1", ctx);
 
     expect(result.current).toEqual(["a", "b"]);
     unmount();

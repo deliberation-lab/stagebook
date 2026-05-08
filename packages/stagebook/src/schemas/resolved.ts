@@ -16,7 +16,6 @@ import {
   displayTimeSchema,
   hideTimeSchema,
   positionSchema,
-  positionSelectorSchema,
   showToPositionsSchema,
   hideFromPositionsSchema,
   discussionSchema,
@@ -29,18 +28,12 @@ import {
 
 // Leaf shape of a resolved condition: reference + comparator + optional
 // value, no template placeholders. Boolean-tree operators (#235) are
-// described separately below.
+// described separately below. After #298 the position lives inside the
+// reference; the sibling `position:` field is removed (mirrors
+// `baseConditionSchema` in treatment.ts).
 const resolvedLeafConditionSchema = z
   .object({
     reference: referenceSchema,
-    // `position` is a pure read selector after #238 — `all`/`any`
-    // moved to the boolean-tree operators (#235), `percentAgreement`
-    // was pulled out entirely. Mirrors `baseConditionSchema.position`
-    // in treatment.ts.
-    position: z
-      .enum(["shared", "player"])
-      .or(z.number().nonnegative().int())
-      .optional(),
     comparator: z.enum([
       "exists",
       "doesNotExist",
@@ -139,7 +132,6 @@ const resolvedElementBaseSchema = z.object({
   displayText: z.string().optional(),
   helperText: z.string().optional(),
   reference: z.string().optional(),
-  position: positionSelectorSchema.optional(),
   surveyName: z.string().optional(),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
@@ -152,7 +144,6 @@ const resolvedElementBaseSchema = z.object({
         key: z.string(),
         value: z.union([z.string(), z.number(), z.boolean()]).optional(),
         reference: z.string().optional(),
-        position: positionSelectorSchema.optional(),
       }),
     )
     .optional(),

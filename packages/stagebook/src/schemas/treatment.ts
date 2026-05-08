@@ -7,11 +7,14 @@ import {
   namedSourceEnum,
   externalSourceEnum,
   referenceSchema,
+  parseDottedReference,
+  positionSelectorSchema,
   type ReferenceType,
   type NamedReferenceType,
   type ExternalReferenceType,
   type NamedSource,
   type ExternalSource,
+  type PositionSelectorType,
 } from "./reference.js";
 
 // Re-exports so consumers' existing imports from `./treatment.js` keep
@@ -21,11 +24,13 @@ export {
   namedSourceEnum,
   externalSourceEnum,
   referenceSchema,
+  positionSelectorSchema,
   type ReferenceType,
   type NamedReferenceType,
   type ExternalReferenceType,
   type NamedSource,
   type ExternalSource,
+  type PositionSelectorType,
 };
 export { parseDottedReference, formatReference } from "./reference.js";
 
@@ -192,11 +197,10 @@ export type HideTimeType = z.infer<typeof hideTimeSchema>;
 export const positionSchema = z.number().int().nonnegative();
 export type PositionType = z.infer<typeof positionSchema>;
 
-export const positionSelectorSchema = z
-  .enum(["shared", "player", "all", "any"])
-  .or(positionSchema)
-  .default("player");
-export type PositionSelectorType = z.infer<typeof positionSelectorSchema>;
+// Position selector for *references* lives in `reference.ts` after #298 —
+// re-exported via the schemas barrel. Reference-using sites no longer
+// have a sibling `position:` field; the position is part of the reference
+// itself (e.g. `0.prompt.recall.value`).
 
 export const showToPositionsSchema = z
   .array(positionSchema, {
@@ -563,18 +567,12 @@ function altTemplateContext<T extends z.ZodTypeAny>(baseSchema: T) {
 
 const baseConditionSchema = z
   .object({
+    // After #298 the position selector is part of the reference itself
+    // (e.g. `0.prompt.X.value`, `self.entryUrl.params.condition`).
+    // The pre-#298 sibling `position:` field is removed; the
+    // game-stage rule that forbade `player`/`self` references at the
+    // stage level reads the position from the parsed reference now.
     reference: referenceSchema,
-    // `position` on a condition leaf is a pure read selector (#238):
-    // where to read the referenced value from. Cross-player aggregation
-    // (`all` / `any`) lives in the boolean-tree operators (#235); the
-    // numeric `percentAgreement` aggregator was pulled out entirely
-    // (no migration — see issue #238 for context). The game-stage
-    // `forbidSelfPosition` rule (below) still rejects default/explicit
-    // `player` at the game-stage level for the same desync reason.
-    position: z
-      .enum(["shared", "player"])
-      .or(z.number().nonnegative().int())
-      .optional(),
   })
   .strict();
 
@@ -790,10 +788,12 @@ export const conditionSchema = conditionNodeSchema;
 // they would evaluate to a different result on each participant's client
 // — causing one participant to skip a stage while the other renders it.
 // Intro/exit steps are per-participant and have no such constraint.
-const GAME_STAGE_FORBIDDEN_POSITIONS = new Set([
-  "player",
-  "self", // not in the schema today but guard against future additions
-]);
+//
+// After #298 the position lives inside the reference itself, so this
+// check inspects the parsed reference's `position` field. The forbidden
+// selector is `self` (formerly `player`); numeric indices and `shared`
+// are cross-client safe; `all` returns a list and is also safe.
+const GAME_STAGE_FORBIDDEN_POSITIONS = new Set(["self"]);
 
 /**
  * Validate that every `type: "timeline"` element's `source` names a
@@ -909,33 +909,55 @@ function validateConditionRules(
   // Leaf condition: apply the per-leaf rules. The path prefix already
   // points at the condition's location.
   const c = node as {
-    position?: unknown;
+    reference?: unknown;
     comparator?: unknown;
     value?: unknown;
   };
 
   // Game-stage conditions must evaluate identically on every client or
-  // they'll desync (one player skips, the other renders). The default
-  // position is "player", which reads this participant's own data — so
-  // we reject both missing and explicitly "player". After #238 the
-  // cross-client read selectors are `shared` or a numeric slot index;
-  // cross-player aggregation lives in the boolean-tree operators (#235).
-  if (
-    options.forbidSelfPosition &&
-    (c.position === undefined ||
-      (typeof c.position === "string" &&
-        GAME_STAGE_FORBIDDEN_POSITIONS.has(c.position)))
-  ) {
-    const shown =
-      c.position === undefined
-        ? "(default: player)"
-        : `"${String(c.position)}"`;
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [...pathPrefix, "position"],
-      message: `${options.contextLabel} conditions must use a cross-client position (shared, or a numeric slot index) — got ${shown}. Per-player positions would let one participant skip the stage while the other renders it. For per-player aggregation, wrap leaves in an \`all:\` or \`any:\` operator with explicit slot-index leaves.`,
-    });
+  // they'll desync (one player skips, the other renders). After #298
+  // the position lives inside the reference itself; we extract it and
+  // reject `self` (per-participant). Numeric slot indices, `shared`,
+  // and `all` are cross-client safe.
+  if (options.forbidSelfPosition) {
+    const refPosition = extractReferencePosition(c.reference);
+    if (
+      typeof refPosition === "string" &&
+      GAME_STAGE_FORBIDDEN_POSITIONS.has(refPosition)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...pathPrefix, "reference"],
+        message: `${options.contextLabel} conditions must use a cross-client position prefix on the reference (\`shared\`, a numeric slot index, or \`all\`) — got \`self\`. Per-participant references would let one participant skip the stage while the other renders it. For per-participant aggregation, wrap leaves in an \`all:\` or \`any:\` operator with explicit slot-index references.`,
+      });
+    }
   }
+}
+
+/**
+ * Extract the position selector from a reference field, regardless of
+ * whether the reference is in dotted-string form or already structured.
+ * Returns `undefined` if the position can't be determined (e.g., the
+ * reference is invalid or a template placeholder).
+ */
+function extractReferencePosition(
+  reference: unknown,
+): number | string | undefined {
+  if (typeof reference === "string") {
+    const parsed = parseDottedReference(reference);
+    if (parsed.ok) return parsed.value.position;
+    return undefined;
+  }
+  if (
+    reference &&
+    typeof reference === "object" &&
+    "position" in reference &&
+    (typeof (reference as { position: unknown }).position === "string" ||
+      typeof (reference as { position: unknown }).position === "number")
+  ) {
+    return (reference as { position: number | string }).position;
+  }
+  return undefined;
 }
 
 // Field-level conditions schema (#235): accepts either a flat array
@@ -1088,8 +1110,11 @@ const imageSchema = elementBaseSchema
 const displaySchema = elementBaseSchema
   .extend({
     type: z.literal("display"),
+    // Per #298 the position is part of the reference itself
+    // (e.g. `all.prompt.recall.value` to render every participant's
+    // value, `0.prompt.notes.value` to render position 0's). The
+    // pre-#298 sibling `position:` field is removed.
     reference: referenceSchema,
-    position: positionSelectorSchema,
   })
   .strict();
 
@@ -1274,8 +1299,8 @@ const trackedLinkParamSchema = z
     value: z
       .union([z.string(), z.number(), z.boolean(), fieldPlaceholderSchema])
       .optional(),
+    // Per #298 the position is part of the reference itself.
     reference: referenceSchema.optional(),
-    position: positionSelectorSchema.optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

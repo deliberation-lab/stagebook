@@ -290,8 +290,11 @@ export function computeSemanticTokens(source: string): SemanticToken[] {
             typeof value.value === "string" &&
             scalarSrc
           ) {
-            const refType = value.value.split(".")[0];
-            if (referenceTypeSet.has(refType)) {
+            // Per #298, references are position-prefixed:
+            // `<position>.<source>.<...>`. Source is the second segment.
+            const segments = value.value.split(".");
+            const refType = segments[1];
+            if (refType && referenceTypeSet.has(refType)) {
               addToken(scalarSrc.offset, scalarSrc.text, "variable");
             }
           } else if (
