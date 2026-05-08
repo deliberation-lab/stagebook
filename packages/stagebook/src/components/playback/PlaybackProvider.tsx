@@ -98,10 +98,31 @@ export function PlaybackProvider({ children }: { children: React.ReactNode }) {
       if (e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       const target = e.target;
+      // Skip when the press belongs to a Space-activated interactive
+      // control: text inputs, form widgets, native buttons/links, ARIA
+      // buttons, etc. Otherwise the global handler would steal Space
+      // from a focused SubmitButton or radio option, breaking standard
+      // keyboard behavior.
       if (
         target instanceof HTMLElement &&
         target.closest(
-          "input, textarea, select, [contenteditable=''], [contenteditable='true']",
+          [
+            "input",
+            "textarea",
+            "select",
+            "button",
+            "summary",
+            "a[href]",
+            "[contenteditable='']",
+            "[contenteditable='true']",
+            "[role='button']",
+            "[role='checkbox']",
+            "[role='radio']",
+            "[role='switch']",
+            "[role='menuitem']",
+            "[role='tab']",
+            "[role='option']",
+          ].join(", "),
         )
       ) {
         return;

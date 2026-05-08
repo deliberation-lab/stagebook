@@ -252,6 +252,46 @@ describe("global Space handler (issue #300)", () => {
     }
   });
 
+  test("ignores Space when a button is focused (so Space still activates the button)", () => {
+    const { play, cleanup } = setupWithHandle(true);
+    const button = document.createElement("button");
+    button.textContent = "Submit";
+    document.body.appendChild(button);
+    try {
+      const e = dispatchSpaceOn(button);
+      expect(play).not.toHaveBeenCalled();
+      expect(e.defaultPrevented).toBe(false);
+    } finally {
+      button.remove();
+      cleanup();
+    }
+  });
+
+  test("ignores Space on a link, summary, and ARIA-button (other Space-activated controls)", () => {
+    const { play, cleanup } = setupWithHandle(true);
+    const link = document.createElement("a");
+    link.setAttribute("href", "#");
+    document.body.appendChild(link);
+    const summary = document.createElement("summary");
+    document.body.appendChild(summary);
+    const ariaButton = document.createElement("div");
+    ariaButton.setAttribute("role", "button");
+    ariaButton.setAttribute("tabindex", "0");
+    document.body.appendChild(ariaButton);
+    try {
+      for (const el of [link, summary, ariaButton]) {
+        const e = dispatchSpaceOn(el);
+        expect(e.defaultPrevented).toBe(false);
+      }
+      expect(play).not.toHaveBeenCalled();
+    } finally {
+      link.remove();
+      summary.remove();
+      ariaButton.remove();
+      cleanup();
+    }
+  });
+
   test("ignores Space typed inside a text input", () => {
     const { play, pause, cleanup } = setupWithHandle(true);
     const input = document.createElement("input");
