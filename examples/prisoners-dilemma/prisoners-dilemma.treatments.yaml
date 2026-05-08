@@ -1,9 +1,3 @@
-# Prisoner's Dilemma — a 2-player simultaneous-choice example.
-# Two treatments share a single round template: a one-shot game and a
-# 3-round repeated game. Each round = one choice stage + one outcome
-# stage; the outcome stage uses condition leaves with `comparator: equals`
-# to render the right outcome card per (P0 × P1) choice combination.
-
 templates:
   - name: roundTemplate
     contentType: stages
@@ -30,7 +24,6 @@ templates:
           - type: timer
           - type: submitButton
             buttonText: Lock in choice
-
       - name: round_${roundN}_outcome
         duration: 30
         notes: |
@@ -42,107 +35,83 @@ templates:
           into one element per perspective so the same prompt file can
           serve "you were exploited" for whoever cooperated.
         elements:
-          # Show partner's choice — asymmetric per position.
           - type: display
-            reference: prompt.choice_round_${roundN}
-            position: 1
-            showToPositions: [0]
+            reference: 1.prompt.choice_round_${roundN}
+            showToPositions:
+              - 0
             notes: Position 0 sees position 1's choice.
           - type: display
-            reference: prompt.choice_round_${roundN}
-            position: 0
-            showToPositions: [1]
+            reference: 0.prompt.choice_round_${roundN}
+            showToPositions:
+              - 1
             notes: Position 1 sees position 0's choice.
-
           - type: separator
-
-          # Both cooperated → both see the same card.
           - type: prompt
             file: prompts/outcome_both_cooperated.prompt.md
             conditions:
-              - reference: prompt.choice_round_${roundN}
-                position: 0
+              - reference: 0.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Cooperate
-              - reference: prompt.choice_round_${roundN}
-                position: 1
+              - reference: 1.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Cooperate
             notes: Flat-array conditions are AND-combined — only renders when *both* positions chose Cooperate.
-
-          # Both defected → both see the same card.
           - type: prompt
             file: prompts/outcome_both_defected.prompt.md
             conditions:
-              - reference: prompt.choice_round_${roundN}
-                position: 0
+              - reference: 0.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Defect
-              - reference: prompt.choice_round_${roundN}
-                position: 1
+              - reference: 1.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Defect
-
-          # Asymmetric: position 0 cooperated, position 1 defected.
-          # Each side sees a different card; we instantiate the same
-          # prompt file twice with mirrored `showToPositions` /
-          # `position` selectors.
           - type: prompt
             file: prompts/outcome_you_cooperated_they_defected.prompt.md
-            showToPositions: [0]
+            showToPositions:
+              - 0
             conditions:
-              - reference: prompt.choice_round_${roundN}
-                position: 0
+              - reference: 0.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Cooperate
-              - reference: prompt.choice_round_${roundN}
-                position: 1
+              - reference: 1.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Defect
           - type: prompt
             file: prompts/outcome_you_defected_they_cooperated.prompt.md
-            showToPositions: [1]
+            showToPositions:
+              - 1
             conditions:
-              - reference: prompt.choice_round_${roundN}
-                position: 0
+              - reference: 0.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Cooperate
-              - reference: prompt.choice_round_${roundN}
-                position: 1
+              - reference: 1.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Defect
-
-          # Asymmetric: position 0 defected, position 1 cooperated. Mirror
-          # of the block above.
           - type: prompt
             file: prompts/outcome_you_defected_they_cooperated.prompt.md
-            showToPositions: [0]
+            showToPositions:
+              - 0
             conditions:
-              - reference: prompt.choice_round_${roundN}
-                position: 0
+              - reference: 0.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Defect
-              - reference: prompt.choice_round_${roundN}
-                position: 1
+              - reference: 1.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Cooperate
           - type: prompt
             file: prompts/outcome_you_cooperated_they_defected.prompt.md
-            showToPositions: [1]
+            showToPositions:
+              - 1
             conditions:
-              - reference: prompt.choice_round_${roundN}
-                position: 0
+              - reference: 0.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Defect
-              - reference: prompt.choice_round_${roundN}
-                position: 1
+              - reference: 1.prompt.choice_round_${roundN}
                 comparator: equals
                 value: Cooperate
-
           - type: submitButton
             displayTime: 5
             buttonText: Continue
-
 treatments:
   - name: Prisoners Dilemma one-shot
     notes: |
@@ -161,7 +130,6 @@ treatments:
             name: reflection
             file: prompts/feedback.prompt.md
           - type: submitButton
-
   - name: Prisoners Dilemma 3-round repeated
     notes: |
       Same round structure repeated three times via broadcast. Each
@@ -185,7 +153,6 @@ treatments:
             name: reflection
             file: prompts/feedback.prompt.md
           - type: submitButton
-
 introSequences:
   - name: orientation
     notes: Solo intro — both players read the rules independently before being matched.

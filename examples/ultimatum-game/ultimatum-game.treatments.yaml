@@ -1,10 +1,3 @@
-# Ultimatum Game — a 2-player asymmetric example.
-# Position 0 is the Proposer (offers a slice of $10); position 1 is the
-# Responder (accepts or rejects). Roles are assigned via
-# `groupComposition` from a multipleChoice in the intro. The two game
-# stages and the outcome stage demonstrate position-based asymmetric
-# content via `showToPositions` and cross-player `display` elements.
-
 treatments:
   - name: Ultimatum Game
     notes: |
@@ -15,26 +8,19 @@ treatments:
       and responder are working from the same stage but seeing
       different content.
     playerCount: 2
-
-    # `groupComposition` matches participants into seats based on the
-    # role-preference response captured in the intro. If both
-    # participants pick the same role the host's matching policy
-    # decides who gets which seat — Stagebook only specifies the
-    # contract.
     groupComposition:
       - position: 0
         title: Proposer
         conditions:
-          - reference: prompt.role_preference
+          - reference: self.prompt.role_preference
             comparator: equals
             value: Proposer
       - position: 1
         title: Responder
         conditions:
-          - reference: prompt.role_preference
+          - reference: self.prompt.role_preference
             comparator: equals
             value: Responder
-
     gameStages:
       - name: offer
         duration: 60
@@ -44,26 +30,23 @@ treatments:
           and a Ready button. Both must submit before the stage advances,
           so the responder is naturally held while the proposer thinks.
         elements:
-          # Proposer-only: the actual offer slider.
           - type: prompt
             name: offer
             file: prompts/offer.prompt.md
-            showToPositions: [0]
+            showToPositions:
+              - 0
             notes: |
               `showToPositions: [0]` restricts this prompt to the
               proposer. The response is named `offer`, so it is
               addressable as `prompt.offer` from the responder's
               `display` element on the next stage.
-
-          # Responder-only: a "wait" view.
           - type: prompt
             file: prompts/responder_waiting.prompt.md
-            showToPositions: [1]
-
+            showToPositions:
+              - 1
           - type: timer
           - type: submitButton
             buttonText: Ready
-
       - name: decision
         duration: 60
         notes: |
@@ -73,11 +56,10 @@ treatments:
           deciding" notice plus a `display` of their own offer as a
           recap. Both submit; stage advances when both are in.
         elements:
-          # Proposer-only: recap of the offer they made + waiting message.
           - type: display
-            reference: prompt.offer
-            position: 0
-            showToPositions: [0]
+            reference: 0.prompt.offer
+            showToPositions:
+              - 0
             notes: |
               Same `display` element used for the recap and the
               cross-player view — `position: 0` selects the
@@ -86,14 +68,12 @@ treatments:
               for the cross-player variant.)
           - type: prompt
             file: prompts/proposer_waiting.prompt.md
-            showToPositions: [0]
-
-          # Responder-only: cross-player display of the offer + decide
-          # prompt.
+            showToPositions:
+              - 0
           - type: display
-            reference: prompt.offer
-            position: 0
-            showToPositions: [1]
+            reference: 0.prompt.offer
+            showToPositions:
+              - 1
             notes: |
               Cross-player `display` — `position: 0` reads the
               proposer's response; `showToPositions: [1]` renders
@@ -101,12 +81,11 @@ treatments:
           - type: prompt
             name: decision
             file: prompts/decision.prompt.md
-            showToPositions: [1]
-
+            showToPositions:
+              - 1
           - type: timer
           - type: submitButton
             buttonText: Submit
-
       - name: outcome
         duration: 30
         notes: |
@@ -116,32 +95,24 @@ treatments:
           position 1 selects accepted vs. rejected.
         elements:
           - type: display
-            reference: prompt.offer
-            position: 0
+            reference: 0.prompt.offer
             notes: Both positions see the offer value. No `showToPositions` defaults to all.
-
           - type: separator
-
           - type: prompt
             file: prompts/outcome_accepted.prompt.md
             conditions:
-              - reference: prompt.decision
-                position: 1
+              - reference: 1.prompt.decision
                 comparator: equals
                 value: Accept
-
           - type: prompt
             file: prompts/outcome_rejected.prompt.md
             conditions:
-              - reference: prompt.decision
-                position: 1
+              - reference: 1.prompt.decision
                 comparator: equals
                 value: Reject
-
           - type: submitButton
             displayTime: 5
             buttonText: Continue
-
     exitSequence:
       - name: Reflection
         elements:
@@ -149,7 +120,6 @@ treatments:
             name: reflection
             file: prompts/feedback.prompt.md
           - type: submitButton
-
 introSequences:
   - name: orientation
     notes: |
@@ -162,7 +132,6 @@ introSequences:
             file: prompts/instructions.prompt.md
           - type: submitButton
             buttonText: Continue
-
       - name: Role preference
         elements:
           - type: prompt

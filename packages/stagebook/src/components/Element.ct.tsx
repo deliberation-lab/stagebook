@@ -92,8 +92,7 @@ test.describe("Element router dispatch", () => {
       <MockStageRenderer
         stage={singleElementStage({
           type: "display",
-          reference: "prompt.answer",
-          position: "player",
+          reference: "self.prompt.answer",
         })}
         stateValues={{ "prompt.answer": "Hello from display" }}
       />,
@@ -145,7 +144,7 @@ test.describe("Element router dispatch", () => {
           url: "https://upenn.qualtrics.com/jfe/form/SV_test",
           urlParams: [
             { key: "condition", value: "topicA" },
-            { key: "answer", reference: "prompt.myQ" },
+            { key: "answer", reference: "self.prompt.myQ" },
           ],
         })}
         stateValues={{ "prompt.myQ": "yes" }}

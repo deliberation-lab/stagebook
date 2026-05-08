@@ -24,14 +24,14 @@ import { resolvedTreatmentSchema } from "./resolved.js";
 
 // ----------- Reference Schema ------------
 test("reference with valid prompt", () => {
-  const reference = "prompt.namedPrompt";
+  const reference = "self.prompt.namedPrompt";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
   expect(result.success).toBe(true);
 });
 
 test("reference with valid survey", () => {
-  const reference = "survey.namedSurvey.results.namedResult";
+  const reference = "self.survey.namedSurvey.results.namedResult";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
   expect(result.success).toBe(true);
@@ -54,35 +54,35 @@ test("reference prompt with no name", () => {
 });
 
 test("reference survey with no path is now valid (named source — path is optional, #240)", () => {
-  const reference = "survey.namedSurvey";
+  const reference = "self.survey.namedSurvey";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
   expect(result.success).toBe(true);
 });
 
 test("reference tracked link with name", () => {
-  const reference = "trackedLink.followUp.events";
+  const reference = "self.trackedLink.followUp.events";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
   expect(result.success).toBe(true);
 });
 
 test("reference timeline with name", () => {
-  const reference = "timeline.storySegment";
+  const reference = "self.timeline.storySegment";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
   expect(result.success).toBe(true);
 });
 
 test("reference timeline with nested path", () => {
-  const reference = "timeline.storySegment.0.start";
+  const reference = "self.timeline.storySegment.0.start";
   const result = referenceSchema.safeParse(reference);
   if (!result.success) console.log(result.error);
   expect(result.success).toBe(true);
 });
 
 test("reference timeline with no name", () => {
-  const reference = "timeline";
+  const reference = "self.timeline";
   const result = referenceSchema.safeParse(reference);
   if (!result.success)
     console.log(result.error.message, "\npath:", result.error.path);
@@ -96,8 +96,7 @@ test("reference timeline with no name", () => {
 
 test("validCondition", () => {
   const condition = {
-    reference: "prompt.namedPrompt",
-    position: 1,
+    reference: "1.prompt.namedPrompt",
     comparator: "equals",
     value: "value",
   };
@@ -147,14 +146,12 @@ test("prompt element validation", () => {
     file: "projects/example/testDisplay00.prompt.md",
     conditions: [
       {
-        reference: "prompt.namedPrompt",
-        position: 1,
+        reference: "1.prompt.namedPrompt",
         comparator: "equals",
         value: "value",
       },
       {
-        reference: "prompt.namedPrompt",
-        position: 2,
+        reference: "2.prompt.namedPrompt",
         comparator: "equals",
         value: "value2",
       },
@@ -189,14 +186,12 @@ test("multiple elements validation", () => {
       file: "projects/example/testDisplay01.prompt.md",
       conditions: [
         {
-          reference: "prompt.namedPrompt",
-          position: 1,
+          reference: "1.prompt.namedPrompt",
           comparator: "equals",
           value: "value",
         },
         {
-          reference: "prompt.namedPrompt",
-          position: 2,
+          reference: "2.prompt.namedPrompt",
           comparator: "equals",
           value: "value2",
         },
@@ -219,8 +214,7 @@ test("tracked link element validation", () => {
         { key: "token", value: "abc123" },
         {
           key: "name",
-          reference: "prompt.namedPrompt",
-          position: "player",
+          reference: "self.prompt.namedPrompt",
         },
       ],
     },
@@ -285,7 +279,7 @@ test("validate entire file", () => {
                 file: "projects/example/testDisplay00.prompt.md",
                 conditions: [
                   {
-                    reference: "prompt.introNamedPrompt",
+                    reference: "self.prompt.introNamedPrompt",
                     comparator: "equals",
                     value: "value",
                   },
@@ -319,14 +313,12 @@ test("validate entire file", () => {
                 file: "projects/example/testDisplay00.prompt.md",
                 conditions: [
                   {
-                    reference: "prompt.namedPrompt",
-                    position: 1,
+                    reference: "1.prompt.namedPrompt",
                     comparator: "equals",
                     value: "value",
                   },
                   {
-                    reference: "prompt.namedPrompt",
-                    position: 2,
+                    reference: "2.prompt.namedPrompt",
                     comparator: "equals",
                     value: "value2",
                   },
@@ -338,14 +330,12 @@ test("validate entire file", () => {
                 file: "projects/example/testDisplay01.prompt.md",
                 conditions: [
                   {
-                    reference: "prompt.namedPrompt",
-                    position: 1,
+                    reference: "1.prompt.namedPrompt",
                     comparator: "equals",
                     value: "value",
                   },
                   {
-                    reference: "prompt.namedPrompt",
-                    position: 2,
+                    reference: "2.prompt.namedPrompt",
                     comparator: "equals",
                     value: "value2",
                   },
@@ -421,9 +411,8 @@ test("discussion with conditions is valid", () => {
     showTitle: true,
     conditions: [
       {
-        reference: "prompt.setupChoice",
+        reference: "0.prompt.setupChoice",
         comparator: "equals",
-        position: 0,
         value: "HTML",
       },
     ],
@@ -440,13 +429,12 @@ test("discussion with multiple conditions is valid", () => {
     showTitle: true,
     conditions: [
       {
-        reference: "prompt.setupChoice",
+        reference: "0.prompt.setupChoice",
         comparator: "equals",
-        position: 0,
         value: "HTML",
       },
       {
-        reference: "survey.priorRound.responses.consensus",
+        reference: "self.survey.priorRound.responses.consensus",
         comparator: "doesNotEqual",
         value: "yes",
       },
@@ -1456,10 +1444,9 @@ test("stageSchema accepts stage-level conditions with a cross-client position", 
     duration: 120,
     conditions: [
       {
-        reference: "survey.continueVote.responses.keepGoing",
+        reference: "shared.survey.continueVote.responses.keepGoing",
         comparator: "equals",
         value: "yes",
-        position: "shared",
       },
     ],
     elements: [{ type: "submitButton" }],
@@ -1468,60 +1455,23 @@ test("stageSchema accepts stage-level conditions with a cross-client position", 
   expect(result.success).toBe(true);
 });
 
-test("stageSchema rejects stage-level conditions with the dropped aggregator position 'all' (#238)", () => {
-  // `position: "all"` is no longer a valid leaf value — fan-out
-  // moved to the boolean-tree operators (#235). Authors migrate via
-  // `all: [{position: 0, ...}, {position: 1, ...}]`.
+test("stageSchema accepts stage-level conditions with `all.X` reference (cross-client list, #298)", () => {
+  // After #298, `all.X` is a list-returning reference (one entry per
+  // participant). It's cross-client safe — every client resolves the
+  // same list — so it's allowed at game-stage level.
   const result = stageSchema.safeParse({
     name: "r2",
     duration: 120,
     conditions: [
       {
-        reference: "survey.continueVote.responses.keepGoing",
+        reference: "all.survey.continueVote.responses.keepGoing",
         comparator: "equals",
         value: "yes",
-        position: "all",
       },
     ],
     elements: [{ type: "submitButton" }],
   });
-  expect(result.success).toBe(false);
-});
-
-test("stageSchema rejects stage-level conditions with the dropped aggregator position 'any' (#238)", () => {
-  const result = stageSchema.safeParse({
-    name: "r2",
-    duration: 120,
-    conditions: [
-      {
-        reference: "survey.continueVote.responses.keepGoing",
-        comparator: "equals",
-        value: "yes",
-        position: "any",
-      },
-    ],
-    elements: [{ type: "submitButton" }],
-  });
-  expect(result.success).toBe(false);
-});
-
-test("stageSchema rejects stage-level conditions with the dropped aggregator position 'percentAgreement' (#238)", () => {
-  // `percentAgreement` was pulled out entirely — no migration; a
-  // future countables/aggregates family will cover its use cases.
-  const result = stageSchema.safeParse({
-    name: "r2",
-    duration: 120,
-    conditions: [
-      {
-        reference: "survey.continueVote.responses.keepGoing",
-        comparator: "isAtLeast",
-        value: 60,
-        position: "percentAgreement",
-      },
-    ],
-    elements: [{ type: "submitButton" }],
-  });
-  expect(result.success).toBe(false);
+  expect(result.success).toBe(true);
 });
 
 test("stageSchema accepts the boolean-tree migration of `position: all` — `all:` operator with explicit slot-index leaves", () => {
@@ -1534,16 +1484,14 @@ test("stageSchema accepts the boolean-tree migration of `position: all` — `all
     conditions: {
       all: [
         {
-          reference: "survey.continueVote.responses.keepGoing",
+          reference: "0.survey.continueVote.responses.keepGoing",
           comparator: "equals",
           value: "yes",
-          position: 0,
         },
         {
-          reference: "survey.continueVote.responses.keepGoing",
+          reference: "1.survey.continueVote.responses.keepGoing",
           comparator: "equals",
           value: "yes",
-          position: 1,
         },
       ],
     },
@@ -1553,16 +1501,19 @@ test("stageSchema accepts the boolean-tree migration of `position: all` — `all
   expect(result.success).toBe(true);
 });
 
-test("stageSchema rejects stage-level conditions with default position (implicit player)", () => {
+test("stageSchema rejects stage-level conditions with `self` position prefix (#298)", () => {
+  // After #298, position is part of the reference itself. `self.X` at
+  // a game-stage condition would desync (one client sees this player's
+  // value, another sees their own); rejected with a cross-client
+  // migration hint.
   const result = stageSchema.safeParse({
     name: "r2",
     duration: 120,
     conditions: [
       {
-        reference: "prompt.vote",
+        reference: "self.prompt.vote",
         comparator: "equals",
         value: "yes",
-        // no position → defaults to per-player, would desync
       },
     ],
     elements: [{ type: "submitButton" }],
@@ -1570,32 +1521,9 @@ test("stageSchema rejects stage-level conditions with default position (implicit
   expect(result.success).toBe(false);
   if (!result.success) {
     const issue = result.error.issues.find(
-      (i) => i.path.join(".") === "conditions.0.position",
+      (i) => i.path.join(".") === "conditions.0.reference",
     );
-    expect(issue?.message).toMatch(/cross-client position/);
-  }
-});
-
-test("stageSchema rejects stage-level conditions with explicit position: player", () => {
-  const result = stageSchema.safeParse({
-    name: "r2",
-    duration: 120,
-    conditions: [
-      {
-        reference: "prompt.vote",
-        comparator: "equals",
-        value: "yes",
-        position: "player",
-      },
-    ],
-    elements: [{ type: "submitButton" }],
-  });
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    const issue = result.error.issues.find(
-      (i) => i.path.join(".") === "conditions.0.position",
-    );
-    expect(issue).toBeDefined();
+    expect(issue?.message).toMatch(/cross-client position prefix/);
   }
 });
 
@@ -1605,7 +1533,7 @@ test("introExitStepSchema allows stage-level conditions with any position, inclu
     conditions: [
       // Intro/exit is per-participant — default (player) position is fine
       {
-        reference: "entryUrl.params.showOptionalInfo",
+        reference: "self.entryUrl.params.showOptionalInfo",
         comparator: "equals",
         value: "true",
       },
@@ -1616,82 +1544,24 @@ test("introExitStepSchema allows stage-level conditions with any position, inclu
   expect(result.success).toBe(true);
 });
 
-test("stageSchema rejects element-level conditions with the dropped position 'percentAgreement' (#238)", () => {
-  // `percentAgreement` was the numeric-aggregate read selector before
-  // #238; it was pulled out entirely (no migration). Element-level
-  // conditions, like stage-level, now reject it as an invalid enum
-  // value. Authors with existing percentAgreement conditions need to
-  // either rewrite as explicit per-player checks or drop the
-  // condition pending the future countables/aggregates family.
-  const result = stageSchema.safeParse({
-    name: "r2",
-    duration: 120,
-    elements: [
-      {
-        type: "prompt",
-        file: "p.prompt.md",
-        conditions: [
-          {
-            reference: "survey.vote.result.x",
-            comparator: "isAtLeast",
-            value: 60,
-            position: "percentAgreement",
-          },
-        ],
-      },
-      { type: "submitButton" },
-    ],
-  });
-  expect(result.success).toBe(false);
-});
+// Tests for the pre-#298 dropped position selectors (`all`, `any`,
+// `percentAgreement` as leaf-position values) are removed in favor of
+// the position-prefixed reference grammar. The relevant rejections now
+// surface as either invalid-reference errors (parser rejects unknown
+// position selectors) or game-stage forbid-self errors (see below).
 
-test("introExitStepSchema rejects the dropped position 'percentAgreement' (#238)", () => {
-  const result = introExitStepSchema.safeParse({
-    name: "debrief",
-    conditions: [
-      {
-        reference: "survey.feedback.result.x",
-        comparator: "isAtLeast",
-        value: 60,
-        position: "percentAgreement",
-      },
-    ],
-    elements: [{ type: "submitButton" }],
-  });
-  expect(result.success).toBe(false);
-});
-
-test("introExitStepSchema rejects the dropped aggregator positions 'all' / 'any' (#238)", () => {
-  for (const dropped of ["all", "any"] as const) {
-    const result = introExitStepSchema.safeParse({
-      name: "debrief",
-      conditions: [
-        {
-          reference: "prompt.q",
-          comparator: "equals",
-          value: "yes",
-          position: dropped,
-        },
-      ],
-      elements: [{ type: "submitButton" }],
-    });
-    expect(result.success).toBe(false);
-  }
-});
-
-test("game-stage forbidSelfPosition error message points at the boolean-tree migration recipe (#238)", () => {
-  // The error message that fires when an author writes a per-player
-  // position on a game stage now suggests the `all:` / `any:` operator
-  // migration rather than mentioning the dropped aggregator values.
+test("game-stage forbid-self error message points at the boolean-tree migration recipe (#298)", () => {
+  // When an author writes `self.X` at a game stage, the desync-prevention
+  // rule fires with a message suggesting the `all:` / `any:` operator
+  // migration with explicit slot indices.
   const result = stageSchema.safeParse({
     name: "r2",
     duration: 120,
     conditions: [
       {
-        reference: "prompt.vote",
+        reference: "self.prompt.vote",
         comparator: "equals",
         value: "yes",
-        position: "player",
       },
     ],
     elements: [{ type: "submitButton" }],
@@ -1699,10 +1569,9 @@ test("game-stage forbidSelfPosition error message points at the boolean-tree mig
   expect(result.success).toBe(false);
   if (!result.success) {
     const issue = result.error.issues.find(
-      (i) => i.path.join(".") === "conditions.0.position",
+      (i) => i.path.join(".") === "conditions.0.reference",
     );
-    expect(issue?.message).toMatch(/cross-client position \(shared/);
-    expect(issue?.message).not.toMatch(/percentAgreement/);
+    expect(issue?.message).toMatch(/cross-client position prefix/);
     expect(issue?.message).toMatch(/`all:` or `any:` operator/);
   }
 });
@@ -1710,7 +1579,7 @@ test("game-stage forbidSelfPosition error message points at the boolean-tree mig
 // ----------- Boolean condition tree (#235) ------------
 
 const leaf = (value: string) => ({
-  reference: "prompt.q",
+  reference: "self.prompt.q",
   comparator: "equals" as const,
   value,
 });
@@ -1781,7 +1650,7 @@ test("conditionsSchema rejects extra keys on operator object", () => {
   // `{all: [...], reference: ...}` etc. as ambiguous shapes.
   const result = conditionsSchema.safeParse({
     all: [leaf("a")],
-    reference: "prompt.q",
+    reference: "self.prompt.q",
   });
   expect(result.success).toBe(false);
 });
@@ -1833,14 +1702,12 @@ test("stageSchema accepts boolean-tree conditions", () => {
     conditions: {
       any: [
         {
-          reference: "prompt.consent",
-          position: 0,
+          reference: "0.prompt.consent",
           comparator: "equals",
           value: "yes",
         },
         {
-          reference: "prompt.consent",
-          position: 1,
+          reference: "1.prompt.consent",
           comparator: "equals",
           value: "yes",
         },
@@ -1860,7 +1727,7 @@ test("validateConditionRules recurses into operator branches (game-stage forbidS
     conditions: {
       any: [
         {
-          reference: "prompt.q",
+          reference: "self.prompt.q",
           comparator: "equals",
           value: "yes",
           // position omitted — defaults to "player", forbidden at
@@ -1997,7 +1864,9 @@ test("template: contentType 'conditions' validates a condition array", () => {
   const result = templateSchema.safeParse({
     name: "wantsToProceed",
     contentType: "conditions",
-    content: [{ reference: "prompt.q1", comparator: "equals", value: "yes" }],
+    content: [
+      { reference: "self.prompt.q1", comparator: "equals", value: "yes" },
+    ],
   });
   expect(result.success).toBe(true);
 });
@@ -2190,16 +2059,16 @@ test("validElementTypes does not include talkMeter or sharedNotepad", async () =
 // ----------- entryUrl rename (#246) ------------
 
 test("entryUrl.params.<key> string reference is accepted", () => {
-  const result = referenceSchema.safeParse("entryUrl.params.condition");
+  const result = referenceSchema.safeParse("self.entryUrl.params.condition");
   expect(result.success).toBe(true);
 });
 
 test("entryUrl bare-key string reference is rejected (`params` subpath required)", () => {
-  const result = referenceSchema.safeParse("entryUrl.condition");
+  const result = referenceSchema.safeParse("self.entryUrl.condition");
   expect(result.success).toBe(false);
   if (!result.success) {
     const message = result.error.issues.map((i) => i.message).join("\n");
-    expect(message).toContain("entryUrl.params");
+    expect(message).toContain("self.entryUrl.params");
   }
 });
 
@@ -2208,28 +2077,31 @@ test("legacy urlParams.<key> string reference is rejected with a migration hint"
   expect(result.success).toBe(false);
   if (!result.success) {
     const message = result.error.issues.map((i) => i.message).join("\n");
-    expect(message).toContain("entryUrl.params");
+    expect(message).toContain("self.entryUrl.params");
   }
 });
 
-test("structured `{source: entryUrl, path: [params, key]}` is accepted", () => {
+test("structured `{position, source: entryUrl, path: [params, key]}` is accepted", () => {
   const result = referenceSchema.safeParse({
+    position: "self",
     source: "entryUrl",
     path: ["params", "condition"],
   });
   expect(result.success).toBe(true);
 });
 
-test("structured `{source: entryUrl, path: [<key>]}` is rejected", () => {
+test("structured `{position, source: entryUrl, path: [<key>]}` is rejected", () => {
   const result = referenceSchema.safeParse({
+    position: "self",
     source: "entryUrl",
     path: ["condition"],
   });
   expect(result.success).toBe(false);
 });
 
-test("structured `{source: entryUrl, name: ...}` is rejected (external sources forbid name)", () => {
+test("structured `{position, source: entryUrl, name: ...}` is rejected (external sources forbid name)", () => {
   const result = referenceSchema.safeParse({
+    position: "self",
     source: "entryUrl",
     name: "condition",
     path: ["params", "x"],
@@ -2324,7 +2196,7 @@ test("top-level conditions accepts a ${field} placeholder (#284)", () => {
 
 test("top-level conditions still accepts an array literal (no regression)", () => {
   const result = conditionsSchema.safeParse([
-    { reference: "prompt.q1", comparator: "exists" },
+    { reference: "self.prompt.q1", comparator: "exists" },
   ]);
   expect(result.success).toBe(true);
 });

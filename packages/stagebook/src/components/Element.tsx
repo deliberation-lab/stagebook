@@ -47,7 +47,9 @@ function resolveParams(
             : String(param.value as string | number | boolean),
       };
     }
-    const values = resolve(param.reference, param.position);
+    // Per #298 the position is part of the reference itself; the
+    // sibling `param.position` field is removed.
+    const values = resolve(param.reference);
     const picked = values.find((v) => v !== undefined);
     return {
       key: param.key,
@@ -150,23 +152,36 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       );
 
     case "display": {
-      const ref = element.reference ?? `prompt.${element.name}`;
-      const values = resolve(ref, element.position);
-      // Always render a stable dotted-string for `data-reference`
-      // regardless of whether the treatment authored a string or
-      // structured ref (and regardless of whether the host parsed it
-      // into structured form before passing it in). Downstream tooling
-      // that scrapes the attribute keeps the familiar dotted shape.
+      // Per #298, the position is part of the reference itself —
+      // `0.prompt.foo.value`, `all.prompt.recall.value`, etc. The
+      // Display element no longer takes a sibling `position:` field
+      // (the position is parsed out by the resolver and passed to the
+      // host via `get()`).
+      const ref = element.reference ?? `self.prompt.${String(element.name)}`;
+      const values = resolve(ref);
+      // Render a stable dotted-string for `data-reference` so
+      // downstream tooling that scrapes the attribute sees the
+      // familiar prefixed-dotted shape.
       const refString =
         typeof ref === "string"
           ? parseDottedReference(ref).ok
             ? ref
             : ref // malformed strings pass through verbatim
           : formatReference(ref);
+      // Extract the position from the (parsed) reference for layout
+      // hints — Display uses it to decide between single-value and
+      // per-participant rendering.
+      let positionForLayout: number | string | undefined;
+      if (typeof ref === "string") {
+        const parsed = parseDottedReference(ref);
+        if (parsed.ok) positionForLayout = parsed.value.position;
+      } else {
+        positionForLayout = ref.position;
+      }
       return (
         <Display
           reference={refString}
-          position={element.position}
+          position={positionForLayout}
           values={values}
         />
       );
@@ -210,9 +225,11 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       const promptName =
         element.name ?? `${progressLabel}_${metadata.name ?? element.file}`;
 
-      // Read current value from state
-      const scope = element.shared ? "shared" : "player";
-      const currentValues = resolve(`prompt.${promptName}`, scope);
+      // Read current value from state. Position comes from the
+      // reference itself per #298 — `shared.prompt.X` for shared
+      // prompts, `self.prompt.X` for player-scoped.
+      const scope = element.shared ? "shared" : "self";
+      const currentValues = resolve(`${scope}.prompt.${promptName}`);
       const currentValue = currentValues[0];
 
       return (

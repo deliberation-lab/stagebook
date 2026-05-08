@@ -18,10 +18,9 @@ test.describe("StageConditionGate (#183)", () => {
           duration: 60,
           conditions: [
             {
-              reference: "survey.continueVote.result.keepGoing",
+              reference: "shared.survey.continueVote.result.keepGoing",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements,
@@ -48,10 +47,9 @@ test.describe("StageConditionGate (#183)", () => {
           duration: 60,
           conditions: [
             {
-              reference: "survey.continueVote.result.keepGoing",
+              reference: "shared.survey.continueVote.result.keepGoing",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements,
@@ -83,10 +81,9 @@ test.describe("StageConditionGate (#183)", () => {
           duration: 60,
           conditions: [
             {
-              reference: "survey.continueVote.result.keepGoing",
+              reference: "shared.survey.continueVote.result.keepGoing",
               comparator: "equals",
               value: "yes",
-              position: "shared",
             },
           ],
           elements,
@@ -112,9 +109,8 @@ test.describe("StageConditionGate (#183)", () => {
           duration: 60,
           conditions: [
             {
-              reference: "submitButton.speedSubmit",
+              reference: "shared.submitButton.speedSubmit",
               comparator: "doesNotExist",
-              position: "shared",
             },
           ],
           elements: [{ type: "submitButton" as const, name: "speedSubmit" }],

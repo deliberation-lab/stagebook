@@ -72,6 +72,12 @@ const referencePathSchema = z.array(z.string().min(1));
  */
 export const positionSelectorSchema = z.union([
   z.number().int().nonnegative(),
+  // YAML may quote stringified integers (`position: '1'`); coerce to
+  // canonical number form so consumers see one type.
+  z
+    .string()
+    .regex(/^\d+$/, "numeric position selector must be a non-negative integer")
+    .transform((s) => Number(s)),
   z.enum(["self", "shared", "all"]),
 ]);
 export type PositionSelectorType = z.infer<typeof positionSelectorSchema>;
@@ -107,7 +113,7 @@ export const externalReferenceSchema = z
           code: z.ZodIssueCode.custom,
           path: ["path"],
           message:
-            "entryUrl references must use the `params` subpath: `<position>.entryUrl.params.<key>`. (Other entryUrl subpaths like `path`, `host`, `href` are reserved for future use.)",
+            "entryUrl references must use the `params` subpath: e.g. `self.entryUrl.params.<key>`. (Other entryUrl subpaths like `path`, `host`, `href` are reserved for future use.)",
         });
       }
     }
@@ -176,6 +182,17 @@ export function parseDottedReference(
 
   const positionResult = parsePositionToken(positionToken);
   if (!positionResult.ok) {
+    // Legacy `urlParams.<key>` was renamed to `entryUrl.params.<key>`
+    // in #246. Surface the migration hint even when the position prefix
+    // is also missing — the renamed source + missing prefix together
+    // is the most common compound migration error.
+    if (positionToken === "urlParams") {
+      const key = source ? [source, ...rest].join(".") : "<key>";
+      return {
+        ok: false,
+        message: `\`urlParams\` reference source was renamed to \`entryUrl.params\` (#246). Use \`self.entryUrl.params.${key}\` instead.`,
+      };
+    }
     // Help authors migrating from pre-#298 references where the first
     // segment was a source enum.
     if (

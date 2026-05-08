@@ -242,7 +242,7 @@ describe("safeParseTreatmentFile — condition unrecognized keys", () => {
         type: "submitButton",
         conditions: [
           {
-            reference: "prompt.something",
+            reference: "self.prompt.something",
             comparator: "equals",
             value: "ok",
             val: 3,
@@ -260,7 +260,7 @@ describe("safeParseTreatmentFile — condition unrecognized keys", () => {
     );
     expect(issue).toBeDefined();
     expect(issue!.message).toBe(
-      "Unrecognized key 'val' on condition with comparator 'equals'. Did you mean 'value'? Valid keys: reference, position, comparator, value",
+      "Unrecognized key 'val' on condition with comparator 'equals'. Did you mean 'value'? Valid keys: reference, comparator, value",
     );
   });
 });
