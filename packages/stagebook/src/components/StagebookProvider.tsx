@@ -7,10 +7,24 @@ import React, {
   useRef,
 } from "react";
 import type { DiscussionType, ReferenceType } from "../schemas/treatment.js";
+import { parseDottedReference } from "../schemas/reference.js";
 import {
   getReferenceKeyAndPath,
   getNestedValueByPath,
 } from "../utils/reference.js";
+
+/**
+ * Normalise a reference to its structured form so callers can branch on
+ * `.position` without re-parsing. Throws if the string is invalid.
+ */
+function parseToStructuredRef(
+  reference: string | ReferenceType,
+): ReferenceType {
+  if (typeof reference !== "string") return reference;
+  const parsed = parseDottedReference(reference);
+  if (!parsed.ok) throw new Error(parsed.message);
+  return parsed.value;
+}
 
 // --------------- StagebookContext Interface ---------------
 
@@ -122,9 +136,10 @@ export interface StagebookContext {
 
 interface InternalStagebookContext extends StagebookContext {
   // After #240, callers can pass either the dotted-string sugar
-  // (`prompt.foo`) or the structured form
-  // (`{ source: "prompt", name: "foo" }`).
-  resolve(reference: string | ReferenceType, position?: string): unknown[];
+  // (`0.prompt.foo`, `self.entryUrl.params.x`) or the structured form
+  // (`{ position: 0, source: "prompt", name: "foo" }`). After #298 the
+  // position is part of the reference — the resolver extracts it.
+  resolve(reference: string | ReferenceType): unknown[];
 }
 
 const StagebookReactContext = createContext<InternalStagebookContext | null>(
@@ -141,26 +156,26 @@ export function StagebookProvider({
   children: React.ReactNode;
 }) {
   const resolve = React.useCallback(
-    (reference: string | ReferenceType, position?: string): unknown[] => {
+    (reference: string | ReferenceType): unknown[] => {
       let referenceKey: string;
       let path: string[];
+      let position: number | string;
       try {
-        ({ referenceKey, path } = getReferenceKeyAndPath(reference));
+        const parsed = parseToStructuredRef(reference);
+        position = parsed.position;
+        ({ referenceKey, path } = getReferenceKeyAndPath(parsed));
       } catch {
         console.error(
           `Invalid reference: ${typeof reference === "string" ? `"${reference}"` : JSON.stringify(reference)}`,
         );
         return [];
       }
-      // After #238, *condition* leaves only emit `"shared"` /
-      // `"player"` / numeric-slot positions. But other DSL sites still
-      // use `positionSelectorSchema`, which kept `"all"` and `"any"`
-      // — `display.position`, `trackedLink.urlParams[].position`, and
-      // `qualtrics.urlParams[].position` all read via `resolve()` and
-      // can pass `"all"` or `"any"` here. Storage scope is the same
-      // for both (the host returns one value per participant), so we
-      // normalize `"any"` to `"all"` before calling the host.
-      const storageScope = position === "any" ? "all" : position;
+      // The position selector is now part of the reference (#298). The
+      // host's `get(key, scope)` accepts `"shared"`, `"all"`, or a
+      // numeric-slot index as a string. `"self"` maps to the current
+      // participant's storage — passed as `"player"` to the host for
+      // backward compatibility with the existing get() contract.
+      const storageScope = position === "self" ? "player" : String(position);
       const rawValues = value.get(referenceKey, storageScope);
       return rawValues
         .map((v) => getNestedValueByPath(v, path))
@@ -194,12 +209,9 @@ export function useStagebookContext(): InternalStagebookContext {
   return ctx;
 }
 
-export function useResolve(
-  reference: string | ReferenceType,
-  position?: string,
-): unknown[] {
+export function useResolve(reference: string | ReferenceType): unknown[] {
   const { resolve } = useStagebookContext();
-  return resolve(reference, position);
+  return resolve(reference);
 }
 
 export function useSave(): StagebookContext["save"] {
