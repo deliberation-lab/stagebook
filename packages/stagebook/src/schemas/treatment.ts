@@ -525,8 +525,8 @@ const templateFieldsSchema = z
             `Template invocations are not allowed as \`fields:\` values. ` +
             `Move the invocation to the slot where it's used (e.g. a \`broadcast:\` dimension) ` +
             `and pass only the template name as a string field. ` +
-            `For example, instead of \`fields: { ${key}: { template: foo } }\` plus \`broadcast: { d0: \${${key}} }\`, ` +
-            `write \`fields: { ${key}Name: foo }\` plus \`broadcast: { d0: { template: \${${key}Name} } }\`.`,
+            "For example, instead of `fields: { recallImages: { template: imageList } }` + `broadcast: { d0: ${recallImages} }`, " +
+            "write `fields: { imageSet: imageList }` + `broadcast: { d0: { template: ${imageSet} } }`.",
         });
       }
     }

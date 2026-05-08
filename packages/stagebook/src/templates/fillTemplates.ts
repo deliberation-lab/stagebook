@@ -290,22 +290,26 @@ export function fillTemplates({
 
   let newObj = recursivelyFillTemplates({ obj: walkObj, templates });
 
-  // Re-run the walker until no `"template":` strings remain. Track the
-  // count between iterations so a pass that fails to make progress
-  // (e.g. a parameterized template name that never resolves) breaks
-  // out instead of looping forever — the post-fill assertion below
-  // turns the deadlock into an actionable error.
-  const templatesRemainingRegex = /"template":/g;
-  let prevCount = Infinity;
-  let currCount =
-    JSON.stringify(newObj).match(templatesRemainingRegex)?.length ?? 0;
-  while (currCount > 0 && currCount < prevCount) {
+  // Re-run the walker until no `"template":` strings remain. Compare
+  // the serialized object between iterations so a pass that doesn't
+  // change anything (e.g. a parameterized template name that never
+  // resolves) breaks out instead of looping forever. Counting matches
+  // would be wrong: the array branch of `recursivelyFillTemplates`
+  // expands an invocation in place but doesn't recurse into the
+  // result, so a chained `{template:"A"} → {template:"B"}` expansion
+  // leaves the count unchanged across passes even though real
+  // progress was made.
+  let prevSerialized: string | null = null;
+  let currSerialized = JSON.stringify(newObj);
+  while (
+    currSerialized.includes('"template":') &&
+    currSerialized !== prevSerialized
+  ) {
     newObj = recursivelyFillTemplates({ obj: newObj, templates });
-    prevCount = currCount;
-    currCount =
-      JSON.stringify(newObj).match(templatesRemainingRegex)?.length ?? 0;
+    prevSerialized = currSerialized;
+    currSerialized = JSON.stringify(newObj);
   }
-  if (currCount > 0) {
+  if (currSerialized.includes('"template":')) {
     throw new Error(
       'fillTemplates: unresolved template invocation remains after expansion. This usually means a parameterized template name (`template: "${...}"`) that no field/broadcast resolves. Move the parameterized invocation into the slot where it\'s used (e.g. into a `broadcast:` dimension) instead of nesting it inside `fields:`.',
     );

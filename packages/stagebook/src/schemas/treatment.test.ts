@@ -2383,14 +2383,14 @@ test("rejects template invocation in `fields:` value (literal name, #304/14a)", 
   const result = treatmentFileSchema.safeParse({
     templates: [
       {
-        templateName: "imageList",
+        name: "imageList",
         contentType: "elements",
-        templateContent: [{ type: "image", file: "a.jpg" }],
+        content: [{ type: "image", file: "a.jpg" }],
       },
       {
-        templateName: "treatmentBase",
+        name: "treatmentBase",
         contentType: "treatment",
-        templateContent: {
+        content: {
           name: "${treatmentName}",
           playerCount: 1,
           gameStages: [
@@ -2428,14 +2428,14 @@ test("rejects template invocation in `fields:` value (parameterized name, #304/1
   const result = treatmentFileSchema.safeParse({
     templates: [
       {
-        templateName: "easySet",
+        name: "easySet",
         contentType: "elements",
-        templateContent: [{ type: "image", file: "easy.jpg" }],
+        content: [{ type: "image", file: "easy.jpg" }],
       },
       {
-        templateName: "treatmentBase",
+        name: "treatmentBase",
         contentType: "treatment",
-        templateContent: {
+        content: {
           name: "${treatmentName}",
           playerCount: 1,
           gameStages: [

@@ -1133,15 +1133,11 @@ test("non-broadcast returns object, broadcast returns array", () => {
 });
 
 // ----------------------------------------------------------------
-// Pattern library (#304 audit) — real-world shapes from
-// deliberation-assets and backchannel-manipulation. Some are
-// regression-guards for things that already work; some are bug
-// repros that currently fail.
-//
-// Bug-repro tests are written with `test.fails(...)` — vitest treats
-// them as passing while the body throws/fails, and as failing once
-// the body succeeds. When the underlying bug is fixed, `test.fails`
-// will report failure, signaling to flip back to `test(...)`.
+// Pattern library (#304) — real-world shapes from
+// deliberation-assets and backchannel-manipulation. Each test below
+// is a regression guard for a pattern researchers use in production.
+// Patterns 14a/14b (template-as-fields-value) are rejected at parse
+// time; their tests live in schemas/treatment.test.ts.
 // ----------------------------------------------------------------
 
 // ----- Lock-in: patterns that should keep working -----
