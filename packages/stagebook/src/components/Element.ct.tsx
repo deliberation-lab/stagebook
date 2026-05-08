@@ -94,7 +94,7 @@ test.describe("Element router dispatch", () => {
           type: "display",
           reference: "self.prompt.answer",
         })}
-        stateValues={{ "prompt.answer": "Hello from display" }}
+        stateValues={{ "self.prompt.answer": "Hello from display" }}
       />,
     );
     await expect(component).toContainText("Hello from display");
@@ -147,7 +147,7 @@ test.describe("Element router dispatch", () => {
             { key: "answer", reference: "self.prompt.myQ" },
           ],
         })}
-        stateValues={{ "prompt.myQ": "yes" }}
+        stateValues={{ "self.prompt.myQ": "yes" }}
       />,
     );
     const src = await component.locator("iframe").getAttribute("src");

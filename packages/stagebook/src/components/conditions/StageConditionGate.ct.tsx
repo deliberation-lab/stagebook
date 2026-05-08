@@ -26,7 +26,7 @@ test.describe("StageConditionGate (#183)", () => {
           elements,
         }}
         stateValues={{
-          "survey.continueVote.result.keepGoing": "yes",
+          "shared.survey.continueVote.result.keepGoing": "yes",
         }}
       />,
     );
@@ -55,7 +55,7 @@ test.describe("StageConditionGate (#183)", () => {
           elements,
         }}
         stateValues={{
-          "survey.continueVote.result.keepGoing": "no",
+          "shared.survey.continueVote.result.keepGoing": "no",
         }}
       />,
     );
