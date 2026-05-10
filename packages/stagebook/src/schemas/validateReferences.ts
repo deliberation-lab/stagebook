@@ -235,7 +235,84 @@ export function validateTreatmentFileReferences(
     });
   });
 
+  // Templates: walk every template's content for reference sites and
+  // flag any with concrete (placeholder-free) references that don't
+  // resolve against `globalProducedKeys`. This catches typos in
+  // template definitions that would otherwise only surface after
+  // expansion (when the template is invoked from a treatment).
+  // References containing `${...}` placeholders are deferred — they
+  // resolve at fill time and we can't predict the resolved name.
+  templates.forEach((tmpl, tmplIdx) => {
+    if (!isRecord(tmpl)) return;
+    const tmplPath = ["templates", tmplIdx, "content"];
+    for (const site of walkTemplateContentRefSites(tmpl.content, tmplPath)) {
+      if (referenceContainsPlaceholder(site.reference)) continue;
+      // Pass empty producedAt and no rank/phase context — rank-based
+      // checks (forward references, always-skip-at-load) don't apply
+      // inside template definitions; only the unknown-reference rule
+      // is meaningful here, and applyRules handles that as a fall-
+      // through when producedAt has no entry for the key.
+      applyRules({
+        site,
+        enclosingRank: 0,
+        producedAt: new Map(),
+        issues,
+        globalProducedKeys,
+        phaseLabel: "template",
+      });
+    }
+  });
+
   return issues;
+}
+
+/**
+ * Recursively walk a template's `content:` value and yield every
+ * reference site contained within. Templates can have content of
+ * many shapes (treatment / stages / stage / elements / etc.), so
+ * the walker descends into nested objects/arrays and calls
+ * `enumerateStepSites` at each step-shaped object it finds.
+ *
+ * Skips keys that `enumerateStepSites` already walks
+ * (`elements`, `conditions`, `urlParams`, `reference`) to avoid
+ * double-emitting reference sites at the same path.
+ */
+const REF_SKIP_KEYS = new Set([
+  "elements",
+  "conditions",
+  "urlParams",
+  "reference",
+]);
+
+function* walkTemplateContentRefSites(
+  content: unknown,
+  pathPrefix: (string | number)[],
+): Generator<RefSite> {
+  if (content === null || content === undefined) return;
+  if (Array.isArray(content)) {
+    for (let i = 0; i < content.length; i++) {
+      yield* walkTemplateContentRefSites(content[i], [...pathPrefix, i]);
+    }
+    return;
+  }
+  if (!isRecord(content)) return;
+
+  // Treat any object as potentially step-shaped — enumerateStepSites
+  // produces nothing if there are no `conditions:` or `elements:`.
+  yield* enumerateStepSites(content, pathPrefix);
+
+  // Recurse into nested structure, skipping the keys already covered
+  // by enumerateStepSites.
+  for (const [key, value] of Object.entries(content)) {
+    if (REF_SKIP_KEYS.has(key)) continue;
+    yield* walkTemplateContentRefSites(value, [...pathPrefix, key]);
+  }
+}
+
+function referenceContainsPlaceholder(ref: ReferenceType): boolean {
+  // Re-render to dotted form and check for `${...}` — covers
+  // placeholders in source/name/path segments alike.
+  return formatReference(ref).includes("${");
 }
 
 // ---------------------------------------------------------------------------

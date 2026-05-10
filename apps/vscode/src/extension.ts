@@ -487,9 +487,11 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       return `# Template expansion error:\n${commentedError}`;
     }
 
-    // Attach schema-validation diagnostics to the expanded preview URI.
-    // Positions reference the full expanded YAML; diagnostics past the
-    // truncation line still appear in the Problems panel.
+    // Schedule diagnostic-attachment for after VS Code has opened the
+    // document for this URI. Setting them synchronously inside this
+    // content-provider call is unreliable: VS Code can drop the
+    // diagnostics during document creation. setTimeout(0) defers
+    // until after the open completes.
     const vscodeDiagnostics = result.diagnostics.map((d) => {
       const diag = new vscode.Diagnostic(
         toVscodeRange(d.range),
@@ -499,7 +501,9 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       diag.source = "stagebook";
       return diag;
     });
-    this.diagnostics.set(uri, vscodeDiagnostics);
+    setTimeout(() => {
+      this.diagnostics.set(uri, vscodeDiagnostics);
+    }, 0);
 
     return result.yaml;
   }
