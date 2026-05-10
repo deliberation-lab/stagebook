@@ -147,8 +147,12 @@ function prependPathPrefix(value: unknown, prefix: string): unknown {
   return result;
 }
 
+// Path values that should NOT be rewritten with the import-directory
+// prefix. Includes `/`-rooted absolute paths and any URL-like value
+// matching `<scheme>:` — covers `http://`, `https://`, `asset://`
+// (Stagebook's platform-provided assets, see treatment-files.md), and
+// any future schemes the host might support. Case-insensitive so
+// `HTTP://` / `Asset://` still parse correctly.
 function isAbsolutePath(p: string): boolean {
-  return (
-    p.startsWith("/") || p.startsWith("http://") || p.startsWith("https://")
-  );
+  return p.startsWith("/") || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(p);
 }

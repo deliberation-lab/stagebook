@@ -169,6 +169,12 @@ describe("path rewriting", () => {
                 absolute: { type: "prompt", file: "/abs/path.md" },
                 http: { type: "image", file: "http://cdn/x.png" },
                 https: { type: "image", file: "https://cdn/y.png" },
+                // Stagebook's platform-provided assets use the
+                // `asset://` scheme — must not be re-prefixed.
+                asset: { type: "image", file: "asset://hosted/logo.png" },
+                // Case-insensitive scheme detection.
+                upperHttp: { type: "image", file: "HTTP://cdn/u.png" },
+                upperAsset: { type: "image", file: "ASSET://hosted/y.png" },
               },
             },
           ],
@@ -182,6 +188,9 @@ describe("path rewriting", () => {
     expect(c.absolute.file).toBe("/abs/path.md"); // unchanged
     expect(c.http.file).toBe("http://cdn/x.png"); // unchanged
     expect(c.https.file).toBe("https://cdn/y.png"); // unchanged
+    expect(c.asset.file).toBe("asset://hosted/logo.png"); // unchanged
+    expect(c.upperHttp.file).toBe("HTTP://cdn/u.png"); // unchanged
+    expect(c.upperAsset.file).toBe("ASSET://hosted/y.png"); // unchanged
   });
 
   test("path rewriting does not mutate the input", () => {

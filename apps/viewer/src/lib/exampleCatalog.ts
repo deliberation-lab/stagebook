@@ -121,11 +121,16 @@ function mergeBundledImports(
   // Strip `imports:`, attach merged templates, re-serialize as JSON
   // (which is valid YAML) so the existing string-based parse path
   // can consume the result without changes.
+  //
+  // Re-attach `templates:` whenever the root explicitly had it, even
+  // if the merged array is empty — preserves the schema's rejection
+  // of `templates: []` in the root example.
+  const rootHadTemplates = "templates" in root;
   const { imports: _imports, templates: _origTemplates, ...rest } = root;
   void _imports;
   void _origTemplates;
   const merged: Record<string, unknown> = { ...rest };
-  if (mergedTemplates.length > 0) {
+  if (mergedTemplates.length > 0 || rootHadTemplates) {
     merged.templates = mergedTemplates;
   }
   return JSON.stringify(merged);

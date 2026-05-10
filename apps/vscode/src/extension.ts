@@ -28,7 +28,6 @@ import {
   treatmentFileSchema,
   type ParsedFile,
 } from "stagebook";
-import { parse as parseYaml } from "yaml";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
@@ -667,11 +666,17 @@ async function parseTreatmentForPreview(source: string, rootDir: vscode.Uri) {
   // Strip `imports:` from the root and replace `templates:` with the
   // merged set. This is what the schema/runtime expects (no imports
   // in the post-fill world).
+  //
+  // Re-attach `templates:` whenever the root explicitly had it,
+  // even if the merged array is empty — preserves the schema's
+  // rejection of `templates: []` in the root (an authoring error
+  // that would otherwise be silently masked by stripping the key).
+  const rootHadTemplates = "templates" in root;
   const { imports: _imports, templates: _origTemplates, ...rest } = root;
   void _imports;
   void _origTemplates;
   const merged: Record<string, unknown> = { ...rest };
-  if (mergedTemplates.length > 0) {
+  if (mergedTemplates.length > 0 || rootHadTemplates) {
     merged.templates = mergedTemplates;
   }
 

@@ -57,11 +57,16 @@ export async function loadAndMergeTreatmentFile(
 
   // Strip `imports:` from the root and replace `templates:` with the
   // merged set — what the schema/runtime expects post-import.
+  //
+  // Re-attach `templates:` whenever the root explicitly had it, even
+  // if the merged array is empty — preserves the schema's rejection
+  // of `templates: []` in the root.
+  const rootHadTemplates = "templates" in root;
   const { imports: _imports, templates: _origTemplates, ...rest } = root;
   void _imports;
   void _origTemplates;
   const merged: Record<string, unknown> = { ...rest };
-  if (mergedTemplates.length > 0) {
+  if (mergedTemplates.length > 0 || rootHadTemplates) {
     merged.templates = mergedTemplates;
   }
   return merged as TreatmentFileType;
