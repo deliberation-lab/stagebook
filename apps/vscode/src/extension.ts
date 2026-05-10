@@ -487,11 +487,12 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       return `# Template expansion error:\n${commentedError}`;
     }
 
-    // Schedule diagnostic-attachment for after VS Code has opened the
-    // document for this URI. Setting them synchronously inside this
-    // content-provider call is unreliable: VS Code can drop the
-    // diagnostics during document creation. setTimeout(0) defers
-    // until after the open completes.
+    // Attach schema-validation diagnostics to the expanded preview URI.
+    // The close handler in extension.ts deliberately skips deleting
+    // diagnostics for the EXPANDED scheme so they survive the close-and-
+    // reopen that `setTextDocumentLanguage` triggers in the expand
+    // command — without that exception, diagnostics set here would be
+    // immediately wiped.
     const vscodeDiagnostics = result.diagnostics.map((d) => {
       const diag = new vscode.Diagnostic(
         toVscodeRange(d.range),
@@ -501,9 +502,7 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       diag.source = "stagebook";
       return diag;
     });
-    setTimeout(() => {
-      this.diagnostics.set(uri, vscodeDiagnostics);
-    }, 0);
+    this.diagnostics.set(uri, vscodeDiagnostics);
 
     return result.yaml;
   }
@@ -1124,7 +1123,15 @@ export function activate(context: vscode.ExtensionContext): void {
       if (timer) clearTimeout(timer);
       debounceTimers.delete(key);
       validationVersions.delete(key);
-      diagnosticCollection.delete(document.uri);
+      // Diagnostics for expanded-preview virtual documents are owned by
+      // ExpandedTemplatesProvider — don't delete them here, because
+      // `setTextDocumentLanguage` (called from the expand command after
+      // showTextDocument) closes-and-reopens the document, which would
+      // otherwise wipe the diagnostics the provider just set. Source
+      // file diagnostics get cleared as before.
+      if (document.uri.scheme !== EXPANDED_SCHEME) {
+        diagnosticCollection.delete(document.uri);
+      }
     }),
   );
 }
