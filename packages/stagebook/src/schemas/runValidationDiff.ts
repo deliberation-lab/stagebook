@@ -266,7 +266,12 @@ export function runValidationDiff({
   // Strict per-treatment reachable-keys check, only sound on the
   // hydrated form. Catches what the schema's existing reference
   // checker silently passes via globalProducedKeys fallthrough.
-  const unreachableReferences = findUnreachableReferences(expanded);
+  // Pass the merged templates explicitly — fillTemplates strips
+  // `templates:` from its output, so the hydrated form alone doesn't
+  // carry them, and we'd miss producer-in-uninvoked-template leaks.
+  const unreachableReferences = findUnreachableReferences(expanded, {
+    templates: mergedTemplates ?? [],
+  });
 
   return {
     hydrationError: null,

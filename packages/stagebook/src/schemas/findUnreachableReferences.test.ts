@@ -280,6 +280,95 @@ describe("findUnreachableReferences", () => {
     });
   });
 
+  describe("uninvoked-template producer", () => {
+    it("flags a reference to a key produced only by a template that no treatment invokes", () => {
+      // The template `unused` defines `prompt name: lonely`. No
+      // treatment invokes the template, so `lonely` is unreachable
+      // from any participant. Treatment A references it →
+      // unreachable-reference diagnostic.
+      //
+      // `fillTemplates` strips `templates:` from its output, so the
+      // hydrated tree alone doesn't carry the template's keys. The
+      // orchestrator (`runValidationDiff`) passes the merged template
+      // list explicitly via the `templates` option so this case
+      // becomes detectable.
+      const hydrated = {
+        introSequences: [
+          {
+            name: "i",
+            introSteps: [{ name: "s", elements: [{ type: "submitButton" }] }],
+          },
+        ],
+        treatments: [
+          {
+            name: "A",
+            playerCount: 1,
+            gameStages: [
+              {
+                name: "g",
+                duration: 10,
+                elements: [
+                  { type: "display", reference: "self.prompt.lonely" },
+                  { type: "submitButton" },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      const templates = [
+        {
+          name: "unused",
+          contentType: "element",
+          content: {
+            type: "prompt",
+            name: "lonely",
+            file: "lonely.prompt.md",
+          },
+        },
+      ];
+      const issues = findUnreachableReferences(hydrated, { templates });
+      expect(issues).toHaveLength(1);
+      expect(issues[0].message).toContain("prompt.lonely");
+      expect(issues[0].path[0]).toBe("treatments");
+      expect(issues[0].path[1]).toBe(0);
+    });
+
+    it("without passing templates, an uninvoked-template producer's key looks like a typo and is left to the schema", () => {
+      // Same setup as above but no templates passed. The function
+      // can't see the producer, so it can't distinguish "unreachable
+      // via uninvoked template" from "pure typo" — the latter is the
+      // schema's responsibility, so we don't emit. Documents the
+      // contract: callers that want full coverage must pass merged
+      // templates.
+      const hydrated = {
+        introSequences: [
+          {
+            name: "i",
+            introSteps: [{ name: "s", elements: [{ type: "submitButton" }] }],
+          },
+        ],
+        treatments: [
+          {
+            name: "A",
+            playerCount: 1,
+            gameStages: [
+              {
+                name: "g",
+                duration: 10,
+                elements: [
+                  { type: "display", reference: "self.prompt.lonely" },
+                  { type: "submitButton" },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      expect(findUnreachableReferences(hydrated)).toEqual([]);
+    });
+  });
+
   describe("multiple treatments with separate scopes", () => {
     it("flags only the consumer treatment, not the producer treatment", () => {
       const hydrated = {

@@ -4,7 +4,6 @@ import {
   STAGE_PRODUCED_REF_TYPES,
   collectStepKeys,
   collectKeysFromAny,
-  collectProducedKeys,
   enumerateStepSites,
 } from "./validateReferences.js";
 import { getReferenceKeyAndPath } from "../utils/reference.js";
@@ -47,23 +46,38 @@ function toArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
+export interface FindUnreachableReferencesOptions {
+  /**
+   * Template definitions (post-`resolveImports` merge) to include in
+   * `globalProducedKeys`. Required for the "producer is in an
+   * uninvoked template" sub-case — `fillTemplates` strips
+   * `templates:` from its output, so the hydrated form alone doesn't
+   * carry them. The orchestrator (`runValidationDiff`) computes the
+   * merged list and passes it here.
+   */
+  templates?: unknown[];
+}
+
 export function findUnreachableReferences(
   hydratedTreatmentFile: unknown,
+  options: FindUnreachableReferencesOptions = {},
 ): ZodIssue[] {
   if (!isRecord(hydratedTreatmentFile)) return [];
 
   const issues: ZodIssue[] = [];
   const introSequences = toArray(hydratedTreatmentFile.introSequences);
   const treatments = toArray(hydratedTreatmentFile.treatments);
-  const templates = toArray(hydratedTreatmentFile.templates);
+  const templates = toArray(options.templates);
 
   // Intro keys are shared across treatments (every treatment can read
-  // intro-phase data). Build once.
+  // intro-phase data). Build once. `collectStepKeys` iterates over a
+  // step's elements; `collectProducedKeys` operates on a single
+  // element, so it's the wrong granularity for a step.
   const introProducedKeys = new Set<string>();
   for (const seq of introSequences) {
     if (!isRecord(seq)) continue;
     for (const step of toArray(seq.introSteps)) {
-      collectProducedKeys(step, introProducedKeys);
+      for (const key of collectStepKeys(step)) introProducedKeys.add(key);
     }
   }
 
