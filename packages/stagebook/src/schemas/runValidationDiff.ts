@@ -133,21 +133,35 @@ export function runValidationDiff({
 
   const root = parsed as Record<string, unknown>;
 
-  // Build the merged object used for both passes. fillTemplates
-  // strips the templates key from its walk input, but having it on
-  // `merged` lets the source-pass schema see the full picture (the
-  // schema does validate template definitions).
-  const rootTemplates = Array.isArray(root.templates) ? root.templates : [];
-  const allTemplates: unknown[] = [];
-  for (const tmpl of rootTemplates) allTemplates.push(tmpl);
-  for (const tmpl of importedTemplates) allTemplates.push(tmpl);
-  const rootHadTemplates = "templates" in root;
-  const { imports: _imports, templates: _origTemplates, ...rest } = root;
-  void _imports;
-  void _origTemplates;
-  const merged: Record<string, unknown> = { ...rest };
-  if (allTemplates.length > 0 || rootHadTemplates) {
-    merged.templates = allTemplates;
+  // Build the merged object used for both passes. Preserve every
+  // field from `root` exactly as-authored — the schema does its own
+  // type checking, and silently coercing (e.g., turning a non-array
+  // `templates:` into `[]`) would mask the original type error.
+  // Imports stay on the object too: the schema models `imports:` and
+  // would otherwise miss type errors there (e.g., non-string entries).
+  const merged: Record<string, unknown> = { ...root };
+
+  // Merging policy:
+  //   - root.templates is absent → use just importedTemplates
+  //   - root.templates is an array → merge with importedTemplates
+  //   - root.templates exists but isn't an array → leave it alone so
+  //     Zod flags the type error; ignore importedTemplates (the user
+  //     needs to fix the type before imports become reachable anyway)
+  const rootTemplatesField = root.templates;
+  const rootHasTemplates = "templates" in root;
+  const rootTemplatesAreArray = Array.isArray(rootTemplatesField);
+  const rootTemplatesInvalid = rootHasTemplates && !rootTemplatesAreArray;
+
+  let mergedTemplates: unknown[] | null = null;
+  if (!rootTemplatesInvalid) {
+    mergedTemplates = [];
+    if (rootTemplatesAreArray) {
+      for (const tmpl of rootTemplatesField) mergedTemplates.push(tmpl);
+    }
+    for (const tmpl of importedTemplates) mergedTemplates.push(tmpl);
+    if (rootHasTemplates || importedTemplates.length > 0) {
+      merged.templates = mergedTemplates;
+    }
   }
 
   // Source pass — validate the unfilled merged object.
@@ -161,11 +175,14 @@ export function runValidationDiff({
   // what we want — host-fill runtime values stay as strings, and
   // the schema's reference checker treats them as the wildcard set
   // (see `unresolvedFields` discussion in #321).
+  //
+  // fillTemplates needs a real array — pass an empty list when
+  // root's templates was malformed.
   let expanded: Record<string, unknown>;
   try {
     const fillResult: { result: unknown } = fillTemplates({
       obj: merged,
-      templates: allTemplates,
+      templates: mergedTemplates ?? [],
       allowUnresolved: true,
     });
     expanded = fillResult.result as Record<string, unknown>;
@@ -178,6 +195,20 @@ export function runValidationDiff({
       sourceOnly: [],
       hydratedOnly: [],
     };
+  }
+
+  // Re-attach `templates:` and `imports:` to the hydrated form so the
+  // schema validates them on the hydrated pass too. fillTemplates
+  // strips `templates:` from its output (intentional for runtime —
+  // template definitions aren't served), but for the diff we want
+  // both passes to see the same set of definitions. Otherwise an
+  // error inside a template definition appears only in the source
+  // pass and gets mis-bucketed as a templating artifact.
+  if ("templates" in merged) {
+    expanded.templates = merged.templates;
+  }
+  if ("imports" in merged) {
+    expanded.imports = merged.imports;
   }
 
   // Hydrated pass — validate the expanded object.

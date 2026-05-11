@@ -69,20 +69,27 @@ treatments:
 `;
       const result = runValidationDiff({ source });
       expect(result.hydrationError).toBeNull();
-      // The discriminator error fires in both runs; the diff matches
-      // them and there's no remaining source-only or hydrated-only
-      // diagnostic for this case.
+      // The discriminator error fires at the template's definition site
+      // in both passes (hydrated re-attaches `templates:` so the
+      // definition stays visible), so the diff matches that instance.
+      // Real bug, not a templating artifact.
       expect(
         result.matched.some((i) => i.code === "invalid_union_discriminator"),
       ).toBe(true);
+      // It must not land in sourceOnly — that bucket means "templating
+      // artifact, suppress," which would be wrong for a real
+      // template-definition bug.
       expect(
         result.sourceOnly.some((i) => i.code === "invalid_union_discriminator"),
       ).toBe(false);
-      expect(
-        result.hydratedOnly.some(
-          (i) => i.code === "invalid_union_discriminator",
-        ),
-      ).toBe(false);
+      // The hydrated pass also surfaces the error at the expansion
+      // site (`treatments[0].gameStages[0].elements[0].type`) — same
+      // underlying bug, one extra hydrated instance per invocation.
+      // That's mathematically `hydratedOnly`, but semantically it's
+      // the same bug as the matched one. Callers typically display
+      // matched at the source position and treat duplicate
+      // hydrated-only entries with the same (code, message) as
+      // already-reported. Out of scope for v1 (#321 follow-up).
     });
   });
 
@@ -119,18 +126,18 @@ treatments:
       expect(result.hydrationError).toBeNull();
       // The advancement-element rule fires in source but not in hydrated.
       const advancementIssue = result.sourceIssues.find((i) =>
-        JSON.stringify(i).toLowerCase().includes("advancement element"),
+        i.message.toLowerCase().includes("advancement element"),
       );
       expect(advancementIssue).toBeDefined();
       // It's classified as source-only (not matched).
       expect(
         result.sourceOnly.some((i) =>
-          JSON.stringify(i).toLowerCase().includes("advancement element"),
+          i.message.toLowerCase().includes("advancement element"),
         ),
       ).toBe(true);
       expect(
         result.matched.some((i) =>
-          JSON.stringify(i).toLowerCase().includes("advancement element"),
+          i.message.toLowerCase().includes("advancement element"),
         ),
       ).toBe(false);
     });
@@ -194,6 +201,116 @@ treatments:
       const result = runValidationDiff({ source: "[[[invalid" });
       expect(result.hydrationError).not.toBeNull();
       expect(result.hydrationError).toMatch(/yaml|parse/i);
+    });
+
+    it("preserves a non-array `templates:` so the schema flags the type error", () => {
+      // If the user wrote `templates: notAnArray`, silently coercing
+      // to `[]` would suppress the real type error. Both passes should
+      // surface it (matched), pinpointing the bad declaration rather
+      // than letting downstream errors confuse the user.
+      const source = `templates: notAnArray
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+`;
+      const result = runValidationDiff({ source });
+      // The schema flags `templates: notAnArray` as an invalid type
+      // in both passes; the diff routes it to matched.
+      expect(
+        result.matched.some(
+          (i) =>
+            Array.isArray(i.path) &&
+            i.path[0] === "templates" &&
+            (i.code === "invalid_type" || i.code === "invalid_union"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("template-definition errors", () => {
+    it("classifies an error inside a template definition as matched, not source-only", () => {
+      // `fillTemplates` strips `templates:` from its output, so without
+      // re-attachment the hydrated pass wouldn't see template-definition
+      // errors at all, and a real authoring bug inside a (possibly
+      // unused) template would get silently bucketed as a templating
+      // artifact. Re-attaching `templates:` to the hydrated input is
+      // what makes this work.
+      const source = `templates:
+  - name: brokenButUnused
+    contentType: element
+    content:
+      type: prompt
+      file: 12345
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      // The non-string `file:` inside the template definition fires in
+      // both passes; the diff routes it to matched (not sourceOnly,
+      // which would tell callers to suppress it).
+      const templatePathIssues = (bucket: typeof result.matched) =>
+        bucket.filter(
+          (i) => Array.isArray(i.path) && i.path[0] === "templates",
+        );
+      expect(templatePathIssues(result.matched).length).toBeGreaterThan(0);
+      expect(templatePathIssues(result.sourceOnly).length).toBe(0);
+    });
+  });
+
+  describe("imports field validation", () => {
+    it("flags a non-string entry in `imports:` (matched in both passes)", () => {
+      // The schema models `imports:` as `z.array(z.string().min(1))`.
+      // If we stripped imports from the validated objects, this type
+      // error would go silently — exactly the kind of obvious mistake
+      // a validator should catch.
+      const source = `imports:
+  - 12345
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      expect(
+        result.matched.some(
+          (i) => Array.isArray(i.path) && i.path[0] === "imports",
+        ),
+      ).toBe(true);
     });
   });
 
