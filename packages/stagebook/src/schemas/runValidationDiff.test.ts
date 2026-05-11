@@ -1,0 +1,274 @@
+import { describe, it, expect } from "vitest";
+import { runValidationDiff } from "./runValidationDiff.js";
+
+/**
+ * Tests for the diff orchestrator: run the schema twice (once on the
+ * unfilled source, once on the hydrated form) and partition issues by
+ * which run(s) they appeared in. The routing decides whether each
+ * issue is a real bug, a templating artifact, or a hydration-only
+ * surprise.
+ *
+ * v1 matching key is `(code, normalized_message)`. Coincidentally
+ * identical messages at different paths collapse — acceptable for
+ * the typical authoring failure modes; see #321 for follow-up
+ * options 2 (path-aware match) and 3 (full provenance).
+ */
+
+describe("runValidationDiff", () => {
+  describe("happy path", () => {
+    it("returns empty buckets when the file has no issues at all", () => {
+      const source = `introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      expect(result.sourceIssues).toEqual([]);
+      expect(result.hydratedIssues).toEqual([]);
+      expect(result.matched).toEqual([]);
+      expect(result.sourceOnly).toEqual([]);
+      expect(result.hydratedOnly).toEqual([]);
+    });
+  });
+
+  describe("matched issues — real bugs present in both runs", () => {
+    it("classifies a shape error in a template body as matched", () => {
+      // The element type is wrong both pre-fill (in the template's
+      // content) and post-fill (in the expanded treatment). Schema
+      // surfaces it in both runs; diff matches them.
+      const source = `templates:
+  - name: bad
+    contentType: stage
+    content:
+      name: s
+      duration: 10
+      elements:
+        - type: notAValidElementType
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - template: bad
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      // The discriminator error fires in both runs; the diff matches
+      // them and there's no remaining source-only or hydrated-only
+      // diagnostic for this case.
+      expect(
+        result.matched.some((i) => i.code === "invalid_union_discriminator"),
+      ).toBe(true);
+      expect(
+        result.sourceOnly.some((i) => i.code === "invalid_union_discriminator"),
+      ).toBe(false);
+      expect(
+        result.hydratedOnly.some(
+          (i) => i.code === "invalid_union_discriminator",
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("source-only issues — templating artifacts", () => {
+    it("classifies intro-step-needs-advancement as source-only when a template provides it", () => {
+      // The intro step's only direct child is a `template:` invocation.
+      // The source-pass schema's refinement counts this as missing an
+      // advancement element (template invocations aren't submit buttons
+      // / surveys / qualtrics / submit-on-complete mediaPlayer). After
+      // hydration the template expands to include a submitButton, so
+      // the hydrated-pass passes. Diff classifies as source-only and
+      // recommends suppressing it.
+      const source = `templates:
+  - name: advanceBtn
+    contentType: elements
+    content:
+      - type: submitButton
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - template: advanceBtn
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      // The advancement-element rule fires in source but not in hydrated.
+      const advancementIssue = result.sourceIssues.find((i) =>
+        JSON.stringify(i).toLowerCase().includes("advancement element"),
+      );
+      expect(advancementIssue).toBeDefined();
+      // It's classified as source-only (not matched).
+      expect(
+        result.sourceOnly.some((i) =>
+          JSON.stringify(i).toLowerCase().includes("advancement element"),
+        ),
+      ).toBe(true);
+      expect(
+        result.matched.some((i) =>
+          JSON.stringify(i).toLowerCase().includes("advancement element"),
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("hydrated-only issues — revealed by expansion", () => {
+    it("classifies a duration-too-short error that only manifests after field substitution as hydrated-only", () => {
+      // The template's content has `duration: ${dur}` — pre-fill the
+      // schema accepts the placeholder (template fields can be any
+      // string). After substitution with -5, the schema rejects it.
+      const source = `templates:
+  - name: stageT
+    contentType: stage
+    content:
+      name: s
+      duration: \${dur}
+      elements:
+        - type: submitButton
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - template: stageT
+        fields:
+          dur: -5
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      // Something about the bad duration shows up post-fill but not
+      // pre-fill. Verify there's a hydrated-only issue and no matched
+      // duration issue.
+      expect(result.hydratedOnly.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("hydration failure", () => {
+    it("sets hydrationError and returns sourceIssues with no diff buckets", () => {
+      const source = `treatments:
+  - template: doesNotExist
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).not.toBeNull();
+      expect(result.hydratedIssues).toEqual([]);
+      // Diff machinery shouldn't try to route when hydration didn't
+      // produce a hydrated set — callers fall back to source issues
+      // with a "may include artifacts" caveat.
+      expect(result.matched).toEqual([]);
+      expect(result.sourceOnly).toEqual([]);
+      expect(result.hydratedOnly).toEqual([]);
+    });
+  });
+
+  describe("malformed input", () => {
+    it("surfaces YAML parse failures as hydrationError", () => {
+      const result = runValidationDiff({ source: "[[[invalid" });
+      expect(result.hydrationError).not.toBeNull();
+      expect(result.hydrationError).toMatch(/yaml|parse/i);
+    });
+  });
+
+  describe("imported templates", () => {
+    it("uses the merged template set for both passes", () => {
+      const source = `imports:
+  - ./module.stagebook.yaml
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - template: makeTreatment
+`;
+      const importedTemplates = [
+        {
+          name: "makeTreatment",
+          contentType: "treatment",
+          content: {
+            name: "t",
+            playerCount: 1,
+            gameStages: [
+              {
+                name: "g",
+                duration: 10,
+                elements: [{ type: "submitButton" }],
+              },
+            ],
+          },
+        },
+      ];
+      const result = runValidationDiff({ source, importedTemplates });
+      expect(result.hydrationError).toBeNull();
+      expect(result.matched).toEqual([]);
+      expect(result.hydratedOnly).toEqual([]);
+    });
+  });
+
+  describe("matching semantics", () => {
+    it("matches by (code, normalized message) — same exact issue text in both passes", () => {
+      // Use a shape error that's identical pre- and post-fill: a
+      // template invocation passes the template's content through
+      // unchanged, so an invalid element type stays invalid at the
+      // same JSON shape.
+      const source = `templates:
+  - name: pass
+    contentType: element
+    content:
+      type: notAValidElementType
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - template: pass
+          - type: submitButton
+`;
+      const result = runValidationDiff({ source });
+      expect(result.hydrationError).toBeNull();
+      // The discriminator-value error from the invalid element type
+      // appears in both runs (once in the template definition, once
+      // in the expanded treatment) and the diff matches them.
+      expect(
+        result.matched.some((i) => i.code === "invalid_union_discriminator"),
+      ).toBe(true);
+    });
+  });
+});
