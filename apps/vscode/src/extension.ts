@@ -10,7 +10,7 @@ import {
   computeSemanticTokens,
   type SemanticTokenType,
 } from "./lib/semanticTokens";
-import { expandAndValidate } from "./lib/expandAndValidate";
+import { expandAndValidateWithImports } from "./lib/expandAndValidate";
 import { findClosestMatch } from "./lib/levenshtein";
 import { UnrecognizedKeyQuickFixProvider } from "./lib/unrecognizedKeyQuickFix";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
@@ -20,14 +20,10 @@ import {
   parseFilePathCompletionContext,
 } from "./lib/filePathCompletion";
 import {
-  fillTemplates,
-  getReferencedAssets,
-  parseTreatmentYaml as parseStagebookYaml,
-  resolveImportPath,
-  resolveImports,
-  treatmentFileSchema,
-  type ParsedFile,
-} from "stagebook";
+  parseTreatmentSource,
+  type ParseResult,
+} from "./lib/parseTreatmentSource";
+import { getReferencedAssets } from "stagebook";
 
 const diagnosticCollection =
   vscode.languages.createDiagnosticCollection("stagebook");
@@ -412,7 +408,7 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
 
   constructor(private readonly diagnostics: vscode.DiagnosticCollection) {}
 
-  provideTextDocumentContent(uri: vscode.Uri): string {
+  async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
     const sourceUri = vscode.Uri.parse(decodeURIComponent(uri.query));
     const sourceDoc = vscode.workspace.textDocuments.find(
       (d) => d.uri.toString() === sourceUri.toString(),
@@ -422,7 +418,20 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       return "# Source document not found. Please reopen the preview.";
     }
 
-    const result = expandAndValidate(sourceDoc.getText());
+    // Use the imports-aware expander so cross-file `template:` invocations
+    // resolve in the preview (per #321 Repro 2 — without imports loaded
+    // here, the preview surfaces a misleading "Template not found" error
+    // for templates defined in module files).
+    const sourceDir = vscode.Uri.joinPath(sourceUri, "..");
+    const decoder = new TextDecoder();
+    const result = await expandAndValidateWithImports({
+      source: sourceDoc.getText(),
+      loadImport: async (importPath: string) => {
+        const importUri = vscode.Uri.joinPath(sourceDir, importPath);
+        const bytes = await vscode.workspace.fs.readFile(importUri);
+        return decoder.decode(bytes);
+      },
+    });
     if (result.expandError) {
       this.diagnostics.delete(uri);
       const commentedError = result.expandError
@@ -463,12 +472,26 @@ class ExpandedTemplatesProvider implements vscode.TextDocumentContentProvider {
       key,
       setTimeout(() => {
         this.refreshTimers.delete(key);
-        const expandedUri = vscode.Uri.parse(
-          `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
-        );
-        this._onDidChange.fire(expandedUri);
+        this.fireChangeForSource(sourceUri);
       }, DEBOUNCE_MS),
     );
+  }
+
+  /**
+   * Fire the change event immediately (no debounce) for the expanded
+   * preview corresponding to `sourceUri`. Used by the command handler
+   * right after the expanded document is opened, to force VS Code to
+   * re-fetch the content. Diagnostics set during the very first
+   * `provideTextDocumentContent` call don't attach to the editor's
+   * squiggle layer (the doc isn't fully open yet); a second fetch after
+   * the document is visible makes them appear without waiting for the
+   * user to edit the source.
+   */
+  fireChangeForSource(sourceUri: vscode.Uri): void {
+    const expandedUri = vscode.Uri.parse(
+      `${EXPANDED_SCHEME}:${sourceUri.path} (expanded)?${encodeURIComponent(sourceUri.toString())}`,
+    );
+    this._onDidChange.fire(expandedUri);
   }
 
   dispose(): void {
@@ -597,107 +620,27 @@ function getNonce(): string {
 /**
  * Parse a Stagebook treatment file for the preview command.
  *
- * After #277, this loads any `imports:` declared in the file (and
- * transitively in those imports) using vscode's filesystem API, then
- * merges every imported file's `templates:` into the root file's
- * templates list with path rewriting (per template, relative to the
- * file it was declared in). The merged result is then template-
- * expanded via `fillTemplates` and schema-validated.
- *
- * Async because import loading goes through `vscode.workspace.fs`.
- * Returns `null` on any failure (parse, missing import, validation)
- * — the caller surfaces a generic "could not parse" message and
- * leaves precise diagnostics to the in-editor validator.
+ * Thin VS Code-side shim that wraps `parseTreatmentSource` (the pure,
+ * testable core) with a `loadImport` callback backed by
+ * `vscode.workspace.fs`. The shim returns the structured result
+ * unchanged — callers surface the `message` field on failure rather
+ * than the previous generic "could not parse" notification (the root
+ * cause of #321 Repro 1, which silently swallowed all six failure
+ * modes in this function).
  */
-async function parseTreatmentForPreview(source: string, rootDir: vscode.Uri) {
-  let rootParse: ReturnType<typeof parseStagebookYaml>;
-  try {
-    rootParse = parseStagebookYaml(source);
-  } catch {
-    return null;
-  }
-  const root = rootParse.parsed as ParsedFile;
-
-  // Imports loading loop. The host owns the loop (per #277's
-  // design); stagebook's helpers handle path canonicalization
-  // (`resolveImportPath`) and merging (`resolveImports`).
-  const loaded = new Map<string, ParsedFile>();
-  const queue: string[] = rootParse.imports.map((p) =>
-    // The root file's own path is the parent for resolving its imports.
-    // Using a fictional `root.stagebook.yaml` here gives the right
-    // relative behavior because `resolveImportPath` only uses the
-    // parent's directory portion.
-    resolveImportPath("root.stagebook.yaml", p),
-  );
+async function parseTreatmentForPreview(
+  source: string,
+  rootDir: vscode.Uri,
+): Promise<ParseResult> {
   const decoder = new TextDecoder();
-  while (queue.length > 0) {
-    const importPath = queue.shift()!;
-    if (loaded.has(importPath)) continue;
-    const importUri = vscode.Uri.joinPath(rootDir, importPath);
-    let bytes: Uint8Array;
-    try {
-      bytes = await vscode.workspace.fs.readFile(importUri);
-    } catch {
-      // Import file not found / unreadable. Could surface a real
-      // diagnostic here in a follow-up; for now the preview just
-      // refuses to render.
-      return null;
-    }
-    let importedParse: ReturnType<typeof parseStagebookYaml>;
-    try {
-      importedParse = parseStagebookYaml(decoder.decode(bytes));
-    } catch {
-      return null;
-    }
-    loaded.set(importPath, importedParse.parsed as ParsedFile);
-    for (const next of importedParse.imports) {
-      queue.push(resolveImportPath(importPath, next));
-    }
-  }
-
-  // Merge templates with per-file path rewriting.
-  let mergedTemplates: unknown[];
-  try {
-    mergedTemplates = resolveImports({ main: root, files: loaded });
-  } catch {
-    return null;
-  }
-
-  // Strip `imports:` from the root and replace `templates:` with the
-  // merged set. This is what the schema/runtime expects (no imports
-  // in the post-fill world).
-  //
-  // Re-attach `templates:` whenever the root explicitly had it,
-  // even if the merged array is empty — preserves the schema's
-  // rejection of `templates: []` in the root (an authoring error
-  // that would otherwise be silently masked by stripping the key).
-  const rootHadTemplates = "templates" in root;
-  const { imports: _imports, templates: _origTemplates, ...rest } = root;
-  void _imports;
-  void _origTemplates;
-  const merged: Record<string, unknown> = { ...rest };
-  if (mergedTemplates.length > 0 || rootHadTemplates) {
-    merged.templates = mergedTemplates;
-  }
-
-  // Template expansion (existing pipeline).
-  let expanded: Record<string, unknown> = merged;
-  if (mergedTemplates.length > 0) {
-    try {
-      const { result } = fillTemplates({
-        obj: merged,
-        templates: mergedTemplates,
-        allowUnresolved: true,
-      });
-      expanded = result as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-
-  const parsed = treatmentFileSchema.safeParse(expanded);
-  if (!parsed.success) return null;
-  return parsed.data;
+  return parseTreatmentSource({
+    source,
+    loadImport: async (importPath: string) => {
+      const importUri = vscode.Uri.joinPath(rootDir, importPath);
+      const bytes = await vscode.workspace.fs.readFile(importUri);
+      return decoder.decode(bytes);
+    },
+  });
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -793,6 +736,15 @@ export function activate(context: vscode.ExtensionContext): void {
         // source treatment files (element types, comparators, template
         // variables, schema keywords).
         await vscode.languages.setTextDocumentLanguage(doc, "stagebookYaml");
+        // Force a re-fetch of the content now that the document is fully
+        // open. Diagnostics attached during the very first
+        // `provideTextDocumentContent` call don't appear in the editor
+        // until a subsequent fetch happens (the doc wasn't fully open
+        // yet, so VS Code didn't wire them to the squiggle layer). The
+        // second fetch hits the warmed-up pipeline (~60ms on pilot_3)
+        // and surfaces the diagnostics immediately instead of waiting
+        // for the user to edit the source file.
+        expandedProvider.fireChangeForSource(sourceUri);
       },
     ),
   );
@@ -814,8 +766,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // Register stage preview webview command
   let previewPanel: vscode.WebviewPanel | undefined;
   // Mutable state updated on each command invocation — avoids stale closures
-  let currentTreatment: Awaited<ReturnType<typeof parseTreatmentForPreview>> =
-    null;
+  type CurrentTreatment = Extract<ParseResult, { ok: true }>["data"] | null;
+  let currentTreatment: CurrentTreatment = null;
   let currentTreatmentUri: vscode.Uri | undefined;
   let currentTreatmentDir: vscode.Uri | undefined;
   let currentWorkspaceRootFsPath: string | undefined;
@@ -830,13 +782,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const source = editor.document.getText();
       const previewRootDir = vscode.Uri.joinPath(editor.document.uri, "..");
-      currentTreatment = await parseTreatmentForPreview(source, previewRootDir);
-      if (!currentTreatment) {
+      const parseResult = await parseTreatmentForPreview(
+        source,
+        previewRootDir,
+      );
+      if (!parseResult.ok) {
         vscode.window.showErrorMessage(
-          "Could not parse treatment file for preview.",
+          `Could not preview treatment: ${parseResult.message}`,
         );
         return;
       }
+      currentTreatment = parseResult.data;
 
       const workspaceFolder =
         vscode.workspace.getWorkspaceFolder(editor.document.uri) ??
@@ -900,17 +856,17 @@ export function activate(context: vscode.ExtensionContext): void {
             try {
               const doc =
                 await vscode.workspace.openTextDocument(currentTreatmentUri);
-              const parsed = await parseTreatmentForPreview(
+              const refreshResult = await parseTreatmentForPreview(
                 doc.getText(),
                 treatmentDir,
               );
-              if (!parsed) {
+              if (!refreshResult.ok) {
                 vscode.window.showErrorMessage(
-                  "Refresh failed: could not parse treatment file.",
+                  `Refresh failed: ${refreshResult.message}`,
                 );
                 return;
               }
-              currentTreatment = parsed;
+              currentTreatment = refreshResult.data;
               // Panel may have been disposed while we were awaiting above.
               if (!previewPanel) return;
               const baseUri = panel.webview
@@ -918,7 +874,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 .toString();
               panel.webview.postMessage({
                 type: "treatment",
-                treatmentFile: parsed,
+                treatmentFile: refreshResult.data,
                 introIndex: 0,
                 treatmentIndex: 0,
                 webviewBaseUri: baseUri,

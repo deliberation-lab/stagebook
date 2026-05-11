@@ -1,5 +1,6 @@
 import { fillTemplates } from "stagebook";
 import { parse, stringify } from "yaml";
+import { loadAndMergeImports } from "./loadAndMergeImports";
 
 const DEFAULT_MAX_LINES = 5000;
 const DEFAULT_MAX_BROADCAST = 10000;
@@ -122,19 +123,19 @@ export function expandTreatmentSource(
     return { yaml: "", fullYaml: "", error: sizeError, truncated: false };
   }
 
-  // Expand templates
+  // Always pass through fillTemplates so unresolved `template:` invocations
+  // always surface as a "Template not found" error, even when there are
+  // zero root-level templates (the common case once #277 imports landed —
+  // see #321 Repro 2). The previous `templates.length > 0` gate silently
+  // returned the source unchanged in that case.
   let expanded: Record<string, unknown>;
   try {
-    if (templates.length > 0) {
-      const { result } = fillTemplates({
-        obj: record,
-        templates,
-        allowUnresolved: true,
-      });
-      expanded = result as Record<string, unknown>;
-    } else {
-      expanded = { ...record };
-    }
+    const { result } = fillTemplates({
+      obj: record,
+      templates,
+      allowUnresolved: true,
+    });
+    expanded = result as Record<string, unknown>;
   } catch (e) {
     return {
       yaml: "",
@@ -175,4 +176,51 @@ export function expandTreatmentSource(
   }
 
   return { yaml, fullYaml: yaml, error: null, truncated: false };
+}
+
+/**
+ * Like `expandTreatmentSource`, but loads `imports:` through the supplied
+ * callback before expanding. Returns the same `ExpandResult` shape — the
+ * caller can't tell whether imports were involved.
+ *
+ * Used by the "View Expanded Templates" provider so the expanded preview
+ * shows the actual resolution of cross-file template invocations (the
+ * second half of #321 Repro 2; without imports loaded, the expander
+ * surfaces "Template not found" for templates that live in module files).
+ *
+ * Import-loading errors (missing/unreadable file, malformed YAML in an
+ * import, merge failure) are surfaced in the result's `error` field so
+ * the preview shows them as commented banners — same channel as
+ * expansion errors.
+ */
+export async function expandTreatmentSourceWithImports({
+  source,
+  loadImport,
+  options,
+}: {
+  source: string;
+  loadImport: (importPath: string) => Promise<string>;
+  options?: ExpandOptions;
+}): Promise<ExpandResult> {
+  const loadResult = await loadAndMergeImports({ source, loadImport });
+  if (!loadResult.ok) {
+    return {
+      yaml: "",
+      fullYaml: "",
+      error: loadResult.message,
+      truncated: false,
+    };
+  }
+  let mergedYaml: string;
+  try {
+    mergedYaml = stringify(loadResult.merged, { indent: 2, lineWidth: 0 });
+  } catch (e) {
+    return {
+      yaml: "",
+      fullYaml: "",
+      error: `YAML serialization failed: ${e instanceof Error ? e.message : String(e)}`,
+      truncated: false,
+    };
+  }
+  return expandTreatmentSource(mergedYaml, options);
 }
