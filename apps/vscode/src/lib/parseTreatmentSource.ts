@@ -1,7 +1,7 @@
 import {
   fillTemplates,
   treatmentFileSchema,
-  type TreatmentFile,
+  type TreatmentFileType,
 } from "stagebook";
 import {
   loadAndMergeImports,
@@ -22,7 +22,7 @@ import {
 export type ParseFailureStage = LoadFailureStage | "hydration" | "schema";
 
 export type ParseResult =
-  | { ok: true; data: TreatmentFile }
+  | { ok: true; data: TreatmentFileType }
   | { ok: false; stage: ParseFailureStage; message: string };
 
 /**

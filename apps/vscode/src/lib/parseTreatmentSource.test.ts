@@ -133,6 +133,53 @@ treatments:
       expect(result.message).toContain("broken.stagebook.yaml");
     });
 
+    it("returns resolve failure when an import duplicates a template name from the root", async () => {
+      // `resolveImports` throws when a template name is defined twice
+      // across the root + imports tree. The pipeline maps that to the
+      // `resolve` stage. Surfaces as a precise message rather than
+      // letting the duplicate quietly win one definition over the other.
+      const source = `imports:
+  - ./module.stagebook.yaml
+
+templates:
+  - name: dup
+    contentType: treatment
+    content:
+      name: t
+      playerCount: 1
+      gameStages:
+        - name: s
+          duration: 10
+          elements:
+            - type: submitButton
+
+treatments:
+  - template: dup
+`;
+      const moduleSrc = `templates:
+  - name: dup
+    contentType: treatment
+    content:
+      name: t2
+      playerCount: 1
+      gameStages:
+        - name: s
+          duration: 10
+          elements:
+            - type: submitButton
+`;
+      const result = await parseTreatmentSource({
+        source,
+        loadImport: loaderFromMap({
+          "./module.stagebook.yaml": moduleSrc,
+        }),
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.stage).toBe("resolve");
+      expect(result.message).toContain("dup");
+    });
+
     it("returns hydration failure when a template invocation cannot be resolved", async () => {
       const source = `imports:
   - ./module.stagebook.yaml

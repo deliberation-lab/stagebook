@@ -102,10 +102,11 @@ export async function loadAndMergeImports({
   }
 
   // Strip `imports:` from the root and replace `templates:` with the
-  // merged set. Re-attach `templates:` whenever the root explicitly had
-  // it, even if the merged array is empty — preserves the schema's
-  // rejection of `templates: []` in the root (an authoring error that
-  // would otherwise be silently masked by stripping the key).
+  // merged set. Note: `fillTemplates` strips `templates:` from its walk
+  // input before expanding, so the merged value is effectively only
+  // passed to `fillTemplates` via its separate `templates` parameter.
+  // Attaching it back on `merged` is documentation: the post-load shape
+  // mirrors what a file with inline templates would look like.
   const rootHadTemplates = "templates" in root;
   const { imports: _imports, templates: _origTemplates, ...rest } = root;
   void _imports;
