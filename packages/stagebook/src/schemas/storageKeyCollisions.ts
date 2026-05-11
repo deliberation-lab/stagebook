@@ -19,8 +19,12 @@
  * per-element `name:` override (e.g. `name: pretest_q1` vs
  * `name: posttest_q1`) to disambiguate.
  *
- * Key derivation mirrors the save() calls in src/components/elements/.
- * Per-type rules:
+ * Key derivation mirrors the runtime `save()` calls. The `name` is
+ * computed in `Element.tsx` before each element dispatches; the actual
+ * `save()` invocation lives in the matching component under
+ * `src/components/elements/` (except surveys, which are rendered via
+ * the host-supplied `renderSurvey` slot — Element.tsx derives the key
+ * before handing off). Per-type rules:
  *
  *   audio        → checked when `name:` is set. Unnamed audios fall
  *                   back to a position-based key

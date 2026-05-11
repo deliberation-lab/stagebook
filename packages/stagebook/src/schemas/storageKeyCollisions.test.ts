@@ -320,7 +320,9 @@ describe("collectStorageKeyCollisions", () => {
         },
       ],
     };
-    expect(collectStorageKeyCollisions(dataNamed)).toHaveLength(1);
+    const namedCollisions = collectStorageKeyCollisions(dataNamed);
+    expect(namedCollisions).toHaveLength(1);
+    expect(namedCollisions[0].key).toBe("mediaPlayer_intro");
 
     const dataUnnamed = {
       treatments: [
@@ -411,7 +413,9 @@ describe("collectStorageKeyCollisions", () => {
         },
       ],
     };
-    expect(collectStorageKeyCollisions(dataNamed)).toHaveLength(1);
+    const namedCollisions = collectStorageKeyCollisions(dataNamed);
+    expect(namedCollisions).toHaveLength(1);
+    expect(namedCollisions[0].key).toBe("survey_intake");
 
     const dataUnnamed = {
       treatments: [
