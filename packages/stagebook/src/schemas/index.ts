@@ -105,6 +105,12 @@ export {
 } from "./storageKeyCollisions.js";
 
 export {
+  collectPreHydrationIssues,
+  type PreHydrationIssue,
+  type PreHydrationInput,
+} from "./preHydrationSemantic.js";
+
+export {
   resolvedElementSchema,
   resolvedStageSchema,
   resolvedIntroExitStepSchema,
