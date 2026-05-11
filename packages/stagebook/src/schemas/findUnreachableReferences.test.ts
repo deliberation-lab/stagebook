@@ -369,6 +369,80 @@ describe("findUnreachableReferences", () => {
     });
   });
 
+  describe("intro keys participate in globalProducedKeys (regression test)", () => {
+    it("treats an intro-produced key as reachable when an uninvoked template also produces the same key", () => {
+      // Distinguishing test for the introProducedKeys-built-with-wrong-
+      // granularity bug. Both "key reachable via intro" and "key not
+      // in globalProducedKeys" produce a no-issue outcome for a simple
+      // intro-producer scenario, so the simpler test can't tell the
+      // two paths apart. This setup forces the distinction:
+      //
+      //   - Intro produces `prompt.dual`
+      //   - A template (uninvoked) ALSO produces `prompt.dual`
+      //   - Treatment A references `prompt.dual`
+      //
+      // Correct behavior (intro keys collected properly):
+      //   - introProducedKeys = {prompt.dual}
+      //   - A's reachable set includes prompt.dual via intro
+      //   - No issue emitted
+      //
+      // Buggy behavior (introProducedKeys was empty):
+      //   - introProducedKeys = {}
+      //   - globalProducedKeys = {prompt.dual} (via the template)
+      //   - A's reachable set does NOT include prompt.dual
+      //   - The reference is "produced in globalProducedKeys but not
+      //     reachable" → wrongly emits unreachable
+      //
+      // So this test fails with the bug and passes after the fix —
+      // exactly the regression discriminator the simple intro-
+      // producer test couldn't provide.
+      const hydrated = {
+        introSequences: [
+          {
+            name: "i",
+            introSteps: [
+              {
+                name: "s",
+                elements: [
+                  { type: "prompt", name: "dual", file: "dual.prompt.md" },
+                  { type: "submitButton" },
+                ],
+              },
+            ],
+          },
+        ],
+        treatments: [
+          {
+            name: "A",
+            playerCount: 1,
+            gameStages: [
+              {
+                name: "g",
+                duration: 10,
+                elements: [
+                  { type: "display", reference: "self.prompt.dual" },
+                  { type: "submitButton" },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      const templates = [
+        {
+          name: "alsoDual",
+          contentType: "element",
+          content: {
+            type: "prompt",
+            name: "dual",
+            file: "dual.prompt.md",
+          },
+        },
+      ];
+      expect(findUnreachableReferences(hydrated, { templates })).toEqual([]);
+    });
+  });
+
   describe("multiple treatments with separate scopes", () => {
     it("flags only the consumer treatment, not the producer treatment", () => {
       const hydrated = {
