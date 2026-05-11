@@ -191,6 +191,18 @@ treatments:
       expect(result.error).toContain("not found");
       expect(result.yaml).toBe("");
     });
+
+    // Repro 2 from #321: today, when the file has no root-level `templates:`
+    // key, the expander short-circuits and returns the source unchanged —
+    // even when the file invokes a template that no one has defined. The
+    // user sees their input echoed back and can't tell expansion is broken.
+    it("returns an error for an unresolved invocation when no templates key is present (#321 Repro 2)", () => {
+      const src = `treatments:
+  - template: foo`;
+      const result = expandTreatmentSource(src);
+      expect(result.error).toContain("not found");
+      expect(result.yaml).toBe("");
+    });
   });
 
   describe("unresolved placeholders", () => {

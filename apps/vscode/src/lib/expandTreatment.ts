@@ -122,19 +122,19 @@ export function expandTreatmentSource(
     return { yaml: "", fullYaml: "", error: sizeError, truncated: false };
   }
 
-  // Expand templates
+  // Always pass through fillTemplates so unresolved `template:` invocations
+  // always surface as a "Template not found" error, even when there are
+  // zero root-level templates (the common case once #277 imports landed —
+  // see #321 Repro 2). The previous `templates.length > 0` gate silently
+  // returned the source unchanged in that case.
   let expanded: Record<string, unknown>;
   try {
-    if (templates.length > 0) {
-      const { result } = fillTemplates({
-        obj: record,
-        templates,
-        allowUnresolved: true,
-      });
-      expanded = result as Record<string, unknown>;
-    } else {
-      expanded = { ...record };
-    }
+    const { result } = fillTemplates({
+      obj: record,
+      templates,
+      allowUnresolved: true,
+    });
+    expanded = result as Record<string, unknown>;
   } catch (e) {
     return {
       yaml: "",
