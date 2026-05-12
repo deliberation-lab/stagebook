@@ -163,9 +163,14 @@ test.describe("StageConditionGate (#183)", () => {
     const gate = page.locator('[data-testid="stage-condition-gate"]');
     await expect(gate).toBeVisible();
     await expect(gate).toHaveAttribute("data-state", "advancing");
+    // `not.toBeAttached()` rather than `not.toBeVisible()` — when the
+    // gate advances, StageConditionGate returns only the gate <div>
+    // without children, so stageContent should not be in the DOM at
+    // all. The stronger assertion catches a regression that mounted
+    // children but hid them via CSS (visibility/display tricks).
     await expect(
       page.locator('[data-testid="stageContent"]'),
-    ).not.toBeVisible();
+    ).not.toBeAttached();
   });
 
   test("no gate overhead when stage has no conditions", async ({
