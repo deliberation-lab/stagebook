@@ -65,6 +65,15 @@ export function TextArea({
     }
   }, [value]);
 
+  // Clear the overflow timeout on unmount — without this, a stage/page
+  // change within the 300ms window would fire setIsOverflowing(false) on
+  // an unmounted component (silent in React 18+ but still a leak).
+  useEffect(() => {
+    return () => {
+      if (overflowTimeout.current) clearTimeout(overflowTimeout.current);
+    };
+  }, []);
+
   const submitChange = (val: string) => {
     if (onChange && typeof onChange === "function") {
       onChange(val);
@@ -235,9 +244,23 @@ export function TextArea({
       />
       {renderCharacterCount()}
       <style>{`
+        /* Animate a box-shadow glow instead of the text color, so the
+           steady-state countColor (gray/green) is preserved throughout
+           the pulse — animating color back to "inherit" produced a brief
+           flash to the parent color before snapping back to countColor at
+           animation end. The warning color is referenced via the same
+           --stagebook-warning token used by host theming, so a themed
+           orange (etc.) propagates through the pulse. */
         @keyframes stagebook-char-counter-pulse {
-          0% { color: var(--stagebook-warning, #dc2626); }
-          100% { color: inherit; }
+          0% {
+            box-shadow: 0 0 0 0 var(--stagebook-warning, #dc2626);
+          }
+          30% {
+            box-shadow: 0 0 0 4px var(--stagebook-warning, #dc2626);
+          }
+          100% {
+            box-shadow: 0 0 0 0 var(--stagebook-warning, #dc2626);
+          }
         }
       `}</style>
     </div>
