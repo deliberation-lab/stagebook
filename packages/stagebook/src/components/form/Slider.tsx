@@ -110,13 +110,20 @@ export function Slider({
                 left: `${getPosition(localValue)}%`,
                 top: "50%",
                 transform: "translate(-50%, -50%)",
+                // box-sizing: border-box keeps the visible thumb at 20×20
+                // including the 2px white border, so the bounding box (and
+                // the tick-alignment math in tests) matches the declared
+                // size. Default content-box would render at 24×24.
+                boxSizing: "border-box",
                 width: 20,
                 height: 20,
                 borderRadius: "50%",
                 background: "var(--stagebook-primary, #3b82f6)",
                 border: "2px solid white",
+                // Match the focus-ring token used by RadioGroup/CheckboxGroup/
+                // Select so hosts can retheme focus visuals consistently.
                 boxShadow: isFocused
-                  ? "0 0 0 3px rgba(59, 130, 246, 0.3), 0 2px 4px rgba(0,0,0,0.2)"
+                  ? "0 0 0 2px var(--stagebook-focus-ring, rgba(59, 130, 246, 0.25)), 0 2px 4px rgba(0,0,0,0.2)"
                   : "0 2px 4px rgba(0,0,0,0.2)",
                 pointerEvents: "none",
               }}
