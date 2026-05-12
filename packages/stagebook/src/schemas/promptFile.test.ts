@@ -430,7 +430,10 @@ Rate.
     }
   });
 
-  test("slider line with `<n>:` (empty label) defaults label to the number", () => {
+  test("slider line with `<n>:` (colon, empty after) renders an empty label (#325)", () => {
+    // Previously this fell back to the stringified number. The colon now
+    // signals "labeled position, empty label string" — useful for putting
+    // a tick at a snap point without rendering numeric text underneath.
     const markdown = `---
 type: slider
 min: 0
@@ -444,7 +447,101 @@ Rate.
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.sliderPoints).toEqual([5]);
+      expect(result.data.responseItems).toEqual([""]);
+    }
+  });
+
+  test("slider line with `<n>: ` (colon + whitespace) also renders empty (#325)", () => {
+    const markdown = `---
+type: slider
+min: 0
+max: 10
+interval: 1
+---
+Rate.
+---
+- 5:   `;
+    const result = promptFileSchema.safeParse(markdown);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.responseItems).toEqual([""]);
+    }
+  });
+
+  test("slider bare `- N` (no colon) still falls back to the number (#325)", () => {
+    // Regression guard for the backward-compat half of the change: the
+    // fallback only applies when there's no colon at all.
+    const markdown = `---
+type: slider
+min: 0
+max: 10
+interval: 1
+---
+Rate.
+---
+- 5`;
+    const result = promptFileSchema.safeParse(markdown);
+    expect(result.success).toBe(true);
+    if (result.success) {
       expect(result.data.responseItems).toEqual(["5"]);
+    }
+  });
+
+  test("multipleChoice numeric `- N:` keeps the legacy fallback (#325 scoping)", () => {
+    // The empty-label-after-colon change is scoped to sliders. For
+    // multipleChoice numeric mode, an empty label would produce an
+    // unlabeled radio (bad UX, no accessible name), so we keep the
+    // legacy fallback to the stringified number.
+    const markdown = `---
+name: scale
+type: multipleChoice
+---
+Rate it
+---
+- 1:
+- 2:
+- 3:`;
+    const result = promptFileSchema.safeParse(markdown);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.responsePoints).toEqual([1, 2, 3]);
+      expect(result.data.responseItems).toEqual(["1", "2", "3"]);
+    }
+  });
+
+  test("slider with ticks-everywhere-but-labels-only-at-anchors (TIPI pattern, #325)", () => {
+    // The motivating use case for #325: a 7-point Likert slider with
+    // ticks at every snap point but text only at the endpoints and
+    // midpoint. Previously required choosing between "all numeric
+    // labels" (cluttered) or "anchors only" (no intermediate ticks).
+    const markdown = `---
+type: slider
+min: 1
+max: 7
+interval: 1
+---
+How strongly do you agree?
+---
+- 1: Strongly disagree
+- 2:
+- 3:
+- 4: Neutral
+- 5:
+- 6:
+- 7: Strongly agree`;
+    const result = promptFileSchema.safeParse(markdown);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sliderPoints).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(result.data.responseItems).toEqual([
+        "Strongly disagree",
+        "",
+        "",
+        "Neutral",
+        "",
+        "",
+        "Strongly agree",
+      ]);
     }
   });
 
