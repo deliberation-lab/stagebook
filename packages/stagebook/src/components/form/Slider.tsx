@@ -20,6 +20,7 @@ export function Slider({
   onChange,
 }: SliderProps) {
   const [localValue, setLocalValue] = useState<number | undefined>(value);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     setLocalValue(value);
@@ -93,6 +94,34 @@ export function Slider({
               }}
             />
           ))}
+
+          {/* Custom thumb — only rendered after first interaction. Sits in
+              the same coordinate space as the ticks (positioned via the
+              same getPosition() that places the ticks), which fixes the
+              half-thumb-width offset that native range inputs reserve and
+              that previously caused thumb/tick misalignment at non-center
+              values (#326). pointer-events: none routes clicks/drags
+              through to the invisible native input behind it. */}
+          {hasValue && (
+            <div
+              data-testid="slider-thumb"
+              style={{
+                position: "absolute",
+                left: `${getPosition(localValue)}%`,
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                background: "var(--stagebook-primary, #3b82f6)",
+                border: "2px solid white",
+                boxShadow: isFocused
+                  ? "0 0 0 3px rgba(59, 130, 246, 0.3), 0 2px 4px rgba(0,0,0,0.2)"
+                  : "0 2px 4px rgba(0,0,0,0.2)",
+                pointerEvents: "none",
+              }}
+            />
+          )}
         </div>
 
         {/* Instruction when no value set — avoids anchoring */}
@@ -113,7 +142,12 @@ export function Slider({
           </div>
         )}
 
-        {/* Range input — only rendered after first interaction */}
+        {/* Range input — only rendered after first interaction. Visually
+            invisible (opacity: 0) but still handles keyboard and pointer
+            interaction. The native thumb is forced to 0×0 so the browser
+            doesn't reserve the half-thumb-width padding that previously
+            broke tick alignment; the visible thumb is drawn separately
+            above. */}
         {hasValue && (
           <input
             type="range"
@@ -122,6 +156,8 @@ export function Slider({
             step={interval}
             value={localValue}
             onChange={handleChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             style={{
               position: "absolute",
               top: "8px",
@@ -132,6 +168,9 @@ export function Slider({
               cursor: "pointer",
               WebkitAppearance: "none",
               MozAppearance: "none",
+              opacity: 0,
+              margin: 0,
+              padding: 0,
             }}
             aria-label="Slider"
             aria-valuemin={min}
@@ -178,23 +217,16 @@ export function Slider({
         input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 20px;
-          height: 24px;
-          background: var(--stagebook-primary, #3b82f6);
-          border-radius: 50%;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-          margin-top: -8px;
+          width: 0;
+          height: 0;
+          background: transparent;
+          border: none;
         }
         input[type="range"]::-moz-range-thumb {
-          width: 20px;
-          height: 24px;
-          background: var(--stagebook-primary, #3b82f6);
-          border-radius: 50%;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          width: 0;
+          height: 0;
+          background: transparent;
+          border: none;
         }
         input[type="range"]::-webkit-slider-runnable-track {
           width: 100%;
@@ -208,12 +240,6 @@ export function Slider({
         }
         input[type="range"]:focus {
           outline: none;
-        }
-        input[type="range"]:focus::-webkit-slider-thumb {
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-        }
-        input[type="range"]:focus::-moz-range-thumb {
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
         }
       `}</style>
     </div>
