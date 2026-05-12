@@ -155,9 +155,12 @@ export type MetadataRefineType = MetadataType;
 /**
  * Parse a numeric response line. Used by sliders (always numeric) and by
  * multipleChoice prompts in numeric mode (#282). One of:
- *   - `- 50` — bare number (label defaults to the number's string form)
+ *   - `- 50` — bare number (no colon → label defaults to the number's
+ *     string form)
  *   - `- 50: Somewhat familiar` — number + label
- *   - `- 50:` — number + empty label (label defaults to the number)
+ *   - `- 50:` — number + explicit empty label. Useful for sliders where
+ *     a researcher wants a tick at this snap point but no label text
+ *     underneath it (#325).
  * The first colon separates point from label, so labels can themselves
  * contain colons.
  */
@@ -177,12 +180,17 @@ function parseNumericResponseLine(
   let pointStr: string;
   let label: string | null;
   if (colonIdx < 0) {
+    // No colon — fall through to the pointStr fallback below.
     pointStr = trimmed;
     label = null;
   } else {
+    // Colon present — preserve the post-colon text verbatim (after trim).
+    // An empty string here is a deliberate "tick with no label", not a
+    // missing label; the `??` fallback below keeps empty strings intact
+    // because `"" ?? x` is `""` (only null/undefined trigger the
+    // fallback).
     pointStr = trimmed.slice(0, colonIdx).trim();
-    const afterColon = trimmed.slice(colonIdx + 1).trim();
-    label = afterColon.length > 0 ? afterColon : null;
+    label = trimmed.slice(colonIdx + 1).trim();
   }
   if (pointStr.length === 0) {
     return {
