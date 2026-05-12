@@ -228,6 +228,7 @@ export function Stage({
 
     const discussionPage = (
       <div
+        className="stagebook-discussion-page"
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -249,11 +250,18 @@ export function Stage({
           paddingLeft: "1.5rem",
           paddingRight: "1.5rem",
           minHeight: "calc(100vh - 4rem)",
+          // Container query context — the per-column min-height below
+          // depends on the *parent's* inline size, not the viewport's,
+          // so embedded preview panes (VS Code, narrow viewer chrome,
+          // etc.) get the right wrap detection regardless of what
+          // `100vh` resolves to.
+          containerType: "inline-size",
         }}
       >
         {/* Discussion column */}
         <div
           data-testid="discussion"
+          className="stagebook-discussion-column"
           style={{
             position: "relative",
             flex: 1,
@@ -284,6 +292,21 @@ export function Stage({
             <ScrollIndicator visible={showDiscussionScrollIndicator} />
           )}
         </div>
+        <style>{`
+          /* When the discussion page is wide enough that the two columns
+             sit side by side (no wrap), force the discussion column to be
+             at least viewport-height so the skeleton/VideoCall fills the
+             column visually (#295). Threshold matches the wrap point —
+             24rem + 1rem gap + 20rem = 45rem of inline size. In wrap
+             mode this query doesn't apply, so the column collapses to
+             its content + 16rem minimum, which is what we want for
+             stacked layouts. */
+          @container (min-width: 45rem) {
+            .stagebook-discussion-column {
+              min-height: calc(100vh - 4rem);
+            }
+          }
+        `}</style>
       </div>
     );
 
