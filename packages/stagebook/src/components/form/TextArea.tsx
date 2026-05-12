@@ -1,10 +1,22 @@
 import React, { useEffect, useState, useRef, useId } from "react";
+import { computeIntervalQuantiles } from "./typingQuantiles.js";
 
 export interface TypingStats {
   type: "typingStats";
   totalKeystrokes: number;
+  backspaceCount: number;
+  arrowKeyCount: number;
+  mouseClickCount: number;
+  focusCount: number;
+  blurCount: number;
   avgInterval: number;
   stdDev: number;
+  // 21 values at the 0%, 5%, 10%, ..., 95%, 100% quantiles of inter-keystroke
+  // intervals (ms). null when fewer than 2 keystrokes have been recorded.
+  intervalQuantiles: number[] | null;
+  firstKeystrokeDelayMs: number | null;
+  totalTypingTimeMs: number | null;
+  focusedDurationMs: number;
 }
 
 export interface PasteAttempt {
@@ -28,6 +40,19 @@ export interface TextAreaProps {
   id?: string;
 }
 
+const CURSOR_KEYS = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
+
+const EDITING_KEYS = new Set(["Backspace", "Delete"]);
+
 export function TextArea({
   defaultText,
   onChange,
@@ -44,7 +69,27 @@ export function TextArea({
   const textAreaId = id || generatedId;
   const [localValue, setLocalValue] = useState(value || "");
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Inter-keystroke timing comes from character-producing and editing keys
+  // (Backspace/Delete). Cursor-only keys (arrows, Home/End) are excluded so
+  // that pure navigation doesn't dilute the typing rhythm signal.
   const keystrokeTimestamps = useRef<number[]>([]);
+
+  const backspaceCount = useRef(0);
+  const arrowKeyCount = useRef(0);
+  const mouseClickCount = useRef(0);
+  const focusCount = useRef(0);
+  const blurCount = useRef(0);
+
+  // Time of the very first focus event on this textarea — used to compute
+  // firstKeystrokeDelayMs (time the participant stared at the field before
+  // typing anything). Set once, never reset.
+  const firstFocusAt = useRef<number | null>(null);
+  // Start of the current focused interval; null when not focused. Combined
+  // with focusedDurationMs to accumulate total focused time across blurs.
+  const currentFocusStartedAt = useRef<number | null>(null);
+  const focusedDurationMs = useRef(0);
+
   const isDebouncing = useRef(false);
 
   // Sync with external value only when not actively debouncing
@@ -90,23 +135,65 @@ export function TextArea({
     debouncedSubmit(newValue);
   };
 
-  const computeTypingStats = (): TypingStats | null => {
+  const computeTypingStats = (): TypingStats => {
     const timestamps = keystrokeTimestamps.current;
-    if (timestamps.length < 2) return null;
 
-    const intervals = timestamps.slice(1).map((t, i) => t - timestamps[i]);
-    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const stdDev = Math.sqrt(
-      intervals.map((x) => (x - avgInterval) ** 2).reduce((a, b) => a + b, 0) /
-        intervals.length,
-    );
+    // Accumulated focus duration plus any in-progress focus interval.
+    const now = Date.now();
+    const liveFocusDelta =
+      currentFocusStartedAt.current !== null
+        ? now - currentFocusStartedAt.current
+        : 0;
+    const totalFocusedMs = focusedDurationMs.current + liveFocusDelta;
+
+    let avgInterval = 0;
+    let stdDev = 0;
+    let intervalQuantiles: number[] | null = null;
+    if (timestamps.length >= 2) {
+      const intervals = timestamps.slice(1).map((t, i) => t - timestamps[i]);
+      avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      stdDev = Math.sqrt(
+        intervals
+          .map((x) => (x - avgInterval) ** 2)
+          .reduce((a, b) => a + b, 0) / intervals.length,
+      );
+      intervalQuantiles = computeIntervalQuantiles(intervals);
+    }
+
+    const firstKeystrokeDelayMs =
+      timestamps.length > 0 && firstFocusAt.current !== null
+        ? timestamps[0] - firstFocusAt.current
+        : null;
+
+    const totalTypingTimeMs =
+      timestamps.length >= 2
+        ? timestamps[timestamps.length - 1] - timestamps[0]
+        : null;
 
     return {
       type: "typingStats",
       totalKeystrokes: timestamps.length,
+      backspaceCount: backspaceCount.current,
+      arrowKeyCount: arrowKeyCount.current,
+      mouseClickCount: mouseClickCount.current,
+      focusCount: focusCount.current,
+      blurCount: blurCount.current,
       avgInterval,
       stdDev,
+      intervalQuantiles,
+      firstKeystrokeDelayMs,
+      totalTypingTimeMs,
+      focusedDurationMs: totalFocusedMs,
     };
+  };
+
+  const handleFocus = () => {
+    const now = Date.now();
+    focusCount.current += 1;
+    if (firstFocusAt.current === null) {
+      firstFocusAt.current = now;
+    }
+    currentFocusStartedAt.current = now;
   };
 
   const handleBlur = () => {
@@ -115,14 +202,38 @@ export function TextArea({
       isDebouncing.current = false;
     }
     submitChange(localValue);
-    const typingStats = computeTypingStats();
-    if (typingStats && onDebugMessage) {
-      onDebugMessage(typingStats);
+
+    blurCount.current += 1;
+    if (currentFocusStartedAt.current !== null) {
+      focusedDurationMs.current += Date.now() - currentFocusStartedAt.current;
+      currentFocusStartedAt.current = null;
+    }
+
+    if (onDebugMessage) {
+      onDebugMessage(computeTypingStats());
     }
   };
 
-  const handleKeyDown = () => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (CURSOR_KEYS.has(e.key)) {
+      arrowKeyCount.current += 1;
+      return;
+    }
+    if (EDITING_KEYS.has(e.key)) {
+      backspaceCount.current += 1;
+      keystrokeTimestamps.current.push(Date.now());
+      return;
+    }
+    // Ignore modifier-only events (no character produced); they shouldn't
+    // count as keystrokes for rhythm purposes.
+    if (e.key.length !== 1 && e.key !== "Enter" && e.key !== "Tab") {
+      return;
+    }
     keystrokeTimestamps.current.push(Date.now());
+  };
+
+  const handleClick = () => {
+    mouseClickCount.current += 1;
   };
 
   const renderCharacterCount = () => {
@@ -188,7 +299,9 @@ export function TextArea({
         placeholder={defaultText}
         value={localValue}
         onChange={handleChange}
+        onFocus={handleFocus}
         onBlur={handleBlur}
+        onClick={handleClick}
         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         style={{
