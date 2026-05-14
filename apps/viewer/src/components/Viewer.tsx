@@ -327,10 +327,18 @@ export function Viewer({
                   currentStep={currentStep}
                 />
               </div>
-              {/* Bottom-of-stage breathing room — see comment on
-                  stageBottomSpacerStyle. aria-hidden because it has no
-                  semantic content. */}
-              <div aria-hidden="true" style={stageBottomSpacerStyle} />
+              {/* Bottom-of-stage breathing room (#234) — only for
+                  single-column stages. Discussion stages have their
+                  own internal scroll on the right column and already
+                  bake breathing room into the column's padding;
+                  rendering the spacer there would eat 8rem of vertical
+                  headroom that stagebook's discussion-page CSS needs
+                  to satisfy its `min-height: calc(100vh - 4rem)` floor
+                  (see PR #357 + the math in its commit). aria-hidden
+                  because it has no semantic content. */}
+              {!currentStep.discussion && (
+                <div aria-hidden="true" style={stageBottomSpacerStyle} />
+              )}
               {/* The indicator is `position: sticky; bottom: 0`, so it
                   pins to the bottom of <main> as content scrolls past. */}
               <ScrollIndicator visible={showScrollIndicator} />
