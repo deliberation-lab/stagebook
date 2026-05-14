@@ -1,9 +1,48 @@
 import { useState } from "react";
-import { getReferenceKeyAndPath, getNestedValueByPath } from "stagebook";
+import {
+  getReferenceKeyAndPath,
+  getNestedValueByPath,
+  parseDottedReference,
+} from "stagebook";
 import { Markdown } from "stagebook/components";
-import { ViewerStateStore } from "../lib/store";
+import { ViewerStateStore, type PositionKey } from "../lib/store";
 import { extractStageReferences } from "../lib/references";
 import type { ViewerStep } from "../lib/steps";
+
+/**
+ * Resolve a reference string's position prefix to a store-level
+ * `PositionKey` (or `undefined` for "all"-style aggregator reads that
+ * span every player position).
+ *
+ * Pre-#298 references had no position prefix and the inspector
+ * implicitly used the current participant's position for every
+ * lookup/edit. After #298 the position is part of the reference
+ * itself (`0.prompt.X`, `shared.survey.X`, `self.entryUrl.params.X`),
+ * so the inspector must honor the reference's *named* position — not
+ * the current participant — when reading or writing that reference's
+ * stored value. Without this, `0.prompt.X` viewed/edited while the
+ * current participant is position 1 would (a) display position 1's
+ * value instead of position 0's, and (b) write inspector edits into
+ * position 1's bucket instead of position 0's. (#349.)
+ *
+ * Returns `null` for invalid references (caller renders a disabled
+ * "(invalid reference)" placeholder).
+ */
+export function resolveReferencePosition(
+  reference: string,
+  currentPosition: number,
+): { kind: "single"; position: PositionKey } | { kind: "all" } | null {
+  const parsed = parseDottedReference(reference);
+  if (!parsed.ok) return null;
+  const refPos = parsed.value.position;
+  if (refPos === "self") return { kind: "single", position: currentPosition };
+  if (refPos === "shared") return { kind: "single", position: "shared" };
+  if (refPos === "all") return { kind: "all" };
+  if (typeof refPos === "number") return { kind: "single", position: refPos };
+  // Fallback for any future position-token shape we haven't taught
+  // the inspector about yet.
+  return { kind: "single", position: currentPosition };
+}
 
 // Mirrors the read-side guard in stagebook/utils/reference.ts. The viewer
 // writes through these paths, so traversing into prototype slots would let
@@ -264,7 +303,33 @@ function ReferenceEditor({
     );
   }
 
-  const rawValues = store.lookup(referenceKey, position);
+  // Honor the reference's named position when reading + writing (#349).
+  // `self` → current participant; `shared` → "shared"; numeric → that
+  // slot index; `all` → read across every position (display only — no
+  // single-cell edit target).
+  const refPos = resolveReferencePosition(reference, position);
+  if (refPos === null) {
+    return (
+      <div style={refGroupStyle}>
+        <label style={refLabelStyle}>{reference}</label>
+        <input
+          type="text"
+          value=""
+          disabled
+          placeholder="(invalid reference)"
+          style={{ ...refInputStyle, opacity: 0.5 }}
+        />
+      </div>
+    );
+  }
+
+  // For "all" refs, lookup with no position arg — store.lookup returns
+  // every player position's value for the key. For single-position refs,
+  // lookup with the resolved key.
+  const rawValues =
+    refPos.kind === "all"
+      ? store.lookup(referenceKey)
+      : store.lookup(referenceKey, refPos.position);
   const values = rawValues
     .map((v) => getNestedValueByPath(v, path))
     .filter((v) => v !== undefined);
@@ -276,21 +341,32 @@ function ReferenceEditor({
   // would require JSON parsing per keystroke (#169 explicitly punted on
   // that); for compound writes use "Show all state" or the ✕ clear.
   const isCompound = firstValue !== null && typeof firstValue === "object";
+  // For "all" references showing N values, render as a JSON array (read
+  // only) so the inspector surfaces every position's contribution.
+  const isAggregateRead = refPos.kind === "all" && values.length > 1;
   const currentValue = !isSet
     ? ""
-    : isCompound
-      ? JSON.stringify(firstValue, null, 2)
-      : String(firstValue);
+    : isAggregateRead
+      ? JSON.stringify(values, null, 2)
+      : isCompound
+        ? JSON.stringify(firstValue, null, 2)
+        : String(firstValue);
+
+  // Edits are scoped to a single position. `all`-style references don't
+  // have an unambiguous write target, so they're read-only here.
+  const editPosition: PositionKey | null =
+    refPos.kind === "single" ? refPos.position : null;
 
   const handleChange = (newValue: string) => {
+    if (editPosition === null) return;
     if (path.length === 0) {
       // No nested path — store the value directly
-      store.set(position, referenceKey, newValue, stageIndex);
+      store.set(editPosition, referenceKey, newValue, stageIndex);
     } else {
       // Nested path (e.g., prompt → path=["value"]) — preserve existing
       // object structure and write the value at the correct path. Use
       // Object.hasOwn to avoid traversing inherited properties.
-      const existing = store.get(position, referenceKey)?.value;
+      const existing = store.get(editPosition, referenceKey)?.value;
       const obj =
         existing && typeof existing === "object" && !Array.isArray(existing)
           ? { ...(existing as Record<string, unknown>) }
@@ -305,15 +381,16 @@ function ReferenceEditor({
         cursor = cursor[seg] as Record<string, unknown>;
       }
       cursor[path[path.length - 1]] = newValue;
-      store.set(position, referenceKey, obj, stageIndex);
+      store.set(editPosition, referenceKey, obj, stageIndex);
     }
   };
 
   const handleClear = () => {
+    if (editPosition === null) return;
     if (path.length === 0) {
-      store.delete(position, referenceKey);
+      store.delete(editPosition, referenceKey);
     } else {
-      const existing = store.get(position, referenceKey)?.value;
+      const existing = store.get(editPosition, referenceKey)?.value;
       if (
         !existing ||
         typeof existing !== "object" ||
@@ -321,13 +398,13 @@ function ReferenceEditor({
       ) {
         // Nothing to prune at this path — drop the whole entry so `exists`
         // fails.
-        store.delete(position, referenceKey);
+        store.delete(editPosition, referenceKey);
       } else {
         const root = deletePath(existing as Record<string, unknown>, path);
         if (root === undefined) {
-          store.delete(position, referenceKey);
+          store.delete(editPosition, referenceKey);
         } else {
-          store.set(position, referenceKey, root, stageIndex);
+          store.set(editPosition, referenceKey, root, stageIndex);
         }
       }
     }
@@ -337,16 +414,25 @@ function ReferenceEditor({
     onAfterClear?.();
   };
 
+  // `all`-style references span every player position — there's no
+  // single cell to edit or clear, so the inspector renders them
+  // read-only with an explanatory title.
+  const isReadOnly = editPosition === null || isAggregateRead;
+  const readOnlyTitle =
+    editPosition === null
+      ? "Aggregate reference (`all`) — read-only across positions"
+      : "Compound value — edit via 'Show all state' or clear with ×";
+
   return (
     <div style={refGroupStyle}>
       <label style={refLabelStyle}>{reference}</label>
       <div style={refInputRowStyle}>
-        {isCompound ? (
+        {isCompound || isReadOnly ? (
           <textarea
             value={currentValue}
             readOnly
-            rows={Math.min(currentValue.split("\n").length, 10)}
-            title="Compound value — edit via 'Show all state' or clear with ×"
+            rows={Math.min(Math.max(currentValue.split("\n").length, 1), 10)}
+            title={readOnlyTitle}
             style={refTextareaStyle}
           />
         ) : (
@@ -361,14 +447,20 @@ function ReferenceEditor({
         <button
           type="button"
           onClick={handleClear}
-          disabled={!isSet}
+          disabled={!isSet || editPosition === null}
           aria-label={`Clear ${reference}`}
           title={
-            isSet
-              ? "Remove this value entirely (so exists checks fail)"
-              : "Not set"
+            editPosition === null
+              ? "Aggregate reference — clear individual positions in 'Show all state'"
+              : isSet
+                ? "Remove this value entirely (so exists checks fail)"
+                : "Not set"
           }
-          style={isSet ? refClearButtonStyle : refClearButtonDisabledStyle}
+          style={
+            isSet && editPosition !== null
+              ? refClearButtonStyle
+              : refClearButtonDisabledStyle
+          }
         >
           ×
         </button>
