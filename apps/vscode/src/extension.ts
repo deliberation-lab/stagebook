@@ -34,6 +34,26 @@ const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 /** Version counter per document URI — used to discard stale async results. */
 const validationVersions = new Map<string, number>();
 
+/**
+ * Last source text successfully (or unsuccessfully) validated per document
+ * URI. When `validateDocument` is re-invoked on the same URI with identical
+ * source — typical for `onDidOpenTextDocument` / `onDidChangeActiveTextEditor`
+ * after tab focus changes that don't actually mutate text — we skip the
+ * full parse + import-load + double-schema-pass pipeline. With large
+ * broadcast-expanded treatments the validation pass is several seconds of
+ * sync Zod recursion, so eliminating these redundant fires is the biggest
+ * single user-facing CPU win in the extension host.
+ *
+ * Caveat: the cache key is the *root* document's source only. If a file
+ * referenced via `imports:` changes, the root's validation result may be
+ * stale even though its own source didn't change. The cache is invalidated
+ * on every edit to the root doc; an import edit will re-fire on save when
+ * the user touches the root, or via the existing onDidChange flow for the
+ * import doc itself. A more aggressive cross-file cache could watch import
+ * paths explicitly — out of scope for this pass.
+ */
+const lastValidatedSource = new Map<string, string>();
+
 function isStagebookYaml(document: vscode.TextDocument): boolean {
   return (
     document.languageId === "stagebookYaml" ||
@@ -101,10 +121,17 @@ async function validateTreatmentFile(
   document: vscode.TextDocument,
 ): Promise<void> {
   const uriKey = document.uri.toString();
+  const source = document.getText();
+
+  // Skip when re-validating an identical source — e.g. tab-focus or
+  // doc-open events that fire after the user looked at another file
+  // and came back. With a large broadcast-expanded treatment, each
+  // validation pass is several seconds of sync Zod recursion; this
+  // short-circuit is the biggest single CPU win in the extension host.
+  if (lastValidatedSource.get(uriKey) === source) return;
+
   const version = (validationVersions.get(uriKey) ?? 0) + 1;
   validationVersions.set(uriKey, version);
-
-  const source = document.getText();
   const rootDir = vscode.Uri.joinPath(document.uri, "..");
   const workspaceFolder =
     vscode.workspace.getWorkspaceFolder(document.uri) ??
@@ -166,6 +193,11 @@ async function validateTreatmentFile(
   });
 
   diagnosticCollection.set(document.uri, vscodeDiagnostics);
+  // Stamp the cache after the schema/diff pass succeeds. We deliberately
+  // stamp BEFORE the async `checkFileReferences` call below — file-existence
+  // checks update the diagnostic set in place and don't need to re-trigger
+  // the expensive schema work if the source comes back unchanged.
+  lastValidatedSource.set(uriKey, source);
 
   // File existence checking (async — updates diagnostics after stat)
   if (
@@ -1000,9 +1032,24 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // Validate on edit (debounced)
+  // Validate on edit (debounced).
+  //
+  // ALSO: invalidate the source-equality cache for every other open
+  // stagebookYaml doc whenever any one of them changes. A root file's
+  // validation result depends on its `imports:` — if an imported file
+  // changes, the root's cached "this source was validated" stamp is no
+  // longer trustworthy. Clearing other entries is cheap and keeps the
+  // common-case win (skipping redundant tab-focus revalidations of the
+  // unchanged active doc) while ensuring import edits cause the root to
+  // re-validate on its next trigger.
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
+      if (isStagebookYaml(event.document)) {
+        const changedKey = event.document.uri.toString();
+        for (const k of lastValidatedSource.keys()) {
+          if (k !== changedKey) lastValidatedSource.delete(k);
+        }
+      }
       validateDocumentDebounced(event.document);
     }),
   );
@@ -1024,6 +1071,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (timer) clearTimeout(timer);
       debounceTimers.delete(key);
       validationVersions.delete(key);
+      lastValidatedSource.delete(key);
       diagnosticCollection.delete(document.uri);
     }),
   );
