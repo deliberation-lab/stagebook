@@ -294,8 +294,20 @@ export function Viewer({
           />
         </aside>
 
-        {/* Main content */}
-        <main ref={mainScrollRef} style={mainStyle}>
+        {/* Main content. Padding is dropped for discussion stages —
+            stagebook's `.stagebook-discussion-page` adds its own
+            symmetric padding (#356) and needs the full vertical
+            budget for its `height: 100% / min-height: calc(100vh -
+            4rem)` to resolve without overflow. Non-discussion stages
+            keep main's padding so the centered content has its
+            existing breathing room. */}
+        <main
+          ref={mainScrollRef}
+          style={{
+            ...mainStyle,
+            ...(currentStep.discussion ? { padding: 0 } : {}),
+          }}
+        >
           {isSubmitted ? (
             <div style={submittedOverlayStyle}>
               <p style={submittedTextStyle}>
