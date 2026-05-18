@@ -27,7 +27,16 @@ const radioBaseStyle: React.CSSProperties = {
   WebkitAppearance: "none",
   width: "1rem",
   height: "1rem",
-  border: "1px solid var(--stagebook-border, #d1d5db)",
+  // Border longhands rather than the `border` shorthand. The checked
+  // and focus state styles below override `borderColor` (longhand);
+  // mixing shorthand with a longhand override breaks React's inline-
+  // style diff — when the longhand drops out of the next render, React
+  // clears the individual longhand properties and the shorthand's
+  // expansion is lost, leaving the browser's appearance:none default
+  // (black border). See the radio-color-bleed bug for the repro.
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: "var(--stagebook-border, #d1d5db)",
   borderRadius: "9999px",
   backgroundColor: "var(--stagebook-surface, #fff)",
   backgroundSize: "100% 100%",

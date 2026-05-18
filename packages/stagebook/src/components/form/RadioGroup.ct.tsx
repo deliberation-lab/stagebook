@@ -102,6 +102,41 @@ test.describe("RadioGroup", () => {
     expect(backgroundImage).toContain("data:image/svg+xml");
   });
 
+  test("previously-checked radio reverts to gray border after deselection (no color bleed)", async ({
+    mount,
+  }) => {
+    // Regression: when one radio was selected and then another was
+    // clicked, the previously-selected radio's border stayed black
+    // (browser default for appearance:none inputs) instead of
+    // reverting to the gray default. Root cause: mixing the `border`
+    // shorthand in base style with a `borderColor` longhand override
+    // in the checked style — React's inline-style diff cleared the
+    // longhand on deselect, blowing away the shorthand's expansion.
+    // Fix: use border longhands consistently in base style.
+    const component = await mount(
+      <MockRadioGroup options={options} initialValue="a" />,
+    );
+
+    // Sanity: A starts checked
+    await expect(component.locator('input[value="a"]')).toBeChecked();
+
+    // Click B to deselect A
+    await component.getByText("Option B").click();
+    await expect(component.locator('input[value="b"]')).toBeChecked();
+    await expect(component.locator('input[value="a"]')).not.toBeChecked();
+
+    // The previously-checked A and never-clicked C should have the
+    // same gray border. Pre-fix: A had rgb(0, 0, 0), C had rgb(209,
+    // 213, 219).
+    const aBorder = await component
+      .locator('input[value="a"]')
+      .evaluate((el) => window.getComputedStyle(el).borderColor);
+    const cBorder = await component
+      .locator('input[value="c"]')
+      .evaluate((el) => window.getComputedStyle(el).borderColor);
+    expect(aBorder).toBe(cBorder);
+  });
+
   test("focus ring appears inline on focus and disappears on blur", async ({
     mount,
   }) => {
