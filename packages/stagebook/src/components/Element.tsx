@@ -316,7 +316,15 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           // Position-based fallback when `name:` is omitted — same
           // intent as the audio case above: distinct storage keys
           // for the same media used in different stages.
-          name={String(element.name ?? `${progressLabel}_${rawURL}`)}
+          //
+          // `rawURL` is either a file path (slugged by
+          // `deriveStorageKeyName`) or a full HTTP(S) URL (which also
+          // contains `://` and slashes — same regex problem). Either
+          // way the helper produces a reference-name-valid identifier
+          // (#359).
+          name={
+            element.name ?? deriveStorageKeyName(`${progressLabel}_${rawURL}`)
+          }
           url={resolvedURL}
           save={wrappedSave}
           getElapsedTime={getElapsedTime}
@@ -402,8 +410,13 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       const surveyName = element.surveyName ?? "";
       // Position-based fallback when `name:` is omitted — same
       // intent as audio/mediaPlayer: distinct storage keys for the
-      // same survey used in different stages.
-      const surveyKey = element.name ?? `${progressLabel}_${surveyName}`;
+      // same survey used in different stages. `surveyName` is schema-
+      // validated upstream, so a synthesized `${progressLabel}_${surveyName}`
+      // is already regex-clean in practice; wrapping with
+      // `deriveStorageKeyName` is defensive — same contract for all
+      // four auto-derivation sites (#359).
+      const surveyKey =
+        element.name ?? deriveStorageKeyName(`${progressLabel}_${surveyName}`);
       return (
         renderSurvey?.({
           surveyName,
