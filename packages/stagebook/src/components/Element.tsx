@@ -19,6 +19,7 @@ import { Timeline } from "./elements/Timeline.js";
 import { Prompt } from "./elements/Prompt.js";
 import { Qualtrics } from "./elements/Qualtrics.js";
 import { Loading } from "./form/Loading.js";
+import { deriveStorageKeyName } from "../utils/deriveStorageKeyName.js";
 
 // Resolve element URL params using the StagebookProvider's resolve.
 // Plain function — no hooks — so it's safe to call conditionally (e.g. in
@@ -154,7 +155,15 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           // distinct storage keys instead of silently overwriting
           // each other. Researchers who do want a stable name
           // across stages set `name:` explicitly.
-          name={element.name ?? `${progressLabel}_${element.file ?? ""}`}
+          //
+          // `deriveStorageKeyName` slugs the file path into the
+          // reference-name regex so a path like
+          // `intro/clips/welcome.mp3` doesn't produce a storage key
+          // that fails reference parsing (#359).
+          name={
+            element.name ??
+            deriveStorageKeyName(`${progressLabel}_${element.file ?? ""}`)
+          }
         />
       );
 
@@ -224,8 +233,19 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
         );
       }
       const { metadata, body, responseItems, responsePoints } = parsed.data;
+      // Auto-derivation when `element.name` is absent. Tier 2 is the
+      // frontmatter `metadata.name` (validated against `nameSchema` at
+      // parse time, so it's already regex-clean and ≤64 chars). Tier 3
+      // is the raw file path, which may contain `/` and `.` and may
+      // exceed the 64-char authoring cap. `deriveStorageKeyName` slugs
+      // the joined string into the reference-name regex and truncates
+      // with a stable hash suffix if the result exceeds the 256-char
+      // lookup cap (#331, #359, #360).
       const promptName =
-        element.name ?? `${progressLabel}_${metadata.name ?? element.file}`;
+        element.name ??
+        deriveStorageKeyName(
+          `${progressLabel}_${metadata.name ?? element.file}`,
+        );
 
       // Read current value from state. Position comes from the
       // reference itself per #298 — `shared.prompt.X` for shared
@@ -296,7 +316,15 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
           // Position-based fallback when `name:` is omitted — same
           // intent as the audio case above: distinct storage keys
           // for the same media used in different stages.
-          name={String(element.name ?? `${progressLabel}_${rawURL}`)}
+          //
+          // `rawURL` is either a file path (slugged by
+          // `deriveStorageKeyName`) or a full HTTP(S) URL (which also
+          // contains `://` and slashes — same regex problem). Either
+          // way the helper produces a reference-name-valid identifier
+          // (#359).
+          name={
+            element.name ?? deriveStorageKeyName(`${progressLabel}_${rawURL}`)
+          }
           url={resolvedURL}
           save={wrappedSave}
           getElapsedTime={getElapsedTime}
@@ -382,8 +410,13 @@ export function Element({ element, onSubmit, stageDuration }: ElementProps) {
       const surveyName = element.surveyName ?? "";
       // Position-based fallback when `name:` is omitted — same
       // intent as audio/mediaPlayer: distinct storage keys for the
-      // same survey used in different stages.
-      const surveyKey = element.name ?? `${progressLabel}_${surveyName}`;
+      // same survey used in different stages. `surveyName` is schema-
+      // validated upstream, so a synthesized `${progressLabel}_${surveyName}`
+      // is already regex-clean in practice; wrapping with
+      // `deriveStorageKeyName` is defensive — same contract for all
+      // four auto-derivation sites (#359).
+      const surveyKey =
+        element.name ?? deriveStorageKeyName(`${progressLabel}_${surveyName}`);
       return (
         renderSurvey?.({
           surveyName,
