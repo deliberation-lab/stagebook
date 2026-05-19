@@ -75,8 +75,10 @@ function ListItem({
           <span
             aria-hidden="true"
             style={{
+              // Glyph size scaled up from 1rem — at body text size the
+              // ⠿ Braille pattern reads anemic against a 2.25rem row.
               color: "var(--stagebook-text-muted, #6b7280)",
-              fontSize: "1rem",
+              fontSize: "1.5rem",
               lineHeight: 1,
               userSelect: "none",
               flexShrink: 0,
@@ -120,11 +122,14 @@ function List({ items, itemClass }: { items: string[]; itemClass: string }) {
             style={{
               margin: 0,
               padding: "0.5rem 0",
-              // Match the row min-height so position labels stay
-              // aligned with their corresponding draggable rows
-              // (otherwise the right column's taller rows drift
-              // away from their numbers).
+              // Match the row min-height AND the row's 1px top/bottom
+              // border so position labels stay aligned with their
+              // corresponding draggable rows. Without the transparent
+              // border the rows are 2px taller per item, causing the
+              // numbers to drift 12px out of alignment by row 6.
               minHeight: "var(--stagebook-row-min-height, 2.25rem)",
+              borderTop: "1px solid transparent",
+              borderBottom: "1px solid transparent",
               lineHeight: "1.25rem",
               display: "flex",
               alignItems: "center",

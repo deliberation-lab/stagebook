@@ -130,26 +130,31 @@ test.describe("ListSorter", () => {
     expect(transition).toBe("none");
   });
 
-  test("position-number labels align with their rows (same height)", async ({
+  test("position-number labels stay aligned with their rows (no cumulative drift)", async ({
     mount,
   }) => {
-    // Position numbers live in a separate left column; without
-    // matching `min-height` on the number labels, taller draggable
-    // rows would drift away from "1.", "2.", etc.
+    // Bug observed in the component gallery: numbers were centered
+    // on row 1 but ~10px above center by row 6 — the rows are 2px
+    // taller per item than the number labels were (1px each top +
+    // bottom border that the labels didn't have), so a six-row list
+    // drifted ~10px. The fix gives the labels matching transparent
+    // borders.
+    //
+    // This test compares vertical centers on the LAST row, which is
+    // where the cumulative drift accumulates. The previous version
+    // compared the first row with a 3px tolerance and missed this
+    // bug entirely.
     const component = await mount(<MockListSorter items={testItems} />);
-    const rowBox = await component.getByTestId("draggable-0").boundingBox();
-    // The number labels are <p> elements inside the left column.
-    // Pick the first one and compare bounding-box heights.
-    const numberBox = await component
+    const lastRowBox = await component.getByTestId("draggable-3").boundingBox();
+    const lastNumberBox = await component
       .locator("p")
-      .filter({ hasText: "1." })
+      .filter({ hasText: "4." })
       .first()
       .boundingBox();
-    expect(rowBox).not.toBeNull();
-    expect(numberBox).not.toBeNull();
-    // Heights should match within ~3px (accounts for the row's
-    // 1px-each top/bottom border, which the number label doesn't
-    // have, plus sub-pixel rendering tolerance).
-    expect(Math.abs(rowBox!.height - numberBox!.height)).toBeLessThanOrEqual(3);
+    expect(lastRowBox).not.toBeNull();
+    expect(lastNumberBox).not.toBeNull();
+    const rowCenter = lastRowBox!.y + lastRowBox!.height / 2;
+    const numberCenter = lastNumberBox!.y + lastNumberBox!.height / 2;
+    expect(Math.abs(rowCenter - numberCenter)).toBeLessThanOrEqual(1);
   });
 });
