@@ -4,6 +4,7 @@ name: slider_demo
 min: 1
 max: 7
 interval: 1
+showValue: true
 ---
 
 # How clearly does this gallery cover what each component does?

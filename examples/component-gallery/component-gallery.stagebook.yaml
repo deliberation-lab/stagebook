@@ -116,7 +116,9 @@ treatments:
           deliberately hidden until the participant clicks, so the
           starting position doesn't anchor their response (#326). Tick
           labels can be added at any subset of the snap points using
-          the `- N: label` syntax in the response section.
+          the `- N: label` syntax in the response section. Three
+          variants on this page demonstrate different combinations of
+          `min`/`max`/`interval`, `showValue`, and label density.
         elements:
           - type: prompt
             file: prompts/slider_description.prompt.md
@@ -125,6 +127,16 @@ treatments:
           - type: prompt
             name: slider_demo
             file: prompts/slider_demo.prompt.md
+          - type: separator
+            style: thin
+          - type: prompt
+            name: slider_demo_percent
+            file: prompts/slider_demo_percent.prompt.md
+          - type: separator
+            style: thin
+          - type: prompt
+            name: slider_demo_dense
+            file: prompts/slider_demo_dense.prompt.md
           - type: submitButton
 
       - name: list_sorter

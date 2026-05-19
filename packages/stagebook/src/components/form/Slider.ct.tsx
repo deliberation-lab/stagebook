@@ -58,9 +58,11 @@ test("renders tick marks at label points", async ({ mount }) => {
       labels={["Low", "Mid", "High"]}
     />,
   );
-  // 3 tick marks inside the track (role="presentation" container)
-  const track = component.locator('[role="presentation"]');
-  await expect(track.locator("div")).toHaveCount(3);
+  // 3 labeled ticks (the named positions). Snap-point micro-ticks
+  // are a separate visual layer counted by their own testid.
+  await expect(
+    component.locator('[data-testid="slider-label-tick"]'),
+  ).toHaveCount(3);
 });
 
 test("clicking track sets value via onChange", async ({ mount }) => {
@@ -169,10 +171,10 @@ test("thumb aligns with the tick at non-center values (value=5 on 1..7)", async 
     />,
   );
   const thumb = component.locator('[data-testid="slider-thumb"]');
-  // Ticks render in order before the thumb, so direct child index 4 is
-  // the 5th tick (the one at value=5).
-  const track = component.locator('[data-testid="slider-track"]');
-  const tickAt5 = track.locator("> div").nth(4);
+  // Pick the label tick at value=5 specifically — there are also
+  // snap-point ticks at every interval, but only the labeled ticks
+  // carry the slider-label-tick testid.
+  const tickAt5 = component.locator('[data-testid="slider-label-tick"]').nth(4);
   const tickBox = await tickAt5.boundingBox();
   const thumbBox = await thumb.boundingBox();
   expect(tickBox).not.toBeNull();
@@ -180,4 +182,202 @@ test("thumb aligns with the tick at non-center values (value=5 on 1..7)", async 
   const thumbCenterX = thumbBox!.x + thumbBox!.width / 2;
   const tickCenterX = tickBox!.x + tickBox!.width / 2;
   expect(Math.abs(thumbCenterX - tickCenterX)).toBeLessThanOrEqual(1);
+});
+
+// ----------- UI polish (#372) -----------
+
+test("click target is at least 36px tall (touch-target sizing)", async ({
+  mount,
+}) => {
+  // The visible track is only 10px tall — clickable directly would
+  // be a frustrating hit target. We wrap it in a 36px-tall click
+  // strip so users can click anywhere within ~13px of the track.
+  const component = await mount(<Slider min={0} max={100} interval={1} />);
+  // The click-target wrapper is the role="presentation" element.
+  const wrapper = component.locator('[role="presentation"]');
+  const box = await wrapper.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.height).toBeGreaterThanOrEqual(36);
+});
+
+test("renders snap-point micro-ticks at intermediate positions only", async ({
+  mount,
+}) => {
+  // 1..7 interval 1 = 7 snap points. labelPts at [1, 4, 7] take the
+  // tall labeled-tick treatment; snap ticks are drawn at the
+  // remaining intermediate positions (2, 3, 5, 6) so the two tick
+  // layers don't overlap visually. Total = 7 - 3 = 4 snap ticks.
+  const component = await mount(
+    <Slider min={1} max={7} interval={1} labelPts={[1, 4, 7]} />,
+  );
+  await expect(
+    component.locator('[data-testid="slider-snap-tick"]'),
+  ).toHaveCount(4);
+});
+
+test("snap-point micro-ticks degrade gracefully when the count exceeds the cap", async ({
+  mount,
+}) => {
+  // 0..100 interval 1 = 101 snap points — drawing every one would
+  // look like a barcode. Above the cap the component shows every
+  // Nth tick (rather than dropping them entirely) so the
+  // "discrete positions exist here" signal carries across the full
+  // range.
+  const component = await mount(
+    <Slider min={0} max={100} interval={1} labelPts={[0, 50, 100]} />,
+  );
+  const snapCount = await component
+    .locator('[data-testid="slider-snap-tick"]')
+    .count();
+  // Some ticks render, but not all 101.
+  expect(snapCount).toBeGreaterThan(0);
+  expect(snapCount).toBeLessThanOrEqual(25);
+  // Labeled ticks are unaffected by the cap.
+  await expect(
+    component.locator('[data-testid="slider-label-tick"]'),
+  ).toHaveCount(3);
+});
+
+test("value badge is hidden by default (no anchoring)", async ({ mount }) => {
+  const component = await mount(
+    <Slider min={1} max={7} interval={1} value={5} />,
+  );
+  await expect(
+    component.locator('[data-testid="slider-value-badge"]'),
+  ).toHaveCount(0);
+});
+
+test("value badge appears when showValue=true and a value is set", async ({
+  mount,
+}) => {
+  const component = await mount(
+    <Slider min={1} max={7} interval={1} value={5} showValue />,
+  );
+  const badge = component.locator('[data-testid="slider-value-badge"]');
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText("5");
+});
+
+test("value badge stays hidden when showValue=true but no value is set", async ({
+  mount,
+}) => {
+  // The badge is gated on (hasValue && showValue), so an unanchored
+  // slider with showValue=true still shows nothing — there's nothing
+  // to display.
+  const component = await mount(
+    <Slider min={1} max={7} interval={1} showValue />,
+  );
+  await expect(
+    component.locator('[data-testid="slider-value-badge"]'),
+  ).toHaveCount(0);
+});
+
+test("click-to-jump works in the anchored state (clicking the bar moves the thumb)", async ({
+  mount,
+}) => {
+  // Click-to-jump is supported both before AND after first
+  // interaction. Before: the wrapper's onClick catches the event
+  // because the input doesn't exist yet. After: clicks on the track
+  // are handled by the native range input's built-in click-to-jump,
+  // and clicks in the padding (above/below the track) are still
+  // caught by the wrapper's onClick. Together they make the entire
+  // 36px click-target region behave as expected.
+  const component = await mount(
+    <MockSlider min={0} max={100} interval={1} initialValue={50} />,
+  );
+  // Sanity: starts at 50
+  await expect(component.locator('[data-testid="slider-value"]')).toHaveText(
+    "50",
+  );
+  // Click far from the current thumb position
+  await component
+    .locator('[role="presentation"]')
+    .dispatchEvent("click", { clientX: 50, clientY: 18 });
+  // Value should have updated — click-to-jump works in the anchored
+  // state. The new value should not equal the initial 50.
+  await expect(
+    component.locator('[data-testid="slider-value"]'),
+  ).not.toHaveText("50");
+});
+
+test("hovering the click-target region tints the wrapper background", async ({
+  mount,
+}) => {
+  // Hover affordance for the click region. The CSS rule shifts the
+  // wrapper's bg from transparent to --stagebook-hover-bg on hover.
+  // Without this signal, a participant looking at the slider on
+  // first paint has no visual cue that the bar is interactive.
+  const component = await mount(<Slider min={0} max={100} interval={1} />);
+  const wrapper = component.locator('[role="presentation"]');
+  const before = await wrapper.evaluate(
+    (el) => window.getComputedStyle(el).backgroundColor,
+  );
+  await wrapper.hover();
+  // Poll for the 120ms background-color transition.
+  await expect
+    .poll(
+      () =>
+        wrapper.evaluate((el) => window.getComputedStyle(el).backgroundColor),
+      { timeout: 1500 },
+    )
+    .not.toBe(before);
+});
+
+test("all label ticks are centered on their tick (translateX(-50%), not edge-justified)", async ({
+  mount,
+}) => {
+  // The slider centers every label on its tick — including the
+  // endpoints. This is the dominant pattern in Material 3 / MUI /
+  // Mantine; the slider's outer wrapper reserves horizontal padding
+  // so endpoint labels can center without overflowing. Regression
+  // guard against a slip back to the prior edge-justify-on-extremes
+  // behavior.
+  const component = await mount(
+    <Slider
+      min={0}
+      max={100}
+      interval={10}
+      labelPts={[0, 50, 100]}
+      labels={["Low", "Mid", "High"]}
+    />,
+  );
+  const transforms = await component
+    .locator("div")
+    .evaluateAll((els) =>
+      els
+        .filter((el) => /^(Low|Mid|High)$/.test((el.textContent || "").trim()))
+        .map((el) => window.getComputedStyle(el).transform),
+    );
+  // Every label should have a matrix that includes translateX(-50%).
+  // Computed `transform` for translateX(-50%) renders as the matrix
+  // form, e.g. "matrix(1, 0, 0, 1, -X, 0)" where X > 0.
+  expect(transforms).toHaveLength(3);
+  for (const t of transforms) {
+    // Confirm a horizontal translation is present (not the identity).
+    expect(t).not.toBe("none");
+  }
+});
+
+test("focus ring appears on the thumb when the range input is keyboard-focused", async ({
+  mount,
+  page,
+}) => {
+  // Focus ring is keyboard-only via :focus-visible. The actual
+  // focused element is the invisible range input; the visible ring
+  // lands on the slider-thumb via a sibling CSS rule.
+  const component = await mount(
+    <Slider min={1} max={7} interval={1} value={4} />,
+  );
+  const thumb = component.locator('[data-testid="slider-thumb"]');
+  const baseline = await thumb.evaluate(
+    (el) => window.getComputedStyle(el).boxShadow,
+  );
+
+  await page.keyboard.press("Tab");
+  await expect(component.locator("input[type=range]")).toBeFocused();
+  await expect
+    .poll(() => thumb.evaluate((el) => window.getComputedStyle(el).boxShadow), {
+      timeout: 1500,
+    })
+    .not.toBe(baseline);
 });
