@@ -10,9 +10,9 @@ Drag to reorder. Top = most often.
 
 ---
 
-- radio: RadioGroup (pick one)
-- checkbox: CheckboxGroup (pick any)
-- select: Select (dropdown)
-- textarea: TextArea (free text)
-- slider: Slider (continuous scale)
-- listsorter: ListSorter (drag-to-rank)
+- RadioGroup (pick one)
+- CheckboxGroup (pick any)
+- Select (dropdown)
+- TextArea (free text)
+- Slider (continuous scale)
+- ListSorter (drag-to-rank)
