@@ -139,10 +139,25 @@ jobs:
       # `@playwright/experimental-ct-react` version pinned in
       # package-lock.json. On a hit, only the small `install-deps`
       # step runs (apt-get for system libs — libnss3, libatk, …).
-      # Saves ~25s on cached runs. Note: the Microsoft Playwright
-      # image (used by deliberation-lab's CT workflow) doesn't work
-      # for stagebook's experimental-ct-react setup — the Vite-based
-      # bundler hangs in-container. See PR #366 for the diagnosis.
+      # Saves ~25s on cached runs.
+      #
+      # Alternative if this stops paying off: run inside the
+      # `mcr.microsoft.com/playwright:vX.Y.Z-noble` image (matching
+      # the Playwright version in package-lock.json). The image
+      # ships browsers + system deps pre-installed, so the entire
+      # 33s install step disappears — but two gotchas:
+      #   1. GitHub Actions runs container jobs as root by default.
+      #      Chromium refuses to launch as root without
+      #      `--no-sandbox`. Fix: set `container.options: --user 1001`
+      #      (matches the runner's UID) OR add `args: ["--no-sandbox"]`
+      #      to the chromium launch options in playwright-ct.config.ts.
+      #      deliberation-lab's playwright_component.yml uses the
+      #      `--user 1001` form.
+      #   2. The image tag MUST track the `@playwright/experimental-
+      #      ct-react` version in package-lock.json (two places to
+      #      bump on a Playwright upgrade — drift breaks the browser
+      #      protocol).
+      # See PR #366 for the full cache-vs-image trade-off discussion.
       - name: Get Playwright version
         id: pw-version
         run: |
