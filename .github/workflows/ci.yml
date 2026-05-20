@@ -124,9 +124,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ct == 'true'
     runs-on: ubuntu-latest
-    # Playwright runs are noisy — p50 ~2min but cold-cache runs have
-    # been observed up to ~7.5min. 10 leaves ~30% headroom over the
-    # worst observed; tighter trips false alarms on cold runners.
+    # Playwright runs are noisy — p50 ~1.5min with the cache hit,
+    # ~2min on cache miss. 10 leaves ~30% headroom over the worst
+    # observed; tighter trips false alarms on cold runners.
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -135,7 +135,45 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Cache the Playwright browser binaries (~150MB) keyed on the
+      # `@playwright/experimental-ct-react` version pinned in
+      # package-lock.json. On a hit, only the small `install-deps`
+      # step runs (apt-get for system libs — libnss3, libatk, …).
+      # Saves ~25s on cached runs.
+      #
+      # Alternative if this stops paying off: run inside the
+      # `mcr.microsoft.com/playwright:vX.Y.Z-noble` image (matching
+      # the Playwright version in package-lock.json). The image
+      # ships browsers + system deps pre-installed, so the entire
+      # 33s install step disappears — but two gotchas:
+      #   1. GitHub Actions runs container jobs as root by default.
+      #      Chromium refuses to launch as root without
+      #      `--no-sandbox`. Fix: set `container.options: --user 1001`
+      #      (matches the runner's UID) OR add `args: ["--no-sandbox"]`
+      #      to the chromium launch options in playwright-ct.config.ts.
+      #      deliberation-lab's playwright_component.yml uses the
+      #      `--user 1001` form.
+      #   2. The image tag MUST track the `@playwright/experimental-
+      #      ct-react` version in package-lock.json (two places to
+      #      bump on a Playwright upgrade — drift breaks the browser
+      #      protocol).
+      # See PR #366 for the full cache-vs-image trade-off discussion.
+      - name: Get Playwright version
+        id: pw-version
+        run: |
+          ver=$(node -p "require('@playwright/experimental-ct-react/package.json').version")
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+      - name: Install Playwright browsers (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run test:ct -w stagebook
 
   build:
