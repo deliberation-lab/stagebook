@@ -102,28 +102,169 @@ test.describe("RadioGroup", () => {
     expect(backgroundImage).toContain("data:image/svg+xml");
   });
 
-  test("focus ring appears inline on focus and disappears on blur", async ({
+  test("previously-checked radio reverts to gray border after deselection (no color bleed)", async ({
+    mount,
+  }) => {
+    // Regression: when one radio was selected and then another was
+    // clicked, the previously-selected radio's border stayed black
+    // (browser default for appearance:none inputs) instead of
+    // reverting to the gray default. Root cause: mixing the `border`
+    // shorthand in base style with a `borderColor` longhand override
+    // in the checked style — React's inline-style diff cleared the
+    // longhand on deselect, blowing away the shorthand's expansion.
+    // Fix: use border longhands consistently in base style.
+    const component = await mount(
+      <MockRadioGroup options={options} initialValue="a" />,
+    );
+
+    // Sanity: A starts checked
+    await expect(component.locator('input[value="a"]')).toBeChecked();
+
+    // Click B to deselect A
+    await component.getByText("Option B").click();
+    await expect(component.locator('input[value="b"]')).toBeChecked();
+    await expect(component.locator('input[value="a"]')).not.toBeChecked();
+
+    // The previously-checked A and never-clicked C should have the
+    // same gray border. Pre-fix: A had rgb(0, 0, 0), C had rgb(209,
+    // 213, 219).
+    const aBorder = await component
+      .locator('input[value="a"]')
+      .evaluate((el) => window.getComputedStyle(el).borderColor);
+    const cBorder = await component
+      .locator('input[value="c"]')
+      .evaluate((el) => window.getComputedStyle(el).borderColor);
+    expect(aBorder).toBe(cBorder);
+  });
+
+  test("focus ring appears on keyboard focus via :focus-visible", async ({
+    mount,
+    page,
+  }) => {
+    // Focus ring is keyboard-only — `:focus-visible` rather than
+    // `:focus` so a mouse click doesn't leave a lingering ring on the
+    // just-clicked option. The ring is delivered via the component's
+    // own `<style>` block (pseudo-classes can't be expressed inline),
+    // so we assert on computed `boxShadow` rather than inline style.
+    const component = await mount(
+      <RadioGroup options={options} onChange={() => {}} />,
+    );
+
+    // Tab into the page — first Tab lands on the first focusable
+    // element inside the mount root, which is the first radio.
+    await page.keyboard.press("Tab");
+    const focused = component.locator('input[value="a"]');
+    await expect(focused).toBeFocused();
+    const shadowOnKeyboardFocus = await focused.evaluate(
+      (el) => window.getComputedStyle(el).boxShadow,
+    );
+    // Should contain a non-`none` box-shadow (the focus ring).
+    expect(shadowOnKeyboardFocus).not.toBe("none");
+  });
+
+  test("mouse click does not leave a focus ring on the clicked radio (:focus-visible)", async ({
+    mount,
+  }) => {
+    // Companion to the keyboard-focus test: mouse clicks should not
+    // trigger `:focus-visible`, so the focus ring stays hidden even
+    // though the input is the active element.
+    const component = await mount(
+      <RadioGroup options={options} onChange={() => {}} />,
+    );
+    const inputA = component.locator('input[value="a"]');
+    await inputA.click();
+
+    const shadow = await inputA.evaluate(
+      (el) => window.getComputedStyle(el).boxShadow,
+    );
+    expect(shadow).toBe("none");
+  });
+
+  test("option row gets a hover background fill (#350 whole-row hover)", async ({
     mount,
   }) => {
     const component = await mount(
       <RadioGroup options={options} onChange={() => {}} />,
     );
-    const input = component.locator('input[value="a"]');
+    const row = component.locator('[data-testid="option"]').first();
 
-    // Nothing before focus
-    expect(
-      await input.evaluate((el) => (el as HTMLElement).style.boxShadow),
-    ).toBe("");
+    const before = await row.evaluate(
+      (el) => window.getComputedStyle(el).backgroundColor,
+    );
+    await row.hover();
+    // `expect.poll` retries until the polled value satisfies the
+    // matcher (or the timeout hits). Needed because the hover state
+    // is gated on a 120ms `background-color` transition; reading
+    // getComputedStyle synchronously after `hover()` can catch the
+    // transition mid-flight or before it starts depending on warm-up.
+    await expect
+      .poll(
+        () => row.evaluate((el) => window.getComputedStyle(el).backgroundColor),
+        { timeout: 1500 },
+      )
+      .not.toBe(before);
+  });
 
-    await input.focus();
-    expect(
-      await input.evaluate((el) => (el as HTMLElement).style.boxShadow),
-    ).toContain("--stagebook-focus-ring");
+  test("long option labels wrap without losing hover-fill coverage", async ({
+    mount,
+  }) => {
+    // Guard against a regression where someone sets a fixed
+    // `height: 2.25rem` on the row instead of `minHeight`. With
+    // minHeight the row grows to fit a wrapping label; with a fixed
+    // height the label would visually overflow and the hover-fill
+    // background wouldn't cover the wrapped lines.
+    const longOptions = [
+      {
+        key: "a",
+        value:
+          "A deliberately long option label that should wrap across multiple lines when constrained to a narrow column so we can verify the row grows to fit",
+      },
+      { key: "b", value: "Short" },
+    ];
+    const component = await mount(
+      <div style={{ width: "240px" }}>
+        <RadioGroup options={longOptions} onChange={() => {}} />
+      </div>,
+    );
+    const longRow = component.locator('[data-testid="option"]').first();
+    const box = await longRow.boundingBox();
+    expect(box).not.toBeNull();
+    // A single 36px row can't fit ~26 words at 240px wide; expect at
+    // least two lines worth (≥ ~50px).
+    expect(box!.height).toBeGreaterThan(50);
+  });
 
-    await input.blur();
-    expect(
-      await input.evaluate((el) => (el as HTMLElement).style.boxShadow),
-    ).toBe("");
+  test("options container has role=radiogroup and is labelled by the legend", async ({
+    mount,
+  }) => {
+    const component = await mount(
+      <RadioGroup
+        options={options}
+        onChange={() => {}}
+        label="Pick your favorite"
+      />,
+    );
+    const group = component.locator('[role="radiogroup"]');
+    await expect(group).toBeVisible();
+    // The aria-labelledby points at the legend label
+    const labelledById = await group.getAttribute("aria-labelledby");
+    expect(labelledById).not.toBeNull();
+    const legend = component.locator(`#${labelledById!}`);
+    await expect(legend).toHaveText("Pick your favorite");
+  });
+
+  test("row meets touch-target sizing (≥36px tall)", async ({ mount }) => {
+    // 36px (2.25rem) — balances HIG's 44px recommendation against
+    // vertical density on long Likert-style scales.
+    const component = await mount(
+      <RadioGroup options={options} onChange={() => {}} />,
+    );
+    const rowBox = await component
+      .locator('[data-testid="option"]')
+      .first()
+      .boundingBox();
+    expect(rowBox).not.toBeNull();
+    expect(rowBox!.height).toBeGreaterThanOrEqual(36);
   });
 
   test("inline styles survive an aggressive host CSS reset (issue #213)", async ({

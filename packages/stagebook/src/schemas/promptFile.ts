@@ -94,6 +94,14 @@ const sliderMetadataSchema = z
     min: z.number(),
     max: z.number(),
     interval: z.number().positive(),
+    // When true, the slider renders a numeric value badge above the
+    // thumb after the participant has selected a value. Off by
+    // default to preserve the "no anchoring information" posture
+    // (#326); opt in per prompt by setting `showValue: true` in the
+    // frontmatter. Useful on Likert / 1-N scales where seeing the
+    // selected number is a UX win and where the participant could
+    // count tick marks anyway.
+    showValue: z.boolean().optional(),
   })
   .strict();
 

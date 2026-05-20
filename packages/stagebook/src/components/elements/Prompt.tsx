@@ -340,6 +340,7 @@ export function Prompt({
           interval={metadata.interval}
           labelPts={numericPoints}
           labels={responses}
+          showValue={metadata.showValue}
           value={value as number | undefined}
           onChange={(val) => debouncedSaveInteractive(val, record)}
         />

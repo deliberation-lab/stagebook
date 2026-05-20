@@ -54,6 +54,11 @@
   /* Primary action color (buttons, slider thumb, focus rings) */
   --stagebook-primary: #3b82f6;
   --stagebook-primary-hover: #2563eb;
+  /* One step darker than --stagebook-primary-hover for the
+   * `:active` (pressed) state on primary buttons. The
+   * hover→active progression telegraphs "the click registered"
+   * during slow clicks. */
+  --stagebook-primary-active: #1d4ed8;
 
   /* Status colors */
   --stagebook-success: #16a34a;
@@ -80,6 +85,19 @@
   --stagebook-bg: #ffffff;
   --stagebook-bg-muted: #f9fafb;
   --stagebook-bg-track: #e5e7eb;
+  /* Hover-state background fill for interactive rows (radio /
+   * checkbox option labels, sortable items, etc.). Sits between
+   * --stagebook-bg-muted (page-level subdued surface) and the
+   * primary-tinted focus ring so the hover affordance reads as
+   * "this row is interactive" without competing with selection
+   * indicators. */
+  --stagebook-hover-bg: #f3f4f6;
+  /* Minimum height for interactive rows (radio / checkbox option
+   * labels). Default 2.25rem (36px) balances HIG's 44px touch-target
+   * recommendation against vertical density on long Likert-style
+   * scales. Mobile-first deployments can override to "2.75rem" to
+   * hit 44px without forking. */
+  --stagebook-row-min-height: 2.25rem;
 
   /* Form control surface (input, textarea, select, checkbox, radio). Kept
    * distinct from --stagebook-bg so hosts can tint form controls separately
