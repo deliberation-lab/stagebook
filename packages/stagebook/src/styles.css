@@ -128,6 +128,14 @@
   --stagebook-spinner-track: #e5e7eb;
   --stagebook-spinner-arc: #9ca3af;
 
+  /* Scroll-indicator pill (the "more content below" chevron at the
+   * bottom of an internally-scrolling Stage column). Lives behind a
+   * `pointer-events: none` div so it never intercepts clicks; the
+   * pill itself is a rounded button-like background with a chevron
+   * icon. Defaults are tuned to read on white backgrounds. */
+  --stagebook-scroll-indicator-bg: rgba(229, 231, 235, 0.8);
+  --stagebook-scroll-indicator-fg: #4b5563;
+
   /* Markdown / prompt typography (used by the Markdown component) */
   --stagebook-prompt-max-width: 36rem;
   --stagebook-prompt-text-size: 1rem;
