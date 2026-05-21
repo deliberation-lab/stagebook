@@ -162,13 +162,34 @@ test("audio-only renders an error placeholder when the audio fails to load", asy
   await expect(error).toContainText("Audio unavailable");
 });
 
-test("seek silently fails when server doesn't advertise Accept-Ranges", async ({
+test("stagebook surfaces the problem when server doesn't advertise Accept-Ranges", async ({
   mount,
   page,
 }) => {
   // Intercept the fixture and strip Accept-Ranges from the response.
-  // The browser cannot range-request, so seekable.length will be 0
-  // (or seekable.end(0) === 0) once metadata loads.
+  // Cross-engine behavior diverges here:
+  //
+  // - **Chromium** still loads the file (no range request → fetches
+  //   the whole thing), fires `loadedmetadata`, and exposes
+  //   `seekable.length=0`. Stagebook detects this and logs a warning.
+  //
+  // - **WebKit (Safari)** refuses to load a media response without
+  //   Accept-Ranges (it requires ranges for media buffering). The
+  //   browser dispatches `error` on the <video> element, MediaPlayer's
+  //   `handleError` flips into loadError state, and the user sees
+  //   "Video unavailable".
+  //
+  // - **Firefox** loads the metadata AND falsely reports `seekable =
+  //   [0, duration]` even though range-requests aren't actually
+  //   supported. Stagebook's existing seekable check passes through,
+  //   so neither path fires. The seek will fail silently when the
+  //   user tries it. Detecting this needs a deeper product change
+  //   (probe-seek or pre-flight HEAD) — tracked in #424. This test
+  //   covers the chromium + webkit signals; firefox is parked.
+  //
+  // The test asserts the universal contract for the covered engines:
+  // SOMETHING tells the researcher the video can't be served
+  // properly. Refs #418; firefox tracked in #424.
   await page.route("**/sample-video.mp4", async (route) => {
     const response = await route.fetch();
     const body = await response.body();
@@ -195,14 +216,20 @@ test("seek silently fails when server doesn't advertise Accept-Ranges", async ({
     />,
   );
 
-  const video = component.locator('[data-testid="mediaPlayer-video"]');
-  await expect
-    .poll(async () => video.evaluate((el: HTMLVideoElement) => el.readyState))
-    .toBeGreaterThanOrEqual(1);
+  const errorEl = component.locator('[data-testid="mediaPlayer-error"]');
 
-  // Stagebook should detect the no-range condition (via probing v.seekable
-  // after metadata) and warn so the integrator knows where to look.
+  // Either the chromium-path warning fires OR the webkit/firefox-path
+  // error overlay appears. Polling lets whichever engine surface its
+  // signal first; we don't care which — just that the researcher sees
+  // a clear indicator.
   await expect
-    .poll(() => warnings.some((m) => m.includes("Accept-Ranges")))
+    .poll(
+      async () => {
+        const sawWarning = warnings.some((m) => m.includes("Accept-Ranges"));
+        const sawError = await errorEl.isVisible().catch(() => false);
+        return sawWarning || sawError;
+      },
+      { timeout: 5000 },
+    )
     .toBe(true);
 });
