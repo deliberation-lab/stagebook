@@ -466,6 +466,12 @@ test("fenced code block: inner <code> background is explicitly transparent (defe
   // `code { background-color: var(--vscode-textPreformat-background) }`)
   // doesn't render a per-line tint behind the text inside our chip.
   // Asserts inline-style values, which beat any host CSS rule.
+  //
+  // Browsers normalize `background: transparent` differently when read
+  // back from `el.style.background`: chromium/firefox keep
+  // "transparent", webkit normalizes to "none". Both are equivalent
+  // (zero painting) per the CSS background shorthand spec — accept
+  // either (#419).
   const component = await mount(<Markdown text={"```js\nconst x = 1;\n```"} />);
   const innerCodeInline = await component
     .locator("pre > code")
@@ -473,7 +479,7 @@ test("fenced code block: inner <code> background is explicitly transparent (defe
       background: (el as HTMLElement).style.background,
       padding: (el as HTMLElement).style.padding,
     }));
-  expect(innerCodeInline.background).toBe("transparent");
+  expect(["transparent", "none"]).toContain(innerCodeInline.background);
   expect(innerCodeInline.padding).toBe("0px");
 });
 
