@@ -86,6 +86,8 @@ export function TimelineTrack({
           aria-label={muted ? `Unmute ${label}` : `Mute ${label}`}
           aria-pressed={muted}
           onClick={() => onToggleMute(!muted)}
+          // Explicit tabIndex for Safari Tab-focus (#415 / #413).
+          tabIndex={0}
           style={{
             width: `${String(MUTE_BUTTON_WIDTH)}px`,
             minWidth: `${String(MUTE_BUTTON_WIDTH)}px`,

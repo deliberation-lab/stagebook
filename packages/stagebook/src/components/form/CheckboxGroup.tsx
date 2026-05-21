@@ -182,6 +182,10 @@ export function CheckboxGroup({
                 id={`${groupId}_${key}`}
                 checked={checked}
                 onChange={() => handleToggle(key)}
+                // Safari excludes <input type=checkbox> from the
+                // default tab order unless macOS keyboard-nav is on;
+                // explicit tabIndex overrides that (#415 / #413).
+                tabIndex={0}
                 style={{
                   ...checkboxBaseStyle,
                   ...(checked ? checkboxCheckedStyle : {}),
