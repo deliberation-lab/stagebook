@@ -135,6 +135,7 @@ export function HTML5Controls({
             data-testid="mediaPlayer-seekBack"
             aria-label="Back 1s"
             title="Back 1s (←) · Hold to scrub · J for 10s"
+            tabIndex={0}
             style={controlBtnSmall}
             onMouseDown={() => onSeekButtonPress(-1)}
             onMouseUp={() => onSeekButtonRelease(-1)}
@@ -149,6 +150,7 @@ export function HTML5Controls({
             data-testid="mediaPlayer-stepBack"
             aria-label={`Step back ${String(stepDuration)}s`}
             title={`Step back ${String(stepDuration)}s (,)`}
+            tabIndex={0}
             style={controlBtnSmall}
             onClick={() => onSeek(-stepDuration)}
           >
@@ -161,6 +163,7 @@ export function HTML5Controls({
             data-testid="mediaPlayer-playPause"
             aria-label={isPaused ? "Play" : "Pause"}
             title={isPaused ? "Play (Space)" : "Pause (Space)"}
+            tabIndex={0}
             style={controlBtnLarge}
             onClick={onPlayPause}
           >
@@ -173,6 +176,7 @@ export function HTML5Controls({
             data-testid="mediaPlayer-stepForward"
             aria-label={`Step forward ${String(stepDuration)}s`}
             title={`Step forward ${String(stepDuration)}s (.)`}
+            tabIndex={0}
             style={controlBtnSmall}
             onClick={() => onSeek(stepDuration)}
           >
@@ -185,6 +189,7 @@ export function HTML5Controls({
             data-testid="mediaPlayer-seekForward"
             aria-label="Forward 1s"
             title="Forward 1s (→) · Hold to scrub · L for 10s"
+            tabIndex={0}
             style={controlBtnSmall}
             onMouseDown={() => onSeekButtonPress(1)}
             onMouseUp={() => onSeekButtonRelease(1)}
@@ -199,6 +204,7 @@ export function HTML5Controls({
             data-testid="mediaPlayer-speed"
             aria-label="Playback speed"
             title="Playback speed (< / >)"
+            tabIndex={0}
             style={{
               ...controlBtnSmall,
               fontSize: "0.875rem",
@@ -376,6 +382,7 @@ export function YouTubeControls({
             data-testid="mediaPlayer-seekBack"
             aria-label="Back 1s"
             title="Back 1s · J for 10s"
+            tabIndex={0}
             style={controlBtnSmall}
             onClick={onSeekBack}
           >
@@ -388,6 +395,7 @@ export function YouTubeControls({
             data-testid="mediaPlayer-playPause"
             aria-label={isPaused ? "Play" : "Pause"}
             title={isPaused ? "Play (Space)" : "Pause (Space)"}
+            tabIndex={0}
             style={controlBtnLarge}
             onClick={onPlayPause}
           >
@@ -400,6 +408,7 @@ export function YouTubeControls({
             data-testid="mediaPlayer-seekForward"
             aria-label="Forward 1s"
             title="Forward 1s · L for 10s"
+            tabIndex={0}
             style={controlBtnSmall}
             onClick={onSeekForward}
           >

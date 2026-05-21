@@ -204,6 +204,11 @@ export function TrackedLink({
         rel="noreferrer noopener"
         onClick={handleClick}
         className={linkClass}
+        // Safari excludes <a> from the default tab order unless the
+        // macOS "Use keyboard navigation" preference is on; explicit
+        // tabIndex={0} overrides that so Safari participants can
+        // reach the link via keyboard (#415 / #413).
+        tabIndex={0}
         style={{
           display: "inline-flex",
           alignItems: "center",

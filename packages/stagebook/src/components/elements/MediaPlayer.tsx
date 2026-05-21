@@ -1320,6 +1320,7 @@ export function MediaPlayer({
               type="button"
               data-testid="mediaPlayer-playOnce"
               aria-label="Play video"
+              tabIndex={0}
               onClick={() => {
                 setShowPlayOnce(false);
                 const v = videoRef.current;
@@ -1368,6 +1369,7 @@ export function MediaPlayer({
           type="button"
           data-testid="mediaPlayer-playOnce"
           aria-label="Play audio"
+          tabIndex={0}
           onClick={() => {
             setShowPlayOnce(false);
             const v = videoRef.current;

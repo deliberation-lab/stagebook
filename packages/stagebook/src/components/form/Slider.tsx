@@ -353,6 +353,11 @@ export function Slider({
                 step={interval}
                 value={localValue}
                 onChange={handleChange}
+                // Safari excludes <input type=range> from the default
+                // tab order unless macOS keyboard-nav is on; explicit
+                // tabIndex overrides that so Safari participants can
+                // keyboard-reach the slider thumb (#415 / #413).
+                tabIndex={0}
                 style={{
                   position: "absolute",
                   top: "50%",

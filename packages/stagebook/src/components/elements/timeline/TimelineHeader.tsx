@@ -88,6 +88,10 @@ export function TimelineHeader({
           onClick={onZoomOut}
           disabled={zoomLevel <= MIN_ZOOM}
           aria-label="Zoom out"
+          // Explicit tabIndex so Safari includes the button in the
+          // Tab order (default keyboard nav on macOS Safari skips
+          // <button>) — see #415 / #413.
+          tabIndex={zoomLevel <= MIN_ZOOM ? -1 : 0}
           style={zoomLevel <= MIN_ZOOM ? disabledStyle : buttonStyle}
         >
           −
@@ -99,6 +103,7 @@ export function TimelineHeader({
           onClick={onZoomIn}
           disabled={zoomLevel >= MAX_ZOOM}
           aria-label="Zoom in"
+          tabIndex={zoomLevel >= MAX_ZOOM ? -1 : 0}
           style={zoomLevel >= MAX_ZOOM ? disabledStyle : buttonStyle}
         >
           +

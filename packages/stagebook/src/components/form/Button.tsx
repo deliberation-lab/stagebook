@@ -139,6 +139,13 @@ export function Button({
         className={`${buttonClass} ${className}`.trim()}
         data-variant={variant}
         autoFocus={autoFocus}
+        // Explicit tabIndex={0} so Safari includes the button in the
+        // Tab order. macOS Safari's default keyboard navigation skips
+        // <button> (and <a>) unless the system "Use keyboard
+        // navigation" preference is on — explicit tabindex overrides
+        // that, so participants on Safari can keyboard-reach the
+        // SubmitButton and other Stagebook buttons (#415 / #413).
+        tabIndex={disabled ? -1 : 0}
         style={{ ...baseInlineStyle, ...stateStyle, ...style }}
         id={buttonId}
         data-testid={dataTestId}

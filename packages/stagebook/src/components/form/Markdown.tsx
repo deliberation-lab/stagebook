@@ -499,6 +499,14 @@ export function Markdown({ text, resolveURL }: MarkdownProps) {
                 target={target}
                 rel={computeSafeRel(target, rel)}
                 {...props}
+                // Explicit tabIndex={0} so Safari includes the link
+                // in the Tab order. macOS Safari skips <a> from the
+                // default keyboard navigation unless the system
+                // setting is on — explicit tabindex overrides that
+                // (#419 / #415 / #413). Placed after {...props} so a
+                // future rehype-raw integration with raw-HTML tabindex
+                // can't accidentally re-enable the Safari skip.
+                tabIndex={0}
               />
             ),
             blockquote: ({ node: _node, ...props }) => (

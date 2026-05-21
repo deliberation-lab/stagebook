@@ -181,6 +181,12 @@ export function RadioGroup({
                 value={key}
                 checked={checked}
                 onChange={onChange}
+                // Safari excludes <input type=radio> from the default
+                // tab order unless macOS keyboard-nav is on; explicit
+                // tabIndex overrides that. The browser's native
+                // arrow-key navigation within the group still works
+                // (#415 / #413).
+                tabIndex={0}
                 style={{
                   ...radioBaseStyle,
                   ...(checked ? radioCheckedStyle : {}),
