@@ -1018,6 +1018,144 @@ test("point mode: multiple clicks place multiple points", async ({ mount }) => {
   await expect(component.locator('[data-testid^="point-"]')).toHaveCount(3);
 });
 
+test("point mode: click ON an existing point selects it (no duplicate)", async ({
+  mount,
+}) => {
+  // Regression for the "can't delete a point" UX bug observed in the
+  // gallery preview: clicking an existing point used to stack a
+  // duplicate point at the same time, because pointerup unconditionally
+  // ran the `selectionType === "point"` → `onCreatePoint` branch even
+  // when the click landed on a point's hit area (drag.mode set to
+  // "reposition-point" by handlePointPointerDown).
+  //
+  // After the fix, clicking an existing point keeps it selected (so
+  // Delete acts on it) and adds no new point.
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+
+  // First click: empty space → creates point-0 at ~50%.
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await expect(component.locator('[data-testid="point-0"]')).toBeAttached();
+
+  // Second click: on point-0's hit div directly. This should select
+  // the existing point, NOT add a new one.
+  const point0 = component.locator('[data-testid="point-0"]');
+  const pBox = await point0.boundingBox();
+  if (!pBox) throw new Error("point-0 not found");
+  await point0.dispatchEvent("pointerdown", {
+    clientX: pBox.x + pBox.width / 2,
+    clientY: pBox.y + pBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+  await point0.dispatchEvent("pointerup", {
+    clientX: pBox.x + pBox.width / 2,
+    clientY: pBox.y + pBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+
+  // Still exactly one point. The reposition-point branch in pointerup
+  // kept it from duplicating.
+  await expect(component.locator('[data-testid^="point-"]')).toHaveCount(1);
+  // And it's the selected/active one — so Delete will act on it.
+  await expect(point0).toHaveAttribute("data-active", "true");
+});
+
+test("point mode: click ON existing point → Delete removes it (the use case that motivated the fix)", async ({
+  mount,
+  page,
+}) => {
+  // End-to-end version of the regression: select a point by clicking
+  // it, then press Delete. Pre-fix, the click added a duplicate, so
+  // Delete removed the most-recently-added (duplicate) point and the
+  // original stayed — the user reported "can't delete a point".
+  const component = await mount(
+    <MockTimeline
+      source="player"
+      playerName="player"
+      name="points"
+      selectionType="point"
+      multiSelect={true}
+      mockDuration={60}
+    />,
+  );
+  const overlay = component.locator('[data-testid="selection-overlay"]');
+  const box = await overlay.boundingBox();
+  if (!box) throw new Error("overlay not found");
+
+  await overlay.dispatchEvent("pointerdown", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await overlay.dispatchEvent("pointerup", {
+    clientX: box.x + box.width * 0.5,
+    clientY: box.y + box.height * 0.5,
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    isPrimary: true,
+  });
+  await expect(component.locator('[data-testid="point-0"]')).toBeAttached();
+
+  const point0 = component.locator('[data-testid="point-0"]');
+  const pBox = await point0.boundingBox();
+  if (!pBox) throw new Error("point-0 not found");
+  await point0.dispatchEvent("pointerdown", {
+    clientX: pBox.x + pBox.width / 2,
+    clientY: pBox.y + pBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+  await point0.dispatchEvent("pointerup", {
+    clientX: pBox.x + pBox.width / 2,
+    clientY: pBox.y + pBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerId: 2,
+    isPrimary: true,
+  });
+
+  await page.keyboard.press("Delete");
+  await expect(component.locator('[data-testid^="point-"]')).toHaveCount(0);
+});
+
 test("save key is timeline_${name}", async ({ mount }) => {
   const component = await mount(
     <MockTimeline

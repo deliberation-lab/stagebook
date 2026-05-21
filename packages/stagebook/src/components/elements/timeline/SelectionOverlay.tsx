@@ -390,6 +390,17 @@ export function SelectionOverlay({
           // Clicked a handle without dragging — keep it selected so
           // arrow keys adjust the handle rather than scrubbing the playhead.
           onRequestFocus();
+        } else if (drag.mode === "reposition-point") {
+          // Clicked an existing point without dragging — keep it
+          // selected (handlePointPointerDown already called onSelect)
+          // so the next keystroke (Delete, arrows) acts on the
+          // selected point rather than creating a new one. Without
+          // this branch a click on an existing point's hit area
+          // would fall through to the `selectionType === "point"`
+          // case below and silently stack a duplicate point at the
+          // same time — making the existing point feel impossible
+          // to delete via the click-then-Delete flow.
+          onRequestFocus();
         } else if (selectionType === "point") {
           // Point mode: click anywhere creates a point. The reducer
           // enforces multiSelect (replacing an existing point in single
