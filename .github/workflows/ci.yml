@@ -120,14 +120,21 @@ jobs:
       - run: npm test -w stagebook-vscode
 
   test-ct:
-    name: Component Tests (Playwright)
+    name: Component Tests (${{ matrix.browser }})
     needs: changes
     if: needs.changes.outputs.ct == 'true'
     runs-on: ubuntu-latest
-    # Playwright runs are noisy — p50 ~1.5min with the cache hit,
-    # ~2min on cache miss. 10 leaves ~30% headroom over the worst
-    # observed; tighter trips false alarms on cold runners.
+    # Playwright runs are noisy — chromium p50 ~1.5min with the cache
+    # hit; webkit + firefox a touch slower. 10 leaves headroom over
+    # the worst observed; tighter trips false alarms on cold runners.
     timeout-minutes: 10
+    strategy:
+      # Run all browsers even when one fails so the PR shows which
+      # engine(s) broke at a glance, instead of failing fast on the
+      # first one.
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit, firefox]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -135,11 +142,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # Cache the Playwright browser binaries (~150MB) keyed on the
-      # `@playwright/experimental-ct-react` version pinned in
-      # package-lock.json. On a hit, only the small `install-deps`
-      # step runs (apt-get for system libs — libnss3, libatk, …).
-      # Saves ~25s on cached runs.
+      # Cache the Playwright browser binaries (~150MB per engine)
+      # keyed on the `@playwright/experimental-ct-react` version
+      # pinned in package-lock.json AND the browser project name —
+      # different browsers expand to different cache keys so we don't
+      # over-fetch unrelated engines on hit. On a hit, only the small
+      # `install-deps` step runs (apt-get for system libs — libnss3,
+      # libatk, …). Saves ~25s on cached runs.
       #
       # Alternative if this stops paying off: run inside the
       # `mcr.microsoft.com/playwright:vX.Y.Z-noble` image (matching
@@ -167,14 +176,15 @@ jobs:
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
-      - name: Install Playwright browsers (cache miss)
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}-${{ matrix.browser }}
+      - name: Install Playwright browser (cache miss)
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Install Playwright system deps (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-      - run: npm run test:ct -w stagebook
+        run: npx playwright install-deps ${{ matrix.browser }}
+      - run: npx playwright test --config playwright-ct.config.ts --project=${{ matrix.browser }}
+        working-directory: packages/stagebook
 
   build:
     name: Build
