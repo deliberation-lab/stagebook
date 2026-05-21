@@ -4132,7 +4132,7 @@ test("range mode multi-select: footer hint never appears", async ({
 // Playhead / TimeRuler / SelectionOverlay / Minimap quartet) are out
 // of scope for this polish PR per the audit.
 
-test("polish: container gets focus-visible ring on keyboard focus", async ({
+test("polish: container shows focus ring on keyboard focus (Tab)", async ({
   mount,
   page,
 }) => {
@@ -4140,8 +4140,7 @@ test("polish: container gets focus-visible ring on keyboard focus", async ({
   // (arrows, Enter, Tab handle-switch, Delete) become live once it's
   // focused. Before #382 the container had `outline: none` and no
   // replacement — participants doing keyboard annotation had no
-  // visible signal that the timeline was armed. Now a useId-scoped
-  // `:focus-visible` ring matches the TextArea pattern.
+  // visible signal that the timeline was armed.
   const component = await mount(
     <MockTimeline
       source="coding_video"
@@ -4155,6 +4154,40 @@ test("polish: container gets focus-visible ring on keyboard focus", async ({
     (el) => getComputedStyle(el).boxShadow,
   );
   await page.keyboard.press("Tab");
+  await expect(timeline).toBeFocused();
+  await expect
+    .poll(() => timeline.evaluate((el) => getComputedStyle(el).boxShadow), {
+      timeout: 1500,
+    })
+    .not.toBe(baseline);
+});
+
+test("polish: container shows focus ring on mouse focus too (any-focus contract)", async ({
+  mount,
+}) => {
+  // The Timeline ring uses `:focus` (not `:focus-visible`) so the
+  // affordance lights up on mouse click as well as Tab. The ring
+  // communicates "keyboard shortcuts are live for this timeline";
+  // that's true after a click too (clicking into the timeline grabs
+  // its keybindings), so the ring needs to fire either way.
+  //
+  // Playwright's `.focus()` mirrors a programmatic focus, which
+  // matches what happens after Timeline calls `containerElRef.
+  // current?.focus()` from `onRequestFocus`. With `:focus`
+  // (not `:focus-visible`) the ring fires in both cases.
+  const component = await mount(
+    <MockTimeline
+      source="coding_video"
+      playerName="coding_video"
+      name="interruptions"
+      selectionType="range"
+    />,
+  );
+  const timeline = component.locator('[data-testid="timeline"]');
+  const baseline = await timeline.evaluate(
+    (el) => getComputedStyle(el).boxShadow,
+  );
+  await timeline.focus();
   await expect(timeline).toBeFocused();
   await expect
     .poll(() => timeline.evaluate((el) => getComputedStyle(el).boxShadow), {

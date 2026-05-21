@@ -875,8 +875,18 @@ export function Timeline({
            press-and-hold range creation) become live. Without a
            visible focus indicator, participants doing keyboard
            annotation had no signal that the Timeline was armed.
-           Matches the TextArea ring pattern from #381. */
-        .${containerClass}:focus-visible {
+
+           Uses :focus (not :focus-visible) because the ring
+           communicates "keyboard shortcuts are live" — and that's
+           true whether the participant got here by click or by
+           Tab. The same hotkey (e.g. Space to play/pause via the
+           keyboardActions arbitration with MediaPlayer) is live
+           after a mouse click, so the affordance has to match.
+           Buttons elsewhere (mute, zoom, help) keep :focus-visible
+           because their "armed" state isn't action-relevant — they
+           only fire on Space/Enter and most users don't expect a
+           click-then-spacebar pattern on a button. */
+        .${containerClass}:focus {
           box-shadow: 0 0 0 2px var(--stagebook-focus-ring, rgba(59, 130, 246, 0.25));
         }
       `}</style>
