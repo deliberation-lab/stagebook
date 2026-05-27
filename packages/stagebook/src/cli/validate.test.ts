@@ -282,10 +282,87 @@ describe("stagebook validate CLI", () => {
   });
 
   describe("--help", () => {
-    it("exits 0 and writes usage to stdout", async () => {
+    it("exits 0 and writes usage to stdout for --help", async () => {
       const r = await runCli(["--help"]);
       expect(r.code).toBe(0);
       expect(r.stdout).toContain("Usage: stagebook validate");
+    });
+
+    it("exits 0 and writes usage to stdout for -h short flag", async () => {
+      const r = await runCli(["-h"]);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toContain("Usage: stagebook validate");
+    });
+  });
+
+  describe("argv parsing", () => {
+    it("exits 2 and writes USAGE on unknown flag", async () => {
+      const r = await runCli(["--bogus", join(tmp, "valid.stagebook.yaml")]);
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("Error:");
+      expect(r.stderr).toContain("Usage: stagebook validate");
+    });
+  });
+
+  describe("template expansion failures", () => {
+    it("surfaces expansion errors as their own diagnostic, distinct from schema errors", async () => {
+      // A treatment with `imports:` pointing at a missing file fails
+      // expansion (loadImport throws → expandTreatmentSourceWithImports
+      // sets expanded.error). This exercises the synthesized
+      // "Template expansion failed:" diagnostic in validate.ts.
+      const treatment = `imports:
+  - ./nonexistent-import.stagebook.yaml
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: s
+        duration: 10
+        elements:
+          - type: submitButton
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+`;
+      const file = join(tmp, "missing-import.stagebook.yaml");
+      await writeFile(file, treatment);
+      const r = await runCli([file]);
+      expect(r.code).toBe(1);
+      expect(r.stdout).toContain("Template expansion failed");
+    });
+  });
+
+  describe("terminal-control sanitisation", () => {
+    it("strips ANSI / control chars from text-mode output", async () => {
+      // A YAML key containing a terminal-clear sequence would otherwise
+      // reach the researcher's terminal raw. Validator embeds the key
+      // verbatim in "Unrecognized key '<key>'" messages.
+      const evil = `treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: s
+        duration: 10
+        "evil\\u001b[2J\\u001b[Hkey": bad
+        elements:
+          - type: submitButton
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+`;
+      const file = join(tmp, "evil.stagebook.yaml");
+      await writeFile(file, evil);
+      const r = await runCli([file]);
+      // Whatever the validator does with the key, the CLI must not emit
+      // raw ESC (\x1b) into stdout. We don't assert anything about JSON
+      // since JSON.stringify already escapes control chars.
+      expect(r.stdout).not.toMatch(/\x1b/);
     });
   });
 

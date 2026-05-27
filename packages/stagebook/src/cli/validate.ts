@@ -266,13 +266,25 @@ function hasGlobChars(s: string): boolean {
   return /[*?[\]{}]/.test(s);
 }
 
+// Strip terminal-control + C1 chars before writing to stdout. Diagnostic
+// messages embed user-controlled YAML keys verbatim, so a crafted key like
+// `"foo[2J"` would otherwise clear the researcher's terminal. JSON
+// output is safe because JSON.stringify escapes control chars.
+function stripControl(s: string): string {
+  // Keeps \t (\x09) and \n (\x0a); strips other C0 (\x00-\x1f), DEL (\x7f),
+  // and C1 (\x80-\x9f).
+  return s.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "");
+}
+
 function writeText(stream: NodeJS.WritableStream, results: FileResult[]): void {
   let errorCount = 0;
   let warningCount = 0;
   let fileCount = 0;
   for (const r of results) {
     if (r.unreadable) {
-      stream.write(`${r.path}: error: ${r.unreadable}\n`);
+      stream.write(
+        `${stripControl(r.path)}: error: ${stripControl(r.unreadable)}\n`,
+      );
       errorCount += 1;
       fileCount += 1;
       continue;
@@ -283,7 +295,9 @@ function writeText(stream: NodeJS.WritableStream, results: FileResult[]): void {
       // 1-based line:col for editor jump-to-location.
       const line = d.range ? d.range.startLine + 1 : 1;
       const col = d.range ? d.range.startCol + 1 : 1;
-      stream.write(`${r.path}:${line}:${col}: ${d.severity}: ${d.message}\n`);
+      stream.write(
+        `${stripControl(r.path)}:${line}:${col}: ${d.severity}: ${stripControl(d.message)}\n`,
+      );
       if (d.severity === "error") errorCount += 1;
       else warningCount += 1;
     }
