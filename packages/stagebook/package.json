@@ -38,6 +38,26 @@
         "types": "./dist/validate/index.d.cts",
         "default": "./dist/validate/index.cjs"
       }
+    },
+    "./dispatch": {
+      "import": {
+        "types": "./dist/dispatch/index.d.ts",
+        "default": "./dist/dispatch/index.js"
+      },
+      "require": {
+        "types": "./dist/dispatch/index.d.cts",
+        "default": "./dist/dispatch/index.cjs"
+      }
+    },
+    "./dispatch/contract": {
+      "import": {
+        "types": "./dist/dispatch/contract.d.ts",
+        "default": "./dist/dispatch/contract.js"
+      },
+      "require": {
+        "types": "./dist/dispatch/contract.d.cts",
+        "default": "./dist/dispatch/contract.cjs"
+      }
     }
   },
   "files": [
