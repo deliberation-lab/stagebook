@@ -17,6 +17,7 @@ import { mulberry32 } from "./contract.js";
 import { makeEligibilityTable } from "./makeEligibilityTable.js";
 import { uniformRandom } from "./uniformRandom.js";
 import { urnRandomization } from "./urnRandomization.js";
+import { weightedRandom } from "./weightedRandom.js";
 import type { DispatchResult, Treatment } from "./types.js";
 
 // ─── Shared statistics helpers ─────────────────────────────────────
@@ -230,6 +231,208 @@ describe("uniformRandom: randomization properties (α=1e-4)", () => {
 
   // Property 8 (variant balance within label) is matrix-decrement-
   // specific and does not apply to uniform-random; covered in the urn
+  // suite below.
+});
+
+// ─── Weighted-random suite ─────────────────────────────────────────
+
+describe("weightedRandom: randomization properties (α=1e-4)", () => {
+  const T_ONE: Treatment[] = [{ name: "T", playerCount: 2 }];
+
+  function runOneWeighted(
+    players: { id: string }[],
+    seed: number,
+    treatments = T_ONE,
+    weights = treatments.map(() => 1),
+  ): DispatchResult {
+    const playerIds = players.map((p) => p.id);
+    const eligibility = emptyEligibility(playerIds, treatments);
+    return weightedRandom({
+      playerIds,
+      treatments,
+      weights,
+      eligibility,
+      rng: mulberry32(seed),
+    });
+  }
+
+  test("1. seeded determinism: identical seed + inputs ⇒ identical assignments", () => {
+    const makePlayers = () =>
+      Array.from({ length: 4 }, (_, i) => ({ id: `p_${i}` }));
+    const a = runOneWeighted(makePlayers(), 42);
+    const b = runOneWeighted(makePlayers(), 42);
+    const c = runOneWeighted(makePlayers(), 43);
+    expect(a.assignments).toEqual(b.assignments);
+    expect(a.assignments).not.toEqual(c.assignments);
+  });
+
+  test("2. marginal target rate: treatments sampled at weight ratio (χ²)", () => {
+    // 4:1:1 weights → expected use share 0.667 / 0.167 / 0.167.
+    // χ² against weighted expectation (not uniform); same df = K-1.
+    const K = 3;
+    const M = 2000;
+    const playersPerTick = 4;
+    const treatments: Treatment[] = Array.from({ length: K }, (_, i) => ({
+      name: `T${i}`,
+      playerCount: 2,
+    }));
+    const weights = [4, 1, 1];
+    const totalWeight = weights.reduce((s, w) => s + w, 0);
+
+    const useCount = treatments.map(() => 0);
+    for (let m = 0; m < M; m += 1) {
+      const players = Array.from({ length: playersPerTick }, (_, i) => ({
+        id: `p_${m}_${i}`,
+      }));
+      const { assignments } = runOneWeighted(
+        players,
+        6000 + m,
+        treatments,
+        weights,
+      );
+      for (const a of assignments) {
+        const idx = treatments.findIndex((t) => t.name === a.treatment.name);
+        useCount[idx] += 1;
+      }
+    }
+    // χ² statistic against weighted expectation.
+    const total = useCount.reduce((s, x) => s + x, 0);
+    const chi2 = useCount.reduce((s, observed, i) => {
+      const expected = (total * weights[i]) / totalWeight;
+      return s + (observed - expected) ** 2 / expected;
+    }, 0);
+    expect(chi2).toBeLessThan(CHI2_CRITICAL_ALPHA_1E4[K - 1]);
+  });
+
+  test("3. position uniformity: per-player position-0 distribution is uniform (χ²)", () => {
+    const N = 4;
+    const M = 20000;
+    const posCounts: Record<string, { 0: number; 1: number }> = {};
+    for (let i = 0; i < N; i += 1) posCounts[`p_${i}`] = { 0: 0, 1: 0 };
+
+    for (let m = 0; m < M; m += 1) {
+      const players = Array.from({ length: N }, (_, i) => ({ id: `p_${i}` }));
+      const { assignments } = runOneWeighted(players, 1000 + m);
+      for (const a of assignments) {
+        for (const pa of a.positionAssignments) {
+          posCounts[pa.playerId][pa.position as 0 | 1] += 1;
+        }
+      }
+    }
+    const pos0 = Array.from({ length: N }, (_, i) => posCounts[`p_${i}`][0]);
+    const chi2 = pos0.reduce((s, x) => s + (x - M / 2) ** 2 / (M / 4), 0);
+    expect(chi2).toBeLessThan(CHI2_CRITICAL_ALPHA_1E4[N]);
+  });
+
+  test("4. equal opportunity within eligibility class: leftover-rate uniform (χ²)", () => {
+    const N = 5;
+    const M = 2000;
+    const leftoverCount: Record<string, number> = {};
+    for (let i = 0; i < N; i += 1) leftoverCount[`p_${i}`] = 0;
+
+    for (let m = 0; m < M; m += 1) {
+      const players = Array.from({ length: N }, (_, i) => ({ id: `p_${i}` }));
+      const { assignments } = runOneWeighted(players, 2000 + m);
+      const assigned = new Set(
+        assignments.flatMap((a) =>
+          a.positionAssignments.map((pa) => pa.playerId),
+        ),
+      );
+      for (let i = 0; i < N; i += 1) {
+        if (!assigned.has(`p_${i}`)) leftoverCount[`p_${i}`] += 1;
+      }
+    }
+    const counts = Array.from({ length: N }, (_, i) => leftoverCount[`p_${i}`]);
+    const chi2 = chiSquareUniform(counts);
+    expect(chi2).toBeLessThan(CHI2_CRITICAL_ALPHA_1E4[N - 1]);
+  });
+
+  test("5. arrival-order independence: forward vs reverse give same aggregate (binomial)", () => {
+    const M = 10000;
+    function simulate(playerIds: string[], seedOffset: number) {
+      const counts: Record<string, number> = {};
+      playerIds.forEach((pid) => {
+        counts[pid] = 0;
+      });
+      for (let m = 0; m < M; m += 1) {
+        const players = playerIds.map((id) => ({ id }));
+        const { assignments } = runOneWeighted(players, seedOffset + m);
+        for (const a of assignments) {
+          for (const pa of a.positionAssignments) {
+            if (pa.position === 0) counts[pa.playerId] += 1;
+          }
+        }
+      }
+      return counts;
+    }
+    const forward = simulate(["p_0", "p_1", "p_2", "p_3"], 4000);
+    const reverse = simulate(["p_3", "p_2", "p_1", "p_0"], 4000);
+    const seDiff = Math.sqrt(M / 2);
+    const ids = ["p_0", "p_1", "p_2", "p_3"];
+    const maxAbsZ = Math.max(
+      ...ids.map((pid) => Math.abs((forward[pid] - reverse[pid]) / seDiff)),
+    );
+    expect(maxAbsZ).toBeLessThan(4.21);
+  });
+
+  test("6. irrelevant-attribute independence: tag does not predict leftover (binomial)", () => {
+    const M = 10000;
+    let bAsLeftover = 0;
+    for (let m = 0; m < M; m += 1) {
+      const players = [
+        { id: "p_0" },
+        { id: "p_1" },
+        { id: "p_2" },
+        { id: "p_3" },
+        { id: "p_4" },
+      ];
+      const tag = ["A", "A", "A", "B", "B"] as const;
+      const { assignments } = runOneWeighted(players, 3000 + m);
+      const assigned = new Set(
+        assignments.flatMap((a) =>
+          a.positionAssignments.map((pa) => pa.playerId),
+        ),
+      );
+      const leftoverIdx = players.findIndex((p) => !assigned.has(p.id));
+      if (leftoverIdx >= 0 && tag[leftoverIdx] === "B") bAsLeftover += 1;
+    }
+    const p0 = 2 / 5;
+    const expected = M * p0;
+    const se = Math.sqrt(M * p0 * (1 - p0));
+    const z = (bAsLeftover - expected) / se;
+    expect(Math.abs(z)).toBeLessThan(Z_CRITICAL_ALPHA_1E4);
+  });
+
+  test("7. pairwise co-assignment independence: pair co-occurrence uniform (χ²)", () => {
+    const N = 4;
+    const M = 10000;
+    const pairKey = (a: string, b: string) =>
+      a < b ? `${a}-${b}` : `${b}-${a}`;
+    const pairCounts: Record<string, number> = {};
+    for (let i = 0; i < N; i += 1) {
+      for (let j = i + 1; j < N; j += 1) {
+        pairCounts[pairKey(`p_${i}`, `p_${j}`)] = 0;
+      }
+    }
+    for (let m = 0; m < M; m += 1) {
+      const players = Array.from({ length: N }, (_, i) => ({ id: `p_${i}` }));
+      const { assignments } = runOneWeighted(players, 5000 + m);
+      for (const a of assignments) {
+        const ids = a.positionAssignments.map((pa) => pa.playerId);
+        for (let i = 0; i < ids.length; i += 1) {
+          for (let j = i + 1; j < ids.length; j += 1) {
+            pairCounts[pairKey(ids[i], ids[j])] += 1;
+          }
+        }
+      }
+    }
+    const counts = Object.values(pairCounts);
+    const chi2 = chiSquareUniform(counts);
+    expect(chi2).toBeLessThan(CHI2_CRITICAL_ALPHA_1E4[5]);
+  });
+
+  // Property 8 (variant balance within label) is matrix-decrement-
+  // specific and does not apply to weighted-random; covered in the urn
   // suite below.
 });
 

@@ -8,6 +8,7 @@ export * from "./types.js";
 export { extractConditionKeys } from "./extractConditionKeys.js";
 export { makeEligibilityTable } from "./makeEligibilityTable.js";
 export { uniformRandom, type UniformRandomArgs } from "./uniformRandom.js";
+export { weightedRandom, type WeightedRandomArgs } from "./weightedRandom.js";
 export {
   urnRandomization,
   type UrnRandomizationArgs,

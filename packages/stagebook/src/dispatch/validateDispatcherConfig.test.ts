@@ -36,6 +36,81 @@ describe("validateDispatcherConfig", () => {
     });
   });
 
+  describe("weighted-random", () => {
+    test("accepts a well-formed weights array", () => {
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: [4, 1, 1] },
+        3,
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    test("accepts float weights", () => {
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: [0.8, 0.1, 0.1] },
+        3,
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    test("rejects unresolved file references on `weights`", () => {
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: { from: "./weights.json" } },
+        3,
+      );
+      expect(r.ok).toBe(false);
+      expect(r.diagnostics[0].path).toBe("weights");
+    });
+
+    test("rejects mismatched weights.length vs treatments", () => {
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: [1, 2, 3] },
+        2,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message);
+      expect(messages.some((m) => m.includes("weights.length"))).toBe(true);
+    });
+
+    test("rejects negative / NaN / non-finite entries", () => {
+      const r = validateDispatcherConfig(
+        {
+          type: "weighted-random",
+          weights: [1, -1, Number.NaN, Infinity],
+        },
+        4,
+      );
+      expect(r.ok).toBe(false);
+      const paths = r.diagnostics.map((d) => d.path).sort();
+      expect(paths).toContain("weights.1");
+      expect(paths).toContain("weights.2");
+      expect(paths).toContain("weights.3");
+    });
+
+    test("zero entries are allowed (deactivate a treatment)", () => {
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: [4, 0, 1] },
+        3,
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    test("all-zero weights warn but don't fail validation (gated-off batch)", () => {
+      // Per #451, a researcher may legitimately gate a batch off
+      // temporarily by zeroing every weight. We surface a warning so
+      // the empty-batch isn't surprising, but `ok` stays true so the
+      // batch can still be deployed.
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: [0, 0, 0] },
+        3,
+      );
+      expect(r.ok).toBe(true);
+      const warnings = r.diagnostics.filter((d) => d.severity === "warning");
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toMatch(/all zero|no assignments/i);
+    });
+  });
+
   describe("urn", () => {
     test("accepts a well-formed counts array", () => {
       const r = validateDispatcherConfig({ type: "urn", counts: [2, 2, 2] }, 3);

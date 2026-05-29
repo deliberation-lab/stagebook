@@ -2,17 +2,28 @@ import type {
   DispatcherConfig,
   UniformRandomDispatcherConfig,
   UrnDispatcherConfig,
+  WeightedRandomDispatcherConfig,
 } from "./types.js";
 
 /** One validation diagnostic. `path` points into the config object using
  *  the same dotted convention zod does (`"counts"`, `"decrements.2.1"`)
- *  so callers can surface it the same way they surface zod issues. */
+ *  so callers can surface it the same way they surface zod issues.
+ *
+ *  `severity` defaults to `"error"` when omitted, preserving the v0.12.0
+ *  contract where every diagnostic was treated as a hard failure. Some
+ *  validations (e.g. `weighted-random` with all-zero weights — the
+ *  "batch is temporarily gated off" case) emit `"warning"` instead; those
+ *  surface to authors but don't fail `ok`. */
 export interface DispatcherConfigDiagnostic {
   path: string;
   message: string;
+  severity?: "error" | "warning";
 }
 
 export interface DispatcherConfigValidationResult {
+  /** True iff there are no error-severity diagnostics. Warnings do not
+   *  affect `ok` — callers that want to be strict can scan the
+   *  `diagnostics` array directly. */
   ok: boolean;
   diagnostics: DispatcherConfigDiagnostic[];
 }
@@ -59,6 +70,11 @@ export function validateDispatcherConfig(
   switch (c.type) {
     case "uniform-random":
       return validateUniformRandom(config as UniformRandomDispatcherConfig);
+    case "weighted-random":
+      return validateWeightedRandom(
+        config as WeightedRandomDispatcherConfig,
+        treatmentCount,
+      );
     case "urn":
       return validateUrn(config as UrnDispatcherConfig, treatmentCount);
     case "local-penalization":
@@ -69,7 +85,7 @@ export function validateDispatcherConfig(
     default:
       push(
         "type",
-        `unknown dispatcher type "${c.type}" — expected one of: uniform-random, urn, local-penalization`,
+        `unknown dispatcher type "${c.type}" — expected one of: uniform-random, weighted-random, urn, local-penalization`,
       );
       return { ok: false, diagnostics };
   }
@@ -87,11 +103,69 @@ function validateUniformRandom(
     if (!allowed.has(k)) {
       diagnostics.push({
         path: k,
-        message: `\`uniform-random\` dispatcher does not accept a \`${k}\` field. Use \`urn\` for count-based targets.`,
+        message: `\`uniform-random\` dispatcher does not accept a \`${k}\` field. Use \`weighted-random\` for unequal-ratio sampling, or \`urn\` for exact-N targets.`,
       });
     }
   }
   return { ok: diagnostics.length === 0, diagnostics };
+}
+
+function validateWeightedRandom(
+  config: WeightedRandomDispatcherConfig,
+  treatmentCount: number,
+): DispatcherConfigValidationResult {
+  const diagnostics: DispatcherConfigDiagnostic[] = [];
+  const push = (path: string, message: string) =>
+    diagnostics.push({ path, message });
+
+  if (!("weights" in config)) {
+    push("weights", "`weighted-random` dispatcher requires a `weights` array");
+    return { ok: false, diagnostics };
+  }
+  if (isFileReference(config.weights)) {
+    push(
+      "weights",
+      "`weights` is still a file reference — the host must resolve `{from: ...}` before calling the validator",
+    );
+    return { ok: false, diagnostics };
+  }
+  if (!Array.isArray(config.weights)) {
+    push("weights", "`weights` must be an array of non-negative reals");
+    return { ok: false, diagnostics };
+  }
+  const weights = config.weights as unknown[];
+  if (weights.length !== treatmentCount) {
+    push(
+      "weights",
+      `\`weights.length\` (${weights.length}) must equal the number of treatments (${treatmentCount})`,
+    );
+  }
+  weights.forEach((v, i) => {
+    if (!isNonNegativeFiniteNumber(v)) {
+      push(
+        `weights.${i}`,
+        `weights[${i}] must be a non-negative finite number, got ${formatValue(v)}`,
+      );
+    }
+  });
+
+  // All-zero is allowed (silent no-op — useful for gating a batch off
+  // temporarily without renumbering treatments). Surface as a
+  // *warning* so the author isn't surprised when the batch returns
+  // empty, but don't fail validation — see issue #451 item 3.
+  const allZero =
+    weights.length > 0 &&
+    weights.every((v) => isNonNegativeFiniteNumber(v) && (v as number) === 0);
+  if (allZero) {
+    diagnostics.push({
+      path: "weights",
+      message:
+        "`weights` are all zero — `weighted-random` will produce no assignments. Set at least one weight > 0 to enable a treatment.",
+      severity: "warning",
+    });
+  }
+
+  return { ok: isOk(diagnostics), diagnostics };
 }
 
 function validateUrn(
@@ -199,8 +273,19 @@ function validateUrn(
   return { ok: diagnostics.length === 0, diagnostics };
 }
 
+/** True iff `diagnostics` has no error-severity entries. Diagnostics
+ *  without an explicit `severity` are treated as errors (preserving the
+ *  v0.12.0 contract). */
+function isOk(diagnostics: DispatcherConfigDiagnostic[]): boolean {
+  return !diagnostics.some((d) => (d.severity ?? "error") === "error");
+}
+
 function isNonNegativeInteger(v: unknown): boolean {
   return typeof v === "number" && Number.isInteger(v) && v >= 0;
+}
+
+function isNonNegativeFiniteNumber(v: unknown): boolean {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0;
 }
 
 function isFileReference(v: unknown): v is { from: string } {

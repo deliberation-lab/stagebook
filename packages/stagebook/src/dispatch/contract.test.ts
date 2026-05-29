@@ -5,6 +5,7 @@
 
 import { buildEligibilityForScenario, runContractSuite } from "./contract.js";
 import { uniformRandom } from "./uniformRandom.js";
+import { weightedRandom } from "./weightedRandom.js";
 import { urnRandomization } from "./urnRandomization.js";
 
 runContractSuite("uniform-random", ({ scenario, rng }) => {
@@ -15,6 +16,33 @@ runContractSuite("uniform-random", ({ scenario, rng }) => {
       uniformRandom({
         playerIds: scenario.players.map((p) => p.id),
         treatments: scenario.treatments,
+        eligibility,
+        rng,
+      }),
+  };
+});
+
+runContractSuite("weighted-random", ({ scenario, rng }) => {
+  const eligibility = buildEligibilityForScenario(scenario);
+  // Random per-scenario weights. Mix of distributions:
+  //   - 25% all-equal (degenerate uniform-random case)
+  //   - 25% one zero weight (de-activated treatment)
+  //   - 50% random floats in [0.1, 4.0]
+  // Avoids all-zero (which yields no assignments, trivially passing
+  // invariants but not exercising the algorithm).
+  const r = rng();
+  const weights = scenario.treatments.map((_, i) => {
+    if (r < 0.25) return 1;
+    if (r < 0.5 && i === 0) return 0;
+    return 0.1 + rng() * 3.9;
+  });
+  return {
+    params: { weights },
+    dispatch: () =>
+      weightedRandom({
+        playerIds: scenario.players.map((p) => p.id),
+        treatments: scenario.treatments,
+        weights,
         eligibility,
         rng,
       }),
