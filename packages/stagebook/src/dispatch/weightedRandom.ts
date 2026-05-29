@@ -2,42 +2,39 @@ import type {
   Assignment,
   DispatchResult,
   EligibilityTable,
+  LabeledScalars,
   Treatment,
 } from "./types.js";
 import { tryFillTreatment } from "./tryFillTreatment.js";
+import { validateLabelSet } from "./validateLabelSet.js";
 
 export interface WeightedRandomArgs {
   playerIds: string[];
   treatments: Treatment[];
-  /** Non-negative reals interpreted up to scale. Length must equal
-   *  `treatments.length`. Zero entries are allowed and mean "never pick
-   *  this treatment." All-zero is allowed and yields no assignments. */
-  weights: number[];
+  /** Non-negative reals interpreted up to scale, keyed by treatment
+   *  name. Label set must equal the set of `treatments[i].name`. Zero
+   *  entries are allowed and mean "never pick this treatment."
+   *  All-zero is allowed and yields no assignments. */
+  weights: LabeledScalars;
   eligibility: EligibilityTable;
   rng: () => number;
 }
 
 /**
  * Stateless categorical sampler (#451): each round draws a treatment
- * iid with probability proportional to `weights[i]`, then attempts a
- * greedy fill. The dispatcher carries no state across rounds — each
- * draw is independent of every prior draw, of the round number, and of
- * any host-persisted bookkeeping. This is the property that
- * distinguishes it from `urn` (where prior draws shift the distribution)
- * and that justifies skipping host state plumbing entirely.
+ * iid with probability proportional to `weights[name]`, then attempts
+ * a greedy fill. The dispatcher carries no state across rounds — each
+ * draw is independent of every prior draw, of the round number, and
+ * of any host-persisted bookkeeping.
  *
- * Relationship to the sibling dispatchers:
- *   - `weighted-random` with all-equal weights is observationally
- *     identical to `uniform-random`. Authors should still prefer
- *     `uniform-random` when they have no balance claim — the
- *     discriminator self-documents the absence of a claim.
- *   - `urn` with very large integer counts and an identity decrement
- *     matrix approximates `weighted-random` (and converges as counts
- *     grow), but pays integer-ball cognitive overhead for a use case
- *     that doesn't need exact-N guarantees.
+ * The label-based input shape protects against silent order drift
+ * between the treatment file and the batch config: if a treatment is
+ * renamed, added, or removed, the validator catches the mismatch at
+ * config-time and the dispatcher refuses to run with an unmatched
+ * label at runtime.
  *
  * Algorithm (per round):
- *   1. Build the per-round pool: treatments with `weights[i] > 0 ∧
+ *   1. Build the per-round pool: treatments with `weights[name] > 0 ∧
  *      playerCount ≤ available.size ∧ playerCount > 0 ∧
  *      not-yet-tried-this-round`.
  *   2. Sample one treatment from the pool with probability proportional
@@ -47,20 +44,10 @@ export interface WeightedRandomArgs {
  *      "tried this round" and re-sample from the remaining weighted
  *      pool; if every untried treatment fails, stop.
  *
- * Realized rate vs. target rate:
- *   The long-run rate matches `weights[i] / sum(weights)` only when
- *   every round is size-feasible for every treatment and every player
- *   is eligible for every position. When eligibility is tight (or the
- *   per-tick player pool is small), the per-round pool gets filtered
- *   for size-feasibility and the marginal rate is implicitly
- *   renormalized over the surviving treatments. Hosts can detect the
- *   divergence by computing realized rates from the returned
- *   `assignments` and comparing against the target weights — see
- *   `docs/researcher/dispatchers.md` for a worked example.
- *
- * Termination: each successful round shrinks `available` by at least
- * 1; each failed round shrinks the "weighted, feasible, untried" set
- * by at least 1. Bounded by `O(treatments² + playerIds)`.
+ * Realized rate vs. target rate: the long-run rate matches
+ * `weights[name] / sum(weights)` only when every round is size-feasible
+ * for every treatment and every player is eligible for every position.
+ * See `docs/researcher/dispatchers.md` for a worked example.
  */
 export function weightedRandom({
   playerIds,
@@ -70,11 +57,14 @@ export function weightedRandom({
   rng,
 }: WeightedRandomArgs): DispatchResult {
   const n = treatments.length;
-  if (weights.length !== n) {
-    throw new Error(
-      `weightedRandom: weights.length (${weights.length}) must equal treatments.length (${n})`,
-    );
-  }
+  const names = treatments.map((t) => t.name);
+
+  validateLabelSet("weightedRandom", "weights", weights, names);
+
+  // Internally we work positionally — same inner loop as the v0.13
+  // positional implementation. The labels are converted at the
+  // boundary so the algorithm itself never juggles strings.
+  const positionalWeights: number[] = names.map((name) => weights[name]);
 
   const assignments: Assignment[] = [];
   const available = new Set(playerIds);
@@ -83,34 +73,29 @@ export function weightedRandom({
     const tried = new Set<number>();
     let progress = false;
     while (true) {
-      // Build the "positive-weight, size-feasible, not-yet-tried" pool.
       const pool: number[] = [];
       let totalWeight = 0;
       for (let i = 0; i < n; i += 1) {
         if (tried.has(i)) continue;
-        // Reject 0, negative, NaN, and ±Infinity. Validation rejects
+        // Reject 0, negative, NaN, ±Infinity. Validation rejects
         // these at config-time but the per-round filter defends in
         // depth — an Infinity that slipped through would make
         // `totalWeight = ∞` and the weighted-sample fallback would
         // always select the last pool entry.
-        if (!Number.isFinite(weights[i]) || weights[i] <= 0) continue;
+        if (!Number.isFinite(positionalWeights[i]) || positionalWeights[i] <= 0)
+          continue;
         if (treatments[i].playerCount === 0) continue;
         if (treatments[i].playerCount > available.size) continue;
         pool.push(i);
-        totalWeight += weights[i];
+        totalWeight += positionalWeights[i];
       }
       if (pool.length === 0 || totalWeight <= 0) break;
 
-      // Weighted sample by weights[i]. The strict `<` on cumulative
-      // means the floating-point edge case `target === totalWeight`
-      // falls through to the last-pool-entry fallback — same pattern
-      // as urnRandomization, kept consistent so readers don't have to
-      // re-verify per dispatcher.
       const target = rng() * totalWeight;
       let cumulative = 0;
       let treatmentIdx = pool[pool.length - 1];
       for (const i of pool) {
-        cumulative += weights[i];
+        cumulative += positionalWeights[i];
         if (target < cumulative) {
           treatmentIdx = i;
           break;
@@ -129,7 +114,7 @@ export function weightedRandom({
         assignments.push({ treatment, positionAssignments: filled });
         for (const pa of filled) available.delete(pa.playerId);
         progress = true;
-        break; // restart the outer round
+        break;
       }
       tried.add(treatmentIdx);
     }

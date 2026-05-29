@@ -107,20 +107,48 @@ export interface UniformRandomDispatcherConfig {
   type: "uniform-random";
 }
 
+/** Map from treatment name → non-negative real. Used for `urn` counts,
+ *  `weighted-random` weights, and similar 1-D per-treatment parameters.
+ *  Labels are validated against the treatment name set at config-time;
+ *  missing or extra labels are an error. */
+export type LabeledScalars = Record<string, number>;
+
+/** Map from row treatment name → (map from column treatment name → value).
+ *  Used for `urn`'s decrement matrix.
+ *
+ *  Specification is binary: either you omit `decrements` entirely
+ *  (gets the identity matrix as a default) OR you specify it, in
+ *  which case it's a strict literal — every treatment must have a
+ *  row, and missing column entries within a row default to 0. There
+ *  is no "partial matrix layered over identity" mode; if you want
+ *  identity behavior on a particular row, write it (`T_x: {T_x: 1}`).
+ *
+ *  This keeps the mental model simple: matrix off → identity; matrix
+ *  on → literal. And it eliminates the silent-footgun case where an
+ *  author writes a partial row and accidentally zeros out the
+ *  self-decrement of a treatment. */
+export type LabeledMatrix = Record<string, Record<string, number>>;
+
 export interface WeightedRandomDispatcherConfig {
   type: "weighted-random";
-  /** Non-negative reals interpreted up to scale. `[1, 1, 1]`, `[100, 100, 100]`,
-   *  and `[0.33, 0.33, 0.33]` produce identical samplers. Length must match
-   *  the treatment count. A zero weight means "never pick this treatment"
-   *  (useful for de-activating a condition without renumbering). */
-  weights: number[] | FileReference;
+  /** Non-negative reals interpreted up to scale. `{T_a: 1, T_b: 1}`,
+   *  `{T_a: 100, T_b: 100}`, and `{T_a: 0.5, T_b: 0.5}` are identical
+   *  samplers. Label set must equal the treatment name set. A zero
+   *  weight means "never pick this treatment" (useful for deactivating
+   *  a condition without renumbering). */
+  weights: LabeledScalars | FileReference;
 }
 
 export interface UrnDispatcherConfig {
   type: "urn";
-  counts: number[] | FileReference;
-  /** Square matrix; defaults to identity (decrement self by 1) when omitted. */
-  decrements?: number[][] | FileReference;
+  /** Per-treatment target counts, by name. Label set must equal the
+   *  treatment name set. */
+  counts: LabeledScalars | FileReference;
+  /** Optional decrement matrix, by name. When omitted entirely, the
+   *  full matrix defaults to identity. When specified, it's a strict
+   *  literal: every treatment must have a row, and missing column
+   *  entries within a row default to 0. */
+  decrements?: LabeledMatrix | FileReference;
 }
 
 /** Placeholder for the `local-penalization` dispatcher that stays in
@@ -129,8 +157,8 @@ export interface UrnDispatcherConfig {
  *  the call site. */
 export interface LocalPenalizationDispatcherConfig {
   type: "local-penalization";
-  payoffs: number[] | "equal" | FileReference;
-  knockdowns: number | number[] | number[][] | "none" | FileReference;
+  payoffs: LabeledScalars | "equal" | FileReference;
+  knockdowns: number | LabeledScalars | LabeledMatrix | "none" | FileReference;
 }
 
 export type DispatcherConfig =

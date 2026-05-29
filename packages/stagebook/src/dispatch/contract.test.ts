@@ -7,6 +7,7 @@ import { buildEligibilityForScenario, runContractSuite } from "./contract.js";
 import { uniformRandom } from "./uniformRandom.js";
 import { weightedRandom } from "./weightedRandom.js";
 import { urnRandomization } from "./urnRandomization.js";
+import type { LabeledMatrix, LabeledScalars } from "./types.js";
 
 runContractSuite("uniform-random", ({ scenario, rng }) => {
   const eligibility = buildEligibilityForScenario(scenario);
@@ -24,17 +25,19 @@ runContractSuite("uniform-random", ({ scenario, rng }) => {
 
 runContractSuite("weighted-random", ({ scenario, rng }) => {
   const eligibility = buildEligibilityForScenario(scenario);
-  // Random per-scenario weights. Mix of distributions:
+  // Random per-scenario weights, keyed by treatment name. Mix of
+  // distributions:
   //   - 25% all-equal (degenerate uniform-random case)
   //   - 25% one zero weight (de-activated treatment)
   //   - 50% random floats in [0.1, 4.0]
-  // Avoids all-zero (which yields no assignments, trivially passing
-  // invariants but not exercising the algorithm).
+  // Avoids all-zero (which yields no assignments — trivially passes
+  // every invariant but doesn't exercise the algorithm).
   const r = rng();
-  const weights = scenario.treatments.map((_, i) => {
-    if (r < 0.25) return 1;
-    if (r < 0.5 && i === 0) return 0;
-    return 0.1 + rng() * 3.9;
+  const weights: LabeledScalars = {};
+  scenario.treatments.forEach((t, i) => {
+    if (r < 0.25) weights[t.name] = 1;
+    else if (r < 0.5 && i === 0) weights[t.name] = 0;
+    else weights[t.name] = 0.1 + rng() * 3.9;
   });
   return {
     params: { weights },
@@ -51,16 +54,26 @@ runContractSuite("weighted-random", ({ scenario, rng }) => {
 
 runContractSuite("urn", ({ scenario, rng }) => {
   const eligibility = buildEligibilityForScenario(scenario);
-  // Random per-scenario counts in [0, 5]. Some zeros so the dispatcher
-  // exercises the "no balls left for this treatment" branch.
-  const counts = scenario.treatments.map(() => Math.floor(rng() * 6));
-  // Random decrement matrix: either identity (50%) or a sparse matrix
-  // with integer entries small enough to avoid validation rejections.
-  let decrements: number[][] | undefined;
+  // Random per-scenario counts in [0, 5], keyed by treatment name.
+  // Some zeros so the dispatcher exercises the "no balls left for
+  // this treatment" branch.
+  const counts: LabeledScalars = {};
+  scenario.treatments.forEach((t) => {
+    counts[t.name] = Math.floor(rng() * 6);
+  });
+  // Random decrement matrix: either identity (50% — use undefined to
+  // exercise the dispatcher's identity-default code path) or a sparse
+  // labeled matrix with integer entries small enough to avoid
+  // validation rejections.
+  let decrements: LabeledMatrix | undefined;
   if (rng() < 0.5) {
-    decrements = undefined; // identity default
+    decrements = undefined;
   } else {
-    decrements = buildSafeDecrementMatrix(counts, rng);
+    decrements = buildSafeDecrementMatrix(
+      counts,
+      scenario.treatments.map((t) => t.name),
+      rng,
+    );
   }
   return {
     params: { counts, decrements },
@@ -76,28 +89,28 @@ runContractSuite("urn", ({ scenario, rng }) => {
   };
 });
 
-/** Build a random decrement matrix where each `decrements[i][j] ≤ counts[j]`
- *  so the dispatcher doesn't immediately clamp to zero on the first use.
- *  Diagonal entries are at least 1 so a treatment's own counter
- *  actually decreases when the treatment is used. */
+/** Build a labeled random decrement matrix where each
+ *  `decrements[row][col] ≤ counts[col]`. Diagonal entries are 1 so a
+ *  treatment's own counter actually decreases when the treatment is
+ *  used (assuming positive count); off-diagonal entries are 0 or 1
+ *  at 25% probability. */
 function buildSafeDecrementMatrix(
-  counts: number[],
+  counts: LabeledScalars,
+  names: string[],
   rng: () => number,
-): number[][] {
-  const n = counts.length;
-  const m: number[][] = [];
-  for (let i = 0; i < n; i += 1) {
-    const row: number[] = [];
-    for (let j = 0; j < n; j += 1) {
-      if (i === j) {
-        // Self-decrement at least 1 (when there's a ball to take).
-        row.push(counts[j] > 0 ? 1 : 0);
-      } else {
-        // Off-diagonal in [0, min(1, counts[j])] — usually 0, sometimes 1.
-        row.push(rng() < 0.25 && counts[j] > 0 ? 1 : 0);
+): LabeledMatrix {
+  const m: LabeledMatrix = {};
+  for (const rowName of names) {
+    const row: Record<string, number> = {};
+    for (const colName of names) {
+      if (rowName === colName) {
+        row[colName] = counts[colName] > 0 ? 1 : 0;
+      } else if (rng() < 0.25 && counts[colName] > 0) {
+        row[colName] = 1;
       }
+      // omitted entries default to 0 at the dispatcher boundary
     }
-    m.push(row);
+    m[rowName] = row;
   }
   return m;
 }
