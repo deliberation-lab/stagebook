@@ -210,6 +210,13 @@ describe("validateDispatcherConfig", () => {
         T3,
       );
       expect(r.ok).toBe(true);
+      // Negative assertion: a correctly-self-decrementing config must
+      // produce zero warnings. Catches spurious-warning regressions in
+      // the zero-self-decrement check (e.g. an off-by-one that fires
+      // on `selfVal === 1`).
+      expect(
+        r.diagnostics.filter((d) => d.severity === "warning"),
+      ).toHaveLength(0);
     });
 
     test("requires a row for every treatment when `decrements` is specified", () => {

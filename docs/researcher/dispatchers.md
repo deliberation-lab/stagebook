@@ -2,12 +2,12 @@
 
 A **dispatcher** is the algorithm that decides which treatment each group of participants gets routed to. Stagebook ships four:
 
-| Dispatcher | What you provide | What it guarantees | When to reach for it |
-|---|---|---|---|
-| `uniform-random` | nothing | Each group's treatment is an independent uniform draw | Quick prototypes; you have no balance claim to make in a methods section |
-| `weighted-random` | one weight per treatment | Each group's treatment is an independent draw with `P(T) ∝ weight(T)` | You want unequal long-run rates (e.g. 80/10/10) but don't need exact-N targets |
-| `urn` | target counts per treatment (+ optional decrement matrix) | Each treatment is used exactly its target count over the batch | You want exact target Ns or cross-treatment locality (e.g. "don't pick the same label twice in a row") |
-| `local-penalization` | acquisition values + penalization matrix | One batch step of an iterated Bayesian-optimization loop | You're running a researcher-managed BO surrogate between batches |
+| Dispatcher           | What you provide                                          | What it guarantees                                                    | When to reach for it                                                                                   |
+| -------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `uniform-random`     | nothing                                                   | Each group's treatment is an independent uniform draw                 | Quick prototypes; you have no balance claim to make in a methods section                               |
+| `weighted-random`    | one weight per treatment                                  | Each group's treatment is an independent draw with `P(T) ∝ weight(T)` | You want unequal long-run rates (e.g. 80/10/10) but don't need exact-N targets                         |
+| `urn`                | target counts per treatment (+ optional decrement matrix) | Each treatment is used exactly its target count over the batch        | You want exact target Ns or cross-treatment locality (e.g. "don't pick the same label twice in a row") |
+| `local-penalization` | acquisition values + penalization matrix                  | One batch step of an iterated Bayesian-optimization loop              | You're running a researcher-managed BO surrogate between batches                                       |
 
 The first three are stateless or carry only a small piece of state (urn's remaining counts). All four pre-compute eligibility from each participant's data; the algorithm itself sees only IDs, treatment structure, and a boolean eligibility lookup — never the underlying responses.
 
@@ -21,7 +21,7 @@ This is the dispatcher most ordinary randomized experiments want when the alloca
 dispatcher:
   type: weighted-random
   weights:
-    T_moderated: 4    # picked four times as often as either of the controls long-run
+    T_moderated: 4 # picked four times as often as either of the controls long-run
     T_control_A: 1
     T_control_B: 1
 ```
@@ -56,9 +56,9 @@ dispatcher:
     T_control_B: 1
 ```
 
-with three two-player treatments. `T_moderated` requires *both* slots to be moderators (`self.prompt.role equals "moderator"`); the two controls have no conditions. Recruitment pulls in 100 participants of whom 20 self-report as moderators (a 20% marginal rate).
+with three two-player treatments. `T_moderated` requires _both_ slots to be moderators (`self.prompt.role equals "moderator"`); the two controls have no conditions. Recruitment pulls in 100 participants of whom 20 self-report as moderators (a 20% marginal rate).
 
-Each dispatch tick draws 6 available players. For `T_moderated` to be picked *and* fillable, the tick needs at least 2 moderators among its 6 players. Under independent arrival that's a binomial probability — ~**34%** of ticks.[^1] In the other 66%, `T_moderated` drops out of the pool, and the dispatcher renormalizes the surviving weights `[1, 1]` over the two controls — so they each absorb half the mass `T_moderated` would have taken.
+Each dispatch tick draws 6 available players. For `T_moderated` to be picked _and_ fillable, the tick needs at least 2 moderators among its 6 players. Under independent arrival that's a binomial probability — ~**34%** of ticks.[^1] In the other 66%, `T_moderated` drops out of the pool, and the dispatcher renormalizes the surviving weights `[1, 1]` over the two controls — so they each absorb half the mass `T_moderated` would have taken.
 
 Working that out per round:
 
@@ -68,11 +68,11 @@ Working that out per round:
 
 Compared to the target weights:
 
-| Treatment | Target (weight/sum) | Realized | Gap |
-|---|---|---|---|
-| T_moderated | 67% | 23% | **−44 pp** |
-| T_control_A | 17% | 39% | +22 pp |
-| T_control_B | 17% | 39% | +22 pp |
+| Treatment   | Target (weight/sum) | Realized | Gap        |
+| ----------- | ------------------- | -------- | ---------- |
+| T_moderated | 67%                 | 23%      | **−44 pp** |
+| T_control_A | 17%                 | 39%      | +22 pp     |
+| T_control_B | 17%                 | 39%      | +22 pp     |
 
 The dispatcher is honoring `weights: {T_moderated: 4, T_control_A: 1, T_control_B: 1}` at every feasible round. The 44-percentage-point shortfall on `T_moderated` is a study-design issue — you've asked for more moderator-condition assignments than your recruitment can supply.
 
@@ -82,9 +82,9 @@ The dispatcher is honoring `weights: {T_moderated: 4, T_control_A: 1, T_control_
 
 Three options, in increasing order of effort:
 
-1. **Recruit until the rates match.** If your downstream analysis doesn't depend on exact N per cell, just let the batch run longer. Realized rates converge to weights *conditional on feasibility*; the slope is whatever your recruitment pipeline delivers.
-2. **Loosen eligibility on the constrained treatment** if the condition is over-specified for what you actually need. The most common case: a condition that *could* be evaluated post-hoc as a covariate instead of gated upstream.
-3. **Use `urn` instead** if you need *exact* target Ns per treatment. `urn` keeps allocating to a treatment until its target count is drained, so it will sit on a tight-eligibility condition until enough qualifying participants arrive. That comes with the tradeoff that other treatments stop receiving allocations once they hit their targets, even if more participants arrive.
+1. **Recruit until the rates match.** If your downstream analysis doesn't depend on exact N per cell, just let the batch run longer. Realized rates converge to weights _conditional on feasibility_; the slope is whatever your recruitment pipeline delivers.
+2. **Loosen eligibility on the constrained treatment** if the condition is over-specified for what you actually need. The most common case: a condition that _could_ be evaluated post-hoc as a covariate instead of gated upstream.
+3. **Use `urn` instead** if you need _exact_ target Ns per treatment. `urn` keeps allocating to a treatment until its target count is drained, so it will sit on a tight-eligibility condition until enough qualifying participants arrive. That comes with the tradeoff that other treatments stop receiving allocations once they hit their targets, even if more participants arrive.
 
 ### Diagnostics
 
@@ -112,7 +112,7 @@ That delivers exactly 10 assignments to each treatment over the batch, then stop
 
 Each round, the dispatcher samples one treatment from the size-feasible pool with probability **proportional to its remaining count**. Early in the batch when all counts are equal, the draws look uniform. As one treatment fills up, its count shrinks and it's picked less often; once a count hits zero the treatment drops out of the pool entirely. The arithmetic guarantees that, over the whole batch, each treatment is used exactly its target count of times — there's no slack to converge over a long run, because the urn enforces the target deterministically.
 
-This is the central difference from `weighted-random`: that dispatcher hits target *rates* in expectation given infinite recruitment; `urn` hits target *counts* exactly given enough eligible participants.
+This is the central difference from `weighted-random`: that dispatcher hits target _rates_ in expectation given infinite recruitment; `urn` hits target _counts_ exactly given enough eligible participants.
 
 ### Building `counts`
 
@@ -149,7 +149,7 @@ The pilot conditions stop drawing once their 10 balls are gone; the main conditi
 
 ### Building `decrements`
 
-`decrements` is an **optional** labeled matrix that controls how many balls get removed from each bucket after a successful assignment. The shape is `decrements[row][col]` = "how many balls to remove from treatment `col` when treatment `row` is picked." Rows are the *picked* treatment; columns are the *affected* buckets.
+`decrements` is an **optional** labeled matrix that controls how many balls get removed from each bucket after a successful assignment. The shape is `decrements[row][col]` = "how many balls to remove from treatment `col` when treatment `row` is picked." Rows are the _picked_ treatment; columns are the _affected_ buckets.
 
 The choice to specify `decrements` is binary:
 
@@ -158,7 +158,7 @@ The choice to specify `decrements` is binary:
 
 The "matrix on or off" framing keeps the mental model simple and avoids the footgun where a partial row would silently zero out a self-decrement.
 
-The non-default cases — i.e., the reasons to specify `decrements` at all — are about *coupling*: when picking one treatment should also decrement another, because they share something.
+The non-default cases — i.e., the reasons to specify `decrements` at all — are about _coupling_: when picking one treatment should also decrement another, because they share something.
 
 > **Heads-up.** If a treatment's row has a zero (or missing) self-decrement entry, the treatment will never deplete from its own picks — it can only deplete via cross-coupled rows, if any. The validator surfaces this as a warning. This is intentional behavior for cross-coupled-only designs, but it's much more often a typo, so it's worth checking the warning when you see it.
 
@@ -168,7 +168,7 @@ For three treatments, the implicit matrix is:
 
 ```yaml
 decrements:
-  control:    { control: 1 }
+  control: { control: 1 }
   exposure_A: { exposure_A: 1 }
   exposure_B: { exposure_B: 1 }
 ```
@@ -177,7 +177,7 @@ Each draw consumes exactly one ball from its own bucket. Equivalent to omitting 
 
 #### Pattern 2: Coupled draws (shared resource)
 
-Suppose `moderated_A` and `moderated_B` both consume the same hard-to-recruit pool — both require participants who self-report as professional moderators, and your overall recruitment ceiling on moderators is 30 people. A naive `counts: {moderated_A: 30, moderated_B: 30, unmoderated: 60}` would imply *60* moderator assignments, more than your pipeline can supply. Use off-diagonal decrements to encode the shared resource:
+Suppose `moderated_A` and `moderated_B` both consume the same hard-to-recruit pool — both require participants who self-report as professional moderators, and your overall recruitment ceiling on moderators is 30 people. A naive `counts: {moderated_A: 30, moderated_B: 30, unmoderated: 60}` would imply _60_ moderator assignments, more than your pipeline can supply. Use off-diagonal decrements to encode the shared resource:
 
 ```yaml
 treatments: [moderated_A, moderated_B, unmoderated]
@@ -189,13 +189,13 @@ dispatcher:
     unmoderated: 60
   decrements:
     moderated_A:
-      moderated_A: 1   # self-decrement
-      moderated_B: 1   # cross-decrement: picking A also depletes B's bucket
+      moderated_A: 1 # self-decrement
+      moderated_B: 1 # cross-decrement: picking A also depletes B's bucket
     moderated_B:
-      moderated_A: 1   # cross-decrement: picking B also depletes A's bucket
+      moderated_A: 1 # cross-decrement: picking B also depletes A's bucket
       moderated_B: 1
     unmoderated:
-      unmoderated: 1   # explicit identity — required because we specified `decrements`
+      unmoderated: 1 # explicit identity — required because we specified `decrements`
 ```
 
 Now `moderated_A` and `moderated_B` deplete together: across the two combined, only 30 moderator assignments are made, matching the actual ceiling. Within those 30, the split between A and B is roughly even because both buckets decrement at the same rate.
@@ -256,7 +256,7 @@ Both `counts` and `decrements` can be supplied inline (as in the examples above)
 ```yaml
 dispatcher:
   type: urn
-  counts:     { from: "study1/counts.json" }
+  counts: { from: "study1/counts.json" }
   decrements: { from: "study1/decrements.json" }
 ```
 
@@ -311,6 +311,6 @@ Once every bucket in the urn hits zero, no further assignments can be made. New 
 
 ### Realized vs. target Ns under eligibility constraints
 
-The same feasibility caveat applies to `urn` as it does to `weighted-random` (see [above](#realized-vs-target-rates-under-eligibility-constraints)), with one important difference: `urn` *doesn't renormalize away* from a constrained treatment. If `T_moderated` has 30 balls and a tight eligibility condition that only 20% of recruits satisfy, the urn keeps `T_moderated` in the pool — and draws it every time the tick happens to include enough eligible players. The other treatments still fill in parallel, and `T_moderated` keeps holding out for qualifying arrivals.
+The same feasibility caveat applies to `urn` as it does to `weighted-random` (see [above](#realized-vs-target-rates-under-eligibility-constraints)), with one important difference: `urn` _doesn't renormalize away_ from a constrained treatment. If `T_moderated` has 30 balls and a tight eligibility condition that only 20% of recruits satisfy, the urn keeps `T_moderated` in the pool — and draws it every time the tick happens to include enough eligible players. The other treatments still fill in parallel, and `T_moderated` keeps holding out for qualifying arrivals.
 
 That's the point. The tradeoff is that the batch can't complete until `T_moderated`'s count is drained or no more eligible participants arrive — so either over-recruit by enough margin to satisfy your tightest condition, or accept that the batch may stall on `T_moderated` with un-assignable participants accumulating in the lobby.

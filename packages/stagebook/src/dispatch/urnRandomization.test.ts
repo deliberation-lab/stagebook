@@ -76,72 +76,83 @@ describe("urnRandomization", () => {
   test("omitted decrements equals fully-written identity (behavioral parity)", () => {
     // Pins the "matrix off = identity" default path. If the default
     // ever drifts away from identity, this catches it.
+    //
+    // Sweep multiple seeds so a parity break that only surfaces for
+    // specific RNG sequences doesn't slip through.
     const players = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}` }));
     const playerIds = players.map((p) => p.id);
     const eligibility = emptyEligibility(playerIds, TREATMENTS);
     const counts = { t0: 1, t1: 1, t2: 1 };
+    const identity = {
+      t0: { t0: 1 },
+      t1: { t1: 1 },
+      t2: { t2: 1 },
+    };
 
-    const omitted = urnRandomization({
-      playerIds,
-      treatments: TREATMENTS,
-      counts,
-      eligibility,
-      rng: mulberry32(42),
-    });
-
-    const explicitIdentity = urnRandomization({
-      playerIds,
-      treatments: TREATMENTS,
-      counts,
-      decrements: {
-        t0: { t0: 1 },
-        t1: { t1: 1 },
-        t2: { t2: 1 },
-      },
-      eligibility,
-      rng: mulberry32(42),
-    });
-
-    expect(omitted.assignments).toEqual(explicitIdentity.assignments);
-    expect(omitted.remainingCounts).toEqual(explicitIdentity.remainingCounts);
+    for (const seed of [42, 100, 7, 0xdeadbeef, 1234567]) {
+      const omitted = urnRandomization({
+        playerIds,
+        treatments: TREATMENTS,
+        counts,
+        eligibility,
+        rng: mulberry32(seed),
+      });
+      const explicit = urnRandomization({
+        playerIds,
+        treatments: TREATMENTS,
+        counts,
+        decrements: identity,
+        eligibility,
+        rng: mulberry32(seed),
+      });
+      expect(omitted.assignments, `seed ${seed}`).toEqual(explicit.assignments);
+      expect(omitted.remainingCounts, `seed ${seed}`).toEqual(
+        explicit.remainingCounts,
+      );
+    }
   });
 
   test("missing column within a present row defaults to 0 (behavioral parity)", () => {
     // The two forms should produce identical output: a sparse row is
-    // identical to a dense row with explicit zeros.
+    // identical to a dense row with explicit zeros. Swept across seeds
+    // to catch parity breaks visible only on specific RNG sequences.
     const players = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}` }));
     const playerIds = players.map((p) => p.id);
     const eligibility = emptyEligibility(playerIds, TREATMENTS);
     const counts = { t0: 1, t1: 1, t2: 1 };
+    const sparseDecrements = {
+      t0: { t0: 1 }, // t1 and t2 columns omitted → default to 0
+      t1: { t1: 1 },
+      t2: { t2: 1 },
+    };
+    const denseDecrements = {
+      t0: { t0: 1, t1: 0, t2: 0 },
+      t1: { t0: 0, t1: 1, t2: 0 },
+      t2: { t0: 0, t1: 0, t2: 1 },
+    };
 
-    const sparse = urnRandomization({
-      playerIds,
-      treatments: TREATMENTS,
-      counts,
-      decrements: {
-        t0: { t0: 1 }, // t1 and t2 columns omitted → default to 0
-        t1: { t1: 1 },
-        t2: { t2: 1 },
-      },
-      eligibility,
-      rng: mulberry32(42),
-    });
-
-    const explicit = urnRandomization({
-      playerIds,
-      treatments: TREATMENTS,
-      counts,
-      decrements: {
-        t0: { t0: 1, t1: 0, t2: 0 },
-        t1: { t0: 0, t1: 1, t2: 0 },
-        t2: { t0: 0, t1: 0, t2: 1 },
-      },
-      eligibility,
-      rng: mulberry32(42),
-    });
-
-    expect(sparse.assignments).toEqual(explicit.assignments);
-    expect(sparse.remainingCounts).toEqual(explicit.remainingCounts);
+    for (const seed of [42, 100, 7, 0xdeadbeef, 1234567]) {
+      const sparse = urnRandomization({
+        playerIds,
+        treatments: TREATMENTS,
+        counts,
+        decrements: sparseDecrements,
+        eligibility,
+        rng: mulberry32(seed),
+      });
+      const dense = urnRandomization({
+        playerIds,
+        treatments: TREATMENTS,
+        counts,
+        decrements: denseDecrements,
+        eligibility,
+        rng: mulberry32(seed),
+      });
+      expect(sparse.assignments, `seed ${seed}`).toEqual(dense.assignments);
+      expect(sparse.remainingCounts, `seed ${seed}`).toEqual(
+        dense.remainingCounts,
+      );
+    }
   });
 
   test("key order in counts is not significant (semantics are by-label)", () => {
