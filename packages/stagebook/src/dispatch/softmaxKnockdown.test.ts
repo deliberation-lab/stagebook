@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { weightedKnockdown } from "./weightedKnockdown.js";
+import { softmaxKnockdown } from "./softmaxKnockdown.js";
 import { makeEligibilityTable } from "./makeEligibilityTable.js";
 import { mulberry32 } from "./contract.js";
 import type { Treatment } from "./types.js";
@@ -19,9 +19,9 @@ const THREE_TREATMENTS: Treatment[] = [
   { name: "t2", playerCount: 2 },
 ];
 
-describe("weightedKnockdown — basic shape + validation", () => {
+describe("softmaxKnockdown — basic shape + validation", () => {
   test("empty players → no assignments, payoffs pass through unchanged", () => {
-    const result = weightedKnockdown({
+    const result = softmaxKnockdown({
       playerIds: [],
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 1, t1: 2 },
@@ -36,7 +36,7 @@ describe("weightedKnockdown — basic shape + validation", () => {
   test('"equal" payoffs expand to 1 per treatment in newState', () => {
     // No players → no picks → no knockdown applied → newState is the
     // pre-expansion identity. Verifies the `"equal"` sugar.
-    const result = weightedKnockdown({
+    const result = softmaxKnockdown({
       playerIds: [],
       treatments: THREE_TREATMENTS,
       payoffs: "equal",
@@ -49,7 +49,7 @@ describe("weightedKnockdown — basic shape + validation", () => {
 
   test("rejects payoffs with extra / missing labels", () => {
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds: ["p0", "p1"],
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1 },
@@ -59,7 +59,7 @@ describe("weightedKnockdown — basic shape + validation", () => {
       }),
     ).toThrow(/labels do not match.*missing.*t1/);
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds: ["p0", "p1"],
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1, t1: 1, tX: 1 },
@@ -72,7 +72,7 @@ describe("weightedKnockdown — basic shape + validation", () => {
 
   test("rejects negative temperature", () => {
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds: [],
         treatments: TWO_TREATMENTS,
         payoffs: "equal",
@@ -86,7 +86,7 @@ describe("weightedKnockdown — basic shape + validation", () => {
 
   test("rejects non-finite temperature", () => {
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds: [],
         treatments: TWO_TREATMENTS,
         payoffs: "equal",
@@ -108,9 +108,9 @@ describe("weightedKnockdown — basic shape + validation", () => {
       knockdowns: 0.5,
       eligibility: emptyEligibility(playerIds, TWO_TREATMENTS),
     } as const;
-    const a = weightedKnockdown({ ...args, rng: mulberry32(42) });
-    const b = weightedKnockdown({ ...args, rng: mulberry32(42) });
-    const c = weightedKnockdown({ ...args, rng: mulberry32(43) });
+    const a = softmaxKnockdown({ ...args, rng: mulberry32(42) });
+    const b = softmaxKnockdown({ ...args, rng: mulberry32(42) });
+    const c = softmaxKnockdown({ ...args, rng: mulberry32(43) });
     expect(a.assignments).toEqual(b.assignments);
     expect(a.newState.payoffs).toEqual(b.newState.payoffs);
     expect(a.assignments).not.toEqual(c.assignments);
@@ -120,7 +120,7 @@ describe("weightedKnockdown — basic shape + validation", () => {
     const payoffs = { t0: 1, t1: 2 };
     const snapshot = { ...payoffs };
     const playerIds = ["p0", "p1", "p2", "p3"];
-    weightedKnockdown({
+    softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs,
@@ -132,12 +132,12 @@ describe("weightedKnockdown — basic shape + validation", () => {
   });
 });
 
-describe("weightedKnockdown — selection rule (T=0, argmax + tiebreak)", () => {
+describe("softmaxKnockdown — selection rule (T=0, argmax + tiebreak)", () => {
   test("T=0 picks the strict argmax when payoffs are distinct", () => {
     // t1 has the strictly highest payoff; with no knockdown, every
     // assignment should be t1 until the pool is exhausted.
     const playerIds = Array.from({ length: 20 }, (_, i) => `p${i}`);
-    const result = weightedKnockdown({
+    const result = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 1, t1: 100 },
@@ -159,7 +159,7 @@ describe("weightedKnockdown — selection rule (T=0, argmax + tiebreak)", () => 
     const counts: Record<string, number> = { t0: 0, t1: 0, t2: 0 };
     for (let m = 0; m < M; m += 1) {
       const playerIds = [`p_${m}_0`, `p_${m}_1`];
-      const r = weightedKnockdown({
+      const r = softmaxKnockdown({
         playerIds,
         treatments: THREE_TREATMENTS,
         payoffs: "equal",
@@ -181,7 +181,7 @@ describe("weightedKnockdown — selection rule (T=0, argmax + tiebreak)", () => 
   });
 });
 
-describe("weightedKnockdown — selection rule (T>0, softmax)", () => {
+describe("softmaxKnockdown — selection rule (T>0, softmax)", () => {
   test("T → very large degenerates to uniform sampling (χ²)", () => {
     // With T = 1e6, the softmax weights are all ≈ 1 (max-subtract
     // makes the differences vanish in the exponent). Sampling should
@@ -192,7 +192,7 @@ describe("weightedKnockdown — selection rule (T>0, softmax)", () => {
     const counts: Record<string, number> = { t0: 0, t1: 0, t2: 0 };
     for (let m = 0; m < M; m += 1) {
       const playerIds = [`p_${m}_0`, `p_${m}_1`];
-      const r = weightedKnockdown({
+      const r = softmaxKnockdown({
         playerIds,
         treatments: THREE_TREATMENTS,
         payoffs: { t0: 1, t1: 5, t2: 100 }, // wildly unequal payoffs
@@ -225,7 +225,7 @@ describe("weightedKnockdown — selection rule (T>0, softmax)", () => {
     const counts: Record<string, number> = { t0: 0, t1: 0 };
     for (let m = 0; m < M; m += 1) {
       const playerIds = [`p_${m}_0`, `p_${m}_1`];
-      const r = weightedKnockdown({
+      const r = softmaxKnockdown({
         playerIds,
         treatments: TWO_TREATMENTS,
         payoffs,
@@ -250,7 +250,7 @@ describe("weightedKnockdown — selection rule (T>0, softmax)", () => {
     // With a tiny temperature, softmax should sample the higher
     // payoff almost always — like argmax but not exactly.
     const playerIds = Array.from({ length: 100 }, (_, i) => `p${i}`);
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 1, t1: 2 },
@@ -266,10 +266,10 @@ describe("weightedKnockdown — selection rule (T>0, softmax)", () => {
   });
 });
 
-describe("weightedKnockdown — knockdown shapes", () => {
+describe("softmaxKnockdown — knockdown shapes", () => {
   test('"none" leaves payoffs unchanged across picks', () => {
     const playerIds = ["p0", "p1", "p2", "p3"];
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 1, t1: 2 },
@@ -286,7 +286,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
     // t0 → payoffs become {t0: 5, t1: 1}. Second pick is still t0
     // → {t0: 2.5, t1: 1}. Verify the trajectory.
     const playerIds = ["p0", "p1", "p2", "p3"];
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 10, t1: 1 },
@@ -305,7 +305,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
     // at its own rate. With a fixed seed we can verify a specific
     // trajectory.
     const playerIds = ["p0", "p1", "p2", "p3"];
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 5, t1: 5 },
@@ -344,7 +344,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
     // tiebreak determines next pick. Verify the final state
     // reflects the cross-coupling on t1.
     const playerIds = ["p0", "p1", "p2", "p3"];
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: THREE_TREATMENTS,
       payoffs: { t0: 10, t1: 1, t2: 5 },
@@ -368,7 +368,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
     // t1 → both halve again. After K picks (in any order) every
     // payoff has been multiplied by 0.5^K.
     const playerIds = Array.from({ length: 8 }, (_, i) => `p${i}`); // 4 groups
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 10, t1: 10 }, // equal → tiebreak alternates roughly
@@ -393,7 +393,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
     // to 1. Picking t0 should decay only t0; t1 and t2 should be
     // unchanged.
     const playerIds = ["p0", "p1"];
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: THREE_TREATMENTS,
       payoffs: { t0: 10, t1: 1, t2: 1 }, // t0 is argmax
@@ -417,7 +417,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
   test("LabeledScalars knockdown rejects mismatched labels", () => {
     const playerIds = ["p0", "p1"];
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds,
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1, t1: 1 },
@@ -433,7 +433,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
     // direct dispatcher calls (bypassing validation) also fail loudly.
     const playerIds = ["p0", "p1"];
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds,
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1, t1: 1 },
@@ -451,7 +451,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
   test("knockdowns runtime guard: rejects non-number labeled-scalar values", () => {
     const playerIds = ["p0", "p1"];
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds,
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1, t1: 1 },
@@ -468,7 +468,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
   test("knockdowns runtime guard: rejects array-shaped rows in matrix", () => {
     const playerIds = ["p0", "p1"];
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds,
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1, t1: 1 },
@@ -485,7 +485,7 @@ describe("weightedKnockdown — knockdown shapes", () => {
   test("LabeledMatrix knockdown rejects missing rows", () => {
     const playerIds = ["p0", "p1"];
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds,
         treatments: TWO_TREATMENTS,
         payoffs: { t0: 1, t1: 1 },
@@ -500,14 +500,14 @@ describe("weightedKnockdown — knockdown shapes", () => {
   });
 });
 
-describe("weightedKnockdown — state-in/state-out", () => {
+describe("softmaxKnockdown — state-in/state-out", () => {
   test("threading newState.payoffs into a follow-up call works", () => {
     // Pin that the returned payoffs are shaped to feed straight back
     // in — this is the host's loop across dispatch ticks.
     const players1 = Array.from({ length: 4 }, (_, i) => ({ id: `p1_${i}` }));
     const players2 = Array.from({ length: 4 }, (_, i) => ({ id: `p2_${i}` }));
 
-    const first = weightedKnockdown({
+    const first = softmaxKnockdown({
       playerIds: players1.map((p) => p.id),
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 10, t1: 5 },
@@ -523,7 +523,7 @@ describe("weightedKnockdown — state-in/state-out", () => {
     // Feed the result straight back as the next call's `payoffs` —
     // no shape adaptation needed.
     expect(() =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds: players2.map((p) => p.id),
         treatments: TWO_TREATMENTS,
         payoffs: first.newState.payoffs,
@@ -538,10 +538,10 @@ describe("weightedKnockdown — state-in/state-out", () => {
   });
 });
 
-describe("weightedKnockdown — exhaustion", () => {
+describe("softmaxKnockdown — exhaustion", () => {
   test("all-zero payoffs → no assignment", () => {
     const playerIds = ["p0", "p1", "p2", "p3"];
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 0, t1: 0 },
@@ -557,7 +557,7 @@ describe("weightedKnockdown — exhaustion", () => {
     // t0, its payoff drops to 0, then only t1 is eligible. With 8
     // players × playerCount 2 = 4 groups: 1 t0 + 3 t1.
     const playerIds = Array.from({ length: 8 }, (_, i) => `p${i}`);
-    const r = weightedKnockdown({
+    const r = softmaxKnockdown({
       playerIds,
       treatments: TWO_TREATMENTS,
       payoffs: { t0: 10, t1: 5 },

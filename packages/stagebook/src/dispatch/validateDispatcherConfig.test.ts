@@ -351,11 +351,11 @@ describe("validateDispatcherConfig", () => {
     });
   });
 
-  describe("weighted-knockdown", () => {
+  describe("softmax-knockdown", () => {
     test('accepts "equal" payoffs + "none" knockdowns (simplest valid config)', () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: "none",
         },
@@ -367,7 +367,7 @@ describe("validateDispatcherConfig", () => {
     test("accepts labeled-scalars payoffs + scalar knockdown", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: { t0: 1.5, t1: 0.8, t2: 2 },
           knockdowns: 0.5,
         },
@@ -379,7 +379,7 @@ describe("validateDispatcherConfig", () => {
     test("accepts labeled-scalars knockdowns (per-treatment self-decay)", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: { t0: 0.5, t1: 0.7, t2: 0.9 },
         },
@@ -391,7 +391,7 @@ describe("validateDispatcherConfig", () => {
     test("accepts labeled-matrix knockdowns (cross-treatment decay)", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: {
             t0: { t0: 0.5, t1: 0.9, t2: 1 },
@@ -407,7 +407,7 @@ describe("validateDispatcherConfig", () => {
     test("accepts optional temperature", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: "none",
           temperature: 1,
@@ -420,7 +420,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects positional-array payoffs (would mislead — no positional form supported)", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: [1, 2, 3],
           knockdowns: "none",
         },
@@ -434,7 +434,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects unresolved file references", () => {
       const a = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: { from: "./p.json" },
           knockdowns: "none",
         },
@@ -443,7 +443,7 @@ describe("validateDispatcherConfig", () => {
       expect(a.ok).toBe(false);
       const b = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: { from: "./k.json" },
         },
@@ -455,7 +455,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects payoffs with mismatched labels", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: { t0: 1 }, // missing t1, t2
           knockdowns: "none",
         },
@@ -469,7 +469,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects scalar knockdown outside [0, 1]", () => {
       const a = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: 1.5,
         },
@@ -478,7 +478,7 @@ describe("validateDispatcherConfig", () => {
       expect(a.ok).toBe(false);
       const b = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: -0.1,
         },
@@ -490,7 +490,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects labeled-matrix with missing rows (strict-literal rule)", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: {
             t0: { t0: 0.5, t1: 0.9, t2: 1 },
@@ -507,7 +507,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects unknown row labels in labeled-matrix", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: {
             t0: { t0: 0.5 },
@@ -526,7 +526,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects unknown column labels in labeled-matrix", () => {
       const r = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: {
             t0: { t0: 0.5, tX: 0.5 },
@@ -544,7 +544,7 @@ describe("validateDispatcherConfig", () => {
     test("rejects negative / non-finite temperature", () => {
       const a = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: "none",
           temperature: -1,
@@ -554,7 +554,7 @@ describe("validateDispatcherConfig", () => {
       expect(a.ok).toBe(false);
       const b = validateDispatcherConfig(
         {
-          type: "weighted-knockdown",
+          type: "softmax-knockdown",
           payoffs: "equal",
           knockdowns: "none",
           temperature: Infinity,
