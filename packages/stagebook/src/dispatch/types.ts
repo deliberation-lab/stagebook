@@ -107,6 +107,15 @@ export interface UniformRandomDispatcherConfig {
   type: "uniform-random";
 }
 
+export interface WeightedRandomDispatcherConfig {
+  type: "weighted-random";
+  /** Non-negative reals interpreted up to scale. `[1, 1, 1]`, `[100, 100, 100]`,
+   *  and `[0.33, 0.33, 0.33]` produce identical samplers. Length must match
+   *  the treatment count. A zero weight means "never pick this treatment"
+   *  (useful for de-activating a condition without renumbering). */
+  weights: number[] | FileReference;
+}
+
 export interface UrnDispatcherConfig {
   type: "urn";
   counts: number[] | FileReference;
@@ -126,5 +135,6 @@ export interface LocalPenalizationDispatcherConfig {
 
 export type DispatcherConfig =
   | UniformRandomDispatcherConfig
+  | WeightedRandomDispatcherConfig
   | UrnDispatcherConfig
   | LocalPenalizationDispatcherConfig;
