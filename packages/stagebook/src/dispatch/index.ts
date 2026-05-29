@@ -15,10 +15,10 @@ export {
   type UrnRandomizationResult,
 } from "./urnRandomization.js";
 export {
-  weightedKnockdown,
-  type WeightedKnockdownArgs,
-  type WeightedKnockdownResult,
-} from "./weightedKnockdown.js";
+  softmaxKnockdown,
+  type SoftmaxKnockdownArgs,
+  type SoftmaxKnockdownResult,
+} from "./softmaxKnockdown.js";
 export {
   validateDispatcherConfig,
   type DispatcherConfigDiagnostic,

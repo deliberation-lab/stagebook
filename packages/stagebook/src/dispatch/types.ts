@@ -186,8 +186,8 @@ export interface UrnDispatcherConfig {
  *      rule mirrors urn: row labels must equal the treatment name set,
  *      missing column entries within a present row default to 1
  *      (multiplicative identity, no decay on that column). */
-export interface WeightedKnockdownDispatcherConfig {
-  type: "weighted-knockdown";
+export interface SoftmaxKnockdownDispatcherConfig {
+  type: "softmax-knockdown";
   /** Per-treatment payoffs, keyed by name. `"equal"` is sugar for
    *  `{T_a: 1, T_b: 1, ...}` over the full treatment set; useful for
    *  batches with no informative prior. Label set (when given as an
@@ -205,4 +205,4 @@ export type DispatcherConfig =
   | UniformRandomDispatcherConfig
   | WeightedRandomDispatcherConfig
   | UrnDispatcherConfig
-  | WeightedKnockdownDispatcherConfig;
+  | SoftmaxKnockdownDispatcherConfig;

@@ -8,7 +8,7 @@ import type {
 import { tryFillTreatment } from "./tryFillTreatment.js";
 import { validateLabelSet } from "./validateLabelSet.js";
 
-export interface WeightedKnockdownArgs {
+export interface SoftmaxKnockdownArgs {
   playerIds: string[];
   treatments: Treatment[];
   /** Per-treatment payoffs, keyed by name. `"equal"` is sugar for
@@ -24,7 +24,7 @@ export interface WeightedKnockdownArgs {
   rng: () => number;
 }
 
-export interface WeightedKnockdownResult {
+export interface SoftmaxKnockdownResult {
   assignments: Assignment[];
   /** Updated payoff vector after the within-batch knockdowns. The host
    *  threads this back into the next call's `payoffs` to carry the
@@ -75,7 +75,7 @@ export interface WeightedKnockdownResult {
  *   - Scalar knockdown of `0` (allowed): a single pick zeros that
  *     treatment's payoff for the rest of the batch.
  */
-export function weightedKnockdown({
+export function softmaxKnockdown({
   playerIds,
   treatments,
   payoffs,
@@ -83,13 +83,13 @@ export function weightedKnockdown({
   temperature = 0,
   eligibility,
   rng,
-}: WeightedKnockdownArgs): WeightedKnockdownResult {
+}: SoftmaxKnockdownArgs): SoftmaxKnockdownResult {
   const n = treatments.length;
   const names = treatments.map((t) => t.name);
 
   if (!Number.isFinite(temperature) || temperature < 0) {
     throw new Error(
-      `weightedKnockdown: temperature must be a finite number >= 0, got ${String(temperature)}`,
+      `softmaxKnockdown: temperature must be a finite number >= 0, got ${String(temperature)}`,
     );
   }
 
@@ -98,7 +98,7 @@ export function weightedKnockdown({
   if (payoffs === "equal") {
     positionalPayoffs = new Array(n).fill(1) as number[];
   } else {
-    validateLabelSet("weightedKnockdown", "payoffs", payoffs, names);
+    validateLabelSet("softmaxKnockdown", "payoffs", payoffs, names);
     positionalPayoffs = names.map((name) => payoffs[name]);
   }
 
@@ -233,7 +233,7 @@ function buildKnockdownApplier(
   }
   if (typeof knockdowns !== "object" || knockdowns === null) {
     throw new Error(
-      `weightedKnockdown: knockdowns must be "none", a number, a labeled scalars object, or a labeled matrix; got ${typeof knockdowns}`,
+      `softmaxKnockdown: knockdowns must be "none", a number, a labeled scalars object, or a labeled matrix; got ${typeof knockdowns}`,
     );
   }
   // Discriminate LabeledScalars vs LabeledMatrix by the type of the
@@ -247,7 +247,7 @@ function buildKnockdownApplier(
   const firstKey = Object.keys(knockdownsRec)[0];
   if (firstKey === undefined) {
     throw new Error(
-      `weightedKnockdown: knockdowns object is empty — expected labels matching the treatment name set`,
+      `softmaxKnockdown: knockdowns object is empty — expected labels matching the treatment name set`,
     );
   }
   const firstValue = knockdownsRec[firstKey];
@@ -257,12 +257,12 @@ function buildKnockdownApplier(
     for (const [k, v] of Object.entries(knockdownsRec)) {
       if (typeof v !== "number") {
         throw new Error(
-          `weightedKnockdown: knockdowns has mixed value types — "${firstKey}" is a number (labeled scalars) but "${k}" is ${typeof v}. Use uniform shape: all numbers (per-treatment self-decay) or all objects (matrix).`,
+          `softmaxKnockdown: knockdowns has mixed value types — "${firstKey}" is a number (labeled scalars) but "${k}" is ${typeof v}. Use uniform shape: all numbers (per-treatment self-decay) or all objects (matrix).`,
         );
       }
     }
     const scalars = knockdownsRec as LabeledScalars;
-    validateLabelSet("weightedKnockdown", "knockdowns", scalars, names);
+    validateLabelSet("softmaxKnockdown", "knockdowns", scalars, names);
     const positionalFactors = names.map((name) => scalars[name]);
     return (current, pickedIdx) =>
       current.map((p, i) =>
@@ -271,7 +271,7 @@ function buildKnockdownApplier(
   }
   if (typeof firstValue !== "object" || firstValue === null) {
     throw new Error(
-      `weightedKnockdown: knockdowns values must be numbers (per-treatment self-decay) or objects (matrix); got ${typeof firstValue}`,
+      `softmaxKnockdown: knockdowns values must be numbers (per-treatment self-decay) or objects (matrix); got ${typeof firstValue}`,
     );
   }
   // LabeledMatrix — verify every row is a non-array object and every
@@ -279,13 +279,13 @@ function buildKnockdownApplier(
   for (const [rowName, row] of Object.entries(knockdownsRec)) {
     if (typeof row !== "object" || row === null || Array.isArray(row)) {
       throw new Error(
-        `weightedKnockdown: knockdowns has mixed value types — "${firstKey}" is an object (matrix) but "${rowName}" is ${Array.isArray(row) ? "an array" : typeof row}. Use uniform shape: all numbers (per-treatment self-decay) or all objects (matrix).`,
+        `softmaxKnockdown: knockdowns has mixed value types — "${firstKey}" is an object (matrix) but "${rowName}" is ${Array.isArray(row) ? "an array" : typeof row}. Use uniform shape: all numbers (per-treatment self-decay) or all objects (matrix).`,
       );
     }
     for (const [colName, v] of Object.entries(row as Record<string, unknown>)) {
       if (typeof v !== "number") {
         throw new Error(
-          `weightedKnockdown: knockdowns["${rowName}"]["${colName}"] must be a number, got ${typeof v}`,
+          `softmaxKnockdown: knockdowns["${rowName}"]["${colName}"] must be a number, got ${typeof v}`,
         );
       }
     }
@@ -294,7 +294,7 @@ function buildKnockdownApplier(
   // Strict literal — same rule as urn's decrements: every treatment
   // must have a row. Missing column entries within a present row
   // default to 1 (multiplicative identity, no decay on that column).
-  validateLabelSet("weightedKnockdown", "knockdowns rows", matrix, names);
+  validateLabelSet("softmaxKnockdown", "knockdowns rows", matrix, names);
   // Pre-materialize rows as positional vectors so the inner loop is
   // cheap arithmetic, not string lookup. Missing columns default to 1.
   const positionalMatrix: number[][] = names.map((rowName) =>

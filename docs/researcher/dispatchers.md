@@ -7,13 +7,15 @@ A **dispatcher** is the algorithm that decides which treatment each group of par
 | `uniform-random`     | nothing                                                   | Each group's treatment is an independent uniform draw                 | Quick prototypes; you have no balance claim to make in a methods section                               |
 | `weighted-random`    | one weight per treatment                                  | Each group's treatment is an independent draw with `P(T) ∝ weight(T)` | You want unequal long-run rates (e.g. 80/10/10) but don't need exact-N targets                         |
 | `urn`                | target counts per treatment (+ optional decrement matrix) | Each treatment is used exactly its target count over the batch        | You want exact target Ns or cross-treatment locality (e.g. "don't pick the same label twice in a row") |
-| `weighted-knockdown` | payoffs + knockdowns + optional temperature               | Each pick is softmax-sampled over the running payoffs; picked treatments' payoffs decay per the knockdown rule | You're running a researcher-managed Bayesian-optimization surrogate between batches; want softmax-based exploration within the batch |
+| `softmax-knockdown` | payoffs + knockdowns + optional temperature               | Each pick is softmax-sampled over the running payoffs; picked treatments' payoffs decay per the knockdown rule | You're running a researcher-managed Bayesian-optimization surrogate between batches; want softmax-based exploration within the batch |
 
 The first three are stateless or carry only a small piece of state (urn's remaining counts). All four pre-compute eligibility from each participant's data; the algorithm itself sees only IDs, treatment structure, and a boolean eligibility lookup — never the underlying responses.
 
 > **Stagebook 0.14 breaking change.** `weighted-random`'s `weights` and `urn`'s `counts` and `decrements` are now **labeled objects** keyed by treatment name. The previous positional-array form (`counts: [10, 10, 10]`, `decrements: [[1,0,0], ...]`) was removed because it silently mis-mapped when treatments were renamed or reordered. The validator now rejects old positional configs with a migration hint pointing to this document; see [Why labels?](#why-labels) for the rationale.
 
-> **Stagebook 0.15 breaking change.** The `local-penalization` dispatcher (config-shape placeholder; implementation lived in deliberation-lab) is replaced by `weighted-knockdown` — a simpler, in-stagebook implementation with explicit state-in/state-out and softmax-based exploration. Existing batch configs using `type: "local-penalization"` need to be updated to `type: "weighted-knockdown"` and the optional `temperature` field added. See [`weighted-knockdown` in detail](#weighted-knockdown-in-detail) below for the new shape.
+> **Stagebook 0.15 breaking change.** The `local-penalization` dispatcher (config-shape placeholder; implementation lived in deliberation-lab) was replaced by a simpler in-stagebook implementation with explicit state-in/state-out and softmax-based exploration. Batch configs using `type: "local-penalization"` need to be migrated; see [`softmax-knockdown` in detail](#softmax-knockdown-in-detail) below for the new shape.
+>
+> **Stagebook 0.16 breaking change.** The dispatcher introduced in 0.15 was renamed from `weighted-knockdown` to `softmax-knockdown`. The original name was ambiguous — it could be read as "weighted-random with knockdowns" when the actual selection rule is softmax. The new name names the selection mechanism explicitly. Algorithm and config shape are unchanged; the only migration needed is `type: "weighted-knockdown"` → `type: "softmax-knockdown"`. Exported symbols follow the same rename: `weightedKnockdown` → `softmaxKnockdown`, `WeightedKnockdownDispatcherConfig` → `SoftmaxKnockdownDispatcherConfig`.
 
 ## `weighted-random` in detail
 
@@ -317,9 +319,9 @@ The same feasibility caveat applies to `urn` as it does to `weighted-random` (se
 
 That's the point. The tradeoff is that the batch can't complete until `T_moderated`'s count is drained or no more eligible participants arrive — so either over-recruit by enough margin to satisfy your tightest condition, or accept that the batch may stall on `T_moderated` with un-assignable participants accumulating in the lobby.
 
-## `weighted-knockdown` in detail
+## `softmax-knockdown` in detail
 
-Reach for `weighted-knockdown` when you're running a **researcher-managed Bayesian-optimization surrogate** between batches: you have an external model that produces a payoff vector (your current estimate of treatment utility), you ship it to the batch, and you want the dispatcher to sample-with-exploration within the batch while down-weighting treatments you've already assigned to. Between batches, you update your surrogate offline (from collected outcome data) and ship a new payoff vector to the next batch.
+Reach for `softmax-knockdown` when you're running a **researcher-managed Bayesian-optimization surrogate** between batches: you have an external model that produces a payoff vector (your current estimate of treatment utility), you ship it to the batch, and you want the dispatcher to sample-with-exploration within the batch while down-weighting treatments you've already assigned to. Between batches, you update your surrogate offline (from collected outcome data) and ship a new payoff vector to the next batch.
 
 This is conceptually [Gonzalez et al. 2016](https://arxiv.org/abs/1505.08052)'s "Batch BO via Local Penalization" with the within-batch acquisition function held static (= the static payoff vector) and the local penalization expressed as a knockdown rule. Stagebook ships the algorithm; your offline solver supplies the payoffs.
 
@@ -327,7 +329,7 @@ The minimal config:
 
 ```yaml
 dispatcher:
-  type: weighted-knockdown
+  type: softmax-knockdown
   payoffs:
     T_control: 1
     T_exposure_A: 1.5
@@ -369,7 +371,7 @@ If picking `T_arm_a` should also discourage `T_arm_b` (e.g. because they share a
 
 ```yaml
 dispatcher:
-  type: weighted-knockdown
+  type: softmax-knockdown
   payoffs:
     T_arm_a: 1
     T_arm_b: 1
@@ -391,7 +393,7 @@ For studies with many treatments arranged in a continuous space, generate the ma
 
 ```yaml
 dispatcher:
-  type: weighted-knockdown
+  type: softmax-knockdown
   payoffs: { from: "study1/payoffs.json" }
   knockdowns: { from: "study1/knockdowns.json" }
   temperature: 0.5
@@ -439,7 +441,7 @@ let payoffs: LabeledScalars | "equal" = "equal";
 //   let payoffs: LabeledScalars = { T_a: 1.5, T_b: 0.8, T_control: 1.0 };
 
 for (const tick of batch) {
-  const result = weightedKnockdown({
+  const result = softmaxKnockdown({
     playerIds: tick.playerIds,
     treatments,
     payoffs, // ← carries the within-batch attenuation forward

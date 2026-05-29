@@ -7,7 +7,7 @@ import { buildEligibilityForScenario, runContractSuite } from "./contract.js";
 import { uniformRandom } from "./uniformRandom.js";
 import { weightedRandom } from "./weightedRandom.js";
 import { urnRandomization } from "./urnRandomization.js";
-import { weightedKnockdown } from "./weightedKnockdown.js";
+import { softmaxKnockdown } from "./softmaxKnockdown.js";
 import type { LabeledMatrix, LabeledScalars } from "./types.js";
 
 runContractSuite("uniform-random", ({ scenario, rng }) => {
@@ -90,7 +90,7 @@ runContractSuite("urn", ({ scenario, rng }) => {
   };
 });
 
-runContractSuite("weighted-knockdown", ({ scenario, rng }) => {
+runContractSuite("softmax-knockdown", ({ scenario, rng }) => {
   const eligibility = buildEligibilityForScenario(scenario);
   // Random per-scenario payoffs and knockdowns. Mix:
   //   - 30% all-equal payoffs (the "no prior" base case)
@@ -133,7 +133,7 @@ runContractSuite("weighted-knockdown", ({ scenario, rng }) => {
   return {
     params: { payoffs, knockdowns, temperature },
     dispatch: () =>
-      weightedKnockdown({
+      softmaxKnockdown({
         playerIds: scenario.players.map((p) => p.id),
         treatments: scenario.treatments,
         payoffs,

@@ -2,7 +2,7 @@ import type {
   DispatcherConfig,
   UniformRandomDispatcherConfig,
   UrnDispatcherConfig,
-  WeightedKnockdownDispatcherConfig,
+  SoftmaxKnockdownDispatcherConfig,
   WeightedRandomDispatcherConfig,
 } from "./types.js";
 
@@ -45,8 +45,12 @@ export interface DispatcherConfigValidationResult {
  *     `{[treatmentName]: nonNegFiniteReal}`. Label set must equal the
  *     treatment name set. All-zero is a warning, not an error.
  *   - `uniform-random` — no params; stray fields rejected.
- *   - `local-penalization` — discriminator recognized; deeper
- *     validation lives in deliberation-lab.
+ *   - `softmax-knockdown.payoffs` — `"equal"`, labeled object
+ *     `{[treatmentName]: nonNegFiniteReal}`, or file reference;
+ *     `softmax-knockdown.knockdowns` — `"none"`, scalar in [0, 1],
+ *     labeled scalars (per-treatment self-decay), or labeled matrix
+ *     (strict literal — every treatment must have a row);
+ *     `softmax-knockdown.temperature` (optional) — finite number ≥ 0.
  *
  * Old positional-array forms get a clear migration-hint error (we
  * shipped them as the API in v0.12-v0.13 but reject them from v0.14
@@ -80,15 +84,15 @@ export function validateDispatcherConfig(
       );
     case "urn":
       return validateUrn(config as UrnDispatcherConfig, treatmentNames);
-    case "weighted-knockdown":
-      return validateWeightedKnockdown(
-        config as WeightedKnockdownDispatcherConfig,
+    case "softmax-knockdown":
+      return validateSoftmaxKnockdown(
+        config as SoftmaxKnockdownDispatcherConfig,
         treatmentNames,
       );
     default:
       push(
         "type",
-        `unknown dispatcher type "${c.type}" — expected one of: uniform-random, weighted-random, urn, weighted-knockdown`,
+        `unknown dispatcher type "${c.type}" — expected one of: uniform-random, weighted-random, urn, softmax-knockdown`,
       );
       return { ok: false, diagnostics };
   }
@@ -362,8 +366,8 @@ function validateLabeledScalarSet(
   }
 }
 
-function validateWeightedKnockdown(
-  config: WeightedKnockdownDispatcherConfig,
+function validateSoftmaxKnockdown(
+  config: SoftmaxKnockdownDispatcherConfig,
   treatmentNames: string[],
 ): DispatcherConfigValidationResult {
   const diagnostics: DispatcherConfigDiagnostic[] = [];
@@ -375,7 +379,7 @@ function validateWeightedKnockdown(
   if (!("payoffs" in config)) {
     push(
       "payoffs",
-      '`weighted-knockdown` dispatcher requires a `payoffs` field — `"equal"`, a map keyed by treatment name, or a file reference',
+      '`softmax-knockdown` dispatcher requires a `payoffs` field — `"equal"`, a map keyed by treatment name, or a file reference',
     );
     return { ok: false, diagnostics };
   }
@@ -415,7 +419,7 @@ function validateWeightedKnockdown(
   if (!("knockdowns" in config)) {
     push(
       "knockdowns",
-      '`weighted-knockdown` dispatcher requires a `knockdowns` field — `"none"`, a scalar in (0, 1], a labeled scalars map, or a labeled matrix',
+      '`softmax-knockdown` dispatcher requires a `knockdowns` field — `"none"`, a scalar in (0, 1], a labeled scalars map, or a labeled matrix',
     );
     return { ok: false, diagnostics };
   }

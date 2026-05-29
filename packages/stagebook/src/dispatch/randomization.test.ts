@@ -733,9 +733,9 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
 
 // ─── Weighted-knockdown suite ──────────────────────────────────────
 
-import { weightedKnockdown } from "./weightedKnockdown.js";
+import { softmaxKnockdown } from "./softmaxKnockdown.js";
 
-describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
+describe("softmaxKnockdown: randomization properties (α=1e-4)", () => {
   // Properties that hold for any softmax + knockdown algorithm at any
   // parameterization. Algorithm-specific claims (knockdown decay
   // shape, softmax distribution at specific T) are pinned by the unit
@@ -747,13 +747,13 @@ describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
     players: { id: string }[],
     seed: number,
     treatments = T_ONE,
-    payoffs: Parameters<typeof weightedKnockdown>[0]["payoffs"] = "equal",
-    knockdowns: Parameters<typeof weightedKnockdown>[0]["knockdowns"] = "none",
+    payoffs: Parameters<typeof softmaxKnockdown>[0]["payoffs"] = "equal",
+    knockdowns: Parameters<typeof softmaxKnockdown>[0]["knockdowns"] = "none",
     temperature = 0,
   ): DispatchResult {
     const playerIds = players.map((p) => p.id);
     const eligibility = emptyEligibility(playerIds, treatments);
-    const { assignments } = weightedKnockdown({
+    const { assignments } = softmaxKnockdown({
       playerIds,
       treatments,
       payoffs,
@@ -896,7 +896,7 @@ describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
     for (let m = 0; m < M; m += 1) {
       const playerIds = [`p_${m}_0`, `p_${m}_1`];
       const eligibility = emptyEligibility(playerIds, treatments);
-      const { assignments } = weightedKnockdown({
+      const { assignments } = softmaxKnockdown({
         playerIds,
         treatments,
         payoffs,
@@ -928,7 +928,7 @@ describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
     ];
     const playerIds = Array.from({ length: 14 }, (_, i) => `p${i}`); // 7 groups
     const eligibility = emptyEligibility(playerIds, treatments);
-    const { assignments, newState } = weightedKnockdown({
+    const { assignments, newState } = softmaxKnockdown({
       playerIds,
       treatments,
       payoffs: { t0: 100, t1: 1 },
@@ -971,7 +971,7 @@ describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
     for (let m = 0; m < M; m += 1) {
       const playerIds = [`p_${m}_0`, `p_${m}_1`];
       const eligibility = emptyEligibility(playerIds, treatments);
-      const { assignments } = weightedKnockdown({
+      const { assignments } = softmaxKnockdown({
         playerIds,
         treatments,
         payoffs: shifted,
@@ -1023,7 +1023,7 @@ describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
     for (let m = 0; m < M; m += 1) {
       const playerIds = [`p_${m}_0`, `p_${m}_1`];
       const eligibility = emptyEligibility(playerIds, treatments);
-      const { assignments } = weightedKnockdown({
+      const { assignments } = softmaxKnockdown({
         playerIds,
         treatments,
         payoffs,
@@ -1057,7 +1057,7 @@ describe("weightedKnockdown: randomization properties (α=1e-4)", () => {
     for (let tick = 0; tick < 20; tick += 1) {
       const playerIds = Array.from({ length: 6 }, (_, i) => `p_${tick}_${i}`);
       const eligibility = emptyEligibility(playerIds, treatments);
-      const r = weightedKnockdown({
+      const r = softmaxKnockdown({
         playerIds,
         treatments,
         payoffs,
