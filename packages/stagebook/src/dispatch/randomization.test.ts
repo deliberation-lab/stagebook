@@ -243,7 +243,9 @@ describe("weightedRandom: randomization properties (α=1e-4)", () => {
     players: { id: string }[],
     seed: number,
     treatments = T_ONE,
-    weights = treatments.map(() => 1),
+    weights: Record<string, number> = Object.fromEntries(
+      treatments.map((t) => [t.name, 1]),
+    ),
   ): DispatchResult {
     const playerIds = players.map((p) => p.id);
     const eligibility = emptyEligibility(playerIds, treatments);
@@ -276,10 +278,10 @@ describe("weightedRandom: randomization properties (α=1e-4)", () => {
       name: `T${i}`,
       playerCount: 2,
     }));
-    const weights = [4, 1, 1];
-    const totalWeight = weights.reduce((s, w) => s + w, 0);
+    const weights: Record<string, number> = { T0: 4, T1: 1, T2: 1 };
+    const totalWeight = Object.values(weights).reduce((s, w) => s + w, 0);
 
-    const useCount = treatments.map(() => 0);
+    const useCount: Record<string, number> = { T0: 0, T1: 0, T2: 0 };
     for (let m = 0; m < M; m += 1) {
       const players = Array.from({ length: playersPerTick }, (_, i) => ({
         id: `p_${m}_${i}`,
@@ -291,15 +293,14 @@ describe("weightedRandom: randomization properties (α=1e-4)", () => {
         weights,
       );
       for (const a of assignments) {
-        const idx = treatments.findIndex((t) => t.name === a.treatment.name);
-        useCount[idx] += 1;
+        useCount[a.treatment.name] += 1;
       }
     }
     // χ² statistic against weighted expectation.
-    const total = useCount.reduce((s, x) => s + x, 0);
-    const chi2 = useCount.reduce((s, observed, i) => {
-      const expected = (total * weights[i]) / totalWeight;
-      return s + (observed - expected) ** 2 / expected;
+    const total = Object.values(useCount).reduce((s, x) => s + x, 0);
+    const chi2 = treatments.reduce((s, t) => {
+      const expected = (total * weights[t.name]) / totalWeight;
+      return s + (useCount[t.name] - expected) ** 2 / expected;
     }, 0);
     expect(chi2).toBeLessThan(CHI2_CRITICAL_ALPHA_1E4[K - 1]);
   });
@@ -442,9 +443,9 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
   function runOneUrn(
     players: { id: string }[],
     treatments: Treatment[],
-    counts: number[],
+    counts: Record<string, number>,
     seed: number,
-    decrements?: number[][],
+    decrements?: Record<string, Record<string, number>>,
   ): DispatchResult {
     const playerIds = players.map((p) => p.id);
     const eligibility = emptyEligibility(playerIds, treatments);
@@ -463,9 +464,9 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
   test("1. seeded determinism: identical seed + inputs ⇒ identical assignments", () => {
     const makePlayers = () =>
       Array.from({ length: 4 }, (_, i) => ({ id: `p_${i}` }));
-    const a = runOneUrn(makePlayers(), T_ONE, [10], 42);
-    const b = runOneUrn(makePlayers(), T_ONE, [10], 42);
-    const c = runOneUrn(makePlayers(), T_ONE, [10], 43);
+    const a = runOneUrn(makePlayers(), T_ONE, { T: 10 }, 42);
+    const b = runOneUrn(makePlayers(), T_ONE, { T: 10 }, 42);
+    const c = runOneUrn(makePlayers(), T_ONE, { T: 10 }, 43);
     expect(a.assignments).toEqual(b.assignments);
     expect(a.assignments).not.toEqual(c.assignments);
     expect(a.remainingCounts).toEqual(b.remainingCounts);
@@ -474,13 +475,18 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
   test("2. marginal target rate: counts are honored exactly across runs", () => {
     // Central claim of urn randomization: over the run, treatment i is
     // used exactly `counts[i]` times.
-    const targetCounts = [25, 25, 25, 25];
-    const K = targetCounts.length;
+    const K = 4;
     const treatments: Treatment[] = Array.from({ length: K }, (_, i) => ({
       name: `T${i}`,
       playerCount: 2,
     }));
-    const totalSlots = targetCounts.reduce((a, b) => a + 2 * b, 0);
+    const targetCounts: Record<string, number> = Object.fromEntries(
+      treatments.map((t) => [t.name, 25]),
+    );
+    const totalSlots = Object.values(targetCounts).reduce(
+      (a, b) => a + 2 * b,
+      0,
+    );
     // Provide enough players to drain the urn. Over-supply is fine —
     // dispatcher stops when no positive-count treatment fits.
     const players = Array.from({ length: totalSlots + 10 }, (_, i) => ({
@@ -492,13 +498,16 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
       targetCounts,
       9000,
     );
-    const useCount = treatments.map(() => 0);
+    const useCount: Record<string, number> = Object.fromEntries(
+      treatments.map((t) => [t.name, 0]),
+    );
     for (const a of assignments) {
-      const idx = treatments.findIndex((t) => t.name === a.treatment.name);
-      useCount[idx] += 1;
+      useCount[a.treatment.name] += 1;
     }
     expect(useCount).toEqual(targetCounts);
-    expect(remainingCounts).toEqual([0, 0, 0, 0]);
+    expect(remainingCounts).toEqual(
+      Object.fromEntries(treatments.map((t) => [t.name, 0])),
+    );
   });
 
   test("3. position uniformity: per-player position-0 distribution is uniform (χ²)", () => {
@@ -509,7 +518,7 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
 
     for (let m = 0; m < M; m += 1) {
       const players = Array.from({ length: N }, (_, i) => ({ id: `p_${i}` }));
-      const { assignments } = runOneUrn(players, T_ONE, [2], 1000 + m);
+      const { assignments } = runOneUrn(players, T_ONE, { T: 2 }, 1000 + m);
       for (const a of assignments) {
         for (const pa of a.positionAssignments) {
           posCounts[pa.playerId][pa.position as 0 | 1] += 1;
@@ -531,7 +540,7 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
       const players = Array.from({ length: N }, (_, i) => ({ id: `p_${i}` }));
       // Counts: 2 means "fill twice", but with only 5 players in T(pc=2)
       // we'll fill exactly twice; one player is leftover each tick.
-      const { assignments } = runOneUrn(players, T_ONE, [2], 2000 + m);
+      const { assignments } = runOneUrn(players, T_ONE, { T: 2 }, 2000 + m);
       const assigned = new Set(
         assignments.flatMap((a) =>
           a.positionAssignments.map((pa) => pa.playerId),
@@ -555,7 +564,12 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
       });
       for (let m = 0; m < M; m += 1) {
         const players = playerIds.map((id) => ({ id }));
-        const { assignments } = runOneUrn(players, T_ONE, [10], seedOffset + m);
+        const { assignments } = runOneUrn(
+          players,
+          T_ONE,
+          { T: 10 },
+          seedOffset + m,
+        );
         for (const a of assignments) {
           for (const pa of a.positionAssignments) {
             if (pa.position === 0) counts[pa.playerId] += 1;
@@ -586,7 +600,7 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
         { id: "p_4" },
       ];
       const tag = ["A", "A", "A", "B", "B"] as const;
-      const { assignments } = runOneUrn(players, T_ONE, [2], 3000 + m);
+      const { assignments } = runOneUrn(players, T_ONE, { T: 2 }, 3000 + m);
       const assigned = new Set(
         assignments.flatMap((a) =>
           a.positionAssignments.map((pa) => pa.playerId),
@@ -615,7 +629,7 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
     }
     for (let m = 0; m < M; m += 1) {
       const players = Array.from({ length: N }, (_, i) => ({ id: `p_${i}` }));
-      const { assignments } = runOneUrn(players, T_ONE, [2], 5000 + m);
+      const { assignments } = runOneUrn(players, T_ONE, { T: 2 }, 5000 + m);
       for (const a of assignments) {
         const ids = a.positionAssignments.map((pa) => pa.playerId);
         for (let i = 0; i < ids.length; i += 1) {
@@ -649,12 +663,21 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
         });
       }
     }
-    const counts = treatments.map(() => 20);
-    // Decrement matrix: when L0Vk is used, decrement all L0V* by 1 (same
-    // label coupling) and leave L1V* alone.
-    const decrements = treatments.map((ti) =>
-      treatments.map((tj) => (ti.label === tj.label ? 1 : 0)),
+    const counts: Record<string, number> = Object.fromEntries(
+      treatments.map((t) => [t.name, 20]),
     );
+    // Decrement matrix (labeled): when L_iV_k is used, decrement all
+    // L_iV_* by 1 (same label coupling) and leave L_!iV_* alone. We
+    // write every cross-label entry explicitly as 0 to keep the test
+    // self-documenting; missing entries would default to 0 anyway.
+    const decrements: Record<string, Record<string, number>> = {};
+    for (const ti of treatments) {
+      const row: Record<string, number> = {};
+      for (const tj of treatments) {
+        row[tj.name] = ti.label === tj.label ? 1 : 0;
+      }
+      decrements[ti.name] = row;
+    }
 
     // Two players per tick; enough ticks to drain the urn under same-
     // label coupling.
@@ -662,10 +685,10 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
     const useCount: Record<string, number> = {};
     for (const t of treatments) useCount[t.name] = 0;
 
-    let runningCounts = counts.slice();
+    let runningCounts: Record<string, number> = { ...counts };
     let seed = 7000;
     const HARD_CAP = 20_000;
-    while (runningCounts.some((c) => c > 0)) {
+    while (Object.values(runningCounts).some((c) => c > 0)) {
       const players = [{ id: `p_${seed}_0` }, { id: `p_${seed}_1` }];
       const playerIds = players.map((p) => p.id);
       const eligibility = emptyEligibility(playerIds, treatments);
@@ -692,7 +715,7 @@ describe("urnRandomization: randomization properties (α=1e-4)", () => {
         );
       }
     }
-    expect(runningCounts.every((c) => c === 0)).toBe(true);
+    expect(Object.values(runningCounts).every((c) => c === 0)).toBe(true);
     expect(totalUses).toBeGreaterThan(0);
 
     // Per-label variant uniformity: χ² over the 5 variant-counts inside

@@ -6,14 +6,14 @@ import type {
 } from "./types.js";
 
 /** One validation diagnostic. `path` points into the config object using
- *  the same dotted convention zod does (`"counts"`, `"decrements.2.1"`)
- *  so callers can surface it the same way they surface zod issues.
+ *  the same dotted convention zod does (e.g. `"counts"`,
+ *  `"decrements.T_a.T_b"`) so callers can surface it the same way they
+ *  surface zod issues.
  *
- *  `severity` defaults to `"error"` when omitted, preserving the v0.12.0
- *  contract where every diagnostic was treated as a hard failure. Some
- *  validations (e.g. `weighted-random` with all-zero weights — the
- *  "batch is temporarily gated off" case) emit `"warning"` instead; those
- *  surface to authors but don't fail `ok`. */
+ *  `severity` defaults to `"error"` when omitted. Most diagnostics are
+ *  errors; a handful (e.g. `weighted-random` with all-zero weights —
+ *  the "batch is temporarily gated off" case) emit `"warning"` instead
+ *  so they surface to authors without failing `ok`. */
 export interface DispatcherConfigDiagnostic {
   path: string;
   message: string;
@@ -21,37 +21,39 @@ export interface DispatcherConfigDiagnostic {
 }
 
 export interface DispatcherConfigValidationResult {
-  /** True iff there are no error-severity diagnostics. Warnings do not
-   *  affect `ok` — callers that want to be strict can scan the
-   *  `diagnostics` array directly. */
+  /** True iff there are no error-severity diagnostics. */
   ok: boolean;
   diagnostics: DispatcherConfigDiagnostic[];
 }
 
 /**
- * Validate the parameter shape of a dispatcher config that the host has
- * already resolved (file-reference `{from: "./counts.json"}` shapes
- * substituted with the concrete arrays). Catches the things the
- * dispatcher itself trusts but the issue body calls out as config-time
- * checks:
+ * Validate a dispatcher config that the host has already resolved
+ * (file-reference `{from: "./counts.json"}` shapes substituted with
+ * concrete labeled objects).
  *
- *   - `urn.counts[i]` non-negative integer
- *   - `urn.decrements` (when present) square N×N of non-negative
- *     integers
- *   - `urn.decrements[i][j] <= counts[j]` — can't subtract more balls
- *     than exist initially
+ * Per-dispatcher rules:
+ *   - `urn.counts` — labeled object `{[treatmentName]: nonNegInt}`.
+ *     Label set must equal the treatment name set.
+ *   - `urn.decrements` (optional) — labeled matrix
+ *     `{[rowName]: {[colName]: nonNegInt}}`. Row labels must be a
+ *     subset of treatment names (missing rows default to identity);
+ *     column labels within a present row must be a subset of treatment
+ *     names (missing columns within a present row default to 0).
+ *     Initial-balance check: `decrements[i][j] <= counts[j]`.
+ *   - `weighted-random.weights` — labeled object
+ *     `{[treatmentName]: nonNegFiniteReal}`. Label set must equal the
+ *     treatment name set. All-zero is a warning, not an error.
+ *   - `uniform-random` — no params; stray fields rejected.
+ *   - `local-penalization` — discriminator recognized; deeper
+ *     validation lives in deliberation-lab.
  *
- * The function is intentionally tolerant of dispatchers it doesn't
- * recognize (returns `ok: true` with a single warning-style diagnostic)
- * so deliberation-lab can register `local-penalization` against the
- * same validator without stagebook needing to know its parameter shape.
- *
- * @param config Resolved dispatcher config (file refs already substituted).
- * @param treatmentCount Number of treatments in the batch (square-matrix check).
+ * Old positional-array forms get a clear migration-hint error (we
+ * shipped them as the API in v0.12-v0.13 but reject them from v0.14
+ * onward to surface batch configs that haven't migrated).
  */
 export function validateDispatcherConfig(
   config: unknown,
-  treatmentCount: number,
+  treatmentNames: string[],
 ): DispatcherConfigValidationResult {
   const diagnostics: DispatcherConfigDiagnostic[] = [];
   const push = (path: string, message: string) =>
@@ -73,10 +75,10 @@ export function validateDispatcherConfig(
     case "weighted-random":
       return validateWeightedRandom(
         config as WeightedRandomDispatcherConfig,
-        treatmentCount,
+        treatmentNames,
       );
     case "urn":
-      return validateUrn(config as UrnDispatcherConfig, treatmentCount);
+      return validateUrn(config as UrnDispatcherConfig, treatmentNames);
     case "local-penalization":
       // Implementation lives in deliberation-lab; stagebook only checks
       // that the discriminator is recognized. The host validator there
@@ -94,9 +96,6 @@ export function validateDispatcherConfig(
 function validateUniformRandom(
   config: UniformRandomDispatcherConfig,
 ): DispatcherConfigValidationResult {
-  // The trivial-case dispatcher carries no params beyond `type`. Extra
-  // keys would silently mislead the author into thinking a counts/
-  // decrements field had an effect, so we reject them here.
   const allowed = new Set(["type"]);
   const diagnostics: DispatcherConfigDiagnostic[] = [];
   for (const k of Object.keys(config)) {
@@ -107,19 +106,22 @@ function validateUniformRandom(
       });
     }
   }
-  return { ok: diagnostics.length === 0, diagnostics };
+  return { ok: isOk(diagnostics), diagnostics };
 }
 
 function validateWeightedRandom(
   config: WeightedRandomDispatcherConfig,
-  treatmentCount: number,
+  treatmentNames: string[],
 ): DispatcherConfigValidationResult {
   const diagnostics: DispatcherConfigDiagnostic[] = [];
   const push = (path: string, message: string) =>
     diagnostics.push({ path, message });
 
   if (!("weights" in config)) {
-    push("weights", "`weighted-random` dispatcher requires a `weights` array");
+    push(
+      "weights",
+      "`weighted-random` dispatcher requires a `weights` map keyed by treatment name",
+    );
     return { ok: false, diagnostics };
   }
   if (isFileReference(config.weights)) {
@@ -129,33 +131,33 @@ function validateWeightedRandom(
     );
     return { ok: false, diagnostics };
   }
-  if (!Array.isArray(config.weights)) {
-    push("weights", "`weights` must be an array of non-negative reals");
-    return { ok: false, diagnostics };
-  }
-  const weights = config.weights as unknown[];
-  if (weights.length !== treatmentCount) {
+  if (Array.isArray(config.weights)) {
     push(
       "weights",
-      `\`weights.length\` (${weights.length}) must equal the number of treatments (${treatmentCount})`,
+      "`weights` must be a map keyed by treatment name, e.g. `{T_a: 4, T_b: 1, T_control: 1}`. The positional array form was removed in stagebook 0.14 — see docs/researcher/dispatchers.md.",
     );
+    return { ok: false, diagnostics };
   }
-  weights.forEach((v, i) => {
-    if (!isNonNegativeFiniteNumber(v)) {
-      push(
-        `weights.${i}`,
-        `weights[${i}] must be a non-negative finite number, got ${formatValue(v)}`,
-      );
-    }
-  });
+  if (typeof config.weights !== "object" || config.weights === null) {
+    push("weights", "`weights` must be an object keyed by treatment name");
+    return { ok: false, diagnostics };
+  }
 
-  // All-zero is allowed (silent no-op — useful for gating a batch off
-  // temporarily without renumbering treatments). Surface as a
-  // *warning* so the author isn't surprised when the batch returns
-  // empty, but don't fail validation — see issue #451 item 3.
+  validateLabeledScalarSet(
+    "weights",
+    config.weights as Record<string, unknown>,
+    treatmentNames,
+    diagnostics,
+    isNonNegativeFiniteNumber,
+    "non-negative finite number",
+  );
+
   const allZero =
-    weights.length > 0 &&
-    weights.every((v) => isNonNegativeFiniteNumber(v) && (v as number) === 0);
+    treatmentNames.length > 0 &&
+    treatmentNames.every((name) => {
+      const v = (config.weights as Record<string, unknown>)[name];
+      return isNonNegativeFiniteNumber(v) && (v as number) === 0;
+    });
   if (allZero) {
     diagnostics.push({
       path: "weights",
@@ -170,14 +172,17 @@ function validateWeightedRandom(
 
 function validateUrn(
   config: UrnDispatcherConfig,
-  treatmentCount: number,
+  treatmentNames: string[],
 ): DispatcherConfigValidationResult {
   const diagnostics: DispatcherConfigDiagnostic[] = [];
   const push = (path: string, message: string) =>
     diagnostics.push({ path, message });
 
   if (!("counts" in config)) {
-    push("counts", "`urn` dispatcher requires a `counts` array");
+    push(
+      "counts",
+      "`urn` dispatcher requires a `counts` map keyed by treatment name",
+    );
     return { ok: false, diagnostics };
   }
   if (isFileReference(config.counts)) {
@@ -187,25 +192,27 @@ function validateUrn(
     );
     return { ok: false, diagnostics };
   }
-  if (!Array.isArray(config.counts)) {
-    push("counts", "`counts` must be an array of non-negative integers");
-    return { ok: false, diagnostics };
-  }
-  const counts = config.counts as unknown[];
-  if (counts.length !== treatmentCount) {
+  if (Array.isArray(config.counts)) {
     push(
       "counts",
-      `\`counts.length\` (${counts.length}) must equal the number of treatments (${treatmentCount})`,
+      "`counts` must be a map keyed by treatment name, e.g. `{T_a: 4, T_b: 4, T_control: 8}`. The positional array form was removed in stagebook 0.14 — see docs/researcher/dispatchers.md.",
     );
+    return { ok: false, diagnostics };
   }
-  counts.forEach((v, i) => {
-    if (!isNonNegativeInteger(v)) {
-      push(
-        `counts.${i}`,
-        `counts[${i}] must be a non-negative integer, got ${formatValue(v)}`,
-      );
-    }
-  });
+  if (typeof config.counts !== "object" || config.counts === null) {
+    push("counts", "`counts` must be an object keyed by treatment name");
+    return { ok: false, diagnostics };
+  }
+
+  const counts = config.counts as Record<string, unknown>;
+  validateLabeledScalarSet(
+    "counts",
+    counts,
+    treatmentNames,
+    diagnostics,
+    isNonNegativeInteger,
+    "non-negative integer",
+  );
 
   if (config.decrements !== undefined) {
     if (isFileReference(config.decrements)) {
@@ -213,69 +220,147 @@ function validateUrn(
         "decrements",
         "`decrements` is still a file reference — the host must resolve `{from: ...}` before calling the validator",
       );
+      return { ok: isOk(diagnostics), diagnostics };
+    }
+    if (Array.isArray(config.decrements)) {
+      push(
+        "decrements",
+        "`decrements` must be a map keyed by treatment name on both axes, e.g. `{T_a: {T_a: 1, T_b: 1}, T_b: {...}}`. The positional matrix form was removed in stagebook 0.14 — see docs/researcher/dispatchers.md.",
+      );
       return { ok: false, diagnostics };
     }
-    if (!Array.isArray(config.decrements)) {
+    if (typeof config.decrements !== "object" || config.decrements === null) {
       push(
         "decrements",
-        "`decrements` must be a square N×N matrix of non-negative integers (or omitted for the identity-matrix default)",
+        "`decrements` must be a labeled object keyed by treatment name on both axes",
       );
-      return { ok: diagnostics.length === 0, diagnostics };
+      return { ok: false, diagnostics };
     }
-    const matrix = config.decrements as unknown[];
-    if (matrix.length !== counts.length) {
+    const decrements = config.decrements as Record<string, unknown>;
+    const nameSet = new Set(treatmentNames);
+    const rowKeys = Object.keys(decrements);
+
+    // Strict literal: every treatment must have a row, and only known
+    // treatment labels are allowed. Mirrors the counts/weights rule;
+    // matches `urnRandomization`'s runtime behavior.
+    const missingRows = treatmentNames.filter((n) => !rowKeys.includes(n));
+    const extraRows = rowKeys.filter((n) => !nameSet.has(n));
+    if (missingRows.length > 0) {
       push(
         "decrements",
-        `\`decrements\` must be a square ${counts.length}×${counts.length} matrix; got ${matrix.length} rows`,
+        `\`decrements\` is missing a row for ${missingRows.length === 1 ? "treatment" : "treatments"}: ${missingRows.join(", ")}. When you specify \`decrements\`, every treatment must have a row (omit \`decrements\` entirely to use the identity-matrix default).`,
       );
     }
-    matrix.forEach((row, i) => {
-      if (!Array.isArray(row)) {
+    if (extraRows.length > 0) {
+      push(
+        "decrements",
+        `\`decrements\` has ${extraRows.length === 1 ? "a row" : "rows"} for unknown ${extraRows.length === 1 ? "treatment" : "treatments"}: ${extraRows.join(", ")}. Expected one of: ${treatmentNames.join(", ")}.`,
+      );
+    }
+
+    for (const [rowName, row] of Object.entries(decrements)) {
+      if (!nameSet.has(rowName)) continue; // already reported as extra
+      if (typeof row !== "object" || row === null || Array.isArray(row)) {
         push(
-          `decrements.${i}`,
-          `decrements row ${i} must be an array of non-negative integers`,
+          `decrements.${rowName}`,
+          `decrements row "${rowName}" must be an object keyed by treatment name`,
         );
-        return;
+        continue;
       }
-      const r = row as unknown[];
-      if (r.length !== counts.length) {
-        push(
-          `decrements.${i}`,
-          `decrements row ${i} has length ${r.length}; expected ${counts.length} (matrix must be square)`,
-        );
-      }
-      r.forEach((v, j) => {
+      const rowObj = row as Record<string, unknown>;
+      for (const [colName, v] of Object.entries(rowObj)) {
+        if (!nameSet.has(colName)) {
+          push(
+            `decrements.${rowName}.${colName}`,
+            `decrements column label "${colName}" in row "${rowName}" does not match any treatment name. Expected one of: ${treatmentNames.join(", ")}.`,
+          );
+          continue;
+        }
         if (!isNonNegativeInteger(v)) {
           push(
-            `decrements.${i}.${j}`,
-            `decrements[${i}][${j}] must be a non-negative integer, got ${formatValue(v)}`,
+            `decrements.${rowName}.${colName}`,
+            `decrements["${rowName}"]["${colName}"] must be a non-negative integer, got ${formatValue(v)}`,
           );
-          return;
+          continue;
         }
-        // Initial-balance check: can't decrement more than the column's
-        // starting balls. Mid-dispatch underflow (after multiple picks)
-        // is clamped at the dispatcher; this check catches obvious
-        // misconfigurations at config-time.
-        const colCount = counts[j];
+        // Initial-balance check: can't decrement more than the column
+        // count's starting balls. Mid-dispatch underflow (after
+        // multiple picks of the same row) is clamped at the dispatcher.
+        const colCount = counts[colName];
         if (
           isNonNegativeInteger(colCount) &&
           (v as number) > (colCount as number)
         ) {
           push(
-            `decrements.${i}.${j}`,
-            `decrements[${i}][${j}] = ${v as number} exceeds counts[${j}] = ${colCount as number} — would underflow on the first use of treatment ${i}`,
+            `decrements.${rowName}.${colName}`,
+            `decrements["${rowName}"]["${colName}"] = ${v as number} exceeds counts["${colName}"] = ${colCount as number} — would underflow on the first use of treatment ${rowName}`,
           );
         }
-      });
-    });
+      }
+      // Zero-self-decrement warning: a treatment with positive counts
+      // whose row doesn't decrement its own column will never deplete
+      // from its own picks. Authors might want this (cross-coupled-only
+      // designs) but it's much more often a typo, so we surface it as
+      // a warning rather than swallow it silently.
+      if (
+        isNonNegativeInteger(counts[rowName]) &&
+        (counts[rowName] as number) > 0
+      ) {
+        const selfVal = rowObj[rowName];
+        if (selfVal === undefined || selfVal === 0) {
+          diagnostics.push({
+            path: `decrements.${rowName}.${rowName}`,
+            message: `decrements["${rowName}"]["${rowName}"] is ${selfVal === undefined ? "absent (defaults to 0)" : "0"} — treatment "${rowName}" has counts > 0 but its own ball is not decremented when it's picked. The treatment will only deplete via cross-coupled rows, if any.`,
+            severity: "warning",
+          });
+        }
+      }
+    }
   }
 
-  return { ok: diagnostics.length === 0, diagnostics };
+  return { ok: isOk(diagnostics), diagnostics };
 }
 
-/** True iff `diagnostics` has no error-severity entries. Diagnostics
- *  without an explicit `severity` are treated as errors (preserving the
- *  v0.12.0 contract). */
+/** Validate that the keys of a labeled scalar object exactly match
+ *  `treatmentNames`, and that each value passes `valueCheck`. Pushes
+ *  one diagnostic per missing / extra label and one per malformed
+ *  value. */
+function validateLabeledScalarSet(
+  field: string,
+  values: Record<string, unknown>,
+  treatmentNames: string[],
+  diagnostics: DispatcherConfigDiagnostic[],
+  valueCheck: (v: unknown) => boolean,
+  valueShape: string,
+): void {
+  const labelKeys = Object.keys(values);
+  const expected = new Set(treatmentNames);
+  const actual = new Set(labelKeys);
+  const missing = treatmentNames.filter((name) => !actual.has(name));
+  const extra = labelKeys.filter((label) => !expected.has(label));
+  if (missing.length > 0) {
+    diagnostics.push({
+      path: field,
+      message: `\`${field}\` is missing an entry for ${missing.length === 1 ? "treatment" : "treatments"}: ${missing.join(", ")}`,
+    });
+  }
+  if (extra.length > 0) {
+    diagnostics.push({
+      path: field,
+      message: `\`${field}\` has ${extra.length === 1 ? "an entry" : "entries"} for unknown ${extra.length === 1 ? "treatment" : "treatments"}: ${extra.join(", ")}. Expected one of: ${treatmentNames.join(", ")}.`,
+    });
+  }
+  for (const [name, v] of Object.entries(values)) {
+    if (!expected.has(name)) continue; // already reported as extra
+    if (!valueCheck(v)) {
+      diagnostics.push({
+        path: `${field}.${name}`,
+        message: `${field}["${name}"] must be a ${valueShape}, got ${formatValue(v)}`,
+      });
+    }
+  }
+}
+
 function isOk(diagnostics: DispatcherConfigDiagnostic[]): boolean {
   return !diagnostics.some((d) => (d.severity ?? "error") === "error");
 }

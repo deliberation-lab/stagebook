@@ -1,35 +1,38 @@
 import { describe, test, expect } from "vitest";
 import { validateDispatcherConfig } from "./validateDispatcherConfig.js";
 
+const T2 = ["t0", "t1"];
+const T3 = ["t0", "t1", "t2"];
+
 describe("validateDispatcherConfig", () => {
   test("rejects non-object configs", () => {
-    expect(validateDispatcherConfig(null, 2).ok).toBe(false);
-    expect(validateDispatcherConfig("urn", 2).ok).toBe(false);
-    expect(validateDispatcherConfig(42, 2).ok).toBe(false);
+    expect(validateDispatcherConfig(null, T2).ok).toBe(false);
+    expect(validateDispatcherConfig("urn", T2).ok).toBe(false);
+    expect(validateDispatcherConfig(42, T2).ok).toBe(false);
   });
 
   test("rejects missing or non-string `type`", () => {
-    expect(validateDispatcherConfig({}, 2).ok).toBe(false);
-    expect(validateDispatcherConfig({ type: "" }, 2).ok).toBe(false);
+    expect(validateDispatcherConfig({}, T2).ok).toBe(false);
+    expect(validateDispatcherConfig({ type: "" }, T2).ok).toBe(false);
   });
 
   test("rejects unknown `type`", () => {
-    const r = validateDispatcherConfig({ type: "nope" }, 2);
+    const r = validateDispatcherConfig({ type: "nope" }, T2);
     expect(r.ok).toBe(false);
     expect(r.diagnostics[0].path).toBe("type");
   });
 
   describe("uniform-random", () => {
     test("accepts the bare `type` form", () => {
-      const r = validateDispatcherConfig({ type: "uniform-random" }, 3);
+      const r = validateDispatcherConfig({ type: "uniform-random" }, T3);
       expect(r.ok).toBe(true);
       expect(r.diagnostics).toEqual([]);
     });
 
     test("rejects stray fields (would mislead the author)", () => {
       const r = validateDispatcherConfig(
-        { type: "uniform-random", counts: [1, 2, 3] },
-        3,
+        { type: "uniform-random", counts: { t0: 1, t1: 2, t2: 3 } },
+        T3,
       );
       expect(r.ok).toBe(false);
       expect(r.diagnostics[0].path).toBe("counts");
@@ -37,72 +40,93 @@ describe("validateDispatcherConfig", () => {
   });
 
   describe("weighted-random", () => {
-    test("accepts a well-formed weights array", () => {
+    test("accepts a well-formed labeled weights object", () => {
       const r = validateDispatcherConfig(
-        { type: "weighted-random", weights: [4, 1, 1] },
-        3,
+        { type: "weighted-random", weights: { t0: 4, t1: 1, t2: 1 } },
+        T3,
       );
       expect(r.ok).toBe(true);
     });
 
     test("accepts float weights", () => {
       const r = validateDispatcherConfig(
-        { type: "weighted-random", weights: [0.8, 0.1, 0.1] },
-        3,
+        { type: "weighted-random", weights: { t0: 0.8, t1: 0.1, t2: 0.1 } },
+        T3,
       );
       expect(r.ok).toBe(true);
+    });
+
+    test("rejects positional-array form (removed in 0.14)", () => {
+      const r = validateDispatcherConfig(
+        { type: "weighted-random", weights: [4, 1, 1] },
+        T3,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(
+        /map keyed by treatment name|removed in stagebook 0\.14/,
+      );
     });
 
     test("rejects unresolved file references on `weights`", () => {
       const r = validateDispatcherConfig(
         { type: "weighted-random", weights: { from: "./weights.json" } },
-        3,
+        T3,
       );
       expect(r.ok).toBe(false);
       expect(r.diagnostics[0].path).toBe("weights");
     });
 
-    test("rejects mismatched weights.length vs treatments", () => {
+    test("flags missing labels", () => {
       const r = validateDispatcherConfig(
-        { type: "weighted-random", weights: [1, 2, 3] },
-        2,
+        { type: "weighted-random", weights: { t0: 4 } },
+        T3,
       );
       expect(r.ok).toBe(false);
-      const messages = r.diagnostics.map((d) => d.message);
-      expect(messages.some((m) => m.includes("weights.length"))).toBe(true);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/missing.*t1.*t2|t1.*t2/);
+    });
+
+    test("flags extra labels", () => {
+      const r = validateDispatcherConfig(
+        {
+          type: "weighted-random",
+          weights: { t0: 1, t1: 1, t2: 1, tX: 1 },
+        },
+        T3,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/unknown.*tX/);
     });
 
     test("rejects negative / NaN / non-finite entries", () => {
       const r = validateDispatcherConfig(
         {
           type: "weighted-random",
-          weights: [1, -1, Number.NaN, Infinity],
+          weights: { t0: 1, t1: -1, t2: Number.NaN, t3: Infinity },
         },
-        4,
+        ["t0", "t1", "t2", "t3"],
       );
       expect(r.ok).toBe(false);
       const paths = r.diagnostics.map((d) => d.path).sort();
-      expect(paths).toContain("weights.1");
-      expect(paths).toContain("weights.2");
-      expect(paths).toContain("weights.3");
+      expect(paths).toContain("weights.t1");
+      expect(paths).toContain("weights.t2");
+      expect(paths).toContain("weights.t3");
     });
 
     test("zero entries are allowed (deactivate a treatment)", () => {
       const r = validateDispatcherConfig(
-        { type: "weighted-random", weights: [4, 0, 1] },
-        3,
+        { type: "weighted-random", weights: { t0: 4, t1: 0, t2: 1 } },
+        T3,
       );
       expect(r.ok).toBe(true);
     });
 
     test("all-zero weights warn but don't fail validation (gated-off batch)", () => {
-      // Per #451, a researcher may legitimately gate a batch off
-      // temporarily by zeroing every weight. We surface a warning so
-      // the empty-batch isn't surprising, but `ok` stays true so the
-      // batch can still be deployed.
       const r = validateDispatcherConfig(
-        { type: "weighted-random", weights: [0, 0, 0] },
-        3,
+        { type: "weighted-random", weights: { t0: 0, t1: 0, t2: 0 } },
+        T3,
       );
       expect(r.ok).toBe(true);
       const warnings = r.diagnostics.filter((d) => d.severity === "warning");
@@ -112,80 +136,207 @@ describe("validateDispatcherConfig", () => {
   });
 
   describe("urn", () => {
-    test("accepts a well-formed counts array", () => {
-      const r = validateDispatcherConfig({ type: "urn", counts: [2, 2, 2] }, 3);
+    test("accepts a well-formed labeled counts object", () => {
+      const r = validateDispatcherConfig(
+        { type: "urn", counts: { t0: 2, t1: 2, t2: 2 } },
+        T3,
+      );
       expect(r.ok).toBe(true);
+    });
+
+    test("rejects positional-array form (removed in 0.14)", () => {
+      const r = validateDispatcherConfig(
+        { type: "urn", counts: [2, 2, 2] },
+        T3,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(
+        /map keyed by treatment name|removed in stagebook 0\.14/,
+      );
     });
 
     test("rejects unresolved file references on `counts`", () => {
       const r = validateDispatcherConfig(
         { type: "urn", counts: { from: "./counts.json" } },
-        3,
+        T3,
       );
       expect(r.ok).toBe(false);
       expect(r.diagnostics[0].path).toBe("counts");
     });
 
-    test("rejects mismatched counts.length vs treatments", () => {
-      const r = validateDispatcherConfig({ type: "urn", counts: [1, 2, 3] }, 2);
+    test("flags missing labels", () => {
+      const r = validateDispatcherConfig(
+        { type: "urn", counts: { t0: 1 } },
+        T2,
+      );
       expect(r.ok).toBe(false);
-      const messages = r.diagnostics.map((d) => d.message);
-      expect(messages.some((m) => m.includes("counts.length"))).toBe(true);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/missing.*t1/);
+    });
+
+    test("flags extra labels", () => {
+      const r = validateDispatcherConfig(
+        { type: "urn", counts: { t0: 1, t1: 2, tX: 3 } },
+        T2,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/unknown.*tX/);
     });
 
     test("rejects non-integer / negative count entries", () => {
       const r = validateDispatcherConfig(
-        { type: "urn", counts: [2, -1, 1.5] },
-        3,
+        { type: "urn", counts: { t0: 2, t1: -1, t2: 1.5 } },
+        T3,
       );
       expect(r.ok).toBe(false);
       const paths = r.diagnostics.map((d) => d.path).sort();
-      expect(paths).toContain("counts.1");
-      expect(paths).toContain("counts.2");
+      expect(paths).toContain("counts.t1");
+      expect(paths).toContain("counts.t2");
     });
 
-    test("accepts a well-formed identity-decrement matrix", () => {
+    test("accepts a well-formed labeled identity-decrement matrix", () => {
       const r = validateDispatcherConfig(
         {
           type: "urn",
-          counts: [4, 4, 4],
+          counts: { t0: 4, t1: 4, t2: 4 },
+          decrements: {
+            t0: { t0: 1 },
+            t1: { t1: 1 },
+            t2: { t2: 1 },
+          },
+        },
+        T3,
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    test("requires a row for every treatment when `decrements` is specified", () => {
+      // No layered-on-identity mode — if you specify `decrements`,
+      // you specify it fully. Authors who want identity behavior for
+      // some treatments must write the diagonal explicitly.
+      const r = validateDispatcherConfig(
+        {
+          type: "urn",
+          counts: { t0: 4, t1: 4, t2: 4 },
+          decrements: {
+            t0: { t0: 1, t1: 1 }, // cross-couple t0 → t1
+            // t1 and t2 rows missing → error
+          },
+        },
+        T3,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/missing a row.*t1.*t2|t1.*t2/);
+    });
+
+    test("accepts a fully-specified decrements with cross-coupling and explicit diagonals", () => {
+      const r = validateDispatcherConfig(
+        {
+          type: "urn",
+          counts: { t0: 4, t1: 4, t2: 4 },
+          decrements: {
+            t0: { t0: 1, t1: 1 }, // cross-couple t0 → t1
+            t1: { t1: 1 }, // explicit identity
+            t2: { t2: 1 }, // explicit identity
+          },
+        },
+        T3,
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    test("warns when a treatment with counts > 0 has zero self-decrement", () => {
+      // t1's row exists but has no t1→t1 entry; t1 will never deplete
+      // from its own picks. Surface as a warning (might be intentional
+      // for cross-coupled-only designs, but more often a typo).
+      const r = validateDispatcherConfig(
+        {
+          type: "urn",
+          counts: { t0: 4, t1: 4 },
+          decrements: {
+            t0: { t0: 1, t1: 1 },
+            t1: { t0: 1 }, // missing t1→t1
+          },
+        },
+        T2,
+      );
+      // ok is still true because zero-self-decrement is a warning,
+      // not an error — the user might want this.
+      expect(r.ok).toBe(true);
+      const warnings = r.diagnostics.filter((d) => d.severity === "warning");
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toMatch(/t1.*not decremented|never deplete/i);
+    });
+
+    test("rejects positional-matrix form (removed in 0.14)", () => {
+      const r = validateDispatcherConfig(
+        {
+          type: "urn",
+          counts: { t0: 2, t1: 2, t2: 2 },
           decrements: [
             [1, 0, 0],
             [0, 1, 0],
             [0, 0, 1],
           ],
         },
-        3,
+        T3,
       );
-      expect(r.ok).toBe(true);
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(
+        /map keyed by treatment name|removed in stagebook 0\.14/,
+      );
     });
 
-    test("rejects non-square decrement matrix", () => {
+    test("flags unknown row labels in decrements", () => {
       const r = validateDispatcherConfig(
         {
           type: "urn",
-          counts: [2, 2, 2],
-          decrements: [
-            [1, 0],
-            [0, 1],
-          ],
+          counts: { t0: 4, t1: 4 },
+          decrements: {
+            t0: { t0: 1 },
+            t1: { t1: 1 },
+            tX: { tX: 1 }, // unknown row
+          },
         },
-        3,
+        T2,
       );
       expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/unknown.*tX|tX/);
+    });
+
+    test("flags unknown column labels in decrements", () => {
+      const r = validateDispatcherConfig(
+        {
+          type: "urn",
+          counts: { t0: 4, t1: 4 },
+          decrements: {
+            t0: { t0: 1, tX: 1 }, // unknown column
+            t1: { t1: 1 },
+          },
+        },
+        T2,
+      );
+      expect(r.ok).toBe(false);
+      const messages = r.diagnostics.map((d) => d.message).join("\n");
+      expect(messages).toMatch(/tX.*does not match/);
     });
 
     test("rejects decrement[i][j] > counts[j] (would underflow on first use)", () => {
       const r = validateDispatcherConfig(
         {
           type: "urn",
-          counts: [1, 1],
-          decrements: [
-            [1, 2],
-            [0, 1],
-          ],
+          counts: { t0: 1, t1: 1 },
+          decrements: {
+            t0: { t0: 1, t1: 2 },
+            t1: { t1: 1 },
+          },
         },
-        2,
+        T2,
       );
       expect(r.ok).toBe(false);
       const messages = r.diagnostics.map((d) => d.message).join("\n");
@@ -195,11 +346,9 @@ describe("validateDispatcherConfig", () => {
 
   describe("local-penalization", () => {
     test("is recognized but not deeply validated by stagebook", () => {
-      // Stagebook just confirms the discriminator; deliberation-lab
-      // owns the payoffs/knockdowns shape check.
       const r = validateDispatcherConfig(
         { type: "local-penalization", payoffs: "equal", knockdowns: "none" },
-        2,
+        T2,
       );
       expect(r.ok).toBe(true);
     });
