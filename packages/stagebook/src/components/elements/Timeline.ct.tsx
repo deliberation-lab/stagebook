@@ -1761,6 +1761,16 @@ async function createRangeViaDrag(
   const overlay = component.locator('[data-testid="selection-overlay"]');
   const box = await overlay.boundingBox();
   if (!box) throw new Error("overlay not found");
+  // Snapshot the save log before the drag so we can wait for *this*
+  // drag's save to land before returning. Without the wait, callers
+  // that synchronously `readSaveLog` after the helper race the React
+  // state flush: on fast machines (and webkit specifically, where the
+  // dispatchEvent → state-update timing differs from chromium), the
+  // read can return the pre-drag log even though the drag has
+  // "logically" completed. Other helpers in this file work around the
+  // race per-callsite via `expect.poll`; pushing the wait inside the
+  // helper makes synchronous-read patterns safe by construction. (#457)
+  const baselineSaves = await readSaveLog(component);
   await overlay.dispatchEvent("pointerdown", {
     clientX: box.x + box.width * startPct,
     clientY: box.y + box.height * 0.5,
@@ -1785,6 +1795,9 @@ async function createRangeViaDrag(
     pointerId: 1,
     isPrimary: true,
   });
+  await expect
+    .poll(async () => (await readSaveLog(component)).length)
+    .toBeGreaterThan(baselineSaves.length);
 }
 
 test("ArrowRight extends end handle by 1s and seeks", async ({ mount }) => {
