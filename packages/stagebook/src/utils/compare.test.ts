@@ -246,7 +246,7 @@ describe("multi-select (array LHS) membership", () => {
   test("numeric labels compare as strings (no coercion)", () => {
     // Multi-select labels are always strings; membership is strict.
     expect(compare(["5", "7"], "includes", "5")).toBe(true);
-    expect(compare(["5", "7"], "includes", 5 as unknown as string)).toBe(false);
+    expect(compare(["5", "7"], "includes", 5)).toBe(false);
   });
 
   test("comparators with no array semantics are undecidable on an array", () => {
