@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
-import {
-  validateResolvedTreatmentFile,
-  type TreatmentFileType,
-} from "stagebook";
-import { expandTreatmentFile } from "../lib/expandTreatmentFile";
+import { type TreatmentFileType } from "stagebook";
+import { computePreviewState } from "../lib/previewResolution";
 import { FieldForm } from "./FieldForm";
 import { Viewer } from "./Viewer";
 
@@ -65,34 +62,27 @@ export function PreviewHost({
     null,
   );
 
-  const { resolved, unresolvedFields, resolvedIssues } = useMemo(() => {
+  // Expansion + post-fill validation (#398) live in
+  // computePreviewState. When validation fails on user-supplied
+  // values, it routes back to `form` mode (with the errors and the
+  // submitted values) instead of a dead-end error page (#474).
+  const previewState = useMemo(() => {
     const merged = {
       ...(additionalFields ?? {}),
       ...(userValues ?? {}),
     };
-    const { result, unresolvedFields } = expandTreatmentFile(
+    return computePreviewState(
       treatmentFile,
       Object.keys(merged).length > 0 ? merged : undefined,
     );
-    // Post-fill validation (#398): if every `${field}` placeholder
-    // was bound (unresolvedFields is empty), run the resolved-schema
-    // check on the filled tree. Catches issues that the relaxed
-    // pre-fill schema deferred — e.g. a `prompt.file` that doesn't
-    // end in `.prompt.md` after the host supplied the value. Skipped
-    // while there are still unresolved fields because the
-    // strict-mode validator would re-report every leak as an issue
-    // and bury the actual "we need bindings" path under noise.
-    const resolvedIssues =
-      unresolvedFields.length === 0
-        ? validateResolvedTreatmentFile(result).issues
-        : [];
-    return { resolved: result, unresolvedFields, resolvedIssues };
   }, [treatmentFile, additionalFields, userValues]);
 
-  if (unresolvedFields.length > 0) {
+  if (previewState.mode === "form") {
     return (
       <FieldForm
-        unresolvedFields={unresolvedFields}
+        unresolvedFields={previewState.formFields}
+        initialValues={previewState.initialValues}
+        errors={previewState.errors}
         onSubmit={(values) => {
           setUserValues(values);
           onFieldsResolved?.(values);
@@ -101,11 +91,10 @@ export function PreviewHost({
     );
   }
 
-  if (resolvedIssues.length > 0) {
-    // After-fill validation surfaced a contract violation that
-    // would otherwise reach the participant as a broken page. Show
-    // an inline error panel rather than rendering Viewer. Matches
-    // the shape that `TreatmentValidationError` produces for
+  if (previewState.mode === "error") {
+    // Post-fill validation failed and the file has no fillable
+    // fields — nothing a form could fix, so show the error panel.
+    // Matches the shape that `TreatmentValidationError` produces for
     // pre-fill issues, so a future unification can route both
     // through the same UI surface.
     return (
@@ -125,9 +114,9 @@ export function PreviewHost({
           continuing.
         </p>
         <ul>
-          {resolvedIssues.map((issue, i) => (
+          {previewState.errors.map((issue, i) => (
             <li key={i}>
-              <code>{issue.path.join(".") || "(root)"}</code>: {issue.message}
+              <code>{issue.path}</code>: {issue.message}
             </li>
           ))}
         </ul>
@@ -137,7 +126,7 @@ export function PreviewHost({
 
   return (
     <Viewer
-      treatmentFile={resolved}
+      treatmentFile={previewState.resolved}
       getTextContent={getTextContent}
       getAssetURL={getAssetURL}
       selectedIntroIndex={selectedIntroIndex}
