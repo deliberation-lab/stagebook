@@ -42,6 +42,26 @@ describe("Qualtrics stableParticipantId contract check (#473)", () => {
     consoleError.mockRestore();
   });
 
+  test("reports a violation for a whitespace-only stableParticipantId (treated as absent)", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const onContractViolation = vi.fn();
+
+    render(
+      <Qualtrics
+        url="https://upenn.qualtrics.com/jfe/form/SV_x"
+        stableParticipantId="   "
+        onContractViolation={onContractViolation}
+        save={() => {}}
+        onComplete={() => {}}
+      />,
+    );
+
+    expect(onContractViolation).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+
   test("does not report a violation when stableParticipantId is present", () => {
     const consoleError = vi
       .spyOn(console, "error")

@@ -46,13 +46,20 @@ export function Qualtrics({
   save,
   onComplete,
 }: QualtricsProps) {
+  // Trim before any presence test so behavior matches `hasStableParticipantId`
+  // (a whitespace-only id counts as absent). The trimmed values are what we
+  // both check and append, so the contract warning and the outbound URL stay
+  // consistent.
+  const trimmedStableId = stableParticipantId.trim();
+  const trimmedSampleId = sampleId.trim();
+
   // The contract check for `stableParticipantId` lives here, not at provider
   // mount: a Qualtrics survey always wants the `stableParticipantId` URL param
   // to link its response back to the participant, so an empty id is a real
   // (silent) data loss. Surface it loudly. Studies without Qualtrics never hit
   // this.
   useEffect(() => {
-    if (stableParticipantId) return;
+    if (trimmedStableId) return;
     const message =
       "Stagebook: a Qualtrics survey is rendering without a " +
       "stableParticipantId, so its response will not carry the " +
@@ -60,7 +67,7 @@ export function Qualtrics({
       "`attributes.stableParticipantId` before reaching a Qualtrics stage.";
     console.error(message);
     onContractViolation?.({ kind: "missingStableParticipantId", message });
-  }, [stableParticipantId, onContractViolation]);
+  }, [trimmedStableId, onContractViolation]);
   // Ref unstable callbacks so the listener-registration effect below
   // doesn't tear down and re-add on every parent re-render (#105).
   const saveRef = useRef(save);
@@ -105,14 +112,14 @@ export function Qualtrics({
     resolvedParams.forEach(({ key, value }) =>
       urlObj.searchParams.append(key, value),
     );
-    if (stableParticipantId) {
-      urlObj.searchParams.append("stableParticipantId", stableParticipantId);
+    if (trimmedStableId) {
+      urlObj.searchParams.append("stableParticipantId", trimmedStableId);
     }
-    if (sampleId) {
-      urlObj.searchParams.append("sampleId", sampleId);
+    if (trimmedSampleId) {
+      urlObj.searchParams.append("sampleId", trimmedSampleId);
     }
     return urlObj.toString();
-  }, [url, resolvedParams, stableParticipantId, sampleId]);
+  }, [url, resolvedParams, trimmedStableId, trimmedSampleId]);
 
   return (
     <div

@@ -104,11 +104,7 @@ export function MockStageRenderer({
       // override the id explicitly).
       if (key === "attributes") {
         const base = { stableParticipantId: "test-stable-1" };
-        return [
-          val !== null && typeof val === "object"
-            ? { ...base, ...(val as Record<string, unknown>) }
-            : base,
-        ];
+        return [isPlainObject(val) ? { ...base, ...val } : base];
       }
       return val !== undefined ? [val] : [];
     },

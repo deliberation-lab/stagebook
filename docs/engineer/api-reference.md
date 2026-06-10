@@ -202,17 +202,17 @@ Requires StagebookProvider. Dispatches to the appropriate element component base
 
 ### Element Components (pure props)
 
-| Component       | Key Props                                                                                       |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| `Prompt`        | `metadata`, `body`, `responseItems`, `name`, `save`, `getElapsedTime`, `value`, `progressLabel` |
-| `Display`       | `reference`, `values`, `position?`                                                              |
-| `SubmitButton`  | `onSubmit`, `name`, `save`, `getElapsedTime`, `buttonText?`                                     |
-| `AudioElement`  | `src`                                                                                           |
-| `ImageElement`  | `src`, `width?`                                                                                 |
-| `KitchenTimer`  | `startTime`, `endTime`, `getElapsedTime`, `warnTimeRemaining?`                                  |
-| `TrackedLink`   | `name`, `url`, `displayText`, `save`, `getElapsedTime`, `progressLabel`, `resolvedParams?`      |
-| `TrainingVideo` | `url`, `getElapsedTime`, `onComplete`                                                           |
-| `Qualtrics`     | `url`, `resolvedParams?`, `participantId?`, `groupId?`, `progressLabel`, `save`, `onComplete`   |
+| Component       | Key Props                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `Prompt`        | `metadata`, `body`, `responseItems`, `name`, `save`, `getElapsedTime`, `value`, `progressLabel`             |
+| `Display`       | `reference`, `values`, `position?`                                                                          |
+| `SubmitButton`  | `onSubmit`, `name`, `save`, `getElapsedTime`, `buttonText?`                                                 |
+| `AudioElement`  | `src`                                                                                                       |
+| `ImageElement`  | `src`, `width?`                                                                                             |
+| `KitchenTimer`  | `startTime`, `endTime`, `getElapsedTime`, `warnTimeRemaining?`                                              |
+| `TrackedLink`   | `name`, `url`, `displayText`, `save`, `getElapsedTime`, `progressLabel`, `resolvedParams?`                  |
+| `TrainingVideo` | `url`, `getElapsedTime`, `onComplete`                                                                       |
+| `Qualtrics`     | `url`, `resolvedParams?`, `stableParticipantId?`, `sampleId?`, `onContractViolation?`, `save`, `onComplete` |
 
 ### Render Slots (platform-provided)
 
