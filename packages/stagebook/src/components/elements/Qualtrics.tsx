@@ -8,8 +8,31 @@ export interface ResolvedParam {
 export interface QualtricsProps {
   url: string;
   resolvedParams?: ResolvedParam[];
-  participantId?: string;
-  groupId?: string;
+  /**
+   * The anonymized, release-safe participant id (#473). Appended to the
+   * survey URL as `stableParticipantId` so Qualtrics responses can be linked
+   * back to the participant's exported data. Sourced from
+   * `attributes.stableParticipantId` — NOT the internal `playerId`. (Replaces
+   * the legacy `deliberationId` URL param; Qualtrics surveys must read the
+   * embedded data field `stableParticipantId`.)
+   */
+  stableParticipantId?: string;
+  /**
+   * The per-assignment data-row id (#473), appended as `sampleId`. Absent
+   * until the game phase, so it may be empty.
+   */
+  sampleId?: string;
+  /**
+   * Telemetry hook (#473) fired when `stableParticipantId` is empty — i.e.
+   * this survey would launch without participant linkage, silently
+   * orphaning the response. This is the one place stagebook consumes the id,
+   * so it's the one place the missing-id contract is checked (lazily, at use,
+   * not eagerly at mount). Notification only — the survey still renders.
+   */
+  onContractViolation?: (info: {
+    kind: "missingStableParticipantId";
+    message: string;
+  }) => void;
   save: (key: string, value: unknown) => void;
   onComplete: () => void;
 }
@@ -17,11 +40,27 @@ export interface QualtricsProps {
 export function Qualtrics({
   url,
   resolvedParams = [],
-  participantId = "",
-  groupId = "",
+  stableParticipantId = "",
+  sampleId = "",
+  onContractViolation,
   save,
   onComplete,
 }: QualtricsProps) {
+  // The contract check for `stableParticipantId` lives here, not at provider
+  // mount: a Qualtrics survey always wants the `stableParticipantId` URL param
+  // to link its response back to the participant, so an empty id is a real
+  // (silent) data loss. Surface it loudly. Studies without Qualtrics never hit
+  // this.
+  useEffect(() => {
+    if (stableParticipantId) return;
+    const message =
+      "Stagebook: a Qualtrics survey is rendering without a " +
+      "stableParticipantId, so its response will not carry the " +
+      "stableParticipantId link back to the participant. The host must populate " +
+      "`attributes.stableParticipantId` before reaching a Qualtrics stage.";
+    console.error(message);
+    onContractViolation?.({ kind: "missingStableParticipantId", message });
+  }, [stableParticipantId, onContractViolation]);
   // Ref unstable callbacks so the listener-registration effect below
   // doesn't tear down and re-add on every parent re-render (#105).
   const saveRef = useRef(save);
@@ -66,14 +105,14 @@ export function Qualtrics({
     resolvedParams.forEach(({ key, value }) =>
       urlObj.searchParams.append(key, value),
     );
-    if (participantId) {
-      urlObj.searchParams.append("deliberationId", participantId);
+    if (stableParticipantId) {
+      urlObj.searchParams.append("stableParticipantId", stableParticipantId);
     }
-    if (groupId) {
-      urlObj.searchParams.append("sampleId", groupId);
+    if (sampleId) {
+      urlObj.searchParams.append("sampleId", sampleId);
     }
     return urlObj.toString();
-  }, [url, resolvedParams, participantId, groupId]);
+  }, [url, resolvedParams, stableParticipantId, sampleId]);
 
   return (
     <div
