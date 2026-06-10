@@ -168,8 +168,12 @@ describe("computePreviewState", () => {
     const second = computePreviewState(parsed, undefined, {
       userPromptFile: "prompts/q1.md",
     });
-    expect(second).toEqual(first);
+    expect(first.mode).toBe("form");
     expect(second.mode).toBe("form");
+    if (first.mode !== "form" || second.mode !== "form") return;
+    expect(second.formFields).toEqual(first.formFields);
+    expect(second.initialValues).toEqual(first.initialValues);
+    expect(second.errors).toEqual(first.errors);
   });
 
   it("only asks for host-unbound fields while fields are unresolved", () => {

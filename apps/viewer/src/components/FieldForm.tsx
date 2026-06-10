@@ -47,8 +47,8 @@ export function FieldForm({
               values and resubmit.
             </p>
             <ul style={errorListStyle}>
-              {errors.map((issue, i) => (
-                <li key={i}>
+              {errors.map((issue) => (
+                <li key={`${issue.path}:${issue.message}`}>
                   <code>{issue.path}</code>: {issue.message}
                 </li>
               ))}
