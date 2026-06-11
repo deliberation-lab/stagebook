@@ -118,6 +118,8 @@ All slots are optional. If not provided, the element renders nothing.
 
 Some elements temporarily expect the participant to be away (watching a video, following an external link). Stagebook components call `setAllowIdle?.(true/false)` to signal this. The platform's idle detection system uses this signal to suppress inactivity warnings during expected away periods.
 
+**Hosts must reset the idle countdown on the `true → false` transition.** During a sanctioned away period there is typically no page interaction, so the "time since last activity" the host tracks is stale by the time the flag flips back to `false`. If the host resumes detection against that stale timestamp, the inactivity warning fires immediately on the next stage — defeating the purpose of the signal. Treat the `true → false` edge as fresh activity: restart the countdown so the participant gets a full idle window before any warning.
+
 ## CSS theming
 
 Stagebook ships a default stylesheet (`stagebook/styles`) with CSS custom properties for all themeable values. Platforms override these on `:root`:
