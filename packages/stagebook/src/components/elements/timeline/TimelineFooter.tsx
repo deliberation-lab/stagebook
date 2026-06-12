@@ -126,7 +126,7 @@ export function TimelineFooter({
           className={btnClass}
           data-testid="timeline-help-button"
           onClick={onHelpToggle}
-          aria-label="Show keyboard shortcuts"
+          aria-label={messages.timelineShowShortcuts}
           aria-pressed={helpOpen}
           // Explicit tabIndex for Safari Tab-focus (#415 / #413).
           tabIndex={0}

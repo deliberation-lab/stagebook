@@ -1,5 +1,6 @@
 import React, { useId } from "react";
 import { WaveformRenderer } from "./WaveformRenderer.js";
+import { useMessages } from "../../StagebookProvider.js";
 
 export interface TimelineTrackProps {
   /** Label shown in the gutter (from trackLabels or "Position N"). */
@@ -43,6 +44,7 @@ export function TimelineTrack({
   muted,
   onToggleMute,
 }: TimelineTrackProps) {
+  const messages = useMessages();
   // Scoped class for the mute button's `:focus-visible` ring + hover
   // (#382 polish). Same useId pattern as Button / Slider / ListSorter.
   const reactId = useId();
@@ -83,7 +85,11 @@ export function TimelineTrack({
           className={muteClass}
           data-testid="track-mute"
           data-muted={muted}
-          aria-label={muted ? `Unmute ${label}` : `Mute ${label}`}
+          aria-label={
+            muted
+              ? messages.timelineUnmuteTrack(label)
+              : messages.timelineMuteTrack(label)
+          }
           aria-pressed={muted}
           onClick={() => onToggleMute(!muted)}
           // Explicit tabIndex for Safari Tab-focus (#415 / #413).

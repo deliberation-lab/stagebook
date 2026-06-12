@@ -66,6 +66,67 @@ export interface StagebookMessages {
   pointsMarked: (n: number) => string;
   /** Hint shown in single-select range mode when a range already exists. */
   singleRangeHint: string;
+  /** Accessible name for the timeline region, e.g. "Timeline: speech". */
+  timelineLabel: (name: string) => string;
+  /** Gutter label fallback when no trackLabels entry exists, e.g. "Track 0". */
+  timelineTrackFallback: (index: number) => string;
+  timelineZoomIn: string;
+  timelineZoomOut: string;
+  timelineMuteTrack: (label: string) => string;
+  timelineUnmuteTrack: (label: string) => string;
+  /** Footer help-button accessible name. */
+  timelineShowShortcuts: string;
+  /** Help-popover heading. */
+  timelineShortcutsTitle: string;
+  /** Help-popover dialog accessible name. */
+  timelineShortcutsLabel: string;
+  /**
+   * The keyboard-shortcut tables, one row set per selection mode. Whole-table
+   * functions (not per-row keys) so a locale translates the table wholesale —
+   * including instruction-style "keys" like "Click and drag". Physical key
+   * names (Space, Tab, Delete, …) may stay untranslated at the translator's
+   * discretion.
+   */
+  timelineShortcutRowsRange: () => { keys: string; description: string }[];
+  timelineShortcutRowsPoint: () => { keys: string; description: string }[];
+
+  // --- MediaPlayer ---
+  mediaPlayerLabel: string;
+  /** Poster-overlay play affordances. */
+  mediaPlayVideo: string;
+  mediaPlayAudio: string;
+  /** Error states. */
+  mediaVideoUnavailable: string;
+  mediaAudioUnavailable: string;
+  mediaInvalidUrl: string;
+  /** HTMLMediaElement error-code map (codes 1-4) + fallbacks. */
+  mediaErrorAborted: string;
+  mediaErrorNetwork: string;
+  mediaErrorDecode: string;
+  mediaErrorFormat: string;
+  mediaErrorUnknown: string;
+  mediaErrorCode: (code: number) => string;
+  /** Transport controls — aria-labels and (keyboard-hint-bearing) titles.
+   *  "Full" titles belong to the native video controls (hold-to-scrub
+   *  supported); "Mini" to the YouTube variant (click-only). */
+  mediaSeekBack: string;
+  mediaSeekForward: string;
+  mediaSeekBackTitleFull: string;
+  mediaSeekForwardTitleFull: string;
+  mediaSeekBackTitleMini: string;
+  mediaSeekForwardTitleMini: string;
+  mediaStepBack: (seconds: number) => string;
+  mediaStepBackTitle: (seconds: number) => string;
+  mediaStepForward: (seconds: number) => string;
+  mediaStepForwardTitle: (seconds: number) => string;
+  mediaPlay: string;
+  mediaPause: string;
+  mediaPlayTitle: string;
+  mediaPauseTitle: string;
+  mediaSpeedLabel: string;
+  mediaSpeedTitle: string;
+  /** Scrub-bar slider accessible name. */
+  mediaSeekSlider: string;
 }
 
 /** Recursive partial — host overrides supply any subset of the catalog. The
