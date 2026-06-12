@@ -124,7 +124,9 @@ export function Viewer({
   const locale = localeOverride ?? treatmentLocale;
   useEffect(() => {
     setLocaleOverride(null);
-  }, [selectedTreatmentIndex]);
+    // Also reset when the whole file is swapped (different study, same
+    // index) — a lingering override would mislabel the new preview.
+  }, [selectedTreatmentIndex, treatmentFile]);
   const [store] = useState(() => new ViewerStateStore());
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
   // `<main>` is the scroll container in the viewer's host-owns-scroll
