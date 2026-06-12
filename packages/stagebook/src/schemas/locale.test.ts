@@ -149,13 +149,26 @@ describe("prompt frontmatter locale", () => {
 // ---------------------------------------------------------------------------
 
 describe("fileSchema parent-directory traversal gate", () => {
+  // Interior `..` (a parent-directory segment after a real segment) is the
+  // shape a crafted `${locale}` substitution produces in the idiomatic
+  // `prompts/${locale}/x.prompt.md` pattern — rejected.
   test.each([
-    "../secret.prompt.md",
     "prompts/../../etc/passwd.prompt.md",
     "prompts/${locale}/../../x.prompt.md", // placeholder path still gated
-    "..",
-  ])("rejects %s", (path) => {
+    "a/../b.prompt.md", // interior even though it stays in-tree
+  ])("rejects interior traversal %s", (path) => {
     expect(fileSchema.safeParse(path).success).toBe(false);
+  });
+
+  // A LEADING run of `..` is what `resolveImports` mechanically produces for
+  // templates imported from a parent directory (`imports: ../shared/…`) —
+  // a documented, test-pinned layout. Permitted.
+  test.each([
+    "../shared/prompts/x.prompt.md",
+    "../../shared/x.prompt.md",
+    "../secret.prompt.md",
+  ])("permits leading parent-relative %s (import rewriting)", (path) => {
+    expect(fileSchema.safeParse(path).success).toBe(true);
   });
 
   test.each([
@@ -174,9 +187,9 @@ describe("fileSchema parent-directory traversal gate", () => {
   });
 
   test("the gate also applies through promptFilePathSchema", () => {
-    expect(promptFilePathSchema.safeParse("../x.prompt.md").success).toBe(
-      false,
-    );
+    expect(
+      promptFilePathSchema.safeParse("prompts/../../x.prompt.md").success,
+    ).toBe(false);
     expect(
       promptFilePathSchema.safeParse("prompts/he/x.prompt.md").success,
     ).toBe(true);
@@ -187,5 +200,13 @@ describe("fileSchema parent-directory traversal gate", () => {
     expect(fileSchema.safeParse("prompts/../../x.prompt.md").success).toBe(
       false,
     );
+  });
+
+  test("known residual: a path STARTING with a placeholder can fill to leading ..", () => {
+    // `${x}/q.prompt.md` filled with x="../../secret" gives an all-leading-..
+    // path, indistinguishable from import rewriting at this layer. Host
+    // loaders sandbox reads to the study root (getTextContent contract);
+    // documented in the fileSchema refine + ADR security section.
+    expect(fileSchema.safeParse("../../secret/q.prompt.md").success).toBe(true);
   });
 });

@@ -48,7 +48,10 @@ export const referenceNameSchema = z
 // resolves any unshipped locale to `en` (with a warning). The syntactic check
 // still catches gross typos like `hebrew`.
 const LOCALE_REGEX = /^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]+)*$/;
-export const localeSchema = z.string().regex(LOCALE_REGEX, {
-  message:
-    "`locale` must be a BCP-47 language tag — a 2-3 letter primary subtag with optional `-`-separated subtags (e.g. `en`, `he`, `he-IL`).",
-});
+export const localeSchema = z
+  .string()
+  .max(35) // longest legal BCP-47 tags are ~35 chars; consistent with other primitives' caps
+  .regex(LOCALE_REGEX, {
+    message:
+      "`locale` must be a BCP-47 language tag — a 2-3 letter primary subtag with optional `-`-separated subtags (e.g. `en`, `he`, `he-IL`).",
+  });

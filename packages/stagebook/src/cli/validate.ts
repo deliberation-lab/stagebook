@@ -12,6 +12,7 @@ import {
 } from "../validate/index.js";
 import { load as loadYaml } from "js-yaml";
 import {
+  fileSchema,
   promptFileSchema,
   collectReferencedPromptFiles,
   checkPromptLocaleConsistency,
@@ -297,6 +298,11 @@ async function checkLocaleConsistencyDiagnostics(
 
   const promptLocales = new Map<string, string | undefined>();
   for (const relPath of collectReferencedPromptFiles(fileObj)) {
+    // Gate before the read (ADR security acceptance condition): never read a
+    // path the schema rejects (absolute, backslash, interior `..`). Those
+    // paths already carry their own error diagnostics from the schema pass —
+    // this just ensures the locale rule can't be used to read them anyway.
+    if (!fileSchema.safeParse(relPath).success) continue;
     let promptSource: string;
     try {
       promptSource = await readFile(resolvePath(dir, relPath), "utf8");

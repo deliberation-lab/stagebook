@@ -172,4 +172,25 @@ describe("checkPromptLocaleConsistency", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.treatmentName).toBe("t-he");
   });
+
+  test("same prompt referenced twice in one treatment reports once", () => {
+    const file = treatmentFile([
+      {
+        name: "t-he",
+        locale: "he",
+        files: ["prompts/q.prompt.md"],
+        exitFiles: ["prompts/q.prompt.md"],
+      },
+    ]);
+    const locales = new Map([["prompts/q.prompt.md", undefined]]);
+    expect(checkPromptLocaleConsistency(file, locales)).toHaveLength(1);
+  });
+
+  test("a leaked ${...} treatment locale is skipped (schema reports the leak)", () => {
+    const file = treatmentFile([
+      { name: "t", locale: "${locale}", files: ["prompts/q.prompt.md"] },
+    ]);
+    const locales = new Map([["prompts/q.prompt.md", "he"]]);
+    expect(checkPromptLocaleConsistency(file, locales)).toEqual([]);
+  });
 });

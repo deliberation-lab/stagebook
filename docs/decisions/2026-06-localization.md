@@ -300,11 +300,19 @@ surface and surfaced one fix to make an acceptance condition:
   (host code already controls the page); `resolveCatalog` still guards a
   malformed override by falling back to the bundled entry rather than crashing.
 - **Path traversal — fix required (acceptance condition).** `${locale}` is
-  substituted raw into `file:` paths; `fileSchema` does not reject `..` and
-  `resolveImportPath` preserves leading `..`. Reject `..` segments in
-  `fileSchema` and gate the substituted locale against the registered set
-  *before* the file read. This closes traversal for *all* `file:` fields, not
-  just locale, and is the one finding that gates implementation.
+  substituted raw into `file:` paths. **Implemented as:** `fileSchema` rejects
+  *interior* `..` segments (a `..` after a real segment — the shape a crafted
+  `${locale}` produces in the idiomatic `prompts/${locale}/x` pattern, checked
+  both pre-fill and post-fill); a *leading* run of `..` stays permitted because
+  `resolveImports` mechanically produces `../shared/…` paths for templates
+  imported from a parent directory (a documented, test-pinned layout — a
+  blanket ban would break `imports:` from parent dirs). The CLI's
+  locale-consistency pass additionally filters every path through `fileSchema`
+  *before* reading it from disk (gate-before-read). Residual, documented: a
+  path that *starts* with a placeholder (`${x}/q.prompt.md`) can fill to a
+  leading-`..` path indistinguishable from import rewriting; host loaders
+  remain responsible for sandboxing reads to the study root (the
+  `getTextContent` contract).
 - **Bidi/homograph spoofing — researcher-facing warning.** Bidi-override control
   chars (U+202A–202E, U+2066–2069) in participant-facing strings (esp.
   `trackedLink.displayText`) can spoof visible link text; RTL makes them less

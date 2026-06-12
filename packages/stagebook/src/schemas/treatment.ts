@@ -179,20 +179,38 @@ export const fileSchema = z
   )
   .refine(
     (value) => {
-      // Reject parent-directory traversal in relative paths. A `..` segment
-      // lets a (researcher-authored or `${field}`-substituted, e.g.
-      // `prompts/${locale}/…`) file path escape the treatment's asset root.
+      // Reject INTERIOR parent-directory traversal in relative paths. A `..`
+      // segment after a real segment lets a `${field}`-substituted path (e.g.
+      // `prompts/${locale}/…` filled with `../../x`) escape the treatment's
+      // asset root — this also runs post-fill on the substituted value, so
+      // that attack is rejected.
+      //
+      // A LEADING run of `..` segments is permitted: `resolveImports` rewrites
+      // imported templates' `file:` paths relative to the main file, so
+      // `imports: ../shared/x.stagebook.yaml` legitimately produces
+      // `../shared/prompts/q.prompt.md` in the expanded treatment (a
+      // documented, test-pinned layout — see resolveImportPath). Residual
+      // caveat: a path that STARTS with a placeholder (`${x}/q.prompt.md`)
+      // could be filled to a leading-`..` path and pass this gate; host
+      // loaders remain responsible for sandboxing reads to the study root
+      // (see StagebookContext.getTextContent contract).
+      //
       // URLs (http(s)://, asset://) carry a scheme and are normalized by URL
-      // parsing, so only scheme-less relative paths are constrained here. This
-      // also runs post-fill on the substituted value, so a crafted `${locale}`
-      // resolving to `../../x` is rejected. No legitimate prompt/media path
-      // needs `..`.
+      // parsing, so only scheme-less relative paths are constrained here.
       if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return true;
-      return !value.split("/").includes("..");
+      let seenRealSegment = false;
+      for (const segment of value.split("/")) {
+        if (segment === "..") {
+          if (seenRealSegment) return false;
+        } else {
+          seenRealSegment = true;
+        }
+      }
+      return true;
     },
     {
       message:
-        "File path must not contain `..` path segments (parent-directory traversal is not allowed).",
+        "File path must not contain `..` segments after the start of the path (parent-directory traversal). A leading `../` prefix (e.g. shared templates imported from a parent directory) is allowed.",
     },
   );
 export type FileType = z.infer<typeof fileSchema>;
