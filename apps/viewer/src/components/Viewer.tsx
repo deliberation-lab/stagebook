@@ -16,6 +16,7 @@ import {
   Stage,
   ScrollIndicator,
   useScrollAwareness,
+  REGISTERED_LOCALES,
 } from "stagebook/components";
 import { flattenSteps } from "../lib/steps";
 import { ViewerStateStore } from "../lib/store";
@@ -115,6 +116,15 @@ export function Viewer({
     setStageResetVersion((v) => v + 1);
   }, []);
   const [position, setPosition] = useState(0);
+  // Preview-only locale override (null = follow the treatment's declared
+  // locale). Reset when the previewed treatment changes so a lingering
+  // override can't silently mislabel another treatment's preview.
+  const [localeOverride, setLocaleOverride] = useState<string | null>(null);
+  const treatmentLocale = (treatment as { locale?: string }).locale ?? "en";
+  const locale = localeOverride ?? treatmentLocale;
+  useEffect(() => {
+    setLocaleOverride(null);
+  }, [selectedTreatmentIndex]);
   const [store] = useState(() => new ViewerStateStore());
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
   // `<main>` is the scroll container in the viewer's host-owns-scroll
@@ -167,6 +177,7 @@ export function Viewer({
         position,
         stageIndex,
         playerCount: treatment.playerCount,
+        locale,
         onSubmit: handleSubmit,
         getTextContent,
         getAssetURL,
@@ -180,6 +191,7 @@ export function Viewer({
       position,
       stageIndex,
       treatment.playerCount,
+      locale,
       handleSubmit,
       getTextContent,
       getAssetURL,
@@ -264,6 +276,32 @@ export function Viewer({
           onTimeChange={handleTimeChange}
         />
         <div style={positionSwitcherStyle}>
+          <label htmlFor="locale-select" style={positionLabelStyle}>
+            Locale
+          </label>
+          <select
+            id="locale-select"
+            title="Preview locale (overrides the treatment's declared locale)"
+            value={locale}
+            onChange={(e) => {
+              const next = e.target.value;
+              setLocaleOverride(next === treatmentLocale ? null : next);
+            }}
+            style={positionSelectStyle}
+          >
+            {REGISTERED_LOCALES.map((l) => (
+              <option key={l} value={l}>
+                {l === treatmentLocale ? `${l} (treatment)` : l}
+              </option>
+            ))}
+            {!REGISTERED_LOCALES.includes(
+              treatmentLocale as (typeof REGISTERED_LOCALES)[number],
+            ) && (
+              <option value={treatmentLocale}>
+                {treatmentLocale} (treatment)
+              </option>
+            )}
+          </select>
           <label htmlFor="position-select" style={positionLabelStyle}>
             Position
           </label>
