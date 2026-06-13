@@ -5,7 +5,11 @@ import {
   promptFilePathSchema,
   baseTreatmentSchema,
 } from "./treatment.js";
-import { resolvedTreatmentSchema } from "./resolved.js";
+import {
+  resolvedTreatmentSchema,
+  resolvedTreatmentFileSchema,
+} from "./resolved.js";
+import { introSequenceSchema } from "./treatment.js";
 import { promptMetadataSchema } from "./promptFile.js";
 
 // ---------------------------------------------------------------------------
@@ -208,5 +212,63 @@ describe("fileSchema parent-directory traversal gate", () => {
     // loaders sandbox reads to the study root (getTextContent contract);
     // documented in the fileSchema refine + ADR security section.
     expect(fileSchema.safeParse("../../secret/q.prompt.md").success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Intro-sequence locale (pre-assignment phase carries its own locale)
+// ---------------------------------------------------------------------------
+
+describe("introSequenceSchema.locale", () => {
+  function minimalIntro(extra: Record<string, unknown> = {}) {
+    return {
+      name: "intro1",
+      introSteps: [{ name: "consent", elements: [{ type: "submitButton" }] }],
+      ...extra,
+    };
+  }
+
+  test("locale is optional (absent = English)", () => {
+    const r = introSequenceSchema.safeParse(minimalIntro());
+    expect(r.success).toBe(true);
+  });
+
+  test("accepts a literal and a ${field} placeholder", () => {
+    expect(
+      introSequenceSchema.safeParse(minimalIntro({ locale: "he" })).success,
+    ).toBe(true);
+    expect(
+      introSequenceSchema.safeParse(minimalIntro({ locale: "${locale}" }))
+        .success,
+    ).toBe(true);
+  });
+
+  test("rejects a malformed locale", () => {
+    expect(
+      introSequenceSchema.safeParse(minimalIntro({ locale: "hebrew" })).success,
+    ).toBe(false);
+  });
+
+  test("resolved intro file rejects a leaked ${field} placeholder", () => {
+    const base = {
+      introSequences: [
+        {
+          name: "intro1",
+          locale: "${locale}",
+          introSteps: [{ name: "s", elements: [{ type: "submitButton" }] }],
+        },
+      ],
+    };
+    expect(resolvedTreatmentFileSchema.safeParse(base).success).toBe(false);
+    const ok = {
+      introSequences: [
+        {
+          name: "intro1",
+          locale: "he",
+          introSteps: [{ name: "s", elements: [{ type: "submitButton" }] }],
+        },
+      ],
+    };
+    expect(resolvedTreatmentFileSchema.safeParse(ok).success).toBe(true);
   });
 });

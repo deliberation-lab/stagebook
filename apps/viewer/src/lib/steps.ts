@@ -17,6 +17,7 @@ export interface ViewerStep {
 
 interface IntroSequence {
   name: string;
+  locale?: string;
   introSteps: {
     name: string;
     notes?: string;
@@ -27,6 +28,7 @@ interface IntroSequence {
 
 interface Treatment {
   name: string;
+  locale?: string;
   playerCount: number;
   gameStages: {
     name: string;
@@ -47,15 +49,19 @@ interface Treatment {
 /**
  * Flatten a selected intro sequence and treatment into a single
  * ordered list of steps the viewer can navigate.
+ *
+ * `introSequence` is optional: a treatment file may declare only
+ * `treatments:` (no `introSequences:`), in which case the walkthrough
+ * starts at the first game stage.
  */
 export function flattenSteps(
-  introSequence: IntroSequence,
+  introSequence: IntroSequence | undefined,
   treatment: Treatment,
 ): ViewerStep[] {
   let index = 0;
   const steps: ViewerStep[] = [];
 
-  for (const step of introSequence.introSteps) {
+  for (const step of introSequence?.introSteps ?? []) {
     steps.push({
       index: index++,
       phase: "intro",

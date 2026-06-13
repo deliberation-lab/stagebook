@@ -110,8 +110,9 @@ describe("checkPromptLocaleConsistency", () => {
     const issues = checkPromptLocaleConsistency(file, locales);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
-      treatmentName: "t-he",
-      treatmentLocale: "he",
+      containerKind: "treatment",
+      containerName: "t-he",
+      containerLocale: "he",
       promptFile: "prompts/a.prompt.md",
       promptLocale: "en",
     });
@@ -142,7 +143,7 @@ describe("checkPromptLocaleConsistency", () => {
     const issues = checkPromptLocaleConsistency(file, locales);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
-      treatmentLocale: "en",
+      containerLocale: "en",
       promptLocale: "he",
     });
   });
@@ -170,7 +171,7 @@ describe("checkPromptLocaleConsistency", () => {
     const locales = new Map([["prompts/shared.prompt.md", "en"]]);
     const issues = checkPromptLocaleConsistency(file, locales);
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.treatmentName).toBe("t-he");
+    expect(issues[0]?.containerName).toBe("t-he");
   });
 
   test("same prompt referenced twice in one treatment reports once", () => {
@@ -191,6 +192,100 @@ describe("checkPromptLocaleConsistency", () => {
       { name: "t", locale: "${locale}", files: ["prompts/q.prompt.md"] },
     ]);
     const locales = new Map([["prompts/q.prompt.md", "he"]]);
+    expect(checkPromptLocaleConsistency(file, locales)).toEqual([]);
+  });
+});
+
+describe("intro sequences (pre-assignment phase)", () => {
+  function fileWithIntro(
+    seqs: { name: string; locale?: string; files: string[] }[],
+  ) {
+    return {
+      introSequences: seqs.map((q) => ({
+        name: q.name,
+        ...(q.locale !== undefined ? { locale: q.locale } : {}),
+        introSteps: [
+          {
+            name: "step1",
+            elements: q.files.map((file) => ({ type: "prompt", file })),
+          },
+        ],
+      })),
+    };
+  }
+
+  test("checks intro prompts against the intro sequence's own locale", () => {
+    const file = fileWithIntro([
+      { name: "intro-he", locale: "he", files: ["prompts/consent.prompt.md"] },
+    ]);
+    const locales = new Map([["prompts/consent.prompt.md", undefined]]);
+    const issues = checkPromptLocaleConsistency(file, locales);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      containerKind: "intro sequence",
+      containerName: "intro-he",
+      containerLocale: "he",
+      promptLocale: "en",
+    });
+    expect(issues[0]?.message).toContain('intro sequence "intro-he"');
+  });
+
+  test("passes when the intro prompt matches the sequence locale", () => {
+    const file = fileWithIntro([
+      {
+        name: "intro-he",
+        locale: "he",
+        files: ["prompts/he/consent.prompt.md"],
+      },
+    ]);
+    const locales = new Map([["prompts/he/consent.prompt.md", "he"]]);
+    expect(checkPromptLocaleConsistency(file, locales)).toEqual([]);
+  });
+
+  test("collects intro prompt files too", () => {
+    const file = fileWithIntro([
+      { name: "intro-en", files: ["prompts/welcome.prompt.md"] },
+    ]);
+    expect(collectReferencedPromptFiles(file)).toEqual([
+      "prompts/welcome.prompt.md",
+    ]);
+  });
+
+  test("an intro sequence does not inherit a treatment's locale", () => {
+    // he treatment + en intro sequence in one file: the en intro prompt is
+    // fine against the en intro, NOT flagged against the he treatment.
+    const file = {
+      introSequences: [
+        {
+          name: "intro-en",
+          locale: "en",
+          introSteps: [
+            {
+              name: "s",
+              elements: [{ type: "prompt", file: "prompts/intro.prompt.md" }],
+            },
+          ],
+        },
+      ],
+      treatments: [
+        {
+          name: "study-he",
+          locale: "he",
+          playerCount: 1,
+          gameStages: [
+            {
+              name: "g",
+              duration: 5,
+              elements: [{ type: "prompt", file: "prompts/he/q.prompt.md" }],
+            },
+          ],
+        },
+      ],
+    };
+    const locales = new Map([
+      ["prompts/intro.prompt.md", "en"],
+      ["prompts/he/q.prompt.md", "he"],
+    ]);
     expect(checkPromptLocaleConsistency(file, locales)).toEqual([]);
   });
 });

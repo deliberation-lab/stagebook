@@ -164,4 +164,13 @@ describe("flattenSteps", () => {
     expect(round1.discussion).toEqual(discussion);
     expect(round2.discussion).toBeUndefined();
   });
+
+  it("works with no intro sequence (treatments-only file)", () => {
+    // A file may declare only `treatments:` (no `introSequences:`); the
+    // walkthrough then starts at the first game stage.
+    const steps = flattenSteps(undefined, treatment);
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps[0]?.phase).toBe("game");
+    expect(steps.some((s) => s.phase === "intro")).toBe(false);
+  });
 });

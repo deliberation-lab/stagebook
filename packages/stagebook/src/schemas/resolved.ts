@@ -330,6 +330,9 @@ export type ResolvedTreatmentType = z.infer<typeof resolvedTreatmentSchema>;
 
 const resolvedIntroSequenceSchema = z.object({
   name: nameSchema,
+  // Post-fill: a concrete BCP-47 tag (a leaked `${field}` placeholder fails
+  // the syntactic check). Optional; absent means English.
+  locale: localeSchema.optional(),
   introSteps: z.array(resolvedIntroExitStepSchema).nonempty(),
 });
 

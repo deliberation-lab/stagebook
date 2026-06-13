@@ -1915,6 +1915,15 @@ export const introSequenceSchema = altTemplateContext(
     .object({
       name: nameSchema,
       notes: z.string().optional(),
+      // Participant-facing language for this intro sequence (BCP-47, e.g.
+      // `he`). Intro sequences run BEFORE treatment assignment, so they can't
+      // inherit a treatment's locale — they declare their own. Same semantics
+      // as the treatment field: optional (absent = English), accepts a
+      // `${field}` placeholder for single-source `contentType: introSequence`
+      // templates, concrete value enum-shape-checked post-fill. Which locale
+      // a participant actually sees here is the host's assignment decision
+      // (intro selection is pre-arm); stagebook just renders what's declared.
+      locale: localeSchema.or(fieldPlaceholderSchema).optional(),
       introSteps: introStepsSchema,
     })
     .strict(),

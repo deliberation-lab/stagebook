@@ -16,7 +16,6 @@ import {
   Stage,
   ScrollIndicator,
   useScrollAwareness,
-  REGISTERED_LOCALES,
 } from "stagebook/components";
 import { flattenSteps } from "../lib/steps";
 import { ViewerStateStore } from "../lib/store";
@@ -85,7 +84,7 @@ export function Viewer({
   onIntroIndexChange,
 }: ViewerProps) {
   const treatment = treatmentFile.treatments[selectedTreatmentIndex];
-  const introSequence = treatmentFile.introSequences[selectedIntroIndex];
+  const introSequence = treatmentFile.introSequences?.[selectedIntroIndex];
 
   // Whether to render the treatment/intro selectors as dropdowns.
   // When the host doesn't pass setters the viewer is uncontrolled
@@ -98,7 +97,7 @@ export function Viewer({
   const showTreatmentPicker =
     !!onTreatmentIndexChange && treatmentFile.treatments.length > 1;
   const showIntroPicker =
-    !!onIntroIndexChange && treatmentFile.introSequences.length > 1;
+    !!onIntroIndexChange && (treatmentFile.introSequences?.length ?? 0) > 1;
 
   const steps = useMemo(
     () => flattenSteps(introSequence, treatment),
@@ -116,17 +115,6 @@ export function Viewer({
     setStageResetVersion((v) => v + 1);
   }, []);
   const [position, setPosition] = useState(0);
-  // Preview-only locale override (null = follow the treatment's declared
-  // locale). Reset when the previewed treatment changes so a lingering
-  // override can't silently mislabel another treatment's preview.
-  const [localeOverride, setLocaleOverride] = useState<string | null>(null);
-  const treatmentLocale = (treatment as { locale?: string }).locale ?? "en";
-  const locale = localeOverride ?? treatmentLocale;
-  useEffect(() => {
-    setLocaleOverride(null);
-    // Also reset when the whole file is swapped (different study, same
-    // index) — a lingering override would mislabel the new preview.
-  }, [selectedTreatmentIndex, treatmentFile]);
   const [store] = useState(() => new ViewerStateStore());
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
   // `<main>` is the scroll container in the viewer's host-owns-scroll
@@ -156,6 +144,17 @@ export function Viewer({
 
   const currentStep = steps[stageIndex];
   const isSubmitted = store.getSubmitted(stageIndex);
+
+  // Locale follows the PHASE: intro steps render under the intro sequence's
+  // declared locale (intro runs before treatment assignment, so it carries
+  // its own), game + exit stages under the treatment's. Both default to
+  // English. Which locale a real participant sees is the host's assignment
+  // decision; the viewer just renders what each phase declares — and surfaces
+  // it in the header so it's explicit.
+  const treatmentLocale = (treatment as { locale?: string }).locale ?? "en";
+  const introLocale =
+    (introSequence as { locale?: string } | undefined)?.locale ?? "en";
+  const locale = currentStep?.phase === "intro" ? introLocale : treatmentLocale;
 
   const handleSubmit = useCallback(() => {
     store.setSubmitted(stageIndex, true);
@@ -278,32 +277,15 @@ export function Viewer({
           onTimeChange={handleTimeChange}
         />
         <div style={positionSwitcherStyle}>
-          <label htmlFor="locale-select" style={positionLabelStyle}>
-            Locale
-          </label>
-          <select
-            id="locale-select"
-            title="Preview locale (overrides the treatment's declared locale)"
-            value={locale}
-            onChange={(e) => {
-              const next = e.target.value;
-              setLocaleOverride(next === treatmentLocale ? null : next);
-            }}
-            style={positionSelectStyle}
+          {/* Read-only: the locale is whatever the current phase declares
+              (intro sequence vs treatment) — explicit, never overridden. */}
+          <span
+            data-testid="viewer-locale-badge"
+            title={`Locale declared by the current ${currentStep.phase} phase`}
+            style={localeBadgeStyle}
           >
-            {REGISTERED_LOCALES.map((l) => (
-              <option key={l} value={l}>
-                {l === treatmentLocale ? `${l} (treatment)` : l}
-              </option>
-            ))}
-            {!REGISTERED_LOCALES.includes(
-              treatmentLocale as (typeof REGISTERED_LOCALES)[number],
-            ) && (
-              <option value={treatmentLocale}>
-                {treatmentLocale} (treatment)
-              </option>
-            )}
-          </select>
+            {locale}
+          </span>
           <label htmlFor="position-select" style={positionLabelStyle}>
             Position
           </label>
@@ -439,6 +421,19 @@ const treatmentNameStyle: React.CSSProperties = {
   fontWeight: 600,
   fontSize: "0.875rem",
   color: "#1f2937",
+};
+
+const localeBadgeStyle: React.CSSProperties = {
+  fontSize: "0.6875rem",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+  color: "#3730a3",
+  background: "#eef2ff",
+  border: "1px solid #c7d2fe",
+  borderRadius: "0.25rem",
+  padding: "0.0625rem 0.375rem",
+  fontVariantNumeric: "tabular-nums",
 };
 
 const treatmentSelectStyle: React.CSSProperties = {
