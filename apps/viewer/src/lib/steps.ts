@@ -47,6 +47,22 @@ interface Treatment {
 }
 
 /**
+ * The participant-facing locale for a given phase. Intro steps render under
+ * the intro sequence's declared locale (intro runs before treatment
+ * assignment, so it carries its own); game + exit steps under the treatment's.
+ * Both default to English. Which locale a real participant sees is the host's
+ * assignment decision — this just reports what each phase declares.
+ */
+export function localeForPhase(
+  phase: Phase | undefined,
+  introSequence: { locale?: string } | undefined,
+  treatment: { locale?: string },
+): string {
+  if (phase === "intro") return introSequence?.locale ?? "en";
+  return treatment.locale ?? "en";
+}
+
+/**
  * Flatten a selected intro sequence and treatment into a single
  * ordered list of steps the viewer can navigate.
  *

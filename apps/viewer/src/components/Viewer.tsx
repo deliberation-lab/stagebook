@@ -17,7 +17,7 @@ import {
   ScrollIndicator,
   useScrollAwareness,
 } from "stagebook/components";
-import { flattenSteps } from "../lib/steps";
+import { flattenSteps, localeForPhase } from "../lib/steps";
 import { ViewerStateStore } from "../lib/store";
 import { createViewerContext } from "../lib/context";
 import { StageNav } from "./StageNav";
@@ -151,10 +151,7 @@ export function Viewer({
   // English. Which locale a real participant sees is the host's assignment
   // decision; the viewer just renders what each phase declares — and surfaces
   // it in the header so it's explicit.
-  const treatmentLocale = (treatment as { locale?: string }).locale ?? "en";
-  const introLocale =
-    (introSequence as { locale?: string } | undefined)?.locale ?? "en";
-  const locale = currentStep?.phase === "intro" ? introLocale : treatmentLocale;
+  const locale = localeForPhase(currentStep?.phase, introSequence, treatment);
 
   const handleSubmit = useCallback(() => {
     store.setSubmitted(stageIndex, true);

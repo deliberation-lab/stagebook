@@ -61,7 +61,7 @@ export function App() {
       if (seq !== loadSeqRef.current) return;
 
       const needsPicker =
-        treatmentFile.introSequences.length > 1 ||
+        (treatmentFile.introSequences?.length ?? 0) > 1 ||
         treatmentFile.treatments.length > 1;
 
       if (needsPicker || readmeContent !== null) {

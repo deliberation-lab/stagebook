@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenSteps } from "./steps";
+import { flattenSteps, localeForPhase } from "./steps";
 
 describe("flattenSteps", () => {
   const introSequence = {
@@ -172,5 +172,33 @@ describe("flattenSteps", () => {
     expect(steps.length).toBeGreaterThan(0);
     expect(steps[0]?.phase).toBe("game");
     expect(steps.some((s) => s.phase === "intro")).toBe(false);
+  });
+});
+
+describe("localeForPhase", () => {
+  const introHe = { locale: "he" };
+  const treatmentEn = { locale: "en" };
+
+  it("intro phase uses the intro sequence's locale", () => {
+    expect(localeForPhase("intro", introHe, treatmentEn)).toBe("he");
+  });
+
+  it("game and exit phases use the treatment's locale", () => {
+    expect(localeForPhase("game", introHe, treatmentEn)).toBe("en");
+    expect(localeForPhase("exit", introHe, treatmentEn)).toBe("en");
+  });
+
+  it("an intro sequence does not inherit the treatment's locale", () => {
+    // he treatment, en (or absent) intro → intro stays en, not he.
+    expect(localeForPhase("intro", { locale: "en" }, { locale: "he" })).toBe(
+      "en",
+    );
+    expect(localeForPhase("intro", undefined, { locale: "he" })).toBe("en");
+  });
+
+  it("defaults to en when a phase declares no locale", () => {
+    expect(localeForPhase("intro", {}, {})).toBe("en");
+    expect(localeForPhase("game", undefined, {})).toBe("en");
+    expect(localeForPhase(undefined, undefined, {})).toBe("en");
   });
 });

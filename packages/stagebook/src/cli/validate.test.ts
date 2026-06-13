@@ -632,3 +632,66 @@ treatments:
     expect(r.stdout).not.toContain("authored in locale");
   });
 });
+
+describe("locale rule — intro sequences", () => {
+  let dir: string;
+
+  function introYaml(locale: string): string {
+    return [
+      "introSequences:",
+      `  - name: intro1`,
+      `    locale: ${locale}`,
+      "    introSteps:",
+      "      - name: consent",
+      "        elements:",
+      "          - type: prompt",
+      "            file: prompts/consent.prompt.md",
+      "          - type: submitButton",
+      "treatments:",
+      "  - name: t1",
+      "    playerCount: 1",
+      "    gameStages:",
+      "      - name: s1",
+      "        duration: 10",
+      "        elements:",
+      "          - type: submitButton",
+      "",
+    ].join("\n");
+  }
+
+  function promptMd(locale?: string): string {
+    return [
+      "---",
+      "type: noResponse",
+      ...(locale ? [`locale: ${locale}`] : []),
+      "---",
+      "# Consent",
+      "",
+    ].join("\n");
+  }
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "stagebook-cli-intro-"));
+    await mkdir(join(dir, "prompts"));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("flags an intro prompt that doesn't match the intro sequence's locale", async () => {
+    await writeFile(join(dir, "study.stagebook.yaml"), introYaml("he"));
+    await writeFile(join(dir, "prompts", "consent.prompt.md"), promptMd());
+    const r = await runCli([join(dir, "study.stagebook.yaml")]);
+    expect(r.code).toBe(1);
+    expect(r.stdout).toContain('intro sequence "intro1"');
+    expect(r.stdout).toContain('authored in locale "en"');
+  });
+
+  it("passes when the intro prompt matches the intro sequence's locale", async () => {
+    await writeFile(join(dir, "study.stagebook.yaml"), introYaml("he"));
+    await writeFile(join(dir, "prompts", "consent.prompt.md"), promptMd("he"));
+    const r = await runCli([join(dir, "study.stagebook.yaml")]);
+    expect(r.code).toBe(0);
+  });
+});
