@@ -138,8 +138,8 @@ describe("treatments-only file renders (no introSequences)", () => {
   });
 });
 
-describe("viewer per-phase locale", () => {
-  it("badge follows the phase: intro sequence's locale, then the treatment's", () => {
+describe("viewer unit selection (one unit at a time)", () => {
+  it("the locale badge follows the SELECTED unit (intro vs treatment)", () => {
     const { container, unmount } = render(
       <Viewer
         treatmentFile={introHeTreatmentEnFile()}
@@ -152,20 +152,53 @@ describe("viewer per-phase locale", () => {
     const badge = () =>
       container.querySelector('[data-testid="viewer-locale-badge"]')
         ?.textContent;
-    // stageIndex 0 = the intro step → intro sequence locale (he).
-    expect(badge()).toBe("he");
-
-    // Navigate to the game stage via the StageNav <select>; the catalog must
-    // re-resolve (the `locale` useMemo dep) so the badge flips to en.
-    const select = container.querySelector(
-      "select",
-    ) as HTMLSelectElement | null;
-    expect(select).not.toBeNull();
-    act(() => {
-      select!.value = "1";
-      select!.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    // Starts on the treatment unit (en).
     expect(badge()).toBe("en");
+
+    // Switch to the intro-sequence unit via the part picker → badge flips to he
+    // (each unit declares its own locale; the catalog re-resolves).
+    const picker = container.querySelector(
+      'select[aria-label="Part to preview"]',
+    ) as HTMLSelectElement | null;
+    expect(picker).not.toBeNull();
+    act(() => {
+      picker!.value = "intro:0";
+      picker!.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(badge()).toBe("he");
+    unmount();
+  });
+
+  it("ends a unit with a transition screen, not a stage", () => {
+    const { container, unmount } = render(
+      <Viewer
+        treatmentFile={introHeTreatmentEnFile()}
+        getTextContent={getText}
+        getAssetURL={getAsset}
+        selectedIntroIndex={0}
+        selectedTreatmentIndex={0}
+      />,
+    );
+    // The treatment unit here is one stage + a transition. Navigate to the
+    // last step (the transition) via StageNav's stage <select>.
+    const stageSelect = container.querySelector(
+      'select[aria-label="Stage"], select[title="Stage"]',
+    ) as HTMLSelectElement | null;
+    // Fallback: the stage selector is the one whose options are stage indices.
+    const selects = Array.from(container.querySelectorAll("select"));
+    const nav =
+      stageSelect ??
+      (selects.find((sel) =>
+        Array.from(sel.options).some((o) => o.value === "1"),
+      ) as HTMLSelectElement | undefined);
+    expect(nav).toBeTruthy();
+    act(() => {
+      nav!.value = "1";
+      nav!.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="viewer-transition"]'),
+    ).not.toBeNull();
     unmount();
   });
 });

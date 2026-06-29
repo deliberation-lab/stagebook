@@ -6,11 +6,7 @@ import {
   useCallback,
   useSyncExternalStore,
 } from "react";
-import type {
-  IntroSequenceType,
-  TreatmentFileType,
-  TreatmentType,
-} from "stagebook";
+import type { TreatmentFileType } from "stagebook";
 import {
   StagebookProvider,
   Stage,
@@ -18,7 +14,7 @@ import {
   useScrollAwareness,
   isRTLLocale,
 } from "stagebook/components";
-import { flattenSteps, localeForPhase } from "../lib/steps";
+import { buildUnits, type ViewerUnit } from "../lib/steps";
 import { ViewerStateStore } from "../lib/store";
 import { createViewerContext } from "../lib/context";
 import { StageNav } from "./StageNav";
@@ -61,13 +57,11 @@ export interface ViewerProps {
    */
   onTreatmentIndexChange?: (index: number) => void;
   /**
-   * Optional setter for `selectedIntroIndex`. When provided AND the
-   * treatment file has 2+ intro sequences, the header renders a
-   * dropdown for picking which intro to preview. The schema requires
-   * a non-empty `introSequences` array, so the only suppressed case
-   * is the single-intro-sequence file (the typical shape) — there
-   * the dropdown is omitted entirely (no static label, since the
-   * intro is implicit context for the visible stages).
+   * Accepted for back-compat with the host's landing flow, but no longer
+   * drives a separate dropdown: intro sequences are now selected through the
+   * unified "part to preview" picker alongside treatments. `selectedIntroIndex`
+   * is likewise accepted but ignored (the viewer defaults to the treatment the
+   * landing picked and lets the part picker switch to an intro).
    */
   onIntroIndexChange?: (index: number) => void;
 }
@@ -76,34 +70,25 @@ export function Viewer({
   treatmentFile,
   getTextContent,
   getAssetURL,
-  selectedIntroIndex,
   selectedTreatmentIndex,
   onBack,
   onRefresh,
   contentVersion,
   onTreatmentIndexChange,
-  onIntroIndexChange,
 }: ViewerProps) {
-  const treatment = treatmentFile.treatments[selectedTreatmentIndex];
-  const introSequence = treatmentFile.introSequences?.[selectedIntroIndex];
-
-  // Whether to render the treatment/intro selectors as dropdowns.
-  // When the host doesn't pass setters the viewer is uncontrolled
-  // and falls back to the static-label layout. With only one
-  // treatment the dropdown collapses to a static name label
-  // (researchers still want to see *which* treatment they're
-  // looking at). With only one intro sequence the picker is
-  // omitted entirely — the intro is implicit context, not
-  // foreground UI worth labeling.
-  const showTreatmentPicker =
-    !!onTreatmentIndexChange && treatmentFile.treatments.length > 1;
-  const showIntroPicker =
-    !!onIntroIndexChange && (treatmentFile.introSequences?.length ?? 0) > 1;
-
-  const steps = useMemo(
-    () => flattenSteps(introSequence, treatment),
-    [introSequence, treatment],
+  // The viewer walks ONE selectable unit at a time — an intro sequence OR a
+  // treatment — rather than pairing an intro with a treatment. A single
+  // <optgroup> picker switches between them; each unit declares its own locale
+  // and ends with a transition screen narrating the platform's next phase.
+  const units = useMemo(() => buildUnits(treatmentFile), [treatmentFile]);
+  const introUnits = units.filter((u) => u.kind === "intro");
+  const treatmentUnits = units.filter((u) => u.kind === "treatment");
+  const [selectedUnitKey, setSelectedUnitKey] = useState(
+    `treatment:${selectedTreatmentIndex}`,
   );
+  const unit: ViewerUnit | undefined =
+    units.find((u) => u.key === selectedUnitKey) ?? units[0];
+  const steps = unit?.steps ?? [];
 
   const [stageIndex, setStageIndex] = useState(0);
   // Bumped when the researcher clicks "Reset stage" in the inspector;
@@ -115,6 +100,10 @@ export function Viewer({
   const handleResetStage = useCallback(() => {
     setStageResetVersion((v) => v + 1);
   }, []);
+  // Reset the selected unit when the whole file is swapped (different study).
+  useEffect(() => {
+    setSelectedUnitKey(`treatment:${selectedTreatmentIndex}`);
+  }, [treatmentFile, selectedTreatmentIndex]);
   const [position, setPosition] = useState(0);
   const [store] = useState(() => new ViewerStateStore());
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -135,6 +124,11 @@ export function Viewer({
     }
   }, [steps.length, stageIndex]);
 
+  // Restart at the first step whenever the selected unit changes.
+  useEffect(() => {
+    setStageIndex(0);
+  }, [selectedUnitKey]);
+
   // Subscribe to store changes so the UI re-renders.
   // The version is included in ctx memo deps below so that
   // StagebookProvider gets a new context value on store changes.
@@ -146,13 +140,9 @@ export function Viewer({
   const currentStep = steps[stageIndex];
   const isSubmitted = store.getSubmitted(stageIndex);
 
-  // Locale follows the PHASE: intro steps render under the intro sequence's
-  // declared locale (intro runs before treatment assignment, so it carries
-  // its own), game + exit stages under the treatment's. Both default to
-  // English. Which locale a real participant sees is the host's assignment
-  // decision; the viewer just renders what each phase declares — and surfaces
-  // it in the header so it's explicit.
-  const locale = localeForPhase(currentStep?.phase, introSequence, treatment);
+  // Each unit declares its own locale (intro sequences run before treatment
+  // assignment, so they carry their own); shown in the header so it's explicit.
+  const locale = unit?.locale ?? "en";
 
   const handleSubmit = useCallback(() => {
     store.setSubmitted(stageIndex, true);
@@ -175,7 +165,7 @@ export function Viewer({
         store,
         position,
         stageIndex,
-        playerCount: treatment.playerCount,
+        playerCount: unit?.playerCount ?? 1,
         locale,
         onSubmit: handleSubmit,
         getTextContent,
@@ -189,7 +179,7 @@ export function Viewer({
       storeVersion,
       position,
       stageIndex,
-      treatment.playerCount,
+      unit?.playerCount,
       locale,
       handleSubmit,
       getTextContent,
@@ -198,7 +188,7 @@ export function Viewer({
     ],
   );
 
-  if (!currentStep) return null;
+  if (!unit || !currentStep) return null;
 
   const stageConfig = {
     name: currentStep.name,
@@ -228,39 +218,42 @@ export function Viewer({
               &#x21bb;
             </button>
           )}
-          {showTreatmentPicker ? (
+          {units.length > 1 ? (
             <select
-              aria-label="Treatment"
-              title="Treatment"
-              value={selectedTreatmentIndex}
-              onChange={(e) => onTreatmentIndexChange?.(Number(e.target.value))}
+              aria-label="Part to preview"
+              title="Part of the study to preview"
+              value={unit.key}
+              onChange={(e) => {
+                const key = e.target.value;
+                setSelectedUnitKey(key);
+                // Keep the host's treatment index in sync for back/refresh.
+                if (key.startsWith("treatment:")) {
+                  onTreatmentIndexChange?.(
+                    Number(key.slice("treatment:".length)),
+                  );
+                }
+              }}
               style={treatmentSelectStyle}
             >
-              {(treatmentFile.treatments as TreatmentType[]).map((t, i) => (
-                <option key={i} value={i}>
-                  {t.name}
-                </option>
-              ))}
+              {introUnits.length > 0 && (
+                <optgroup label="Intro sequences">
+                  {introUnits.map((u) => (
+                    <option key={u.key} value={u.key}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Treatments">
+                {treatmentUnits.map((u) => (
+                  <option key={u.key} value={u.key}>
+                    {u.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           ) : (
-            <span style={treatmentNameStyle}>{treatment.name}</span>
-          )}
-          {showIntroPicker && (
-            <select
-              aria-label="Intro sequence"
-              title="Intro sequence"
-              value={selectedIntroIndex}
-              onChange={(e) => onIntroIndexChange?.(Number(e.target.value))}
-              style={treatmentSelectStyle}
-            >
-              {(treatmentFile.introSequences as IntroSequenceType[]).map(
-                (seq, i) => (
-                  <option key={i} value={i}>
-                    {seq.name ?? `Intro ${i}`}
-                  </option>
-                ),
-              )}
-            </select>
+            <span style={treatmentNameStyle}>{unit.name}</span>
           )}
           <span style={headerDividerStyle} aria-hidden="true" />
           <StageNav
@@ -279,7 +272,7 @@ export function Viewer({
               (intro sequence vs treatment) — explicit, never overridden. */}
           <span
             data-testid="viewer-locale-badge"
-            title={`Locale declared by the current ${currentStep.phase} phase`}
+            title={`Locale declared by this ${unit.kind === "intro" ? "intro sequence" : "treatment"}`}
             style={localeBadgeStyle}
           >
             {locale}
@@ -293,7 +286,7 @@ export function Viewer({
             onChange={(e) => setPosition(Number(e.target.value))}
             style={positionSelectStyle}
           >
-            {Array.from({ length: treatment.playerCount }, (_, i) => (
+            {Array.from({ length: unit.playerCount }, (_, i) => (
               <option key={i} value={i}>
                 {i}
               </option>
@@ -309,7 +302,7 @@ export function Viewer({
             currentStep={currentStep}
             stageIndex={stageIndex}
             position={position}
-            playerCount={treatment.playerCount}
+            playerCount={unit.playerCount}
             onResetStage={handleResetStage}
           />
         </aside>
@@ -320,7 +313,11 @@ export function Viewer({
           dir={isRTLLocale(locale) ? "rtl" : "ltr"}
           style={mainStyle}
         >
-          {isSubmitted ? (
+          {currentStep.isTransition ? (
+            <div data-testid="viewer-transition" style={transitionPanelStyle}>
+              <p style={transitionTextStyle}>{currentStep.transitionCopy}</p>
+            </div>
+          ) : isSubmitted ? (
             <div style={submittedOverlayStyle}>
               <p style={submittedTextStyle}>
                 Waiting for other participants...
@@ -367,6 +364,26 @@ export function Viewer({
 }
 
 // --- Styles ---
+
+const transitionPanelStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "60vh",
+  padding: "2rem",
+};
+
+const transitionTextStyle: React.CSSProperties = {
+  maxWidth: "32rem",
+  textAlign: "center",
+  fontSize: "0.9375rem",
+  lineHeight: 1.6,
+  color: "#4b5563",
+  background: "#f9fafb",
+  border: "1px dashed #d1d5db",
+  borderRadius: "0.5rem",
+  padding: "1.5rem 1.75rem",
+};
 
 const layoutStyle: React.CSSProperties = {
   display: "flex",

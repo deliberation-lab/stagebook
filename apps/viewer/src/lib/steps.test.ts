@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenSteps, localeForPhase } from "./steps";
+import { flattenSteps, localeForPhase, buildUnits } from "./steps";
 
 describe("flattenSteps", () => {
   const introSequence = {
@@ -200,5 +200,86 @@ describe("localeForPhase", () => {
     expect(localeForPhase("intro", {}, {})).toBe("en");
     expect(localeForPhase("game", undefined, {})).toBe("en");
     expect(localeForPhase(undefined, undefined, {})).toBe("en");
+  });
+});
+
+describe("buildUnits", () => {
+  const treatment = {
+    name: "treatment1",
+    playerCount: 2,
+    gameStages: [
+      { name: "round1", duration: 60, elements: [] },
+      { name: "round2", duration: 120, elements: [] },
+    ],
+    exitSequence: [{ name: "debrief", elements: [] }],
+  };
+
+  it("yields one unit per intro sequence and treatment, in picker order", () => {
+    const file = {
+      introSequences: [
+        {
+          name: "consent",
+          locale: "he",
+          introSteps: [{ name: "c1", elements: [] }],
+        },
+      ],
+      treatments: [treatment, { ...treatment, name: "treatment2" }],
+    };
+    const units = buildUnits(file);
+    expect(units.map((u) => u.key)).toEqual([
+      "intro:0",
+      "treatment:0",
+      "treatment:1",
+    ]);
+    expect(units.map((u) => u.kind)).toEqual([
+      "intro",
+      "treatment",
+      "treatment",
+    ]);
+  });
+
+  it("each unit carries its own locale + playerCount", () => {
+    const units = buildUnits({
+      introSequences: [
+        { name: "i", locale: "he", introSteps: [{ name: "s", elements: [] }] },
+      ],
+      treatments: [{ ...treatment, locale: "en", playerCount: 3 }],
+    });
+    expect(units[0]).toMatchObject({
+      kind: "intro",
+      locale: "he",
+      playerCount: 1,
+    });
+    expect(units[1]).toMatchObject({
+      kind: "treatment",
+      locale: "en",
+      playerCount: 3,
+    });
+  });
+
+  it("appends a transition step to each unit", () => {
+    const units = buildUnits({ treatments: [treatment] });
+    const last = units[0].steps[units[0].steps.length - 1];
+    expect(last.isTransition).toBe(true);
+    expect(last.transitionCopy).toContain(treatment.name);
+    // The real stages still precede it.
+    expect(
+      units[0].steps.filter((s) => !s.isTransition).map((s) => s.name),
+    ).toEqual(["round1", "round2", "debrief"]);
+  });
+
+  it("handles a treatments-only file (no introSequences)", () => {
+    const units = buildUnits({ treatments: [treatment] });
+    expect(units.every((u) => u.kind === "treatment")).toBe(true);
+  });
+
+  it("handles an intro-only file (no treatments)", () => {
+    const units = buildUnits({
+      introSequences: [
+        { name: "i", introSteps: [{ name: "s", elements: [] }] },
+      ],
+    });
+    expect(units).toHaveLength(1);
+    expect(units[0].kind).toBe("intro");
   });
 });

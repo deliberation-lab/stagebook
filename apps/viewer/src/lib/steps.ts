@@ -13,6 +13,32 @@ export interface ViewerStep {
   notes?: string;
   /** Stage-level conditions (#183). Evaluated by StageConditionGate. */
   conditions?: ConditionType[];
+  /** When true, this is a synthetic end-of-unit interstitial (not a real
+   *  stage): the viewer renders `transitionCopy` instead of a `<Stage>`. It
+   *  narrates the platform behavior between phases (assignment, lobby, etc.)
+   *  that the preview can't simulate. */
+  isTransition?: boolean;
+  transitionCopy?: string;
+}
+
+/**
+ * A separately-selectable unit of a study: one intro sequence OR one
+ * treatment. The viewer walks **one unit at a time** (rather than pairing an
+ * intro with a treatment), which matches how researchers author each phase
+ * independently — and removes any which-intro-goes-with-which-treatment
+ * pairing logic. Each unit carries its own locale (intro sequences run before
+ * treatment assignment, so they declare their own).
+ */
+export interface ViewerUnit {
+  /** Stable key, e.g. `intro:0` / `treatment:1`. */
+  key: string;
+  kind: "intro" | "treatment";
+  name: string;
+  locale: string;
+  /** Participant count for the inspector; 1 for intro (pre-assignment). */
+  playerCount: number;
+  /** The unit's own stages, plus a trailing synthetic transition step. */
+  steps: ViewerStep[];
 }
 
 interface IntroSequence {
@@ -115,4 +141,75 @@ export function flattenSteps(
   }
 
   return steps;
+}
+
+interface TreatmentFileShape {
+  introSequences?: IntroSequence[];
+  treatments?: Treatment[];
+}
+
+function transitionStep(
+  index: number,
+  kind: "intro" | "treatment",
+  name: string,
+): ViewerStep {
+  // Narrate the platform's between-phase behavior the preview can't simulate.
+  const copy =
+    kind === "intro"
+      ? `End of the intro sequence “${name}”. In a real study, participants are now assigned to a condition and matched into a group. Use the picker above to preview a treatment.`
+      : `End of “${name}”. In a real study, participants would now finish the session (and complete any debrief). Use the picker above to preview another part.`;
+  return {
+    index,
+    phase: kind === "intro" ? "intro" : "exit",
+    name: "→ transition",
+    elements: [],
+    isTransition: true,
+    transitionCopy: copy,
+  };
+}
+
+/**
+ * Build the flat list of separately-selectable units (each intro sequence and
+ * each treatment), in picker order. Each unit's steps are its own stages plus
+ * a trailing transition interstitial. A treatment-only file yields only
+ * treatment units; an intro-only file only intro units.
+ */
+export function buildUnits(treatmentFile: TreatmentFileShape): ViewerUnit[] {
+  const units: ViewerUnit[] = [];
+
+  (treatmentFile.introSequences ?? []).forEach((seq, i) => {
+    let index = 0;
+    const steps: ViewerStep[] = (seq.introSteps ?? []).map((step) => ({
+      index: index++,
+      phase: "intro" as const,
+      name: step.name,
+      elements: step.elements,
+      notes: step.notes,
+      conditions: step.conditions,
+    }));
+    steps.push(transitionStep(index, "intro", seq.name));
+    units.push({
+      key: `intro:${i}`,
+      kind: "intro",
+      name: seq.name,
+      locale: seq.locale ?? "en",
+      playerCount: 1,
+      steps,
+    });
+  });
+
+  (treatmentFile.treatments ?? []).forEach((t, i) => {
+    const steps = flattenSteps(undefined, t);
+    steps.push(transitionStep(steps.length, "treatment", t.name));
+    units.push({
+      key: `treatment:${i}`,
+      kind: "treatment",
+      name: t.name,
+      locale: t.locale ?? "en",
+      playerCount: t.playerCount,
+      steps,
+    });
+  });
+
+  return units;
 }
