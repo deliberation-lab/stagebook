@@ -74,6 +74,25 @@ function treatmentsOnlyFile(locale?: string): TreatmentFileType {
   } as unknown as TreatmentFileType;
 }
 
+/** A valid intro-only file: no `treatments:` key at all. The structure you
+ *  preview while still building the intro, before any treatment exists. */
+function introOnlyFile(): TreatmentFileType {
+  return {
+    introSequences: [
+      {
+        name: "intro1",
+        locale: "en",
+        introSteps: [{ name: "welcome", elements: [{ type: "submitButton" }] }],
+      },
+    ],
+  } as unknown as TreatmentFileType;
+}
+
+/** An empty file: neither intro sequences nor treatments. */
+function emptyFile(): TreatmentFileType {
+  return {} as unknown as TreatmentFileType;
+}
+
 /** he intro sequence + en treatment, to exercise per-phase locale. */
 function introHeTreatmentEnFile(): TreatmentFileType {
   return {
@@ -134,6 +153,68 @@ describe("treatments-only file renders (no introSequences)", () => {
       '[data-testid="viewer-locale-badge"]',
     );
     expect(badge?.textContent).toBe("he");
+    unmount();
+  });
+});
+
+describe("intro-only file renders (no treatments)", () => {
+  // Symmetric to the treatments-only case: `treatments` is also optional in
+  // the schema, so previewing while you've only built the intro must not
+  // crash. See #476 (the secondary note).
+  it("OverviewPage does not crash", () => {
+    const { container, unmount } = render(
+      <OverviewPage
+        treatmentFile={introOnlyFile()}
+        readmeContent={null}
+        onSelect={noop}
+      />,
+    );
+    expect(container.textContent).toBeTruthy();
+    unmount();
+  });
+
+  it("TreatmentPicker does not crash", () => {
+    const { container, unmount } = render(
+      <TreatmentPicker treatmentFile={introOnlyFile()} onSelect={noop} />,
+    );
+    expect(container.textContent).toBeTruthy();
+    unmount();
+  });
+
+  it("Viewer starts at the intro unit", () => {
+    const { container, unmount } = render(
+      <Viewer
+        treatmentFile={introOnlyFile()}
+        getTextContent={getText}
+        getAssetURL={getAsset}
+        selectedIntroIndex={0}
+        selectedTreatmentIndex={0}
+      />,
+    );
+    // No treatment unit exists, so the viewer falls back to the only unit
+    // (the intro) rather than blanking. Locale badge shows its locale.
+    const badge = container.querySelector(
+      '[data-testid="viewer-locale-badge"]',
+    );
+    expect(badge?.textContent).toBe("en");
+    unmount();
+  });
+});
+
+describe("empty file renders a placeholder (no intro, no treatment)", () => {
+  it("Viewer shows the empty-state, not a blank screen or crash", () => {
+    const { container, unmount } = render(
+      <Viewer
+        treatmentFile={emptyFile()}
+        getTextContent={getText}
+        getAssetURL={getAsset}
+        selectedIntroIndex={0}
+        selectedTreatmentIndex={0}
+      />,
+    );
+    expect(
+      container.querySelector('[data-testid="viewer-empty"]'),
+    ).not.toBeNull();
     unmount();
   });
 });

@@ -188,6 +188,20 @@ export function Viewer({
     ],
   );
 
+  // Nothing to walk: a file with neither intro sequences nor treatments.
+  // That's a valid empty-canvas / just-started state, not an error — so we
+  // show a friendly placeholder rather than a blank screen or a crash.
+  if (units.length === 0) {
+    return (
+      <div style={transitionPanelStyle}>
+        <p data-testid="viewer-empty" style={transitionTextStyle}>
+          Nothing to preview yet. Add an intro sequence or a treatment to this
+          file and the walkthrough will appear here.
+        </p>
+      </div>
+    );
+  }
+
   if (!unit || !currentStep) return null;
 
   const stageConfig = {
