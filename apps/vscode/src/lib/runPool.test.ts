@@ -70,6 +70,35 @@ describe("runPool", () => {
     await expect(runPool([], 4)).resolves.toBeUndefined();
   });
 
+  it("runs all tasks when the limit exceeds the task count", async () => {
+    // The production config (limit 4) routinely exceeds the file count in a
+    // small repo, exercising the worker-cap branch (workerCount = min).
+    const seen: number[] = [];
+    const tasks = [1, 2].map((n) => () => {
+      seen.push(n);
+      return Promise.resolve();
+    });
+
+    await runPool(tasks, 4);
+    expect(seen.sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("isolates a thunk that throws synchronously before returning a promise", async () => {
+    const completed: number[] = [];
+    const tasks: Array<() => Promise<void>> = [
+      () => {
+        throw new Error("sync boom");
+      },
+      () => {
+        completed.push(2);
+        return Promise.resolve();
+      },
+    ];
+
+    await expect(runPool(tasks, 2)).resolves.toBeUndefined();
+    expect(completed).toEqual([2]);
+  });
+
   it("treats a concurrency limit below 1 as 1", async () => {
     let inFlight = 0;
     let maxInFlight = 0;

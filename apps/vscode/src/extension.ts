@@ -416,24 +416,28 @@ async function validateWorkspace(
 
       await runPool(tasks, WORKSPACE_VALIDATION_CONCURRENCY);
 
-      updateWorkspaceStatusBar(statusBar, treatments.length + prompts.length);
+      updateWorkspaceStatusBar(statusBar, [...treatments, ...prompts]);
     },
   );
 }
 
 /**
- * Aggregate all Stagebook diagnostics currently in the diagnostic collection
- * and render the status-bar summary. Counts every `source === "stagebook"`
- * diagnostic across the workspace (not only this run's files), which is the
- * accurate current picture after a sweep.
+ * Render the status-bar summary for a completed sweep. Counts only the
+ * `source === "stagebook"` diagnostics on the files this run actually scanned
+ * (`scannedUris`) — NOT every Stagebook diagnostic in the collection. The
+ * latter would fold in files outside the glob (e.g. a `node_modules` file the
+ * user happens to have open and edited), so the "across N files" headline and
+ * the "of N scanned" tooltip would attribute errors to a scan that never
+ * touched the offending file.
  */
 function updateWorkspaceStatusBar(
   statusBar: vscode.StatusBarItem,
-  filesValidated: number,
+  scannedUris: vscode.Uri[],
 ): void {
   const perFile: DiagnosticSeverityLabel[][] = [];
-  for (const [, diags] of vscode.languages.getDiagnostics()) {
-    const labels = diags
+  for (const uri of scannedUris) {
+    const labels = vscode.languages
+      .getDiagnostics(uri)
       .filter((d) => d.source === "stagebook")
       .map<DiagnosticSeverityLabel>((d) =>
         d.severity === vscode.DiagnosticSeverity.Error ? "error" : "warning",
@@ -442,7 +446,10 @@ function updateWorkspaceStatusBar(
   }
 
   const summary = summarizeDiagnostics(perFile);
-  const { text, tooltip } = formatValidationStatusBar(summary, filesValidated);
+  const { text, tooltip } = formatValidationStatusBar(
+    summary,
+    scannedUris.length,
+  );
   statusBar.text = text;
   statusBar.tooltip = tooltip;
   statusBar.command = OPEN_PROBLEMS_COMMAND;

@@ -59,12 +59,25 @@ describe("formatValidationStatusBar", () => {
     expect(text).toBe("$(warning) Stagebook: 1 error, 1 warning across 1 file");
   });
 
-  it("tooltip mentions the affected-file count and the click action", () => {
+  it("mixes singular and plural nouns within one string", () => {
+    const { text } = formatValidationStatusBar(
+      { errors: 1, warnings: 2, filesWithDiagnostics: 2 },
+      3,
+    );
+    expect(text).toBe(
+      "$(warning) Stagebook: 1 error, 2 warnings across 3 files",
+    );
+  });
+
+  it("tooltip distinguishes affected files from scanned files", () => {
+    // 2 files have diagnostics out of 5 scanned — the tooltip must keep those
+    // two counts distinct (the whole reason filesWithDiagnostics exists).
     const { tooltip } = formatValidationStatusBar(
-      { errors: 1, warnings: 0, filesWithDiagnostics: 1 },
+      { errors: 3, warnings: 0, filesWithDiagnostics: 2 },
       5,
     );
-    expect(tooltip).toContain("1 file");
+    expect(tooltip).toContain("in 2 files");
+    expect(tooltip).toContain("of 5 files scanned");
     expect(tooltip.toLowerCase()).toContain("problems");
   });
 });
