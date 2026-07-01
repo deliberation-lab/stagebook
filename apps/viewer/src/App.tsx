@@ -1,10 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { TreatmentFileType } from "stagebook";
 import { loadTreatmentFromUrl } from "./lib/loader";
-import {
-  TreatmentValidationError,
-  type ValidationIssue,
-} from "./lib/treatment";
+import type { ViewerDiagnostic } from "./lib/diagnostics";
 import { createUrlContentFns } from "./lib/contentFns";
 import { needsOverviewPicker } from "./lib/selection";
 import {
@@ -16,6 +13,10 @@ import {
 import { LandingPage } from "./components/LandingPage";
 import { OverviewPage } from "./components/OverviewPage";
 import { PreviewHost } from "./components/PreviewHost";
+import {
+  DiagnosticsDrawer,
+  DiagnosticsList,
+} from "./components/DiagnosticsPanel";
 
 type ContentFns = ReturnType<typeof createUrlContentFns>;
 
@@ -27,6 +28,7 @@ type AppState =
       treatmentFile: TreatmentFileType;
       contentFns: ContentFns;
       readmeContent: string | null;
+      diagnostics: ViewerDiagnostic[];
     }
   | {
       phase: "viewing";
@@ -34,12 +36,19 @@ type AppState =
       contentFns: ContentFns;
       selectedIntroIndex: number;
       selectedTreatmentIndex: number;
+      diagnostics: ViewerDiagnostic[];
+    }
+  | {
+      // File has errors that prevent rendering — show a placeholder plus the
+      // diagnostics that caused it (#440).
+      phase: "unrenderable";
+      diagnostics: ViewerDiagnostic[];
+      url?: string;
     }
   | {
       phase: "error";
       message: string;
       url?: string;
-      validationIssues?: ValidationIssue[];
     };
 
 export function App() {
@@ -54,6 +63,7 @@ export function App() {
       treatmentFile: TreatmentFileType,
       contentFns: ContentFns,
       seq: number,
+      diagnostics: ViewerDiagnostic[],
     ) => {
       const readmeContent = await contentFns
         .getTextContent("README.md")
@@ -69,6 +79,7 @@ export function App() {
           treatmentFile,
           contentFns,
           readmeContent,
+          diagnostics,
         });
       } else {
         setState({
@@ -77,6 +88,7 @@ export function App() {
           contentFns,
           selectedIntroIndex: 0,
           selectedTreatmentIndex: 0,
+          diagnostics,
         });
       }
     },
@@ -88,22 +100,25 @@ export function App() {
       const seq = ++loadSeqRef.current;
       setState({ phase: "loading", url });
       try {
-        const { treatmentFile, rawBaseUrl } = await loadTreatmentFromUrl(url);
+        const { treatmentFile, diagnostics, rawBaseUrl } =
+          await loadTreatmentFromUrl(url);
         if (seq !== loadSeqRef.current) return;
+        if (treatmentFile === null) {
+          setState({ phase: "unrenderable", diagnostics, url });
+          return;
+        }
         await enterTreatment(
           treatmentFile,
           createUrlContentFns(rawBaseUrl),
           seq,
+          diagnostics,
         );
       } catch (err) {
         if (seq !== loadSeqRef.current) return;
-        const validationIssues =
-          err instanceof TreatmentValidationError ? err.issues : undefined;
         setState({
           phase: "error",
           message: err instanceof Error ? err.message : String(err),
           url,
-          validationIssues,
         });
       }
     },
@@ -115,19 +130,19 @@ export function App() {
       const seq = ++loadSeqRef.current;
       try {
         const treatmentFile = prepareExampleTreatment(entry);
+        // Bundled examples are curated and validated in CI, so they carry no
+        // load-time diagnostics.
         await enterTreatment(
           treatmentFile,
           createExampleContentFns(entry),
           seq,
+          [],
         );
       } catch (err) {
         if (seq !== loadSeqRef.current) return;
-        const validationIssues =
-          err instanceof TreatmentValidationError ? err.issues : undefined;
         setState({
           phase: "error",
           message: err instanceof Error ? err.message : String(err),
-          validationIssues,
         });
       }
     },
@@ -160,41 +175,56 @@ export function App() {
       return (
         <ErrorScreen
           message={state.message}
-          validationIssues={state.validationIssues}
+          onRetry={state.url ? () => handleLoad(state.url!) : undefined}
+          onBack={() => setState({ phase: "landing" })}
+        />
+      );
+
+    case "unrenderable":
+      return (
+        <UnrenderableScreen
+          diagnostics={state.diagnostics}
           onRetry={state.url ? () => handleLoad(state.url!) : undefined}
           onBack={() => setState({ phase: "landing" })}
         />
       );
 
     case "overview": {
-      const { treatmentFile, contentFns, readmeContent } = state;
+      const { treatmentFile, contentFns, readmeContent, diagnostics } = state;
       return (
-        <OverviewPage
-          treatmentFile={treatmentFile}
-          readmeContent={readmeContent}
-          onBack={() => setState({ phase: "landing" })}
-          onSelect={(introIndex, treatmentIndex) => {
-            setState({
-              phase: "viewing",
-              treatmentFile,
-              contentFns,
-              selectedIntroIndex: introIndex,
-              selectedTreatmentIndex: treatmentIndex,
-            });
-          }}
-        />
+        <>
+          <OverviewPage
+            treatmentFile={treatmentFile}
+            readmeContent={readmeContent}
+            onBack={() => setState({ phase: "landing" })}
+            onSelect={(introIndex, treatmentIndex) => {
+              setState({
+                phase: "viewing",
+                treatmentFile,
+                contentFns,
+                selectedIntroIndex: introIndex,
+                selectedTreatmentIndex: treatmentIndex,
+                diagnostics,
+              });
+            }}
+          />
+          <DiagnosticsDrawer diagnostics={diagnostics} />
+        </>
       );
     }
 
     case "viewing":
       return (
-        <ViewingPhase
-          treatmentFile={state.treatmentFile}
-          contentFns={state.contentFns}
-          selectedIntroIndex={state.selectedIntroIndex}
-          selectedTreatmentIndex={state.selectedTreatmentIndex}
-          onBack={() => setState({ phase: "landing" })}
-        />
+        <>
+          <ViewingPhase
+            treatmentFile={state.treatmentFile}
+            contentFns={state.contentFns}
+            selectedIntroIndex={state.selectedIntroIndex}
+            selectedTreatmentIndex={state.selectedTreatmentIndex}
+            onBack={() => setState({ phase: "landing" })}
+          />
+          <DiagnosticsDrawer diagnostics={state.diagnostics} />
+        </>
       );
   }
 }
@@ -239,14 +269,16 @@ function LoadingScreen({ url }: { url: string }) {
   );
 }
 
+/**
+ * Terminal failure that isn't a file-content problem — a network error, a
+ * bad URL, or a failed import fetch. Shows the raw message.
+ */
 function ErrorScreen({
   message,
-  validationIssues,
   onRetry,
   onBack,
 }: {
   message: string;
-  validationIssues?: ValidationIssue[];
   onRetry?: () => void;
   onBack: () => void;
 }) {
@@ -254,40 +286,16 @@ function ErrorScreen({
     <div style={centeredStyle}>
       <div style={{ maxWidth: "36rem", width: "100%", padding: "2rem" }}>
         <p style={{ color: "#ef4444", fontWeight: 600 }}>Failed to load</p>
-
-        {validationIssues ? (
-          <>
-            <p
-              style={{
-                color: "#6b7280",
-                fontSize: "0.875rem",
-                marginTop: "0.5rem",
-              }}
-            >
-              The treatment file has validation errors:
-            </p>
-            <ul style={issueListStyle}>
-              {validationIssues.map((issue, i) => (
-                <li key={i} style={issueItemStyle}>
-                  <code style={issuePathStyle}>{issue.path}</code>
-                  <span>{issue.message}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p
-            style={{
-              color: "#6b7280",
-              fontSize: "0.875rem",
-              marginTop: "0.5rem",
-              wordBreak: "break-word",
-            }}
-          >
-            {message}
-          </p>
-        )}
-
+        <p
+          style={{
+            color: "#6b7280",
+            fontSize: "0.875rem",
+            marginTop: "0.5rem",
+            wordBreak: "break-word",
+          }}
+        >
+          {message}
+        </p>
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
           {onRetry && (
             <button onClick={onRetry} style={buttonStyle}>
@@ -306,32 +314,55 @@ function ErrorScreen({
   );
 }
 
-const issueListStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  marginTop: "0.75rem",
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.5rem",
-};
-
-const issueItemStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.125rem",
-  padding: "0.5rem 0.75rem",
-  backgroundColor: "#fef2f2",
-  borderRadius: "0.375rem",
-  border: "1px solid #fecaca",
-  fontSize: "0.875rem",
-  color: "#374151",
-};
-
-const issuePathStyle: React.CSSProperties = {
-  fontSize: "0.75rem",
-  color: "#9ca3af",
-  fontFamily: "monospace",
-};
+/**
+ * The file loaded but has validation errors that prevent rendering (YAML
+ * syntax, schema violations). Shows a placeholder plus the diagnostics that
+ * caused it — the same diagnostics the VS Code extension would flag (#440).
+ */
+function UnrenderableScreen({
+  diagnostics,
+  onRetry,
+  onBack,
+}: {
+  diagnostics: ViewerDiagnostic[];
+  onRetry?: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div style={centeredStyle}>
+      <div style={{ maxWidth: "40rem", width: "100%", padding: "2rem" }}>
+        <p style={{ color: "#ef4444", fontWeight: 600 }}>
+          This file can’t be previewed until its errors are fixed
+        </p>
+        <p
+          style={{
+            color: "#6b7280",
+            fontSize: "0.875rem",
+            margin: "0.5rem 0 0.75rem",
+          }}
+        >
+          {diagnostics.length === 1
+            ? "1 problem found:"
+            : `${diagnostics.length} problems found:`}
+        </p>
+        <DiagnosticsList diagnostics={diagnostics} />
+        <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
+          {onRetry && (
+            <button onClick={onRetry} style={buttonStyle}>
+              Retry
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            style={{ ...buttonStyle, backgroundColor: "#6b7280" }}
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const centeredStyle: React.CSSProperties = {
   display: "flex",

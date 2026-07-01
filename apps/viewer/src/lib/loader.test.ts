@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { loadTreatmentFromUrl } from "./loader";
-import { TreatmentValidationError } from "./treatment";
 
 const MINIMAL_YAML = `
 introSequences:
@@ -57,20 +56,21 @@ function routedFetch(
   });
 }
 
+const BLOB_URL = "https://github.com/org/repo/blob/main/treatment.yaml";
+
 describe("loadTreatmentFromUrl", () => {
-  it("fetches, parses, and expands a treatment file", async () => {
+  it("fetches, parses, and expands a treatment file with no diagnostics", async () => {
     const fetch = mockFetch(MINIMAL_YAML);
-    const result = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    );
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining(
         "https://raw.githubusercontent.com/org/repo/main/treatment.yaml",
       ),
     );
-    expect(result.treatmentFile.treatments).toHaveLength(1);
-    expect(result.treatmentFile.treatments[0].name).toBe("treatment1");
+    expect(result.treatmentFile).not.toBeNull();
+    expect(result.treatmentFile!.treatments).toHaveLength(1);
+    expect(result.treatmentFile!.treatments[0].name).toBe("treatment1");
+    expect(result.diagnostics).toEqual([]);
     expect(result.unresolvedFields).toEqual([]);
     expect(result.rawBaseUrl).toBe(
       "https://raw.githubusercontent.com/org/repo/main/",
@@ -79,22 +79,126 @@ describe("loadTreatmentFromUrl", () => {
 
   it("throws on fetch failure", async () => {
     const fetch = mockFetch("Not Found", false);
-    await expect(
-      loadTreatmentFromUrl(
-        "https://github.com/org/repo/blob/main/treatment.yaml",
-        fetch,
-      ),
-    ).rejects.toThrow("Failed to fetch");
+    await expect(loadTreatmentFromUrl(BLOB_URL, fetch)).rejects.toThrow(
+      "Failed to fetch",
+    );
   });
 
-  it("throws on invalid YAML", async () => {
+  // -- #440: validation diagnostics on load --
+
+  it("returns positioned diagnostics and a null file for a schema error (#440)", async () => {
+    const badYaml = `
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: two
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+    const fetch = mockFetch(badYaml);
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+
+    expect(result.treatmentFile).toBeNull();
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+    const diag = result.diagnostics[0];
+    expect(diag.severity).toBe("error");
+    expect(diag.message).toMatch(/playerCount/);
+    // Positioned against the entry file the author is editing.
+    expect(diag.range).not.toBeNull();
+    expect(diag.file).toBe("treatment.yaml");
+    // The raw source already carries the (positioned) error, so the merged
+    // object's schema issues must NOT be appended on top — no unpositioned
+    // duplicate.
+    expect(result.diagnostics.every((d) => d.range !== null)).toBe(true);
+  });
+
+  it("falls back to merged schema issues when the error hides in an imported template (#440)", async () => {
+    // The root file is schema-clean, so raw-source validation finds nothing —
+    // but the imported template's content is invalid, so the merged object
+    // fails schema. The placeholder must still explain why.
+    const rootYaml = `
+imports:
+  - ./mod.stagebook.yaml
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 1
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+    const moduleYaml = `
+templates:
+  - name: bad_step
+    contentType: element
+    content:
+      type: notARealElementType
+`;
+    const fetch = routedFetch([
+      ["treatment.yaml", rootYaml],
+      ["mod.stagebook.yaml", moduleYaml],
+    ]);
+
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+
+    expect(result.treatmentFile).toBeNull();
+    const diag = result.diagnostics.find((d) => /templates/.test(d.message));
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe("error");
+    // The merged-object fallback has no source position.
+    expect(diag!.range).toBeNull();
+    expect(diag!.file).toBe("treatment.yaml");
+  });
+
+  it("surfaces a duplicate-key warning with a position and a null file (#440)", async () => {
+    // A duplicate key is a warning in the validator, but js-yaml refuses to
+    // build an object from it — so nothing renders, yet the positioned
+    // warning still explains why.
+    const dupYaml = `
+introSequences:
+  - name: i
+    introSteps:
+      - name: s
+        elements:
+          - type: submitButton
+treatments:
+  - name: t
+    playerCount: 2
+    playerCount: 3
+    gameStages:
+      - name: g
+        duration: 10
+        elements:
+          - type: submitButton
+`;
+    const fetch = mockFetch(dupYaml);
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+
+    expect(result.treatmentFile).toBeNull();
+    expect(result.diagnostics.some((d) => d.severity === "warning")).toBe(true);
+    expect(result.diagnostics[0].range).not.toBeNull();
+  });
+
+  it("returns a diagnostic (not a throw) for invalid YAML (#440)", async () => {
     const fetch = mockFetch("{{bad yaml");
-    await expect(
-      loadTreatmentFromUrl(
-        "https://github.com/org/repo/blob/main/treatment.yaml",
-        fetch,
-      ),
-    ).rejects.toThrow();
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+    expect(result.treatmentFile).toBeNull();
+    expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
   // -- #312: cross-file imports via URL --
@@ -135,10 +239,7 @@ templates:
       ["modules/consent.stagebook.yaml", moduleYaml],
     ]);
 
-    const result = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    );
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
 
     // Imports should have been fetched from the same repo + branch
     expect(fetch).toHaveBeenCalledWith(
@@ -148,9 +249,11 @@ templates:
     );
 
     // The template invocation resolved during expansion
-    expect(result.treatmentFile.introSequences?.[0].introSteps[0].name).toBe(
+    expect(result.treatmentFile).not.toBeNull();
+    expect(result.treatmentFile!.introSequences?.[0].introSteps[0].name).toBe(
       "consent",
     );
+    expect(result.diagnostics).toEqual([]);
   });
 
   it("throws a clear error when an imported file 404s (#312)", async () => {
@@ -178,19 +281,14 @@ introSequences:
       // modules/missing.stagebook.yaml not routed → 404
     ]);
 
-    await expect(
-      loadTreatmentFromUrl(
-        "https://github.com/org/repo/blob/main/treatment.yaml",
-        fetch,
-      ),
-    ).rejects.toThrow(
+    await expect(loadTreatmentFromUrl(BLOB_URL, fetch)).rejects.toThrow(
       /Failed to fetch imported file 'modules\/missing\.stagebook\.yaml'.*HTTP 404.*same repo/s,
     );
   });
 
   // -- #483: prompt locale-consistency on load --
 
-  it("rejects when a he treatment references an untagged (en) prompt (#483)", async () => {
+  it("flags a he treatment referencing an untagged (en) prompt as a diagnostic (#483)", async () => {
     const rootYaml = `
 treatments:
   - name: t
@@ -215,12 +313,17 @@ introSequences:
       ["prompts/q.prompt.md", "---\ntype: noResponse\n---\nhello\n"],
     ]);
 
-    await expect(
-      loadTreatmentFromUrl(
-        "https://github.com/org/repo/blob/main/treatment.yaml",
-        fetch,
-      ),
-    ).rejects.toThrow(/authored in locale "en".*declares locale "he"/s);
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+
+    // Locale mismatch doesn't block rendering — preview still available.
+    expect(result.treatmentFile).not.toBeNull();
+    const localeDiag = result.diagnostics.find((d) =>
+      /authored in locale "en".*declares locale "he"/s.test(d.message),
+    );
+    expect(localeDiag).toBeDefined();
+    // Tagged with the offending prompt's own path, not the treatment file.
+    expect(localeDiag!.file).toBe("prompts/q.prompt.md");
+    expect(localeDiag!.severity).toBe("error");
   });
 
   it("loads cleanly when the prompt is tagged with the treatment's locale (#483)", async () => {
@@ -251,14 +354,13 @@ introSequences:
       ],
     ]);
 
-    const result = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    );
-    expect(result.treatmentFile.treatments[0].name).toBe("t");
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+    expect(result.treatmentFile).not.toBeNull();
+    expect(result.treatmentFile!.treatments[0].name).toBe("t");
+    expect(result.diagnostics).toEqual([]);
   });
 
-  it("does not reject on locale grounds when the prompt can't be fetched (#483)", async () => {
+  it("does not flag a locale mismatch when the prompt can't be fetched (#483)", async () => {
     // A missing prompt 404s; the locale rule skips it rather than emitting a
     // spurious mismatch. (Runtime rendering surfaces the missing file.)
     const rootYaml = `
@@ -285,11 +387,10 @@ introSequences:
       // prompts/q.prompt.md not routed → 404
     ]);
 
-    const result = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    );
-    expect(result.treatmentFile.treatments[0].name).toBe("t");
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+    expect(result.treatmentFile).not.toBeNull();
+    expect(result.treatmentFile!.treatments[0].name).toBe("t");
+    expect(result.diagnostics).toEqual([]);
   });
 
   it("never fetches a schema-rejected prompt path for the locale check (#483)", async () => {
@@ -318,15 +419,16 @@ introSequences:
 `;
     const fetch = routedFetch([["treatment.yaml", rootYaml]]);
 
-    const err = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    ).catch((e: unknown) => e);
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
 
     // Rejected on schema grounds (relative-path rule), not locale grounds.
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toMatch(/relative path/);
-    expect((err as Error).message).not.toMatch(/authored in locale/);
+    expect(result.treatmentFile).toBeNull();
+    expect(
+      result.diagnostics.some((d) => /relative path/.test(d.message)),
+    ).toBe(true);
+    expect(
+      result.diagnostics.some((d) => /authored in locale/.test(d.message)),
+    ).toBe(false);
     // And the gated path was never fetched.
     const fetchedUrls = (fetch.mock.calls as unknown[][]).map(
       (args) => args[0] as string,
@@ -360,15 +462,16 @@ treatments:
       ["prompts/consent.prompt.md", "---\ntype: noResponse\n---\nhello\n"],
     ]);
 
-    await expect(
-      loadTreatmentFromUrl(
-        "https://github.com/org/repo/blob/main/treatment.yaml",
-        fetch,
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+    expect(result.treatmentFile).not.toBeNull();
+    expect(
+      result.diagnostics.some((d) =>
+        /intro sequence "i".*declares locale "he"/s.test(d.message),
       ),
-    ).rejects.toThrow(/intro sequence "i".*declares locale "he"/s);
+    ).toBe(true);
   });
 
-  it("surfaces every mismatching prompt, not just the first (#483)", async () => {
+  it("surfaces every mismatching prompt as its own diagnostic (#483)", async () => {
     const rootYaml = `
 treatments:
   - name: t
@@ -397,13 +500,15 @@ introSequences:
       ["prompts/b.prompt.md", "---\ntype: noResponse\n---\nb\n"],
     ]);
 
-    const err = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    ).catch((e: unknown) => e);
-
-    expect(err).toBeInstanceOf(TreatmentValidationError);
-    expect((err as TreatmentValidationError).issues).toHaveLength(2);
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
+    const localeDiags = result.diagnostics.filter((d) =>
+      /authored in locale/.test(d.message),
+    );
+    expect(localeDiags).toHaveLength(2);
+    expect(localeDiags.map((d) => d.file).sort()).toEqual([
+      "prompts/a.prompt.md",
+      "prompts/b.prompt.md",
+    ]);
   });
 
   it("supports transitive imports (A imports B imports C) (#312)", async () => {
@@ -452,10 +557,7 @@ templates:
       ["surveys/shared.stagebook.yaml", sharedYaml],
     ]);
 
-    const result = await loadTreatmentFromUrl(
-      "https://github.com/org/repo/blob/main/treatment.yaml",
-      fetch,
-    );
+    const result = await loadTreatmentFromUrl(BLOB_URL, fetch);
 
     // Transitive import (shared.stagebook.yaml) was fetched relative to
     // its parent file (surveys/tipi.stagebook.yaml), not relative to the
@@ -467,7 +569,8 @@ templates:
     );
 
     // The nested template was resolved through both layers
-    const introStep = result.treatmentFile.introSequences?.[0].introSteps[0];
+    expect(result.treatmentFile).not.toBeNull();
+    const introStep = result.treatmentFile!.introSequences?.[0].introSteps[0];
     expect(introStep?.elements?.[0]).toMatchObject({
       type: "submitButton",
       buttonText: "Continue",
