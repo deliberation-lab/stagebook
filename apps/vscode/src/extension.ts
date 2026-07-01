@@ -17,6 +17,7 @@ import { findClosestMatch } from "./lib/levenshtein";
 import { UnrecognizedKeyQuickFixProvider } from "./lib/unrecognizedKeyQuickFix";
 import { isWithinWorkspace, relativizePath } from "./lib/filePaths";
 import { runPool } from "./lib/runPool";
+import { buildFindExcludeGlob } from "./lib/findExclude";
 import {
   summarizeDiagnostics,
   formatValidationStatusBar,
@@ -358,6 +359,22 @@ const WORKSPACE_VALIDATION_CONCURRENCY = 4;
 const OPEN_PROBLEMS_COMMAND = "workbench.actions.view.problems";
 
 /**
+ * Set a single top-of-file error diagnostic when a swept file can't be read.
+ * Uses `source: "stagebook"` so `updateWorkspaceStatusBar` counts it — a read
+ * failure must not be reported as a clean scan.
+ */
+function setReadErrorDiagnostic(uri: vscode.Uri, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  const diag = new vscode.Diagnostic(
+    new vscode.Range(0, 0, 0, 1),
+    `Stagebook could not read this file: ${message}`,
+    vscode.DiagnosticSeverity.Error,
+  );
+  diag.source = "stagebook";
+  diagnosticCollection.set(uri, [diag]);
+}
+
+/**
  * Validate every Stagebook file in the workspace, not just the ones the user
  * has opened this session (issue #442). Globs `**\/*.stagebook.yaml` and
  * `**\/*.prompt.md` (honoring `files.exclude` / `search.exclude` via
@@ -381,9 +398,22 @@ async function validateWorkspace(
       title: "Stagebook: validating workspace…",
     },
     async () => {
+      // Honor the user's configured excludes. `findFiles` drops both
+      // `files.exclude` and `search.exclude` as soon as a concrete exclude
+      // glob is passed, so merge them (plus node_modules) ourselves.
+      const excludeGlob = buildFindExcludeGlob(
+        vscode.workspace
+          .getConfiguration("files")
+          .get<Record<string, unknown>>("exclude") ?? {},
+        vscode.workspace
+          .getConfiguration("search")
+          .get<Record<string, unknown>>("exclude") ?? {},
+        ["**/node_modules/**"],
+      );
+
       const [treatments, prompts] = await Promise.all([
-        vscode.workspace.findFiles("**/*.stagebook.yaml", "**/node_modules/**"),
-        vscode.workspace.findFiles("**/*.prompt.md", "**/node_modules/**"),
+        vscode.workspace.findFiles("**/*.stagebook.yaml", excludeGlob),
+        vscode.workspace.findFiles("**/*.prompt.md", excludeGlob),
       ]);
 
       // Prefer the live editor buffer when a file is open so workspace results
@@ -407,14 +437,45 @@ async function validateWorkspace(
           // The user explicitly asked to re-validate, so bypass the
           // source-equality short-circuit for this run.
           lastValidatedSource.delete(uri.toString());
-          await validateTreatmentSourceAt(uri, await readSource(uri));
+          let source: string;
+          try {
+            source = await readSource(uri);
+          } catch (e) {
+            // A matched file can become unreadable between findFiles and the
+            // read (deleted, permissions). runPool swallows task rejections,
+            // so surface it as a diagnostic rather than letting the URI count
+            // as a clean scan.
+            setReadErrorDiagnostic(uri, e);
+            return;
+          }
+          await validateTreatmentSourceAt(uri, source);
         }),
         ...prompts.map((uri) => async () => {
-          validatePromptSourceAt(uri, await readSource(uri));
+          let source: string;
+          try {
+            source = await readSource(uri);
+          } catch (e) {
+            setReadErrorDiagnostic(uri, e);
+            return;
+          }
+          validatePromptSourceAt(uri, source);
         }),
       ];
 
       await runPool(tasks, WORKSPACE_VALIDATION_CONCURRENCY);
+
+      // Drop the source-equality cache for scanned files that aren't currently
+      // open. Those files get no `onDidCloseTextDocument` to clear the stamp,
+      // so leaving it set would let a later open hit the shortcut and keep
+      // stale cross-file diagnostics after an import/prompt/asset changes on
+      // disk. Open files keep their stamp (live editing manages it).
+      const openKeys = new Set(
+        vscode.workspace.textDocuments.map((d) => d.uri.toString()),
+      );
+      for (const uri of treatments) {
+        const key = uri.toString();
+        if (!openKeys.has(key)) lastValidatedSource.delete(key);
+      }
 
       updateWorkspaceStatusBar(statusBar, [...treatments, ...prompts]);
     },
