@@ -13,18 +13,23 @@
  *
  * Design (kept deliberately conservative — only flag *provably* dead gates):
  *
- *   - Resolve each prompt-answer condition's referenced prompt to its bounded
- *     value domain (multipleChoice options, dropdown options, slider snap
- *     points). Flag only when EVERY domain member makes `compare()` return
+ *   - For enumerable-domain prompts (single-select multipleChoice, dropdown)
+ *     resolve the condition's referenced prompt to the exact set of `.value`s
+ *     it stores — text options for a text-mode choice, numeric points for a
+ *     numeric-mode one (the label is stored separately, so it is NOT a possible
+ *     `.value`). Flag only when EVERY domain member makes `compare()` return
  *     strictly `false`. `compare()` returning `undefined` (a type it can't
- *     decide — text option vs numeric comparator, an invalid regex, …) is
- *     "can't prove dead" and stays silent. This reuses the exact runtime
- *     comparator over the exact stored values, so the rule can't drift from
- *     runtime coercion (string "6" vs int 6, list-vs-numeric option storage).
+ *     decide — text option vs numeric comparator, …) is "can't prove dead" and
+ *     stays silent. Reusing the exact runtime comparator over the exact stored
+ *     values means the rule can't drift from runtime coercion ("6" vs 6).
+ *   - `slider` isn't enumerated (it reaches every snap point `min + k*interval`
+ *     in `[min, max]`, not just the labeled ticks); it's reasoned about
+ *     analytically against the range endpoints, and `equals`/`isOneOf` are only
+ *     flagged when the target is fully outside `[min, max]`.
  *   - `openResponse` is free text, so value comparators can't be disproven —
- *     but its length is bounded by `minLength`/`maxLength`, so
- *     `hasLengthAtLeast N` with `maxLength < N` (and the `hasLengthAtMost`
- *     mirror) IS provably dead.
+ *     but `TextArea` blocks input past `maxLength`, so `hasLengthAtLeast N` with
+ *     `maxLength < N` IS provably dead. (`minLength` is not a storage bound —
+ *     shorter values still save — so the `hasLengthAtMost` mirror is not used.)
  *   - Negative comparators (`doesNotEqual` / `doesNotInclude` / `doesNotMatch`
  *     / `isNotOneOf`) and `exists` / `doesNotExist` are satisfiable via the
  *     undefined initial state (the answer is absent at mount, #348) — skipped.
@@ -261,52 +266,106 @@ function buildPromptNameToFiles(
   return map;
 }
 
-/** The bounded set of scalar values a single-valued prompt can store, or
- *  `null` when the prompt has no statically-checkable scalar domain
- *  (openResponse — handled separately; multi-select, listSorter, noResponse —
- *  skipped). Both option labels and numeric points are included so the rule is
- *  robust to whether the runtime stores a label or a point for numeric-mode
- *  choices: over-approximating the domain can only suppress a flag, never
- *  invent one. */
+/** The bounded set of scalar values a single-valued choice prompt stores in
+ *  `.value`, or `null` when the prompt has no statically-checkable scalar
+ *  domain (openResponse and slider are handled separately; multi-select,
+ *  listSorter, noResponse are skipped). Mirrors runtime storage exactly
+ *  (`Prompt.tsx`): a numeric-mode multipleChoice stores the numeric point (the
+ *  label lives in a separate field), while a text-mode choice stores the label.
+ *  Feeding the wrong one would let a `.value` condition be judged against
+ *  values the runtime never stores there. */
 function scalarDomain(parsed: PromptFileType): unknown[] | null {
   switch (parsed.metadata.type) {
     case "multipleChoice":
       if (parsed.metadata.select === "multiple") return null;
-      return [...parsed.responseItems, ...parsed.responsePoints];
+      return parsed.responsePoints.length > 0
+        ? [...parsed.responsePoints]
+        : [...parsed.responseItems];
     case "dropdown":
       return [...parsed.responseItems];
-    case "slider":
-      return [...parsed.responsePoints];
     default:
       return null;
   }
 }
 
-/** For openResponse (free text bounded only by length), decide whether a
- *  length comparator is provably impossible. Returns `null` when not
- *  provable. */
+/** For a slider, decide whether a comparator is provably impossible against its
+ *  reachable value set — every snap point `min + k*interval` in `[min, max]`
+ *  (see `Slider.tsx`), NOT only the labeled ticks in the prompt body. Returns a
+ *  human-readable reason when provable, else `null`. Range comparators are
+ *  decided by the endpoints; `equals`/`isOneOf` are only flagged when the
+ *  target is fully outside `[min, max]` (an in-range value might land on an
+ *  unlabeled snap point, so it's left alone to keep false positives at zero). */
+function sliderDeadReason(
+  parsed: PromptFileType,
+  comparator: string,
+  value: unknown,
+): string | null {
+  if (parsed.metadata.type !== "slider") return null;
+  const { min, max } = parsed.metadata;
+  const range = `[${min}, ${max}]`;
+  const toNum = (v: unknown): number => (typeof v === "number" ? v : Number(v));
+
+  if (comparator === "equals" || comparator === "isOneOf") {
+    const targets = comparator === "isOneOf" ? value : [value];
+    if (!Array.isArray(targets) || targets.length === 0) return null;
+    const nums = targets.map(toNum);
+    // Only provable when every target is a finite number outside the range;
+    // a non-numeric or in-range target means "can't prove dead".
+    if (!nums.every((n) => Number.isFinite(n) && (n < min || n > max))) {
+      return null;
+    }
+    return `the slider only ranges over ${range}, so no reachable value ${
+      comparator === "equals" ? "equals" : "is one of"
+    } ${describeValue(value)}`;
+  }
+
+  const n = toNum(value);
+  if (!Number.isFinite(n)) return null;
+  switch (comparator) {
+    case "isAtLeast":
+      return n > max
+        ? `the slider maxes out at ${max}, so no value is at least ${n}`
+        : null;
+    case "isAbove":
+      return n >= max
+        ? `the slider maxes out at ${max}, so no value is above ${n}`
+        : null;
+    case "isAtMost":
+      return n < min
+        ? `the slider bottoms out at ${min}, so no value is at most ${n}`
+        : null;
+    case "isBelow":
+      return n <= min
+        ? `the slider bottoms out at ${min}, so no value is below ${n}`
+        : null;
+    default:
+      // includes / matches / hasLength* are string operations on a number —
+      // undecidable, so never flagged.
+      return null;
+  }
+}
+
+/** For openResponse (free text), decide whether a length comparator is provably
+ *  impossible. Returns `null` when not provable.
+ *
+ *  Only `hasLengthAtLeast` vs `maxLength` is provable: `TextArea` blocks
+ *  keystrokes past `maxLength`, so a response can never be longer than it. The
+ *  `hasLengthAtMost`/`minLength` mirror is deliberately NOT checked — `TextArea`
+ *  uses `minLength` only for the character counter and still saves shorter
+ *  intermediate values as the participant types, so a short value IS reachable
+ *  and flagging it would be a false positive. */
 function openResponseLengthDeadReason(
   parsed: PromptFileType,
   comparator: string,
   value: unknown,
 ): string | null {
   if (parsed.metadata.type !== "openResponse") return null;
+  if (comparator !== "hasLengthAtLeast") return null;
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return null;
-  const { minLength, maxLength } = parsed.metadata;
-  if (
-    comparator === "hasLengthAtLeast" &&
-    maxLength !== undefined &&
-    maxLength < n
-  ) {
+  const { maxLength } = parsed.metadata;
+  if (maxLength !== undefined && maxLength < n) {
     return `the prompt's maxLength is ${maxLength}, so no response can be ${n} characters or longer`;
-  }
-  if (
-    comparator === "hasLengthAtMost" &&
-    minLength !== undefined &&
-    minLength > n
-  ) {
-    return `the prompt's minLength is ${minLength}, so every response is longer than ${n} characters`;
   }
   return null;
 }
@@ -415,17 +474,28 @@ export function checkUnsatisfiableConditions(
 
     const reference = formatReference(ref);
     const valuePath = [...path, "value"];
+    const prefix = `Unsatisfiable condition: \`${reference} ${comparator} ${describeValue(value)}\``;
 
-    // openResponse: length comparators only.
+    // openResponse (length bounds) and slider (numeric range) are reasoned
+    // about analytically rather than by enumerating a value domain.
     if (parsed.metadata.type === "openResponse") {
       const reason = openResponseLengthDeadReason(parsed, comparator, value);
       if (reason !== null) {
         issues.push({
           path: valuePath,
           reference,
-          message:
-            `Unsatisfiable condition: \`${reference} ${comparator} ${describeValue(value)}\` ` +
-            `can never be true — ${reason}.`,
+          message: `${prefix} can never be true — ${reason}.`,
+        });
+      }
+      continue;
+    }
+    if (parsed.metadata.type === "slider") {
+      const reason = sliderDeadReason(parsed, comparator, value);
+      if (reason !== null) {
+        issues.push({
+          path: valuePath,
+          reference,
+          message: `${prefix} can never be true — ${reason}.`,
         });
       }
       continue;
@@ -439,8 +509,8 @@ export function checkUnsatisfiableConditions(
       path: valuePath,
       reference,
       message:
-        `Unsatisfiable condition: \`${reference} ${comparator} ${describeValue(value)}\` ` +
-        `can never be true. The referenced ${parsed.metadata.type} can only produce: ${describeDomain(parsed)}. ` +
+        `${prefix} can never be true. ` +
+        `The referenced ${parsed.metadata.type} can only produce: ${describeDomain(parsed)}. ` +
         `No value satisfies the comparator — did the option wording change since the condition was written?`,
     });
   }

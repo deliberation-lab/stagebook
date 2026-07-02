@@ -173,14 +173,6 @@ describe("checkUnsatisfiableConditions", () => {
       expect(issues[0].message).toContain("40");
     });
 
-    test("flags openResponse `hasLengthAtMost` below minLength", () => {
-      const issues = checkUnsatisfiableConditions(
-        fileWith([leaf("hasLengthAtMost", 5)]),
-        domains({ "q.prompt.md": openResponse({ minLength: 10 }) }),
-      );
-      expect(issues).toHaveLength(1);
-    });
-
     test("flags a dead leaf nested inside an `all:` operator", () => {
       const issues = checkUnsatisfiableConditions(
         fileWith({ all: [leaf("equals", "Nope")] }),
@@ -210,6 +202,38 @@ describe("checkUnsatisfiableConditions", () => {
         );
         expect(issues, cmp).toHaveLength(1);
       }
+    });
+
+    test("flags slider `equals` fully outside the [min, max] range", () => {
+      const issues = checkUnsatisfiableConditions(
+        fileWith([leaf("equals", 999)]),
+        domains({ "q.prompt.md": slider(0, 100, [0, 50, 100]) }),
+      );
+      expect(issues).toHaveLength(1);
+    });
+
+    test("flags slider `isOneOf` when every target is outside the range", () => {
+      const issues = checkUnsatisfiableConditions(
+        fileWith([leaf("isOneOf", [999, 1000])]),
+        domains({ "q.prompt.md": slider(0, 100, [0, 100]) }),
+      );
+      expect(issues).toHaveLength(1);
+    });
+
+    test("flags numeric `equals` against numeric-mode points (labels are not `.value`s)", () => {
+      // Numeric-mode multipleChoice stores the point in `.value`; the label is
+      // separate. A label that happens to be a numeric string must not suppress
+      // a dead gate for a point that doesn't exist.
+      const issues = checkUnsatisfiableConditions(
+        fileWith([leaf("equals", 3)]),
+        domains({
+          "q.prompt.md": mcNumeric([
+            [1, "3"],
+            [5, "7"],
+          ]),
+        }),
+      );
+      expect(issues).toHaveLength(1);
     });
 
     test("flags numeric `equals` against small-integer text labels (compare coerces)", () => {
@@ -262,6 +286,24 @@ describe("checkUnsatisfiableConditions", () => {
       const issues = checkUnsatisfiableConditions(
         fileWith([leaf("isAtLeast", 50)]),
         domains({ "q.prompt.md": slider(0, 100, [0, 50, 100]) }),
+      );
+      expect(issues).toEqual([]);
+    });
+
+    test("passes slider `equals` on an in-range but UNLABELED snap point", () => {
+      // Labels only the endpoints, but 50 is a reachable snap point
+      // (min + k*interval). Must not be flagged as dead. (Regression: #498)
+      const issues = checkUnsatisfiableConditions(
+        fileWith([leaf("equals", 50)]),
+        domains({ "q.prompt.md": slider(0, 100, [0, 100]) }),
+      );
+      expect(issues).toEqual([]);
+    });
+
+    test("passes slider `isOneOf` when one target is in range", () => {
+      const issues = checkUnsatisfiableConditions(
+        fileWith([leaf("isOneOf", [50, 999])]),
+        domains({ "q.prompt.md": slider(0, 100, [0, 100]) }),
       );
       expect(issues).toEqual([]);
     });
@@ -342,10 +384,10 @@ describe("checkUnsatisfiableConditions", () => {
       expect(issues).toEqual([]);
     });
 
-    test("skips openResponse hasLengthAtMost when minLength is unset", () => {
+    test("skips openResponse hasLengthAtMost even when below minLength (minLength doesn't block saving short values)", () => {
       const issues = checkUnsatisfiableConditions(
-        fileWith([leaf("hasLengthAtMost", 0)]),
-        domains({ "q.prompt.md": openResponse({}) }),
+        fileWith([leaf("hasLengthAtMost", 5)]),
+        domains({ "q.prompt.md": openResponse({ minLength: 10 }) }),
       );
       expect(issues).toEqual([]);
     });
